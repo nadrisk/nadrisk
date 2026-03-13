@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { Link } from "react-router-dom";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const HeroSection = () => {
@@ -23,13 +24,13 @@ const HeroSection = () => {
         >
           Nadrisk
         </h1>
-        <a
-          href="#about"
+        <Link
+          to="/news"
           className="mt-8 px-8 py-3 text-sm font-medium tracking-widest uppercase border border-foreground/40 text-foreground hover:bg-foreground/10 transition-all duration-300 rounded-sm opacity-0 animate-fade-up"
           style={{ animationDelay: "0.6s" }}
         >
           Read More
-        </a>
+        </Link>
       </div>
 
       {/* Scroll indicator */}
