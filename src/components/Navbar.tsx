@@ -15,7 +15,7 @@ const Navbar = () => {
       </div>
 
       <Link to="/" className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
-        <img src={logo} alt="Nadrisk" className="h-8 w-8 invert" />
+        <img src={logo} alt="Nadrisk" className="h-8 w-8" />
         <span className="text-xs font-medium tracking-[0.25em] text-foreground uppercase">Nadrisk</span>
       </Link>
 
