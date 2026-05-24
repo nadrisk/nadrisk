@@ -21,12 +21,6 @@ const Navbar = () => {
 
       <div className="flex items-center gap-4">
         <a
-          href="mailto:contact@nadrisk.com"
-          className="hidden sm:inline-flex px-5 py-2 text-xs font-medium tracking-wider uppercase border border-foreground/30 text-foreground hover:bg-foreground hover:text-background transition-all duration-300 rounded-sm"
-        >
-          Book Now
-        </a>
-        <a
           href="https://instagram.com"
           target="_blank"
           rel="noopener noreferrer"
