@@ -39,16 +39,6 @@ export const newsEntries: NewsEntry[] = [
     link: { url: "https://europe2025.raster-media.net/repetition/", text: "Check out my entry." },
   },
   {
-    title: "Biltravenium (PAKAL Remix)",
-    description: "One of the tracks from my Cyberneuro EP has been remixed by the legendary PAKAL from the Cyberneuro Discord! He's given it a jazzy twist—check it out!",
-    date: "28 Mar. 2025",
-  },
-  {
-    title: "Protocol EP",
-    description: "This EP is my tribute to Cyberneuro, the movement pioneered by Billain. Inspired by the crew's energy and innovation, it's packed with twisted bass, intricate design, and cyberpunk rhythms. Big respect to Cyberneuro—this one's for the movement!",
-    date: "20 Mar. 2025",
-  },
-  {
     title: '"Vihor" got featured on Hiljadu Decibela',
     description: "'Vihor' was featured on the legendary Slovenian 'Radio Študent'! Huge thanks to Radio Študent!",
     date: "19 Mar. 2025",
@@ -90,20 +80,9 @@ export const newsEntries: NewsEntry[] = [
     youtubeId: "Omm6xwZShUs",
   },
   {
-    title: "BH Demo Liga",
-    description: "Check out this massive Spotify playlist showcasing the best of Bosnia's alternative music scene—featuring yours truly and many other amazing artists! Huge thanks to O.P. BHRT for the support!",
-    date: "29 Oct. 2024",
-  },
-  {
     title: "KARAI",
     description: "Check out this Hip-Hop collab I did with the rap duo Skankagram and Zima! This track features one of my favorite beats I've ever created!",
     date: "25 Aug. 2024",
-  },
-  {
-    title: "Dua Lipa - Illusion (Nadrisk Remix)",
-    description: "I joined the Skiomusic Dua Lipa Remix Contest! This might be one of my dirtiest Dubstep tracks.",
-    date: "22 Aug. 2024",
-    link: { url: "https://skiomusic.com/nadrisk/dua-lipa-illusion-nadrisk-remix", text: "Check it out" },
   },
   {
     title: "Honored to be Featured in HAAD's Latest Story!",
@@ -177,24 +156,9 @@ export const newsEntries: NewsEntry[] = [
     date: "5 Nov. 2023",
   },
   {
-    title: "I joined the HTIF Beat Battle",
-    description: "Thrilled to share that my track snagged 6th place in Flume's Discord beat battle!",
-    date: "6 Sep. 2023",
-  },
-  {
     title: "Cold Air (Single)",
     description: 'I released my new track "Cold Air". This track is reminiscent of the Megaton EP.',
     date: "2 Sep. 2023",
-  },
-  {
-    title: "Mystic Work (EP)",
-    description: "I released six new tracks! These compositions seamlessly navigate the intersection of cinematic and electronic music. Leveraging new sound design techniques developed over the past few months, I've crafted a sonic experience that pushes boundaries.",
-    date: "23 Apr. 2023",
-  },
-  {
-    title: "Triler feat. Chutx",
-    description: "Nadrisk and Chutx strike again! This is probably the greatest beat I've ever made and Chutx best performance.",
-    date: "12 Mar. 2023",
   },
   {
     title: "Vision Radio",
@@ -205,16 +169,6 @@ export const newsEntries: NewsEntry[] = [
     title: "MArteLive Europe Semifinals",
     description: "I won the MArteLive Europe Semifinals as the best DJ/Producer in the Blue Area! This achievement means a lot, and I want to express my gratitude for all the support you've given me. Thank you from the bottom of my heart <3",
     date: "15 Oct. 2022",
-  },
-  {
-    title: "Magla (EP)",
-    description: "Magla got an update! I added three new tracks to the Magla collection and released them on Bandcamp. Enjoy!",
-    date: "7 Oct. 2022",
-  },
-  {
-    title: "Megaton (EP)",
-    description: "First EP! I just released eight new tracks. They are dark and moody and I can't wait for you to check them out.",
-    date: "7 Oct. 2022",
   },
   {
     title: "Charting in the Top 15",
