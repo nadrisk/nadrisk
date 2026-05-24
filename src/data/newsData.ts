@@ -58,7 +58,7 @@ export const newsEntries: NewsEntry[] = [
     title: "Blank (Single)",
     description: "I just dropped a new track called 'Blank'! It's a Trip-Hop piece, a style I've been eager to explore for a while.",
     date: "20 Feb. 2025",
-    youtubeId: "YCk8mDLNyMY",
+    youtubeId: "QcJvoTKeWzg",
   },
   {
     title: "Vihor / Databent 360 VR Visualizer",
