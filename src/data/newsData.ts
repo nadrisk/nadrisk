@@ -75,7 +75,7 @@ export const newsEntries: NewsEntry[] = [
     title: "Vacant Glow (Single)",
     description: "I released a haunting track called 'Vacant Glow.' This release is particularly special because the melody came to me during a sleepless night, guiding me into rest and inspiring the entire piece.",
     date: "30 Oct. 2024",
-    youtubeId: "nAblmS7WcNs",
+    youtubeId: "B0ARPEYMmvs",
   },
   {
     title: "Nadrisk | Selections",
