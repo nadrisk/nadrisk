@@ -74,11 +74,11 @@
 
 @layer utilities {
   .text-glow {
-    text-shadow: 0 0 20px hsl(270 60% 55% / 0.5), 0 0 40px hsl(270 80% 65% / 0.2);
+    text-shadow: 0 0 20px hsl(165 70% 42% / 0.5), 0 0 40px hsl(270 50% 35% / 0.3);
   }
 
   .glitch-line {
-    background: linear-gradient(90deg, transparent 0%, hsl(270 60% 55% / 0.1) 50%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, hsl(165 70% 42% / 0.15) 50%, transparent 100%);
   }
 }
 
