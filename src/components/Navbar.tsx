@@ -14,9 +14,6 @@ const Navbar = () => {
         </Link>
       </div>
 
-      <Link to="/" aria-label="Nadrisk" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-        <img src={logo} alt="Nadrisk" className="h-9 w-9" />
-      </Link>
 
       <div className="flex items-center gap-4">
         <a
