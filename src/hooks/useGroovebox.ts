@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
-import { createFx, fxEco, loadWorklets, setFxEco, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
+import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, type ArpParams } from "@/audio/arp";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
@@ -184,7 +184,7 @@ export function useGroovebox() {
     slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime(s.level / 100, e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
-  useEffect(() => { Tone.getTransport().bpm.value = bpm; }, [bpm]);
+  useEffect(() => { Tone.getTransport().bpm.value = bpm; setFxBpm(bpm); const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s)); }, [bpm]);
   // Shorter scheduler look-ahead = tighter sequencer response; eco keeps a safer buffer for weak CPUs.
   useEffect(() => {
     setFxEco(eco); Tone.getContext().lookAhead = eco ? 0.1 : 0.03;

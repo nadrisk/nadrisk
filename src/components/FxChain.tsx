@@ -1,13 +1,16 @@
 import { memo } from "react";
 import { ChevronLeft, ChevronRight, Plus, Power, X } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { FX_DEFS, FX_TYPES, makeFx, type FxType, type FxUnit } from "@/audio/effects";
+import { FX_DEFS, FX_TYPES, SYNC_DIVS, makeFx, type FxType, type FxUnit } from "@/audio/effects";
 
-const fmt = (k: string, v: number) =>
-  k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
+const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
+  k === "sync" ? SYNC_DIVS[Math.round(v)][0] : (k === "rate" || k === "time") && p.sync ? "synced"
+  : k === "threshold" || k === "makeup" ? `${v} dB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)} ms`
+  : k === "speed" || k === "smooth" ? `${Math.round(v * 100)}%`
+  : k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || (k === "manual" && v > 50) ? `${Math.round(v).toLocaleString()} Hz`
   : k === "manual" ? `${v} ms` : k === "time" ? `${Math.round(v * 1000)} ms` : k === "rate" ? (v === 0 ? "static" : `${v} Hz`) : k === "size" ? `${v} s` : String(v);
-const label = (k: string) => (k === "env" ? "env follow" : k === "reduce" ? "downsample" : k);
+const label = (k: string) => (k === "env" ? "env follow" : k === "reduce" ? "downsample" : k === "sync" ? "bpm sync" : k);
 
 function FxChain({ slotName, fx, onChange }: { slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void }) {
   const set = (i: number, p: Partial<FxUnit>) => onChange(fx.map((f, j) => (j === i ? { ...f, ...p } : f)));
@@ -25,7 +28,7 @@ function FxChain({ slotName, fx, onChange }: { slotName: string; fx: FxUnit[]; o
               <button aria-label="Remove effect" onClick={() => onChange(fx.filter((_, j) => j !== i))}><X size={12} /></button>
             </span></header>
             {Object.entries(def.params).map(([k, r]) => { const [, min, max, step] = r as number[];
-              return <div key={k} className="gb-param"><div className="parameter-label">{label(k)}<span>{fmt(k, f.params[k])}</span></div>
+              return <div key={k} className="gb-param"><div className="parameter-label">{label(k)}<span>{fmt(k, f.params[k], f.params)}</span></div>
                 <Slider aria-label={`${def.label} ${k}`} min={min} max={max} step={step} value={[f.params[k]]} onValueChange={([v]) => set(i, { params: { ...f.params, [k]: v } })} className="patch-slider" /></div>; })}
           </section></div>; })}
       <span className="gb-cable" aria-hidden="true" />
