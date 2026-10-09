@@ -188,8 +188,9 @@ export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params
   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .002);
   // Decay rings out; a held/tied note keeps the body alive until release so glides stay audible.
   amp.gain.setTargetAtTime(peak * .55, t + .002, p.decay / 3);
-  amp.gain.setTargetAtTime(0, t + hold, Math.min(p.decay, .25) / 3 + .01);
-  const end = t + hold + Math.min(p.decay, .25) * 2 + .1;
+  // Release honors the full decay value (up to 4 s) so the slider stays audible across its range.
+  amp.gain.setTargetAtTime(0, t + hold, p.decay / 3 + .01);
+  const end = t + hold + p.decay * 2 + .1;
   const v = finish(srcs, nodes, end, amp);
   v.glide = (delta, a, time) => glideParams([osc.frequency, sub.frequency], delta, a, time);
   return v;
