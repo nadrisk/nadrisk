@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Download, Save, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { GrooveSet } from "@/hooks/useGroovebox";
+import { packSamples, unpackSamples } from "@/audio/sampleStore";
 
 const KEY = "nadrisk.sets.v1", N = 8;
 const read = (): (GrooveSet | null)[] => { try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.from({ length: N }, (_, i) => v[i] ?? null); } catch { return Array(N).fill(null); } };
@@ -19,14 +20,15 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
   const save = () => { const n = sets.slice(); n[sel] = getSet(name.trim() || `SET ${sel + 1}`); if (store(n)) setMsg(`saved to slot ${sel + 1}`); };
   const load = () => { const st = sets[sel]; if (st) { applySet(st); setMsg(`loaded "${st.name}"`); } };
   const del = () => { const n = sets.slice(); n[sel] = null; if (store(n)) setMsg("slot cleared"); };
-  const exportSet = () => {
-    const st = sets[sel] ?? getSet(name || "set");
+  const exportSet = async (bundle: boolean) => {
+    const base = sets[sel] ?? getSet(name || "set");
+    const st = bundle ? { ...base, samples: await packSamples(base.slots.map(x => x.sampler?.sampleId ?? "")) } : base;
     const url = URL.createObjectURL(new Blob([JSON.stringify(st, null, 1)], { type: "application/json" }));
-    const a = document.createElement("a"); a.href = url; a.download = `${st.name.replace(/[^\w-]+/g, "_")}.nadrisk.json`; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = `${st.name.replace(/[^\w-]+/g, "_")}${bundle ? ".bundle" : ""}.nadrisk.json`; a.click(); URL.revokeObjectURL(url);
   };
   const importSet = async (f?: File) => {
     if (!f) return;
-    try { const st = JSON.parse(await f.text()) as GrooveSet; if (!Array.isArray(st.slots)) throw 0; const n = sets.slice(); n[sel] = st; store(n); setName(st.name); applySet(st); setMsg(`imported "${st.name}"`); }
+    try { const raw = JSON.parse(await f.text()) as GrooveSet & { samples?: Parameters<typeof unpackSamples>[0] }; if (!Array.isArray(raw.slots)) throw 0; await unpackSamples(raw.samples); const { samples: _s, ...st } = raw; const n = sets.slice(); n[sel] = st; store(n); setName(st.name); applySet(st); setMsg(`imported "${st.name}"`); }
     catch { setMsg("not a valid set file"); }
     if (file.current) file.current.value = "";
   };
@@ -40,10 +42,11 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
       <Button variant="ghost" size="sm" onClick={save}><Save size={12} /> save</Button>
       <Button variant="ghost" size="sm" disabled={!sets[sel]} onClick={load}><Upload size={12} /> load</Button>
       <Button variant="ghost" size="sm" disabled={!sets[sel]} onClick={del}><Trash2 size={12} /> clear</Button>
-      <Button variant="ghost" size="sm" onClick={exportSet}><Download size={12} /> export</Button>
+      <Button variant="ghost" size="sm" onClick={() => void exportSet(false)}><Download size={12} /> export</Button>
+      <Button variant="ghost" size="sm" onClick={() => void exportSet(true)}><Download size={12} /> export + samples</Button>
       <Button variant="ghost" size="sm" onClick={() => file.current?.click()}><Upload size={12} /> import</Button>
       <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => void importSet(e.target.files?.[0])} />
     </div>
-    <span className="patch-small">{msg || "tap a slot · save / load · double-tap to load · imported sample files aren't stored"}</span>
+    <span className="patch-small">{msg || "tap a slot · save / load · double-tap to load · samples are remembered on this device · use export + samples to move a set with its audio"}</span>
   </div>;
 }
