@@ -103,9 +103,11 @@ export function useGroovebox() {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute) return;
     const t = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate = 60 / bpmRef.current / 4;
-    if (s.engine === "drum") playDrum(e.ctx, dest, s.drum, t, vel);
-    else if (s.engine === "sampler") playSampler(e.ctx, dest, s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel);
-    else { e.mono[i]?.stop(t); e.mono[i] = playSynth(e.ctx, dest, s.synth, s.note, t, gate, vel); }
+    // Choke: each slot keeps one voice, like hardware drum machines, so fast rolls never pile up nodes.
+    e.mono[i]?.stop(t);
+    e.mono[i] = s.engine === "drum" ? playDrum(e.ctx, dest, s.drum, t, vel)
+      : s.engine === "sampler" ? playSampler(e.ctx, dest, s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel)
+      : playSynth(e.ctx, dest, s.synth, s.note, t, gate, vel);
   }, []);
 
   const ensure = useCallback(async () => {
