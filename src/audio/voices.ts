@@ -138,7 +138,7 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } }, glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
-const tubeCache = new Map<number, Float32Array>(), harmCache = new Map<number, Float32Array>();
+const tubeCache = new Map<number, Float32Array<ArrayBuffer>>(), harmCache = new Map<number, Float32Array<ArrayBuffer>>();
 /** Asymmetric soft clip: the positive half saturates harder, adding even (tube-like) harmonics. */
 function tubeCurve(drive: number) { const k = Math.round(drive * 20) / 20; let c = tubeCache.get(k); if (c) return c; const g = 1 + k * 9; c = new Float32Array(1024);
   for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = (x >= 0 ? Math.tanh(g * x) : Math.tanh(g * .65 * x) / .9) / Math.tanh(g); } tubeCache.set(k, c); return c; }
