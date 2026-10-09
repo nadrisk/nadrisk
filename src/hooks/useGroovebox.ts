@@ -27,7 +27,7 @@ const defaultSlots = (): Slot[] => [
   base("RIDE", "drum", 48, { level: 45, drum: drum({ kind: "hat", pitch: 600, pitchEnv: 0, noise: 0.3, fm: 4, fmRatio: 2.3, ring: 0.8, ringFreq: 2200, filter: "highpass", cutoff: 4000, env: { a: 0.001, d: 0.6, s: 0, r: 0.2 } }) }),
   base("BASS A", "synth", 36),
   base("BASS FM", "synth", 31, { synth: synth({ osc1: { wave: "sine", gain: 0.9, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 12, fine: 0, mode: "fm", fmAmount: 1.5 }, cutoff: 2000, filterEnv: 1 }) }),
-  base("LEAD", "synth", 60, { synth: synth({ osc1: { wave: "additive", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "triangle", gain: 0.3, coarse: 0, fine: 9 }, cutoff: 3000, lfo: { wave: "sine", rate: 5, depth: 0.02, target: "pitch" } }) }),
+  base("LEAD", "synth", 60, { synth: synth({ osc1: { wave: "additive", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "triangle", gain: 0.3, coarse: 0, fine: 9, mode: "mix", fmAmount: 1 }, cutoff: 3000, lfo: { wave: "sine", rate: 5, depth: 0.02, target: "pitch" } }) }),
   base("SQUARE", "synth", 67, { synth: synth({ osc1: { wave: "square", gain: 0.6, coarse: 0, fine: -6 }, osc2: { wave: "square", gain: 0.4, coarse: -12, fine: 6, mode: "mix", fmAmount: 1 }, cutoff: 1800, pitchEnv: 12, pitchDecay: 0.04 }) }),
   base("VOX", "sampler"),
   base("CHOP", "sampler", 48, { sampler: sampler({ pitch: 7, start: 0.2 }) }),
