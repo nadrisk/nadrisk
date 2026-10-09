@@ -1,4 +1,10 @@
 # Groovebox roadmap
+- [ ] NAD branding: remove visible Max associations
+- [ ] Metallic feedback, spectral gate, sidechain, DJ filter and reverse delay
+- [ ] Choke groups, chord pads and lush poly synth
+- [ ] Per-pad modulation sequencing and four phrase memories
+- [ ] Global envelope time, tension riser, tape stop, reverse and stutter performance rack
+- [ ] Verify new sound routing, controls and set recall
 - [x] Stage 1: 16-pad rack, 16-step sequencer, master volume + scope
 - [x] Per-slot instrument types: sampler, drum synth, Operator-style mono synth
 - [x] Per-slot volume and pan

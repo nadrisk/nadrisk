@@ -60,7 +60,7 @@ export default function Groovebox() {
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
   return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
-    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.maxpat</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
+    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-grid">
       <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
         <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} />
