@@ -1,4 +1,5 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
+import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines, Dice5, Eraser, Play, Leaf, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,11 +32,11 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
 const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ...(slot.engine === "drum" || slot.engine === "poly" ? [] : [["pitch", "pitch"]]),
   ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
 
-const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, mod, onToggle, onSelect, onLength, onModValue, onModTarget }: {
-  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; mod: boolean; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onModValue: (r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, mod, offset, loop, onToggle, onSelect, onLength, onModValue, onModTarget }: {
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; mod: boolean; offset: number; loop: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onModValue: (r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
   const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onModValue(r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
-  return <div className={`gb-seq-grid ${mod ? "is-mod" : ""}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : step % len, lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+  return <div className={`gb-seq-grid ${mod ? "is-mod" : ""}`}>{pattern.map((row, r) => { const len = lengths[r], pl = loop ? Math.min(len, loop) : len, cur = step < 0 ? -1 : (((step - offset) % pl) + pl) % pl, lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
     <select className="gb-row-len" aria-label={`${slots[r].name} loop length`} value={len} onChange={e => onLength(r, +e.target.value)}>{Array.from({ length: 16 }, (_, k) => <option key={k} value={k + 1}>{k + 1}</option>)}</select>
@@ -43,9 +44,10 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, val = lane?.values[c] ?? .5, label = v === 3 ? "glide" : v === 2 ? "tie" : v === 1 ? "hit" : "off";
       const canDrag = mod && v !== 0 && tv !== "off";
       return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${canDrag ? ` mod ${Math.round(val * 100)}%` : ""}`}
-        onPointerDown={ev => { ev.preventDefault(); if (canDrag) { ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } else onToggle(r, c); }}
+        onPointerDown={ev => { if (canDrag) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } }}
+        onClick={() => { if (!canDrag) onToggle(r, c); }}
         onPointerMove={ev => { if (canDrag && ev.buttons) drag(r, c, ev); }}
-        onKeyDown={ev => { if (canDrag && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onModValue(r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }}
+        onKeyDown={ev => { if (canDrag && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onModValue(r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
         className={`gb-step ${v === 1 ? "on" : v === 2 ? "tie" : v === 3 ? "glide" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${canDrag ? "mod" : ""}`}>
         {canDrag && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
       </button>; })}
@@ -72,19 +74,21 @@ const Mixer = memo(function Mixer({ slots, selected, onEq, onLevel, onMute, onSo
       {([["low", "Low 100 Hz", -15, 15, 0.5, "dB"], ["mid", "Mid", -15, 15, 0.5, "dB"], ["midFreq", "Mid freq", 200, 6000, 10, "Hz"], ["high", "High 9 kHz", -15, 15, 0.5, "dB"]] as const).map(([k, l, mn, mx, st, u]) =>
         <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{slots[selected].eq[k]} {u}</span></div>
           <Slider aria-label={`${l} EQ`} min={mn} max={mx} step={st} value={[slots[selected].eq[k]]} onValueChange={([v]) => onEq(selected, { ...slots[selected].eq, [k]: v })} className="patch-slider" /></div>)}
-      <Button variant="ghost" size="sm" onClick={() => onEq(selected, { low: 0, mid: 0, midFreq: 1000, high: 0 })}>flat</Button>
     </div>
   </div>;
 });
 
 export default function Groovebox() {
   const g = useGroovebox();
+  const rootRef = useRef<HTMLElement>(null);
+  const midi = useMidi(rootRef, g.hit, g.release);
+  const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
   const [modView, setModView] = useState(false);
   const onEq = useCallback((i: number, eq: Slot["eq"]) => g.updateSlot(i, { eq }), [g.updateSlot]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
-  return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
+  return <section ref={rootRef} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-grid">
       <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
@@ -106,6 +110,14 @@ export default function Groovebox() {
           <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
           <Slider aria-label="Master volume" min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
           <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
+          <div className="gb-cols2">
+            <Button variant="ghost" size="sm" className={`gb-eco ${pf.clipOn ? "on" : ""}`} aria-label="Master clipper" aria-pressed={pf.clipOn} onClick={() => setPf({ clipOn: !pf.clipOn })}>clipper {pf.clipOn ? "on" : "off"}</Button>
+            <Button variant="ghost" size="sm" className={`gb-eco ${pf.limitOn ? "on" : ""}`} aria-label="Master limiter" aria-pressed={pf.limitOn} onClick={() => setPf({ limitOn: !pf.limitOn })}>limiter {pf.limitOn ? "on" : "off"}</Button>
+          </div>
+          <div className="parameter-label">Clip drive <span>{pf.clipDrive} dB</span></div>
+          <Slider aria-label="Clip drive" disabled={!pf.clipOn} min={0} max={18} step={0.5} value={[pf.clipDrive]} onValueChange={([clipDrive]) => setPf({ clipDrive })} className="patch-slider" />
+          <div className="parameter-label">Limiter ceiling <span>{pf.ceiling} dB</span></div>
+          <Slider aria-label="Limiter ceiling" disabled={!pf.limitOn} min={-12} max={0} step={0.5} value={[pf.ceiling]} onValueChange={([ceiling]) => setPf({ ceiling })} className="patch-slider" />
           <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
           <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
         </div>
@@ -120,6 +132,19 @@ export default function Groovebox() {
       </PatchNode>
       <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
         <FxChain slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} />
+      </PatchNode>
+
+      <PatchNode label="midi.map~" tag="MIDI · LEARN" className="gb-mixnode">
+        <div className="node-body gb-midi" data-midi-ui>
+          <div className="gb-seq-tools" style={{ padding: 0, flexWrap: "wrap" }}>
+            <Button variant="ghost" size="sm" onClick={midi.connect}>{midi.devices ? `${midi.devices.length} device${midi.devices.length === 1 ? "" : "s"}` : "connect midi"}</Button>
+            <Button variant="ghost" size="sm" className={`gb-eco ${midi.learn ? "on" : ""}`} style={{ marginTop: 0 }} aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>learn {midi.learn ? "on" : "off"}</Button>
+            <Button variant="ghost" size="sm" disabled={!midi.target || !Object.values(midi.maps).includes(midi.target)} onClick={() => midi.target && midi.unmap(midi.target)}>unmap</Button>
+            <Button variant="ghost" size="sm" disabled={!Object.keys(midi.maps).length} onClick={midi.clear}>clear all</Button>
+          </div>
+          <span className="patch-small">{midi.status || (midi.learn ? (midi.target ? `move a knob or hit a key for: ${midi.target}` : "tap any control, then move a knob or hit a key") : `${Object.keys(midi.maps).length} mappings · notes 36–51 play pads 1–16`)}</span>
+          {midi.devices && midi.devices.length > 0 && <span className="patch-small">{midi.devices.join(" · ")}</span>}
+        </div>
       </PatchNode>
 
       <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">
@@ -144,7 +169,7 @@ export default function Groovebox() {
           <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
         </div>
         <span className="patch-small gb-seq-hint">{modView ? "pick a target per row · drag lit steps up / down to set the amount" : "tap: hit → tie → glide → off · glide slides to the step's pitch mod"}</span>
-        <StepGrid bank={g.bank} mod={modView} onModValue={g.setModValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
+        <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} mod={modView} onModValue={g.setModValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
       </PatchNode>
     </div>
     <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.queued != null ? `PATTERN ${g.queued ? "B" : "A"} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>

@@ -409,3 +409,34 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .arp-field { font-size: 8px; }
 .gb-view .gb-bank { width: auto; min-width: 44px; padding: 0 8px; }
 .gb-row-mod.on { color: hsl(var(--foreground)); background: hsl(var(--primary) / .25); }
+
+/* Sequencer: tools wrap, horizontal swipe scrolls, mod drags stay vertical. */
+.gb-seq-tools { flex-wrap: wrap; align-items: center; }
+.gb-seq-grid { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.gb-step.mod { touch-action: pan-x; }
+.gb-loops { margin: 6px 0; }
+.gb-loops .gb-bank { flex: 1; }
+.gb-midi { display: flex; flex-direction: column; gap: 8px; }
+.midi-learn [data-midi-mapped] { outline: 1px dashed hsl(var(--accent)); outline-offset: 1px; }
+.midi-learn [data-midi-target] { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.midi-learn .gb-grid { cursor: crosshair; }
+@media (max-width: 760px) { .gb-seq-tools button { padding: 0 8px; } .gb-row-label { width: 58px; } }
+
+/* iPad / touch tablets: two-column rack, bigger pads and touch targets. */
+@media (min-width: 744px) and (max-width: 1366px) and (pointer: coarse) {
+  .gb-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1rem; padding: 1rem; }
+  .gb-rack, .gb-master, .gb-editor { grid-column: auto; grid-row: auto; }
+  .gb-seq { grid-column: 1 / -1; }
+  .gb-pads { gap: 8px; }
+  .gb-pad { aspect-ratio: 1; min-height: 88px; }
+  .gb-pad-name { font-size: 12px; }
+  .gb-row { grid-template-columns: 96px 44px 110px repeat(16, minmax(28px, 1fr)); min-width: 0; gap: 4px; }
+  .gb-step { height: 32px; }
+  .gb-seq-grid.is-mod .gb-step { height: 48px; }
+  .gb-row-len { height: 30px; font-size: 11px; }
+  .gb-row-mod { max-width: 110px; }
+  .gb-seq-tools button, .gb-bank { min-height: 36px; font-size: 11px; }
+  .gb-ms { min-width: 34px; min-height: 34px; }
+  .gb-grid [role="slider"] { width: 22px; height: 22px; }
+  .gb-grid .gb-mute, .gb-grid .gb-kinds button { min-height: 38px; }
+}
