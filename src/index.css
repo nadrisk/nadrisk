@@ -344,3 +344,6 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-ms.m-on { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
 .gb-ms.s-on { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
 .gb-strip-name { font-size: 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--foreground)); background: none; border: 0; }
+.gb-vslider[data-orientation="vertical"] { flex-direction: column; width: 18px; justify-content: center; }
+.gb-vslider[data-orientation="vertical"] > span:first-child { width: 6px; height: 100%; }
+.gb-vslider[data-orientation="vertical"] > span:first-child > span { width: 100%; height: auto; }
