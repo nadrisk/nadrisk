@@ -34,9 +34,9 @@ function Partials({ values, onChange }: { values: number[]; onChange: (v: number
     const r = e.currentTarget.getBoundingClientRect(); const v = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
     onChange(values.map((x, j) => (j === i ? Math.round(v * 100) / 100 : x)));
   };
-  return <div className="gb-partials">{values.map((v, i) => <div key={i} className="gb-partial" aria-label={`Harmonic ${i < 8 ? i * 2 + 1 : (i - 8) * 2 + 2}`} role="slider" aria-valuenow={v} aria-valuemin={0} aria-valuemax={1}
+  return <div className="gb-partials">{values.map((v, i) => <div key={i} className="gb-partial" aria-label={`Harmonic ${i + 1}`} role="slider" aria-valuenow={v} aria-valuemin={0} aria-valuemax={1}
     onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); set(i, e); }} onPointerMove={e => { if (e.buttons) set(i, e); }}>
-    <i style={{ height: `${v * 100}%` }} className={i < 8 ? "odd" : "even"} /><span>{i < 8 ? i * 2 + 1 : (i - 8) * 2 + 2}</span></div>)}</div>;
+    <i style={{ height: `${v * 100}%` }} className={i % 2 ? "even" : "odd"} /><span>{i + 1}</span></div>)}</div>;
 }
 
 function SampleView({ peaks, start, onStart }: { peaks: number[] | null; start: number; onStart: (v: number) => void }) {
@@ -84,7 +84,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <label className="parameter-label gb-inline">Name<input className="gb-input" value={slot.name} maxLength={10} onChange={e => onChange({ name: e.target.value.toUpperCase() })} /></label>
       <button className={`gb-mute ${slot.mute ? "selected" : ""}`} onClick={() => onChange({ mute: !slot.mute })}>{slot.mute ? "MUTED" : "MUTE"}</button>
     </div>
-    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
+    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly", "808"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
     <div className="gb-cols2">
       <P label="Volume" value={slot.level} min={0} max={100} fmt={v => `${v}%`} onChange={level => onChange({ level })} />
       <P label="Pan" value={slot.pan} min={-1} max={1} step={0.01} fmt={v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} onChange={pan => onChange({ pan })} />
@@ -102,6 +102,22 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <div className="gb-cols3">{(["cutoff", "res", "detune", "sub", "pulse", "chorus"] as const).map(k => <P key={k} label={`Poly ${k}`} value={slot.poly[k]} min={k === "cutoff" ? 40 : 0} max={k === "cutoff" ? 16000 : k === "res" ? 8 : k === "detune" ? 30 : 1} step={k === "cutoff" ? 10 : .01} onChange={v => onChange({ poly: { ...slot.poly, [k]: v } })} />)}</div>
       <Env env={slot.poly.env} onChange={env => onChange({ poly: { ...slot.poly, env } })} />
     </Group>}
+    {slot.engine === "808" && (() => { const b = slot.bass, B = (p: Partial<typeof b>) => onChange({ bass: { ...b, ...p } }); return <>
+      <P label="Note" value={slot.note} min={20} max={60} fmt={noteName} onChange={note => onChange({ note })} />
+      <Group title="nad.808 · pitch"><div className="gb-cols2">
+        <P label="Pitch env" value={b.pitchEnv} min={0} max={48} fmt={v => `+${v} st`} onChange={pitchEnv => B({ pitchEnv })} />
+        <P label="Env decay" value={b.pitchDecay} min={0.005} max={0.4} step={0.005} fmt={ms} onChange={pitchDecay => B({ pitchDecay })} />
+      </div></Group>
+      <Group title="amp"><div className="gb-cols2">
+        <P label="Release" value={b.decay} min={0.05} max={4} step={0.01} fmt={ms} onChange={decay => B({ decay })} />
+        <P label="Click" value={b.click} min={0} max={1} step={0.01} fmt={pct} onChange={click => B({ click })} />
+      </div></Group>
+      <Group title="weight"><div className="gb-cols3">
+        <P label="Tube drive" value={b.tube} min={0} max={1} step={0.01} fmt={pct} onChange={tube => B({ tube })} />
+        <P label="Harmonics" value={b.harmonics} min={0} max={1} step={0.01} fmt={pct} onChange={harmonics => B({ harmonics })} />
+        <P label="Tone" value={b.tone} min={200} max={16000} step={10} fmt={hz} onChange={tone => B({ tone })} />
+      </div></Group>
+    </>; })()}
     {slot.engine === "drum" && <>
       <Seg label="Drum type" options={["kick", "snare", "hat"] as const} value={d.kind} onChange={kind => D({ kind })} />
       <Group title="pitch"><div className="gb-cols3">
@@ -138,7 +154,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
           </div>
           {k === "osc2" && s.osc2.mode === "fm" && <P label="FM amount" value={s.osc2.fmAmount} min={0} max={10} step={0.05} onChange={fmAmount => S({ osc2: { ...s.osc2, fmAmount } })} />}
         </Group>; })}
-      <Group title="partials · odd / even (osc 1 additive)"><Partials values={s.partials} onChange={partials => S({ partials, osc1: { ...s.osc1, wave: "additive" } })} /></Group>
+      <Group title="partials · harmonics 1–16 (osc 1 additive)"><Partials values={s.partials} onChange={partials => S({ partials, osc1: { ...s.osc1, wave: "additive" } })} /></Group>
       <Group title="amp"><P label="Noise" value={s.noise} min={0} max={1} step={0.01} fmt={pct} onChange={noise => S({ noise })} /><Env env={s.env} onChange={env => S({ env })} /></Group>
       <Group title="filter"><Seg label="Filter type" options={FILTERS} value={s.filter} onChange={filter => S({ filter })} /><div className="gb-cols3">
         <P label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} fmt={hz} onChange={cutoff => S({ cutoff })} />

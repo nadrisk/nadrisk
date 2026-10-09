@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import type { MutableRefObject } from "react";
 import { AudioLines, Dice5, Eraser, Play, Leaf, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import Waveform from "./Waveform";
 import SetBank from "./SetBank";
 import PerformanceRack from "./PerformanceRack";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
-import { useState } from "react";
 import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 

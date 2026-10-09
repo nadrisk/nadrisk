@@ -377,3 +377,33 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .arp-controls .arp-field { min-width: 0; max-width: 100%; }
 .arp-controls .arp-field select { max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .gb-bank.queued { animation: none; } }
+
+/* Sequencer: glide steps, mod row target, draggable mod fills */
+.gb-row { grid-template-columns: 80px 34px 92px repeat(16, minmax(18px, 1fr)); min-width: 660px; }
+.gb-row-mod { max-width: 92px; color: hsl(var(--muted-foreground)); }
+.gb-row-mod.on { color: hsl(var(--primary)); border-color: hsl(var(--primary) / .6); }
+.gb-step.glide { background: repeating-linear-gradient(135deg, hsl(var(--accent) / .85) 0 3px, hsl(var(--accent) / .35) 3px 6px); border-color: hsl(var(--accent)); }
+.gb-seq-grid.is-mod .gb-step { height: 34px; }
+.gb-step.mod { background: hsl(var(--muted)); cursor: ns-resize; touch-action: none; overflow: hidden; }
+.gb-step-fill { position: absolute; left: 0; right: 0; bottom: 0; background: hsl(var(--primary)); pointer-events: none; }
+.gb-step.mod.on { border-color: hsl(var(--accent)); }
+.gb-seq-hint { display: block; padding: 0 0 6px; }
+@media (max-width: 760px) { .gb-row { grid-template-columns: 58px 34px 70px repeat(16, 22px); min-width: 0; } .gb-row-mod { max-width: 70px; } }
+
+/* Channel EQ under the mixer */
+.gb-eq { display: grid; grid-template-columns: auto repeat(4, minmax(110px, 1fr)) auto; gap: 10px; align-items: end; padding-top: 8px; border-top: 1px solid hsl(var(--border)); font-family: 'JetBrains Mono', monospace; }
+.gb-eq-title { font-size: 10px; text-transform: uppercase; color: hsl(var(--accent)); align-self: center; white-space: nowrap; }
+@media (max-width: 760px) { .gb-eq { grid-template-columns: 1fr 1fr; } .gb-eq-title { grid-column: 1 / -1; } }
+
+/* Visualizers dock edge to edge with shared borders */
+.gb-vis { gap: 0; border: 1px solid hsl(var(--border)); }
+.gb-vis .gb-vis-unit { width: auto; border: 0; box-shadow: inset -1px -1px 0 hsl(var(--border)); }
+.gb-vis.row .gb-vis-unit:last-child { box-shadow: inset 0 -1px 0 hsl(var(--border)); }
+.gb-vis .gb-vis-screen { border: 0; border-top: 1px solid hsl(var(--border)); margin: 0 -8px -8px; }
+
+/* Phrase sequencer controls: one height, one type size, aligned baselines */
+.arp-head, .arp-controls { align-items: flex-end; gap: 6px; }
+.arp-head .gb-mute, .arp-controls .gb-mute { height: 28px; min-width: 92px; padding: 0 10px; font-size: 10px; line-height: 1; letter-spacing: .06em; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+.arp-head .patch-small { align-self: center; }
+.arp-field select, .arp-field input { height: 28px; font-size: 10px; min-width: 64px; }
+.arp-field { font-size: 8px; }
