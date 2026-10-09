@@ -8,3 +8,4 @@
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Advanced rhythmic, ducking, multiband and buffer-capture processing uses inline AudioWorklets on the shared audio context, so effects remain audio-clock driven without hosted DSP files.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
+- Step-sequencer modulation is stored per slot per pattern bank (slot.mods[bank].values indexed by step) and applied only on lit steps, so the note grid stays the single place where rhythm lives.
