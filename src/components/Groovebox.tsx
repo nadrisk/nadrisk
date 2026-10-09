@@ -4,6 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import { useGroovebox } from "@/hooks/useGroovebox";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
+import FxChain from "./FxChain";
 import Waveform from "./Waveform";
 
 export default function Groovebox() {
@@ -35,6 +36,10 @@ export default function Groovebox() {
           <Slider aria-label="Master volume" min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
           <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} /></div>
         </div>
+      </PatchNode>
+
+      <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
+        <FxChain slotName={s.name} fx={s.fx} onChange={fx => g.updateSlot(g.selected, { fx })} />
       </PatchNode>
 
       <PatchNode label="step.seq 16" tag="SEQUENCER" className="gb-seq">
