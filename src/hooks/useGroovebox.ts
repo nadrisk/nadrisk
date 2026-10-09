@@ -3,6 +3,10 @@ import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
+// Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
+if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?: boolean }).__nad) {
+  const c = new Tone.Context({ latencyHint: "interactive", lookAhead: 0.03 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
+}
 export type EngineKind = "drum" | "synth" | "sampler";
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[] };
@@ -70,6 +74,7 @@ export function useGroovebox() {
   const [peaks, setPeaks] = useState<(number[] | null)[]>(() => Array(16).fill(null));
   const [error, setError] = useState("");
   const [eco, setEco] = useState(false);
+  const [latency, setLatency] = useState<number | null>(null);
   const slotsRef = useRef(slots); slotsRef.current = slots;
   const patternRef = useRef(pattern); patternRef.current = pattern;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
@@ -115,6 +120,7 @@ export function useGroovebox() {
       patternRef.current.forEach((row, i) => { if (row[st]) { trigger(i, time); Tone.getDraw().schedule(() => flash(i), time); } });
       Tone.getDraw().schedule(() => setStep(st), time);
     }, "16n");
+    { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
     engine.current = { ctx, master, analyser, outs, loop, mono: Array(16).fill(null) };
     slotsRef.current.forEach((s, i) => syncChain(engine.current!, i, s));
     return engine.current;
@@ -169,5 +175,5 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
   const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
 }
