@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ChevronLeft, ChevronRight, Plus, Power, X } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { FX_DEFS, FX_TYPES, makeFx, type FxType, type FxUnit } from "@/audio/effects";
@@ -8,7 +9,7 @@ const fmt = (k: string, v: number) =>
   : k === "manual" ? `${v} ms` : k === "time" ? `${Math.round(v * 1000)} ms` : k === "rate" ? (v === 0 ? "static" : `${v} Hz`) : k === "size" ? `${v} s` : String(v);
 const label = (k: string) => (k === "env" ? "env follow" : k === "reduce" ? "downsample" : k);
 
-export default function FxChain({ slotName, fx, onChange }: { slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void }) {
+function FxChain({ slotName, fx, onChange }: { slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void }) {
   const set = (i: number, p: Partial<FxUnit>) => onChange(fx.map((f, j) => (j === i ? { ...f, ...p } : f)));
   const move = (i: number, d: number) => { const n = [...fx]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; onChange(n); };
   return <div className="gb-fx">
@@ -33,3 +34,5 @@ export default function FxChain({ slotName, fx, onChange }: { slotName: string; 
     <div className="gb-fx-add"><Plus size={12} /> add {FX_TYPES.map(t => <button key={t} onClick={() => onChange([...fx, makeFx(t as FxType)])}>{FX_DEFS[t].label}</button>)}</div>
   </div>;
 }
+
+export default memo(FxChain);
