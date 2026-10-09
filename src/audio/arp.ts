@@ -29,7 +29,7 @@ export function degreeToSemi(scale: ScaleName, deg: number) {
 }
 export const midiOf = (a: ArpParams, deg: number) => (a.octave + 1) * 12 + a.root + degreeToSemi(a.scale, deg);
 export const noteName = (midi: number) => `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
-export function stepSeconds(a: ArpParams, bpm: number) { return a.sync ? (60 / bpm) * RATES[a.rate] * 4 * 0.25 * 4 / 4 : a.freeMs / 1000; }
+export function stepSeconds(a: ArpParams, bpm: number) { return a.sync ? (60 / bpm) * RATES[a.rate] : a.freeMs / 1000; }
 
 export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
   on: false, root: 9, scale: "minor", octave: 3, steps: 8, sync: true, rate: "1/16", freeMs: 150,
