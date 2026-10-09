@@ -7,7 +7,7 @@
 - [ ] Sequencer: 16 bars, grid resolution, note editing, velocity
 - [ ] MIDI input (slots from note 36), pitched synth notes, MIDI learn, saved mappings
 - [ ] Master chain: EQ -> Saturator -> Limiter, each switchable
-- [ ] Audio-reactive visualizer (scope, spectrum, trippy visuals)
+- [x] Audio-reactive visualizer rack (scope, spectrum, meter, imager, spectro, hexdump, bitfield) + phrase randomizer
 - [x] Performance: A/B pattern banks + 16ch mixer (vol/mute/solo)
 - [x] Savable sets (local banks + JSON export/import)
 - [x] Sample recall: device cache, built-in library, folder load, set bundles

@@ -354,3 +354,12 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-set.full { color: hsl(var(--foreground)); border-color: hsl(var(--secondary)); }
 .gb-set.sel { border-color: hsl(var(--primary)); box-shadow: inset 0 0 0 1px hsl(var(--primary)); }
 .gb-set-name { font-size: 9px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.gb-vis { display: grid; gap: 8px; }
+.gb-vis.grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.gb-vis.row { grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); overflow-x: auto; touch-action: pan-x; }
+.gb-vis-unit { min-width: 0; }
+.gb-vis.grid .gb-vis-screen { aspect-ratio: 1 / 1; }
+.gb-vis.row .gb-vis-screen { height: 120px; }
+.gb-vis-screen { border: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.gb-vis-screen .scope-canvas { width: 100%; height: 100%; display: block; }
+.gb-fx-add button.is-on { border-color: hsl(var(--accent)); color: hsl(var(--accent)); }

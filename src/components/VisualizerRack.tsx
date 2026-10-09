@@ -42,7 +42,6 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = taps;
       if (t) { t.l.getFloatTimeDomainData(t.td as Float32Array<ArrayBuffer>); t.r.getFloatTimeDomainData(t.td2 as Float32Array<ArrayBuffer>); t.l.getByteFrequencyData(t.fd as Uint8Array<ArrayBuffer>); }
-      else { t; }
       const L = t?.td, Rr = t?.td2, F = t?.fd;
       if (type !== "waterfall") { c.clearRect(0, 0, w, h); c.strokeStyle = G; c.lineWidth = 1; for (let x = 0; x <= w; x += w / 8) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } for (let y = 0; y <= h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
       c.font = "9px 'JetBrains Mono', monospace";
@@ -54,8 +53,8 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
         for (let b = 0; b < bars; b++) { const i = Math.floor(Math.pow(1024, b / bars)); const v = F ? F[Math.min(1023, i)] / 255 : 0;
           c.fillStyle = v > 0.85 ? R : v > 0.6 ? Y : A; c.fillRect(b * (w / bars), h - v * h, w / bars - 1, v * h); }
       } else if (type === "meter") {
-        const rms = (d?: Float32Array) => { if (!d) return 0; let s = 0, p = 0; for (let i = 0; i < d.length; i++) { s += d[i] * d[i]; p = Math.max(p, Math.abs(d[i])); } return [Math.sqrt(s / d.length), p] as unknown as number; };
-        const [rl, pl] = (rms(L) || [0, 0]) as unknown as number[], [rr, pr] = (rms(Rr) || [0, 0]) as unknown as number[];
+        const rms = (d?: Float32Array): number[] => { if (!d) return [0, 0]; let s = 0, p = 0; for (let i = 0; i < d.length; i++) { s += d[i] * d[i]; p = Math.max(p, Math.abs(d[i])); } return [Math.sqrt(s / d.length), p]; };
+        const [rl, pl] = rms(L), [rr, pr] = rms(Rr);
         pkL = Math.max(pl, pkL * 0.97); pkR = Math.max(pr, pkR * 0.97);
         const db = (v: number) => Math.max(-60, 20 * Math.log10(v || 1e-6)), pos = (v: number) => ((db(v) + 60) / 60) * h;
         [[rl, pkL, 0], [rr, pkR, 1]].forEach(([r, pk, k]) => { const x = 14 + k * (w / 2 - 6), bw = w / 2 - 26;
