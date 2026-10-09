@@ -1,16 +1,17 @@
 import * as Tone from "tone";
+import { loadWorklets } from "./effects";
 // Master tape recorder: an inline AudioWorklet copies the final master output into 16-bit chunks.
-const TAPE = `class NadTape extends AudioWorkletProcessor{constructor(){super();this.on=false;this.port.onmessage=e=>{this.on=e.data};}
+export const TAPE_WORKLET = `class NadTape extends AudioWorkletProcessor{constructor(){super();this.on=false;this.port.onmessage=e=>{this.on=e.data};}
 process(i){const x=i[0];if(this.on&&x&&x.length){const l=x[0].slice(0),r=(x[1]||x[0]).slice(0);this.port.postMessage([l,r],[l.buffer,r.buffer]);}return true;}}
 registerProcessor("nad-tape",NadTape);`;
-let loaded: Promise<void> | null = null;
 export const MAX_TAPE_SEC = 600;
 
 export type Take = { l: Int16Array[]; r: Int16Array[]; frames: number; rate: number };
 const toI16 = (f: Float32Array) => { const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) { const s = Math.max(-1, Math.min(1, f[i])); o[i] = s < 0 ? s * 0x8000 : s * 0x7fff; } return o; };
 
 export async function createTape(source: AudioNode, ctx: BaseAudioContext) {
-  await (loaded ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([TAPE], { type: "application/javascript" }))));
+  // Tone registers a single worklet module per context, so this processor ships inside the shared effects bundle.
+  await loadWorklets();
   const node = Tone.getContext().createAudioWorkletNode("nad-tape") as unknown as AudioWorkletNode;
   const sink = ctx.createGain(); sink.gain.value = 0;
   source.connect(node); node.connect(sink).connect(ctx.destination);

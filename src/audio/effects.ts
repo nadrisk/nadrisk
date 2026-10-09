@@ -59,7 +59,7 @@ class Follow extends AudioWorkletProcessor {
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET], { type: "application/javascript" }))));
 
 let eco = false;
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
