@@ -35,7 +35,7 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
             </>}
             {Object.entries(def.params).filter(([k]) => k !== "mask" && k !== "source").map(([k, r]) => { const [, min, max, step] = r as number[];
               return <div key={k} className="gb-param"><div className="parameter-label">{label(k)}<span>{fmt(k, f.params[k] ?? r[0], f.params)}</span></div>
-                <Slider aria-label={`${def.label} ${k}`} min={min} max={max} step={step} value={[f.params[k] ?? r[0]]} onValueChange={([v]) => set(i, { params: { ...f.params, [k]: v } })} className="patch-slider" /></div>; })}
+                <Slider aria-label={`${def.label} ${k}`} resetValue={[r[0] as number]} min={min} max={max} step={step} value={[f.params[k] ?? r[0]]} onValueChange={([v]) => set(i, { params: { ...f.params, [k]: v } })} className="patch-slider" /></div>; })}
           </section></div>; })}
       <span className="gb-cable" aria-hidden="true" />
       <div className="object-message gb-fx-io">pan~ → master</div>

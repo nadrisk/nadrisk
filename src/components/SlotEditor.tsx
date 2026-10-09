@@ -2,7 +2,8 @@ import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { FolderOpen, Upload } from "lucide-react";
 import { LIBRARY, listCached, type SampleRef } from "@/audio/sampleStore";
 import { Button } from "@/components/ui/button";
-import { CHORDS } from "@/audio/musical";
+import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
+import { RATES, type RateName } from "@/audio/arp";
 import { Slider } from "@/components/ui/slider";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
@@ -96,6 +97,12 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <label className="arp-field">Voicing<select aria-label="Chord voicing" value={slot.chord.type} onChange={e => onChange({ chord: { ...slot.chord, type: e.target.value as keyof typeof CHORDS } })}>{Object.keys(CHORDS).map(c => <option key={c}>{c}</option>)}</select></label>
       <label className="arp-field">Inversion<select aria-label="Chord inversion" value={slot.chord.inversion} onChange={e => onChange({ chord: { ...slot.chord, inversion: +e.target.value } })}>{[0,1,2].map(n => <option value={n} key={n}>{n === 0 ? "Root" : `${n}${n === 1 ? "st" : "nd"}`}</option>)}</select></label>
       <Button variant="outline" size="sm" aria-pressed={slot.chord.spread} onClick={() => onChange({ chord: { ...slot.chord, spread: !slot.chord.spread } })}>Spread {slot.chord.spread ? "on" : "off"}</Button></div>
+      <Seg label="Chord play mode" options={["block", "strum", "arp"] as const} value={slot.chord.play ?? "block"} onChange={(play: ChordPlay) => onChange({ chord: { ...slot.chord, play } })} />
+      {slot.chord.play === "arp" && <div className="arp-controls">
+        <label className="arp-field">Order<select aria-label="Chord arp order" value={slot.chord.arp ?? "up"} onChange={e => onChange({ chord: { ...slot.chord, arp: e.target.value as ChordArp } })}>{["up", "down", "updown", "random"].map(o => <option key={o}>{o}</option>)}</select></label>
+        <label className="arp-field">Rate<select aria-label="Chord arp rate" value={slot.chord.rate ?? "1/16"} onChange={e => onChange({ chord: { ...slot.chord, rate: e.target.value as RateName } })}>{Object.keys(RATES).map(r => <option key={r}>{r}</option>)}</select></label>
+      </div>}
+      {slot.chord.play === "strum" && <P label="Strum time" value={slot.chord.strum ?? 30} min={5} max={150} step={1} fmt={v => `${v} ms`} onChange={strum => onChange({ chord: { ...slot.chord, strum } })} />}
     </Group>}
     {slot.engine === "poly" && <Group title="nad.poly · analog ensemble">
       <P label="Note" value={slot.note} min={24} max={84} fmt={noteName} onChange={note => onChange({ note })} />
@@ -184,6 +191,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
           <P label="Start" value={sm.start} min={0} max={0.95} step={0.005} fmt={pct} onChange={start => M({ start })} />
           <P label="Pitch" value={sm.pitch} min={-24} max={24} fmt={v => `${v} st`} onChange={pitch => M({ pitch })} />
           <button className={`gb-mute ${sm.loop ? "selected" : ""}`} aria-pressed={sm.loop} onClick={() => M({ loop: !sm.loop })}>{sm.loop ? "LOOP ON" : "LOOP OFF"}</button>
+          <button className={`gb-mute ${sm.reverse ? "selected" : ""}`} aria-pressed={!!sm.reverse} aria-label="Reverse sample" onClick={() => M({ reverse: !sm.reverse })}>{sm.reverse ? "REV ON" : "REV OFF"}</button>
         </div>
       </Group>
       <Group title="grain mode">

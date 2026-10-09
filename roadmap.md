@@ -22,3 +22,5 @@
 - [x] Step grid doubles as mod sequencer, glide steps, 808 engine, acid drive, channel EQ, one-row partials, docked visualizers, phrase control touch-up
 - [ ] Phone test of the new features
 - [x] Oct batch: seq responsiveness, channel.eq~ fx (drop flat), master clipper+limiter, seq offset + loop shortener, MIDI learn, sampler grain mode, iPad layout
+- [x] Oct batch 2: sliding loop window, double-click slider reset, sampler reverse, movable layout, LCD display themes, glide moved to phrase.seq (slide steps), chord strum/arp + performance override, pad repeat (hold/latch, in-pad velocity), quantized live recording, step velocity + chance, tape.rec~ master recorder with WAV/MP3 export
+- [ ] Real iPad/phone test of batch 2 (repeat velocity slide, recording timing, tape export size)

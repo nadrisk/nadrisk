@@ -5,12 +5,13 @@ export type ADSR = { a: number; d: number; s: number; r: number };
 export type DrumParams = { kind: "kick" | "snare" | "hat"; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
-const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const v = p.value; p.cancelScheduledValues(at); p.setValueAtTime(v, at); p.setTargetAtTime(v * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
+// Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
+const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
 export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR };
 export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 } });
 
@@ -180,7 +181,7 @@ export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params
   const osc = at(ctx.createOscillator(), t), sub = at(ctx.createOscillator(), t), subG = ctx.createGain();
   osc.frequency.setValueAtTime(clampF(f * 2 ** (p.pitchEnv / 12)), t); osc.frequency.exponentialRampToValueAtTime(f, t + p.pitchDecay + .001);
   sub.frequency.setValueAtTime(f / 2, t); subG.gain.value = p.harmonics * .45;
-  osc.connect(harm); sub.connect(subG).connect(pre);
+  osc.connect(harm); sub.connect(subG).connect(pre); (osc.frequency as AudioParam & { __base?: number }).__base = f; (sub.frequency as AudioParam & { __base?: number }).__base = f / 2;
   const click = at(ctx.createBufferSource(), t), cg = ctx.createGain(); click.buffer = noiseBuffer(ctx);
   cg.gain.setValueAtTime(p.click * .5, t); cg.gain.exponentialRampToValueAtTime(.0001, t + .012); click.connect(cg).connect(lp);
   srcs.push(osc, sub, click); nodes.push(osc, sub, subG, harm, pre, tube, dc, lp, click, cg, amp);

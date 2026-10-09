@@ -17,8 +17,9 @@ export const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A",
 export const RATES = { "1/8": 0.5, "1/8T": 1 / 3, "1/16": 0.25, "1/16T": 1 / 6, "1/32": 0.125 } as const;
 export type RateName = keyof typeof RATES;
 
-export type ArpStep = { on: boolean; deg: number; vel: number; gate: number };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[] };
+/** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
+export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number };
 
 /** Degree span offered in the step pitch picker: two octaves of the scale plus the top root. */
 export const degreeCount = (scale: ScaleName) => SCALES[scale].length * 2 + 1;
@@ -32,7 +33,7 @@ export const noteName = (midi: number) => `${NOTE_NAMES[midi % 12]}${Math.floor(
 export function stepSeconds(a: ArpParams, bpm: number) { return a.sync ? (60 / bpm) * RATES[a.rate] : a.freeMs / 1000; }
 
 export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
-  on: false, root: 9, scale: "minor", octave: 3, steps: 8, sync: true, rate: "1/16", freeMs: 150,
+  on: false, root: 9, scale: "minor", octave: 3, steps: 8, sync: true, rate: "1/16", freeMs: 150, glide: 80,
   cells: Array.from({ length: 16 }, (_, i) => ({ on: [0, 2, 3, 5, 6].includes(i % 8), deg: [0, 0, 2, 4, 4, 3, 7, 4][i % 8], vel: i % 4 === 0 ? 1 : 0.75, gate: 0.5 })),
   ...o,
 });
@@ -45,7 +46,7 @@ export function randomizeArp(a: ArpParams): ArpParams {
     const on = i === 0 || Math.random() < (i % 4 === 0 ? 0.9 : 0.62);
     if (Math.random() < 0.25) deg = [0, n, 4 % n][Math.floor(Math.random() * 3)];
     else deg = Math.max(0, Math.min(span - 1, deg + Math.floor(Math.random() * 5) - 2));
-    return { on, deg, vel: i % 4 === 0 ? 0.85 + Math.random() * 0.15 : 0.45 + Math.random() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(Math.random() * 5)] };
+    return { on, deg, vel: i % 4 === 0 ? 0.85 + Math.random() * 0.15 : 0.45 + Math.random() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(Math.random() * 5)], slide: i > 0 && Math.random() < 0.15 };
   });
   return { ...a, cells };
 }

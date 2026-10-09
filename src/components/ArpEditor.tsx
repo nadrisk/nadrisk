@@ -31,19 +31,24 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
     <div className="arp-grid" style={{ gridTemplateColumns: `repeat(${arp.steps}, minmax(18px, 1fr))` }}>
       {arp.cells.slice(0, arp.steps).map((c, i) => {
         const d = Math.min(c.deg, span - 1);
-        return <button key={i} className={`arp-cell ${c.on ? "on" : "rest"} ${selIdx === i ? "sel" : ""}`} aria-label={`Step ${i + 1} ${c.on ? noteName(midiOf(arp, d)) : "rest"}`}
+        return <button key={i} className={`arp-cell ${c.on ? "on" : "rest"} ${selIdx === i ? "sel" : ""} ${c.on && c.slide && i > 0 ? "slide" : ""}`} aria-label={`Step ${i + 1} ${c.on ? noteName(midiOf(arp, d)) : "rest"}`}
           onClick={() => (selIdx === i ? setCell(i, { on: !c.on }) : setSel(i))}>
           <i style={{ height: `${((d + 1) / span) * 100}%`, opacity: c.on ? 0.35 + c.vel * 0.65 : 0.15 }} />
           <span>{c.on ? noteName(midiOf(arp, d)).replace(/-?\d+$/, "") : "·"}</span>
         </button>;
       })}
     </div>
-    <span className="patch-small">tap a step to select · tap again to toggle note / rest</span>
+    <span className="patch-small">tap a step to select · tap again to toggle note / rest · slide glides into the step</span>
 
     <div className="arp-step">
       <div className="parameter-label">Step {selIdx + 1} pitch <span>{noteName(midiOf(arp, deg))}</span></div>
       <div className="arp-notes" style={{ gridTemplateColumns: `repeat(${span}, minmax(0, 1fr))` }}>
         {Array.from({ length: span }, (_, k) => <button key={k} className={k === deg ? "selected" : ""} aria-pressed={k === deg} onClick={() => setCell(selIdx, { deg: k, on: true })}>{noteName(midiOf(arp, k)).replace(/-?\d+$/, "")}</button>)}
+      </div>
+      <div className="arp-controls">
+        <button className={`gb-mute ${cur.slide ? "selected" : ""}`} aria-pressed={!!cur.slide} aria-label="Step slide" onClick={() => setCell(selIdx, { slide: !cur.slide, on: true })}>{cur.slide ? "SLIDE ON" : "SLIDE OFF"}</button>
+        <div className="gb-param" style={{ flex: 1, minWidth: 140 }}><div className="parameter-label">Glide time<span>{arp.glide ?? 80} ms</span></div>
+          <Slider aria-label="Phrase glide time" resetValue={[80]} min={10} max={400} step={5} value={[arp.glide ?? 80]} onValueChange={([v]) => set({ glide: v })} className="patch-slider" /></div>
       </div>
       <div className="gb-cols2">
         <div className="gb-param"><div className="parameter-label">Velocity<span>{Math.round(cur.vel * 100)}</span></div>
