@@ -1,5 +1,9 @@
-# Redesign
-- [x] Translate Max patching concepts into the Nadrisk site.
-- [x] Add a playable synth with sliders and a live waveform.
-- [x] Restyle the home and news pages without changing their content.
-- [x] Verify sound controls, navigation, and narrow-screen layout.
+# Groovebox roadmap
+- [x] Stage 1: 16-pad rack, 16-step sequencer, master volume + scope
+- [ ] Per-slot instrument types: sampler, drum synth, Operator-style mono synth (2 osc, FM, 16 partials, noise, ADSR, filters, pitch env, LFO)
+- [ ] Per-slot volume, pan, and effect chains
+- [ ] Modular effects: saturation, bitcrush, tape delay, reverb, chorus/flanger/phaser with envelope followers; connections set processing order
+- [ ] Sequencer: 16 bars, grid resolution, note editing, velocity
+- [ ] MIDI input (slots from note 36), pitched synth notes, MIDI learn, saved mappings
+- [ ] Master chain: EQ -> Saturator -> Limiter, each switchable
+- [ ] Audio-reactive visualizer (scope, spectrum, trippy visuals)
