@@ -12,6 +12,8 @@ import ArpEditor from "./ArpEditor";
 import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 import SetBank from "./SetBank";
+import PerformanceRack from "./PerformanceRack";
+import ModEditor from "./ModEditor";
 import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 
@@ -90,8 +92,14 @@ export default function Groovebox() {
         <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
       </PatchNode>
 
+      <PatchNode label={`mod.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PARAMETER SEQUENCER" className="gb-arpnode">
+        <ModEditor slot={s} bank={g.bank} onChange={mods => g.updateSelected({ mods })} />
+      </PatchNode>
+      <PatchNode label="nad.performance~" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
+        <PerformanceRack value={g.performance} onChange={g.setPerformance} />
+      </PatchNode>
       <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
-        <FxChain slotName={s.name} fx={s.fx} onChange={onFx} />
+        <FxChain slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} />
       </PatchNode>
 
       <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">

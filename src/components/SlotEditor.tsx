@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { FolderOpen, Upload } from "lucide-react";
 import { LIBRARY, listCached, type SampleRef } from "@/audio/sampleStore";
+import { Button } from "@/components/ui/button";
+import { CHORDS } from "@/audio/musical";
 import { Slider } from "@/components/ui/slider";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
@@ -82,12 +84,24 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <label className="parameter-label gb-inline">Name<input className="gb-input" value={slot.name} maxLength={10} onChange={e => onChange({ name: e.target.value.toUpperCase() })} /></label>
       <button className={`gb-mute ${slot.mute ? "selected" : ""}`} onClick={() => onChange({ mute: !slot.mute })}>{slot.mute ? "MUTED" : "MUTE"}</button>
     </div>
-    <Seg label="Instrument" options={["drum", "synth", "sampler"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
+    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
     <div className="gb-cols2">
       <P label="Volume" value={slot.level} min={0} max={100} fmt={v => `${v}%`} onChange={level => onChange({ level })} />
       <P label="Pan" value={slot.pan} min={-1} max={1} step={0.01} fmt={v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} onChange={pan => onChange({ pan })} />
     </div>
 
+    <label className="arp-field">Choke group<select aria-label="Choke group" value={slot.choke} onChange={e => onChange({ choke: +e.target.value })}>{[0,1,2,3,4].map(n => <option key={n} value={n}>{n ? `Group ${n}` : "Off"}</option>)}</select></label>
+    {(slot.engine === "sampler" || slot.engine === "poly") && <Group title="chord pad">
+      <div className="arp-controls"><Button variant="outline" size="sm" aria-pressed={slot.chord.on} onClick={() => onChange({ chord: { ...slot.chord, on: !slot.chord.on } })}>CHORD {slot.chord.on ? "ON" : "OFF"}</Button>
+      <label className="arp-field">Voicing<select aria-label="Chord voicing" value={slot.chord.type} onChange={e => onChange({ chord: { ...slot.chord, type: e.target.value as keyof typeof CHORDS } })}>{Object.keys(CHORDS).map(c => <option key={c}>{c}</option>)}</select></label>
+      <label className="arp-field">Inversion<select aria-label="Chord inversion" value={slot.chord.inversion} onChange={e => onChange({ chord: { ...slot.chord, inversion: +e.target.value } })}>{[0,1,2].map(n => <option value={n} key={n}>{n === 0 ? "Root" : `${n}${n === 1 ? "st" : "nd"}`}</option>)}</select></label>
+      <Button variant="outline" size="sm" aria-pressed={slot.chord.spread} onClick={() => onChange({ chord: { ...slot.chord, spread: !slot.chord.spread } })}>Spread {slot.chord.spread ? "on" : "off"}</Button></div>
+    </Group>}
+    {slot.engine === "poly" && <Group title="nad.poly · analog ensemble">
+      <P label="Note" value={slot.note} min={24} max={84} fmt={noteName} onChange={note => onChange({ note })} />
+      <div className="gb-cols3">{(["cutoff", "res", "detune", "sub", "pulse", "chorus"] as const).map(k => <P key={k} label={`Poly ${k}`} value={slot.poly[k]} min={k === "cutoff" ? 40 : 0} max={k === "cutoff" ? 16000 : k === "res" ? 8 : k === "detune" ? 30 : 1} step={k === "cutoff" ? 10 : .01} onChange={v => onChange({ poly: { ...slot.poly, [k]: v } })} />)}</div>
+      <Env env={slot.poly.env} onChange={env => onChange({ poly: { ...slot.poly, env } })} />
+    </Group>}
     {slot.engine === "drum" && <>
       <Seg label="Drum type" options={["kick", "snare", "hat"] as const} value={d.kind} onChange={kind => D({ kind })} />
       <Group title="pitch"><div className="gb-cols3">
