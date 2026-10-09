@@ -5,8 +5,10 @@ export type PerformanceParams = {
   offset: number; loop: number;
   /** Master stage: soft clipper into a brickwall-style limiter, each switchable. */
   clipOn: boolean; clipDrive: number; limitOn: boolean; ceiling: number;
+  /** Performance override for every chord pad: "pad" keeps each pad's own play mode. */
+  chordMode?: "pad" | "block" | "strum" | "arp";
 };
-export const defaultPerformance = (): PerformanceParams => ({ time: 0, tension: 0, style: "sweep", mode: 0, division: 0.25, offset: 0, loop: 0, clipOn: false, clipDrive: 6, limitOn: true, ceiling: -1 });
+export const defaultPerformance = (): PerformanceParams => ({ time: 0, tension: 0, style: "sweep", mode: 0, division: 0.25, offset: 0, loop: 0, clipOn: false, clipDrive: 6, limitOn: true, ceiling: -1, chordMode: "pad" });
 // Cubic soft-knee clipper: linear-ish below the knee, flat at +/-1 (input beyond the curve clamps to the edges).
 const clipCurve = (() => { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1; c[i] = 1.5 * x - .5 * x ** 3; } return c; })();
 export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
