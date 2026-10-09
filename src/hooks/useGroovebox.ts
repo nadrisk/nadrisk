@@ -77,6 +77,18 @@ export function useGroovebox() {
   const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
   useEffect(() => { const p = peaksOf(fallbackBuf()); setPeaks(Array(16).fill(p)); }, []);
 
+  // Phones (iOS especially) only allow audio to start on a tap/click "end" event, not on pointer-down.
+  useEffect(() => {
+    const unlock = () => {
+      const nav = navigator as Navigator & { audioSession?: { type: string } };
+      if (nav.audioSession) nav.audioSession.type = "playback"; // plays even with the iPhone silent switch on
+      void Tone.start();
+      if (Tone.getContext().state === "running") ["touchend", "click", "keydown"].forEach(ev => window.removeEventListener(ev, unlock, true));
+    };
+    ["touchend", "click", "keydown"].forEach(ev => window.addEventListener(ev, unlock, true));
+    return () => ["touchend", "click", "keydown"].forEach(ev => window.removeEventListener(ev, unlock, true));
+  }, []);
+
   const flash = (i: number) => setHits(h => { const n = [...h]; n[i] = Date.now(); return n; });
 
   const trigger = useCallback((i: number, time?: number, vel = 1) => {
@@ -129,7 +141,7 @@ export function useGroovebox() {
 
   const hit = useCallback(async (i: number) => {
     setSelected(i);
-    try { await ensure(); trigger(i); flash(i); } catch { setError("Audio unavailable."); }
+    try { await ensure(); if (Tone.getContext().state !== "running") return; trigger(i); flash(i); } catch { setError("Audio unavailable."); }
   }, [ensure, trigger]);
 
   const updateSlot = (i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
