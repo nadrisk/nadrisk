@@ -137,7 +137,7 @@ export default function Groovebox() {
       <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
         <div className="gb-seq-tools">
           <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
-          <div className="gb-banks"><button className={`gb-bank ${!modView ? "active" : ""}`} aria-pressed={!modView} onClick={() => setModView(false)}>NOTE</button><button className={`gb-bank ${modView ? "active" : ""}`} aria-pressed={modView} onClick={() => setModView(true)}>MOD</button></div>
+          <div className="gb-banks gb-view"><button className={`gb-bank ${!modView ? "active" : ""}`} aria-pressed={!modView} onClick={() => setModView(false)}>NOTE</button><button className={`gb-bank ${modView ? "active" : ""}`} aria-pressed={modView} onClick={() => setModView(true)}>MOD</button></div>
           <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
           <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
           <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>

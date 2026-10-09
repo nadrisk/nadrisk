@@ -407,3 +407,5 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .arp-head .patch-small { align-self: center; }
 .arp-field select, .arp-field input { height: 28px; font-size: 10px; min-width: 64px; }
 .arp-field { font-size: 8px; }
+.gb-view .gb-bank { width: auto; min-width: 44px; padding: 0 8px; }
+.gb-row-mod.on { color: hsl(var(--foreground)); background: hsl(var(--primary) / .25); }
