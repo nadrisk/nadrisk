@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { ADVANCED_WORKLETS } from "./advanced";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
@@ -12,8 +13,13 @@ export const FX_DEFS = {
   phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
-  gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
+  metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01] } },
+  spectral: { label: "spectral.gate~", params: { threshold: [-35, -70, 0, 1], release: [0.08, 0.005, 1, 0.005], floor: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
+  reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -51,7 +57,7 @@ class Follow extends AudioWorkletProcessor {
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS], { type: "application/javascript" }))));
 
 let eco = false;
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
@@ -66,7 +72,7 @@ const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)
 /** LFO rate in Hz, following the tempo when a sync division is chosen. */
 const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
 
-export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>) => void; dispose: () => void };
+export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; keyInput?: AudioNode; dispose: () => void };
 
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
 function impulse(ctx: BaseAudioContext, sec: number) {
@@ -79,19 +85,44 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   const input = ctx.createGain(), output = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain();
   input.connect(dry).connect(output); wet.connect(output);
   const nodes: AudioNode[] = [input, output, dry, wet], oscs: OscillatorNode[] = [];
-  const set = (p: AudioParam, v: number) => p.setTargetAtTime(v, ctx.currentTime, 0.02);
+  let automationTime = ctx.currentTime;
+  const set = (p: AudioParam | undefined, v: number) => { if (p && Number.isFinite(v)) p.setTargetAtTime(v, automationTime, 0.005); };
+  let keyInput: AudioNode | undefined;
+  const worklet = (name: string, inputs = 1) => { const n = Tone.getContext().createAudioWorkletNode(name, { numberOfInputs: inputs, outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(n); return n; };
+  const wp = (n: AudioWorkletNode, p: Record<string, number>, keys: string[]) => keys.forEach(k => set(n.parameters.get(k), p[k]));
   const lfo = () => { const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0; o.connect(g); o.start(); oscs.push(o); nodes.push(o, g); return { o, g }; };
   const follower = () => { const f = Tone.getContext().createAudioWorkletNode("nad-follow", { outputChannelCount: [1] }) as unknown as AudioNode, g = ctx.createGain(); g.gain.value = 0; input.connect(f).connect(g); nodes.push(f, g); return g; };
   let apply: (p: Record<string, number>) => void;
 
-  if (type === "saturation") {
+  if (type === "metal") {
+    const d = ctx.createDelay(.05), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), clip = ctx.createWaveShaper();
+    clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, clip); input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(clip).connect(d);
+    apply = p => { set(d.delayTime, p.time); set(lp.frequency, p.tone); set(fb.gain, Math.min(.96, p.feedback)); };
+  } else if (type === "djfilter") {
+    const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
+    apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
+  } else if (type === "reverseDelay") {
+    const n = worklet("nad-reverse-delay"); input.connect(n).connect(wet);
+    apply = p => { const b = beatsOf(p); wp(n, { ...p, time: b ? Math.min(1.5, b * 60 / fxBpm) : p.time }, ["time", "feedback"]); };
+  } else if (type === "sidechain") {
+    const n = worklet("nad-duck", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
+    apply = p => wp(n, p, ["threshold", "ratio", "depth", "attack", "release"]);
+  } else if (type === "spectral") {
+    const bands = [[20, 120], [120, 400], [400, 1200], [1200, 3500], [3500, 8000], [8000, 20000]].map(([lo, hi]) => {
+      const hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), n = worklet("nad-bandgate"); hp.type = "highpass"; hp.frequency.value = lo; lp.frequency.value = hi; hp.Q.value = lp.Q.value = .707; nodes.push(hp, lp); input.connect(hp).connect(lp).connect(n).connect(wet); return n;
+    });
+    apply = p => bands.forEach(n => wp(n, p, ["threshold", "release", "floor"]));
+  } else if (type === "gate") {
+    const n = worklet("nad-gate"); input.connect(n).connect(wet);
+    apply = p => wp(n, { ...p, rate: rateOf(p), mask: p.mask ?? 21845, steps: p.steps ?? 16 }, ["rate", "mask", "steps", "depth", "smooth"]);
+  } else if (type === "saturation") {
     const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = eco ? "none" : "4x"; nodes.push(sh, lp);
     input.connect(sh).connect(lp).connect(wet); let k = 0;
     apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
     input.connect(cr).connect(wet);
-    apply = p => { set(cr.parameters.get("bits")!, p.bits); set(cr.parameters.get("reduce")!, p.reduce); };
+    apply = p => { set(cr.parameters.get("bits"), p.bits); set(cr.parameters.get("reduce"), p.reduce); };
   } else if (type === "delay") {
     const d = ctx.createDelay(2), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), w = lfo(); nodes.push(d, lp, fb);
     w.o.frequency.value = 0.7; w.g.connect(d.delayTime);
@@ -109,11 +140,9 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const d = ctx.createDelay(0.05), m = lfo(); nodes.push(d); d.delayTime.value = 0.006;
     input.connect(d).connect(wet); m.g.connect(d.delayTime);
     apply = p => { set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * 0.005); };
-  } else if (type === "tremolo" || type === "gate") {
+  } else if (type === "tremolo") {
     const vca = ctx.createGain(), m = lfo(); nodes.push(vca);
-    if (type === "gate") { const sm = ctx.createBiquadFilter(); sm.type = "lowpass"; nodes.push(sm); m.o.type = "square"; m.o.disconnect(); m.o.connect(sm).connect(m.g);
-      apply = p => { const r = rateOf(p); set(m.o.frequency, r); sm.frequency.setTargetAtTime(Math.max(r * 2, 400 * (1 - p.smooth) ** 2 + r * 2), ctx.currentTime, 0.02); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
-    } else apply = p => { set(m.o.frequency, rateOf(p)); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
+    apply = p => { set(m.o.frequency, rateOf(p)); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
     m.g.connect(vca.gain); input.connect(vca).connect(wet);
   } else if (type === "compressor") {
     const c = ctx.createDynamicsCompressor(), mk = ctx.createGain(); nodes.push(c, mk);
@@ -134,7 +163,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     aps.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
     apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
-  const update = (p: Record<string, number>) => { const mix = p.mix ?? (type === "ott" ? p.depth : 1); apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
+  const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = p.mix ?? (type === "ott" ? p.depth : 1); apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
   update(init);
-  return { input, output, update, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
+  return { input, output, update, keyInput, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }

@@ -7,6 +7,8 @@ export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number;
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string };
 export type Voice = { stop: (at: number) => void };
+export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR };
+export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 } });
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
 let noiseCache: { ctx: BaseAudioContext; buf: AudioBuffer } | null = null;
@@ -29,7 +31,10 @@ function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
 
 function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode): Voice {
   srcs.forEach(s => { s.start(Math.max(0, (s as unknown as { _t?: number })._t ?? 0)); s.stop(end); });
-  srcs[0].onended = () => nodes.forEach(n => n.disconnect());
+  let cleaned = false;
+  const cleanup = () => { if (cleaned) return; cleaned = true; nodes.forEach(n => n.disconnect()); };
+  const timer = window.setTimeout(cleanup, Math.max(0, (end - amp.context.currentTime) * 1000) + 200);
+  srcs[0].onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: at => { amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); } };
 }
 const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
@@ -119,7 +124,9 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const g = p.loop ? gate : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
   const end = adsr(amp.gain, t, p.env, g, vel);
   src.start(t, offset); src.stop(end);
-  src.onended = () => { src.disconnect(); amp.disconnect(); };
+  const cleanup = () => { src.disconnect(); amp.disconnect(); };
+  const timer = window.setTimeout(cleanup, Math.max(0, (end - ctx.currentTime) * 1000) + 200);
+  src.onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } } };
 }
 
@@ -137,4 +144,25 @@ export function peaksOf(buf: AudioBuffer, n = 160) {
   const d = buf.getChannelData(0), size = Math.floor(d.length / n), out: number[] = [];
   for (let i = 0; i < n; i++) { let m = 0; for (let j = i * size; j < (i + 1) * size; j++) m = Math.max(m, Math.abs(d[j])); out.push(m); }
   const max = Math.max(...out, 0.0001); return out.map(v => v / max);
+}
+
+/** Bounded five-note analog-style chord voice; detuned saw/PWM/sub through a four-pole filter and stereo modulated delay. */
+export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1): Voice {
+  const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
+  const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; amp.connect(dest); nodes.push(amp, mix);
+  const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.frequency.value = f2.frequency.value = p.cutoff; f1.Q.value = p.res; f2.Q.value = .707;
+  mix.connect(f1).connect(f2).connect(amp); nodes.push(f1, f2);
+  const merger = ctx.createChannelMerger(2); merger.connect(amp); nodes.push(merger);
+  for (let c = 0; c < 2; c++) { const d = ctx.createDelay(.05), g = ctx.createGain(), lfo = at(ctx.createOscillator(), t), lg = ctx.createGain();
+    d.delayTime.value = c ? .017 : .012; g.gain.value = p.chorus * .4; lfo.frequency.value = c ? .7 : .5; lg.gain.value = .003 * p.chorus;
+    f2.connect(d).connect(g).connect(merger, 0, c); lfo.connect(lg).connect(d.delayTime); srcs.push(lfo); nodes.push(d, g, lfo, lg);
+  }
+  notes.slice(0, 5).forEach(midi => { const f = 440 * 2 ** ((midi - 69) / 12);
+    for (let k = 0; k < 3; k++) { const o = at(ctx.createOscillator(), t), g = ctx.createGain();
+      o.type = k === 2 ? "square" : k === 1 ? "square" : "sawtooth"; o.frequency.value = k === 2 ? f / 2 : f; o.detune.value = k === 0 ? -p.detune : k === 1 ? p.detune : 0;
+      g.gain.value = (k === 2 ? p.sub : k === 1 ? p.pulse : .7) / Math.sqrt(notes.length); o.connect(g).connect(mix); srcs.push(o); nodes.push(o, g);
+      if (k === 1) { const pwm = at(ctx.createOscillator(), t), pg = ctx.createGain(); pwm.frequency.value = .4; pg.gain.value = p.pulse * 8; pwm.connect(pg).connect(o.detune); srcs.push(pwm); nodes.push(pwm, pg); }
+    }
+  });
+  return finish(srcs, nodes, adsr(amp.gain, t, p.env, gate, vel * .25), amp);
 }
