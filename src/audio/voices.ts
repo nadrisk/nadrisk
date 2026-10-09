@@ -5,7 +5,7 @@ export type ADSR = { a: number; d: number; s: number; r: number };
 export type DrumParams = { kind: "kick" | "snare" | "hat"; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -136,6 +136,28 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const timer = window.setTimeout(cleanup, Math.max(0, (end - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } }, glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
+}
+
+/** Simple granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
+export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
+  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  let stopAt = adsr(amp.gain, t, p.env, gate, vel);
+  const size = Math.max(.01, p.grainSize ?? .08), hop = size / 2, rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
+  let next = t, pos = p.start * buf.duration;
+  const pump = () => {
+    const horizon = ctx.currentTime + .12;
+    while (next < horizon && next < stopAt) {
+      const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = buf; src.playbackRate.value = rate;
+      g.gain.setValueAtTime(0, next); g.gain.linearRampToValueAtTime(.7, next + size / 2); g.gain.linearRampToValueAtTime(0, next + size);
+      src.connect(g).connect(amp);
+      const off = Math.max(0, Math.min(buf.duration - .01, pos + (Math.random() * 2 - 1) * spray * Math.min(1, buf.duration) * .5));
+      src.start(next, off); src.stop(next + size + .01); src.onended = () => { src.disconnect(); g.disconnect(); };
+      next += hop; if (!p.freeze) { pos += hop * .5; if (pos > buf.duration - size) pos = p.start * buf.duration; }
+    }
+    if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => amp.disconnect(), Math.max(0, (stopAt - ctx.currentTime) * 1000) + 300); }
+  };
+  const iv = window.setInterval(pump, 25); pump();
+  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, Math.max(.004, p.env.r / 4)); stopAt = Math.min(stopAt, s + Math.max(.05, p.env.r)); } };
 }
 
 const tubeCache = new Map<number, Float32Array<ArrayBuffer>>(), harmCache = new Map<number, Float32Array<ArrayBuffer>>();

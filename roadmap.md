@@ -21,3 +21,4 @@
 
 - [x] Step grid doubles as mod sequencer, glide steps, 808 engine, acid drive, channel EQ, one-row partials, docked visualizers, phrase control touch-up
 - [ ] Phone test of the new features
+- [x] Oct batch: seq responsiveness, channel.eq~ fx (drop flat), master clipper+limiter, seq offset + loop shortener, MIDI learn, sampler grain mode, iPad layout

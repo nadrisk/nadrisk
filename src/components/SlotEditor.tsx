@@ -186,6 +186,18 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
           <button className={`gb-mute ${sm.loop ? "selected" : ""}`} aria-pressed={sm.loop} onClick={() => M({ loop: !sm.loop })}>{sm.loop ? "LOOP ON" : "LOOP OFF"}</button>
         </div>
       </Group>
+      <Group title="grain mode">
+        <div className="gb-cols2">
+          <button className={`gb-mute ${sm.grain ? "selected" : ""}`} aria-pressed={!!sm.grain} aria-label="Grain mode" onClick={() => M({ grain: !sm.grain })}>{sm.grain ? "GRAIN ON" : "GRAIN OFF"}</button>
+          <button className={`gb-mute ${sm.freeze ? "selected" : ""}`} aria-pressed={!!sm.freeze} aria-label="Grain freeze" disabled={!sm.grain} onClick={() => M({ freeze: !sm.freeze })}>{sm.freeze ? "FREEZE ON" : "FREEZE OFF"}</button>
+        </div>
+        {sm.grain && <div className="gb-cols3">
+          <P label="Position" value={sm.start} min={0} max={0.95} step={0.005} fmt={pct} onChange={start => M({ start })} />
+          <P label="Grain size" value={sm.grainSize ?? 0.08} min={0.01} max={0.4} step={0.005} fmt={ms} onChange={grainSize => M({ grainSize })} />
+          <P label="Spray" value={sm.spray ?? 0.1} min={0} max={1} step={0.01} fmt={pct} onChange={spray => M({ spray })} />
+        </div>}
+        {sm.grain && <span className="patch-small">hold the pad to keep the grain cloud going</span>}
+      </Group>
       <Group title="amp"><Env env={sm.env} onChange={env => M({ env })} /></Group>
     </>}
   </div>;

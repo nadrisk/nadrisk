@@ -10,13 +10,15 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
       <div className="gb-param"><div className="parameter-label">Envelope time<span>{value.time > 0 ? "+" : ""}{Math.round(value.time * 100)}%</span></div><Slider aria-label="Global envelope time" min={-1} max={1} step={.01} value={[value.time]} onValueChange={([time]) => set({ time })} /></div>
       <div className="gb-param"><div className="parameter-label">Tension<span>{Math.round(value.tension * 100)}%</span></div><Slider aria-label="Tension" min={0} max={1} step={.01} value={[value.tension]} onValueChange={([tension]) => set({ tension })} /></div>
     </div>
+    <div className="gb-param"><div className="parameter-label">Sequencer offset<span>{value.offset > 0 ? "+" : ""}{value.offset} steps</span></div><Slider aria-label="Sequencer offset" min={-8} max={8} step={1} value={[value.offset]} onValueChange={([offset]) => set({ offset })} /></div>
+    <div className="gb-banks gb-loops" role="group" aria-label="Loop shortener">{[0, 1, 2, 4, 8].map(n => <button key={n} className={`gb-bank ${value.loop === n ? "active" : ""}`} aria-pressed={value.loop === n} aria-label={n ? `Loop first ${n} steps` : "Loop full"} onClick={() => set({ loop: n })}>{n ? n : "FULL"}</button>)}</div>
     <div className="arp-controls">
       <label className="arp-field">Tension mode<select aria-label="Tension mode" value={value.style} onChange={e => set({ style: e.target.value as PerformanceParams["style"] })}><option value="sweep">Hyper sweep</option><option value="whiteout">Whiteout</option><option value="cyber">Cyber drop</option></select></label>
       <label className="arp-field">Capture length<select aria-label="Repeat length" value={value.division} onChange={e => set({ division: +e.target.value })}>{[[1,"1/4"],[.5,"1/8"],[.25,"1/16"],[.125,"1/32"]].map(([v,label]) => <option key={v} value={v}>{label}</option>)}</select></label>
       <Button variant="outline" size="sm" aria-label="Hold reverse" aria-pressed={value.mode === 1} {...hold(1)}><Rewind size={14} /> Reverse</Button>
       <Button variant="outline" size="sm" aria-label="Hold stutter" aria-pressed={value.mode === 2} {...hold(2)}><Repeat2 size={14} /> Stutter</Button>
       <Button variant="outline" size="sm" aria-label="Hold tape stop" aria-pressed={value.mode === 3} {...hold(3)}><Pause size={14} /> Tape stop</Button>
-      <Button variant="ghost" size="icon" title="Reset performance" aria-label="Reset performance" onClick={() => set({ time: 0, tension: 0, mode: 0 })}><RotateCcw size={14} /></Button>
+      <Button variant="ghost" size="icon" title="Reset performance" aria-label="Reset performance" onClick={() => set({ time: 0, tension: 0, mode: 0, offset: 0, loop: 0 })}><RotateCcw size={14} /></Button>
     </div>
   </div>;
 }
