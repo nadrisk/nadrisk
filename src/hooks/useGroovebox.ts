@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, type ArpParams } from "@/audio/arp";
+import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
 // Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
@@ -227,15 +228,39 @@ export function useGroovebox() {
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
   const updateSlot = useCallback((i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))), []);
   const updateSelected = useCallback((patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))), []);
+  // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
+  const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
+    const buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
+    buffers.current[i] = buf;
+    setPeaks(p => p.map((x, j) => (j === i ? peaksOf(buf) : x)));
+    setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: name, sampleId } } : x)));
+  }, []);
   const loadSample = useCallback(async (i: number, file: File) => {
     try {
-      const buf = await ctxOf().decodeAudioData(await file.arrayBuffer());
-      buffers.current[i] = buf;
-      setPeaks(p => p.map((x, j) => (j === i ? peaksOf(buf) : x)));
-      setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: file.name } } : x)));
-      setError("");
+      let id: string | undefined; try { id = await cacheFile(file); } catch { id = undefined; }
+      await setBuffer(i, file, file.name, id); setError("");
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
-  }, []);
+  }, [setBuffer]);
+  const loadById = useCallback(async (i: number, id: string, name: string) => {
+    try { const b = await getSampleBlob(id); if (!b) throw 0; await setBuffer(i, b, name, id); setError(""); }
+    catch { setError(`Sample "${name}" not found on this device.`); }
+  }, [setBuffer]);
+  const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
+  // Folder load: cache everything; files whose name contains a pad name go onto that pad.
+  const loadFolder = useCallback(async (files: File[]) => {
+    const audio = files.filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|ogg|flac|m4a|aiff?)$/i.test(f.name));
+    let matched = 0;
+    const names = slotsRef.current.map(x => x.name.toLowerCase().replace(/\s+/g, ""));
+    const used = new Set<number>();
+    for (const f of audio) {
+      try { await cacheFile(f); } catch { /* storage full */ }
+      const fn = f.name.toLowerCase().replace(/[\s_-]+/g, "");
+      const i = names.findIndex((n, k) => !used.has(k) && n && fn.includes(n));
+      if (i >= 0) { used.add(i); try { await setBuffer(i, f, f.name, cacheId(f)); matched++; } catch { /* skip */ } }
+    }
+    setError(audio.length ? "" : "No audio files in that folder.");
+    return { total: audio.length, matched };
+  }, [setBuffer]);
   const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
   // Cycle off -> hit -> tie -> off. A tie needs a hit or tie before it, otherwise it goes straight to off.
   const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => {
@@ -254,7 +279,7 @@ export function useGroovebox() {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 1, name, savedAt: Date.now(), bpm: bpmRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current.map(x => x.engine === "sampler" ? { ...x, sampler: { ...x.sampler, sampleName: "built-in tone" } } : x) }), [volume]);
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 1, name, savedAt: Date.now(), bpm: bpmRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
     const d = defaultSlots();
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; return o ? { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...o.synth }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, fx: o.fx ?? x.fx } : x; }));
@@ -262,12 +287,13 @@ export function useGroovebox() {
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
     setBpm(st.bpm ?? 124); setVolume(st.volume ?? 60);
     buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
-  }, []);
+    st.slots?.forEach((o, i) => { if (o?.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName); });
+  }, [loadById]);
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
   const resetAll = () => { setSlots(defaultSlots()); setBanks([{ pattern: defaultPattern(), lengths: Array(16).fill(STEPS) }, { pattern: emptyPattern(), lengths: Array(16).fill(STEPS) }]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; volume: number; bank: number; banks: { pattern: StepVal[][]; lengths: number[] }[]; slots: Slot[] };
