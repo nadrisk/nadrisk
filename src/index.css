@@ -292,3 +292,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   .gb-fx-unit { width: 170px; }
   .workspace-heading, .workspace-footer { flex-wrap: wrap; gap: 4px 12px; }
 }
+
+.gb-pad, .gb-step, .gb-row-label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+.gb-eco { margin-top: 0.5rem; font-size: 10px; letter-spacing: 0.08em; border: 1px solid hsl(var(--border)); }
+.gb-eco.on { color: hsl(var(--accent)); border-color: hsl(var(--accent)); }

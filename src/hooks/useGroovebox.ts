@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
-import { createFx, loadWorklets, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
+import { createFx, fxEco, loadWorklets, setFxEco, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
 export type EngineKind = "drum" | "synth" | "sampler";
@@ -46,7 +46,7 @@ const defaultPattern = () => {
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 function syncChain(e: Engine, i: number, s: Slot) {
-  const out = e.outs[i], live = s.fx.filter(f => f.on), sig = live.map(f => f.id).join(",");
+  const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => f.id).join(",");
   if (sig !== out.sig) {
     out.gain.disconnect(); out.chain.forEach(f => f.dispose());
     out.chain = live.map(f => createFx(e.ctx, f.type, f.params));
@@ -69,6 +69,7 @@ export function useGroovebox() {
   const [hits, setHits] = useState<number[]>(() => Array(16).fill(0));
   const [peaks, setPeaks] = useState<(number[] | null)[]>(() => Array(16).fill(null));
   const [error, setError] = useState("");
+  const [eco, setEco] = useState(false);
   const slotsRef = useRef(slots); slotsRef.current = slots;
   const patternRef = useRef(pattern); patternRef.current = pattern;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
@@ -125,6 +126,11 @@ export function useGroovebox() {
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { Tone.getTransport().bpm.value = bpm; }, [bpm]);
+  // Shorter scheduler look-ahead = tighter sequencer response; eco keeps a safer buffer for weak CPUs.
+  useEffect(() => {
+    setFxEco(eco); Tone.getContext().lookAhead = eco ? 0.1 : 0.03;
+    const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s));
+  }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
     t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.pan.disconnect(); }); e.master.disconnect(); e.analyser.dispose(); }
@@ -140,6 +146,9 @@ export function useGroovebox() {
   }, [ensure, playing]);
 
   const hit = useCallback(async (i: number) => {
+    // Fast path: audio already running, so play synchronously with no await.
+    const e = engine.current;
+    if (e && Tone.getContext().state === "running") { trigger(i); flash(i); setSelected(i); return; }
     setSelected(i);
     try { await ensure(); if (Tone.getContext().state !== "running") return; trigger(i); flash(i); } catch { setError("Audio unavailable."); }
   }, [ensure, trigger]);
@@ -159,5 +168,5 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
   const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, hits, peaks, error, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, hits, peaks, error, eco, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
 }

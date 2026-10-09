@@ -1,4 +1,4 @@
-import { AudioLines, Dice5, Eraser, Play, RotateCcw, Square, Volume2 } from "lucide-react";
+import { AudioLines, Dice5, Eraser, Play, Leaf, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useGroovebox } from "@/hooks/useGroovebox";
@@ -34,7 +34,8 @@ export default function Groovebox() {
           <Slider aria-label="Tempo" min={60} max={180} value={[g.bpm]} onValueChange={([v]) => g.setBpm(v)} className="patch-slider" />
           <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
           <Slider aria-label="Master volume" min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
-          <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} /></div>
+          <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
+          <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
         </div>
       </PatchNode>
 
@@ -50,7 +51,7 @@ export default function Groovebox() {
         </div>
         <div className="gb-seq-grid">{g.pattern.map((row, r) => <div key={r} className={`gb-row ${g.selected === r ? "selected" : ""}`}>
           <button className="gb-row-label" onClick={() => g.setSelected(r)}>{g.slots[r].name}</button>
-          {row.map((on, c) => <button key={c} aria-label={`${g.slots[r].name} step ${c + 1}`} aria-pressed={on} onClick={() => g.toggleStep(r, c)} className={`gb-step ${on ? "on" : ""} ${c === g.step ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />)}
+          {row.map((on, c) => <button key={c} aria-label={`${g.slots[r].name} step ${c + 1}`} aria-pressed={on} onPointerDown={ev => { ev.preventDefault(); g.toggleStep(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); g.toggleStep(r, c); } }} className={`gb-step ${on ? "on" : ""} ${c === g.step ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />)}
         </div>)}</div>
       </PatchNode>
     </div>
