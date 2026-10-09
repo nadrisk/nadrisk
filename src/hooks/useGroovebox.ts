@@ -78,6 +78,7 @@ export function useGroovebox() {
   const slotsRef = useRef(slots); slotsRef.current = slots;
   const patternRef = useRef(pattern); patternRef.current = pattern;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  const selectedRef = useRef(selected); selectedRef.current = selected;
 
   const ctxOf = () => Tone.getContext().rawContext as unknown as BaseAudioContext;
   const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
@@ -160,8 +161,10 @@ export function useGroovebox() {
     try { await ensure(); if (Tone.getContext().state !== "running") return; trigger(i); flash(i); } catch { setError("Audio unavailable."); }
   }, [ensure, trigger]);
 
-  const updateSlot = (i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-  const loadSample = async (i: number, file: File) => {
+  // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))), []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))), []);
+  const loadSample = useCallback(async (i: number, file: File) => {
     try {
       const buf = await ctxOf().decodeAudioData(await file.arrayBuffer());
       buffers.current[i] = buf;
@@ -169,11 +172,12 @@ export function useGroovebox() {
       setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: file.name } } : x)));
       setError("");
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
-  };
-  const toggleStep = (row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => (j === col ? !v : v)) : r)));
+  }, []);
+  const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
+  const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => (j === col ? !v : v)) : r))), []);
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
   const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
 }

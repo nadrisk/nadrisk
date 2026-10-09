@@ -1,26 +1,47 @@
+import { memo, useCallback } from "react";
+import type { MutableRefObject } from "react";
 import { AudioLines, Dice5, Eraser, Play, Leaf, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useGroovebox } from "@/hooks/useGroovebox";
+import { useGroovebox, type Slot } from "@/hooks/useGroovebox";
+import type { FxUnit } from "@/audio/effects";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
 import FxChain from "./FxChain";
 import Waveform from "./Waveform";
 
+// Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
+// fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
+const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit }: {
+  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void;
+}) {
+  return <div className="gb-pads">{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); onHit(i); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onHit(i); } }} className={`gb-pad ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? `drum · ${slot.drum.kind}` : slot.engine}</span>
+  </button>)}</div>;
+});
+
+const StepGrid = memo(function StepGrid({ pattern, slots, selected, step, onToggle, onSelect }: {
+  pattern: boolean[][]; slots: Slot[]; selected: number; step: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void;
+}) {
+  return <div className="gb-seq-grid">{pattern.map((row, r) => <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
+    <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
+    {row.map((on, c) => <button key={c} aria-label={`${slots[r].name} step ${c + 1}`} aria-pressed={on} onPointerDown={ev => { ev.preventDefault(); onToggle(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }} className={`gb-step ${on ? "on" : ""} ${c === step ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />)}
+  </div>)}</div>;
+});
+
 export default function Groovebox() {
   const g = useGroovebox();
   const s = g.slots[g.selected];
+  const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
   return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.maxpat</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-grid">
       <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
-        <div className="gb-pads">{g.slots.map((slot, i) => <button key={i} ref={el => (g.padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); g.hit(i); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); g.hit(i); } }} className={`gb-pad ${g.selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
-          <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? `drum · ${slot.drum.kind}` : slot.engine}</span>
-        </button>)}</div>
+        <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} />
       </PatchNode>
 
       <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
-        <SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={p => g.updateSlot(g.selected, p)} onLoad={f => g.loadSample(g.selected, f)} />
+        <SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} />
       </PatchNode>
 
       <PatchNode label="gain~ → ezdac~" tag="MASTER OUTPUT" className="gb-master">
@@ -40,7 +61,7 @@ export default function Groovebox() {
       </PatchNode>
 
       <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
-        <FxChain slotName={s.name} fx={s.fx} onChange={fx => g.updateSlot(g.selected, { fx })} />
+        <FxChain slotName={s.name} fx={s.fx} onChange={onFx} />
       </PatchNode>
 
       <PatchNode label="step.seq 16" tag="SEQUENCER" className="gb-seq">
@@ -49,10 +70,7 @@ export default function Groovebox() {
           <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
           <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
         </div>
-        <div className="gb-seq-grid">{g.pattern.map((row, r) => <div key={r} className={`gb-row ${g.selected === r ? "selected" : ""}`}>
-          <button className="gb-row-label" onClick={() => g.setSelected(r)}>{g.slots[r].name}</button>
-          {row.map((on, c) => <button key={c} aria-label={`${g.slots[r].name} step ${c + 1}`} aria-pressed={on} onPointerDown={ev => { ev.preventDefault(); g.toggleStep(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); g.toggleStep(r, c); } }} className={`gb-step ${on ? "on" : ""} ${c === g.step ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />)}
-        </div>)}</div>
+        <StepGrid pattern={g.pattern} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
       </PatchNode>
     </div>
     <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>

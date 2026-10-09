@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { memo, useEffect, useRef, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
@@ -52,7 +52,7 @@ function SampleView({ peaks, start, onStart }: { peaks: number[] | null; start: 
 const WAVES: readonly Wave[] = ["sine", "triangle", "sawtooth", "square"];
 const FILTERS: readonly FilterKind[] = ["lowpass", "highpass", "bandpass", "notch"];
 
-export default function SlotEditor({ slot, peaks, onChange, onLoad }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void }) {
+function SlotEditor({ slot, peaks, onChange, onLoad }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void }) {
   const d = slot.drum, s = slot.synth, sm = slot.sampler;
   const D = (p: Partial<typeof d>) => onChange({ drum: { ...d, ...p } });
   const S = (p: Partial<typeof s>) => onChange({ synth: { ...s, ...p } });
@@ -139,3 +139,5 @@ export default function SlotEditor({ slot, peaks, onChange, onLoad }: { slot: Sl
     </>}
   </div>;
 }
+
+export default memo(SlotEditor);
