@@ -59,8 +59,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     <select className={`gb-row-len gb-row-mod ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} value={tv} onChange={e => onModTarget(r, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
     {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, label = v >= 2 ? "tie" : v === 1 ? "hit" : "off";
       const val = view === "vel" ? vel[r]?.[c] ?? 1 : view === "chance" ? chance[r]?.[c] ?? 1 : lane?.values[c] ?? .5;
-      const canDrag = view !== "note" && v === 1 || (view === "mod" && v !== 0 && tv !== "off");
-      const drag2 = canDrag && (view !== "mod" || tv !== "off");
+      const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
       return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? ` ${view} ${Math.round(val * 100)}%` : ""}`}
         onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } }}
         onClick={() => { if (!drag2) onToggle(r, c); }}
@@ -97,6 +96,19 @@ const Mixer = memo(function Mixer({ slots, selected, onEq, onLevel, onMute, onSo
   </div>;
 });
 
+const SECTIONS = ["rack", "editor", "master", "phrase", "perf", "tape", "fx", "midi", "vis", "sets", "mixer", "seq"] as const;
+type Section = typeof SECTIONS[number];
+const SECTION_NAMES: Record<Section, string> = { rack: "pads", editor: "instrument", master: "master", phrase: "phrase", perf: "performance", tape: "tape", fx: "fx", midi: "midi", vis: "visuals", sets: "sets", mixer: "mixer", seq: "sequencer" };
+const WIDE: Record<Section, boolean> = { rack: false, editor: false, master: false, phrase: true, perf: false, tape: false, fx: true, midi: false, vis: true, sets: false, mixer: true, seq: true };
+type Layout = { preset: "classic" | "custom"; order: Section[]; wide: Record<Section, boolean> };
+const PRESETS: Record<string, Layout> = {
+  classic: { preset: "classic", order: [...SECTIONS], wide: WIDE },
+  "seq under pads": { preset: "custom", order: ["rack", "seq", "editor", "master", "perf", "tape", "phrase", "fx", "mixer", "vis", "sets", "midi"], wide: WIDE },
+  "perform": { preset: "custom", order: ["rack", "perf", "seq", "mixer", "master", "tape", "editor", "phrase", "fx", "vis", "sets", "midi"], wide: WIDE },
+};
+const THEMES = [["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
+const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d; } catch { return d; } };
+
 export default function Groovebox() {
   const g = useGroovebox();
   const rootRef = useRef<HTMLElement>(null);
@@ -104,93 +116,118 @@ export default function Groovebox() {
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
-  const [modView, setModView] = useState(false);
+  const [view, setView] = useState<View>("note");
   const onEq = useCallback((i: number, eq: Slot["eq"]) => g.updateSlot(i, { eq }), [g.updateSlot]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
-  return <section ref={rootRef} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
-    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
-    <div className="gb-grid">
-      <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
-        <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} />
-      </PatchNode>
+  const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "vel" || v === "chance") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
+  const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: e.performance.output }; }, [g.ensure]);
+  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("nadrisk.lcd.v1") || "nadrisk"; } catch { return "nadrisk"; } });
+  const [layout, setLayout] = useState<Layout>(() => { const l = load("nadrisk.layout.v1", PRESETS.classic); return { ...l, order: [...l.order.filter(k => SECTIONS.includes(k)), ...SECTIONS.filter(k => !l.order.includes(k))] }; });
+  const [editLayout, setEditLayout] = useState(false);
+  useEffect(() => { try { localStorage.setItem("nadrisk.lcd.v1", theme); } catch { /* private mode */ } }, [theme]);
+  useEffect(() => { try { localStorage.setItem("nadrisk.layout.v1", JSON.stringify(layout)); } catch { /* private mode */ } }, [layout]);
+  const move = (k: Section, d: number) => setLayout(l => { const o = [...l.order], i = o.indexOf(k), j = i + d; if (j < 0 || j >= o.length) return l; [o[i], o[j]] = [o[j], o[i]]; return { ...l, preset: "custom", order: o }; });
+  const custom = layout.preset === "custom";
 
-      <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
-        <SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} />
-      </PatchNode>
-
-      <PatchNode label="gain~ → ezdac~" tag="MASTER OUTPUT" className="gb-master">
-        <div className="node-body">
-          <div className="transport-body">
-            <Button variant="ghost" className={`transport-button ${g.playing ? "is-playing" : ""}`} onClick={g.togglePlay} aria-label={g.playing ? "Stop" : "Play"}>{g.playing ? <Square /> : <Play />}</Button>
-            <div><span className="transport-state">{g.playing ? "RUNNING" : "STOPPED"}</span><span className="patch-small">step {g.step < 0 ? "--" : (g.step % 16) + 1} / 16</span></div>
-          </div>
-          <div className="parameter-label">Tempo <span>{g.bpm} BPM</span></div>
-          <Slider aria-label="Tempo" min={60} max={180} value={[g.bpm]} onValueChange={([v]) => g.setBpm(v)} className="patch-slider" />
-          <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
-          <Slider aria-label="Master volume" min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
-          <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
-          <div className="gb-cols2">
-            <Button variant="ghost" size="sm" className={`gb-eco ${pf.clipOn ? "on" : ""}`} aria-label="Master clipper" aria-pressed={pf.clipOn} onClick={() => setPf({ clipOn: !pf.clipOn })}>clipper {pf.clipOn ? "on" : "off"}</Button>
-            <Button variant="ghost" size="sm" className={`gb-eco ${pf.limitOn ? "on" : ""}`} aria-label="Master limiter" aria-pressed={pf.limitOn} onClick={() => setPf({ limitOn: !pf.limitOn })}>limiter {pf.limitOn ? "on" : "off"}</Button>
-          </div>
-          <div className="parameter-label">Clip drive <span>{pf.clipDrive} dB</span></div>
-          <Slider aria-label="Clip drive" disabled={!pf.clipOn} min={0} max={18} step={0.5} value={[pf.clipDrive]} onValueChange={([clipDrive]) => setPf({ clipDrive })} className="patch-slider" />
-          <div className="parameter-label">Limiter ceiling <span>{pf.ceiling} dB</span></div>
-          <Slider aria-label="Limiter ceiling" disabled={!pf.limitOn} min={-12} max={0} step={0.5} value={[pf.ceiling]} onValueChange={([ceiling]) => setPf({ ceiling })} className="patch-slider" />
-          <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
-          <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
+  const nodes: Record<Section, ReactNode> = {
+    rack: <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
+      <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} />
+      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
+      {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
+    </PatchNode>,
+    editor: <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
+      <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
+    </PatchNode>,
+    master: <PatchNode label="gain~ → dac~" tag="MASTER OUTPUT" className="gb-master">
+      <div className="node-body">
+        <div className="transport-body">
+          <Button variant="ghost" className={`transport-button ${g.playing ? "is-playing" : ""}`} onClick={g.togglePlay} aria-label={g.playing ? "Stop" : "Play"}>{g.playing ? <Square /> : <Play />}</Button>
+          <div><span className="transport-state">{g.playing ? "RUNNING" : "STOPPED"}</span><span className="patch-small">step {g.step < 0 ? "--" : (g.step % 16) + 1} / 16</span></div>
         </div>
-      </PatchNode>
-
-      <PatchNode label={`phrase.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PAD SEQUENCER · PRE-INSTRUMENT" className="gb-arpnode">
-        <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
-      </PatchNode>
-
-      <PatchNode label="nad.performance~" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
-        <PerformanceRack value={g.performance} onChange={g.setPerformance} />
-      </PatchNode>
-      <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
-        <FxChain slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} />
-      </PatchNode>
-
-      <PatchNode label="midi.map~" tag="MIDI · LEARN" className="gb-mixnode">
-        <div className="node-body gb-midi" data-midi-ui>
-          <div className="gb-seq-tools" style={{ padding: 0, flexWrap: "wrap" }}>
-            <Button variant="ghost" size="sm" onClick={midi.connect}>{midi.devices ? `${midi.devices.length} device${midi.devices.length === 1 ? "" : "s"}` : "connect midi"}</Button>
-            <Button variant="ghost" size="sm" className={`gb-eco ${midi.learn ? "on" : ""}`} style={{ marginTop: 0 }} aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>learn {midi.learn ? "on" : "off"}</Button>
-            <Button variant="ghost" size="sm" disabled={!midi.target || !Object.values(midi.maps).includes(midi.target)} onClick={() => midi.target && midi.unmap(midi.target)}>unmap</Button>
-            <Button variant="ghost" size="sm" disabled={!Object.keys(midi.maps).length} onClick={midi.clear}>clear all</Button>
-          </div>
-          <span className="patch-small">{midi.status || (midi.learn ? (midi.target ? `move a knob or hit a key for: ${midi.target}` : "tap any control, then move a knob or hit a key") : `${Object.keys(midi.maps).length} mappings · notes 36–51 play pads 1–16`)}</span>
-          {midi.devices && midi.devices.length > 0 && <span className="patch-small">{midi.devices.join(" · ")}</span>}
+        <div className="parameter-label">Tempo <span>{g.bpm} BPM</span></div>
+        <Slider aria-label="Tempo" resetValue={[124]} min={60} max={180} value={[g.bpm]} onValueChange={([v]) => g.setBpm(v)} className="patch-slider" />
+        <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
+        <Slider aria-label="Master volume" resetValue={[60]} min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
+        <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
+        <div className="gb-cols2">
+          <Button variant="ghost" size="sm" className={`gb-eco ${pf.clipOn ? "on" : ""}`} aria-label="Master clipper" aria-pressed={pf.clipOn} onClick={() => setPf({ clipOn: !pf.clipOn })}>clipper {pf.clipOn ? "on" : "off"}</Button>
+          <Button variant="ghost" size="sm" className={`gb-eco ${pf.limitOn ? "on" : ""}`} aria-label="Master limiter" aria-pressed={pf.limitOn} onClick={() => setPf({ limitOn: !pf.limitOn })}>limiter {pf.limitOn ? "on" : "off"}</Button>
         </div>
-      </PatchNode>
-
-      <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">
-        <VisualizerRack master={g.engine.current?.master ?? null} eco={g.eco} />
-      </PatchNode>
-
-      <PatchNode label="set.bank 8" tag="SAVED SETS · SONGS" className="gb-mixnode">
-        <SetBank getSet={g.getSet} applySet={g.applySet} />
-      </PatchNode>
-
-      <PatchNode label="mixer~ 16ch" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
-        <Mixer onEq={onEq} slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
-      </PatchNode>
-
-      <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
-        <div className="gb-seq-tools">
-          <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
-          <div className="gb-banks gb-view"><button className={`gb-bank ${!modView ? "active" : ""}`} aria-pressed={!modView} onClick={() => setModView(false)}>NOTE</button><button className={`gb-bank ${modView ? "active" : ""}`} aria-pressed={modView} onClick={() => setModView(true)}>MOD</button></div>
-          <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
-          <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
-          <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
-          <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
+        <div className="parameter-label">Clip drive <span>{pf.clipDrive} dB</span></div>
+        <Slider aria-label="Clip drive" resetValue={[6]} disabled={!pf.clipOn} min={0} max={18} step={0.5} value={[pf.clipDrive]} onValueChange={([clipDrive]) => setPf({ clipDrive })} className="patch-slider" />
+        <div className="parameter-label">Limiter ceiling <span>{pf.ceiling} dB</span></div>
+        <Slider aria-label="Limiter ceiling" resetValue={[-1]} disabled={!pf.limitOn} min={-12} max={0} step={0.5} value={[pf.ceiling]} onValueChange={([ceiling]) => setPf({ ceiling })} className="patch-slider" />
+        <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
+        <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
+      </div>
+    </PatchNode>,
+    phrase: <PatchNode label={`phrase.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PAD SEQUENCER · PRE-INSTRUMENT" className="gb-arpnode">
+      <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
+    </PatchNode>,
+    perf: <PatchNode label="nad.performance~" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
+      <PerformanceRack value={g.performance} onChange={g.setPerformance} />
+    </PatchNode>,
+    tape: <PatchNode label="tape.rec~" tag="MASTER RECORDER · WAV / MP3" className="gb-mixnode gb-tapenode">
+      <TapeDeck getSource={tapSource} />
+    </PatchNode>,
+    fx: <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
+      <FxChain slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} />
+    </PatchNode>,
+    midi: <PatchNode label="midi.map~" tag="MIDI · LEARN" className="gb-mixnode">
+      <div className="node-body gb-midi" data-midi-ui>
+        <div className="gb-seq-tools" style={{ padding: 0, flexWrap: "wrap" }}>
+          <Button variant="ghost" size="sm" onClick={midi.connect}>{midi.devices ? `${midi.devices.length} device${midi.devices.length === 1 ? "" : "s"}` : "connect midi"}</Button>
+          <Button variant="ghost" size="sm" className={`gb-eco ${midi.learn ? "on" : ""}`} style={{ marginTop: 0 }} aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>learn {midi.learn ? "on" : "off"}</Button>
+          <Button variant="ghost" size="sm" disabled={!midi.target || !Object.values(midi.maps).includes(midi.target)} onClick={() => midi.target && midi.unmap(midi.target)}>unmap</Button>
+          <Button variant="ghost" size="sm" disabled={!Object.keys(midi.maps).length} onClick={midi.clear}>clear all</Button>
         </div>
-        <span className="patch-small gb-seq-hint">{modView ? "pick a target per row · drag lit steps up / down to set the amount" : "tap: hit → tie → glide → off · glide slides to the step's pitch mod"}</span>
-        <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} mod={modView} onModValue={g.setModValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
-      </PatchNode>
+        <span className="patch-small">{midi.status || (midi.learn ? (midi.target ? `move a knob or hit a key for: ${midi.target}` : "tap any control, then move a knob or hit a key") : `${Object.keys(midi.maps).length} mappings · notes 36–51 play pads 1–16`)}</span>
+        {midi.devices && midi.devices.length > 0 && <span className="patch-small">{midi.devices.join(" · ")}</span>}
+      </div>
+    </PatchNode>,
+    vis: <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">
+      <VisualizerRack master={g.engine.current?.master ?? null} eco={g.eco} />
+    </PatchNode>,
+    sets: <PatchNode label="set.bank 8" tag="SAVED SETS · SONGS" className="gb-mixnode">
+      <SetBank getSet={g.getSet} applySet={g.applySet} />
+    </PatchNode>,
+    mixer: <PatchNode label="mixer~ 16ch" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
+      <Mixer onEq={onEq} slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
+    </PatchNode>,
+    seq: <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
+      <div className="gb-seq-tools">
+        <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
+        <div className="gb-banks gb-view">{(["note", "vel", "chance", "mod"] as View[]).map(v => <button key={v} className={`gb-bank ${view === v ? "active" : ""}`} aria-pressed={view === v} onClick={() => setView(v)}>{v === "chance" ? "CHNC" : v.toUpperCase()}</button>)}</div>
+        <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
+        <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
+        <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
+        <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
+      </div>
+      <span className="patch-small gb-seq-hint">{view === "mod" ? "pick a target per row · drag lit steps up / down to set the amount" : view === "vel" ? "drag lit steps up / down to set how hard each hit plays" : view === "chance" ? "drag lit steps up / down to set how likely each hit plays" : "tap: hit → tie → off · a dot means the step has velocity or chance set"}</span>
+      <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
+    </PatchNode>,
+  };
+
+  return <section ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
+    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span>
+      <span className="gb-heading-tools">
+        <label className="arp-field">display<select aria-label="Display theme" value={theme} onChange={e => setTheme(e.target.value)}>{THEMES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <button className={`gb-mute ${editLayout ? "selected" : ""}`} aria-pressed={editLayout} onClick={() => setEditLayout(!editLayout)}>LAYOUT</button>
+      </span>
+      <span className="workspace-index">01 / GROOVEBOX</span></div>
+    {editLayout && <div className="gb-layout">
+      <div className="gb-layout-presets">{Object.keys(PRESETS).map(k => <button key={k} className="gb-mute" onClick={() => setLayout(PRESETS[k])}>{k}</button>)}</div>
+      <div className="gb-layout-list">{layout.order.map((k, i) => <span key={k} className="gb-layout-item">
+        <button aria-label={`Move ${SECTION_NAMES[k]} earlier`} disabled={i === 0} onClick={() => move(k, -1)}>‹</button>
+        <b>{SECTION_NAMES[k]}</b>
+        <button aria-label={`${SECTION_NAMES[k]} width`} className={layout.wide[k] ? "on" : ""} onClick={() => setLayout(l => ({ ...l, preset: "custom", wide: { ...l.wide, [k]: !l.wide[k] } }))}>{layout.wide[k] ? "⟷" : "▢"}</button>
+        <button aria-label={`Move ${SECTION_NAMES[k]} later`} disabled={i === layout.order.length - 1} onClick={() => move(k, 1)}>›</button>
+      </span>)}</div>
+      <span className="patch-small">‹ › move a section · ⟷ full width / ▢ half width · saved on this device</span>
+    </div>}
+    <div className={`gb-grid ${custom ? "is-custom" : ""}`}>
+      {(custom ? layout.order : SECTIONS).map(k => <div key={k} className={`gb-cell gb-cell-${k} ${layout.wide[k] ? "is-wide" : ""}`}>{nodes[k]}</div>)}
     </div>
-    <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.queued != null ? `PATTERN ${g.queued ? "B" : "A"} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
+    <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${g.queued ? "B" : "A"} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section>;
 }
