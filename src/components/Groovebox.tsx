@@ -12,6 +12,7 @@ import ArpEditor from "./ArpEditor";
 import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 import SetBank from "./SetBank";
+import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
@@ -91,6 +92,10 @@ export default function Groovebox() {
 
       <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
         <FxChain slotName={s.name} fx={s.fx} onChange={onFx} />
+      </PatchNode>
+
+      <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">
+        <VisualizerRack master={g.engine.current?.master ?? null} eco={g.eco} />
       </PatchNode>
 
       <PatchNode label="set.bank 8" tag="SAVED SETS · SONGS" className="gb-mixnode">

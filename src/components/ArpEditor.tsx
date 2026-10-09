@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Slider } from "@/components/ui/slider";
-import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
+import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, randomizeArp, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
 type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void };
 
@@ -14,6 +14,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
   return <div className="node-body arp-body">
     <div className="arp-head">
       <button className={`gb-mute ${arp.on ? "selected" : ""}`} aria-pressed={arp.on} onClick={() => set({ on: !arp.on })}>{arp.on ? "PHRASE ON" : "PHRASE OFF"}</button>
+      <button className="gb-mute" aria-label="Randomize phrase" onClick={() => onChange(randomizeArp(arp))}>⚄ RANDOM</button>
       <span className="patch-small">{arp.on ? `hold ${slotName} to loop` : "pad plays single notes"}</span>
     </div>
     <div className={`arp-controls ${arp.on ? "" : "is-off"}`}>
