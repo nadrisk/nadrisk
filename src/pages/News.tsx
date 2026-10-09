@@ -15,7 +15,7 @@ const News = () => {
           <div className="mb-16">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors tracking-wider uppercase mb-8"
+              className="flex w-fit items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors uppercase mb-8"
             >
               <ArrowLeft size={14} />
               Back
