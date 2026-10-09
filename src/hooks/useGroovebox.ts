@@ -1,11 +1,11 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit } from "@/audio/effects";
-import { defaultArp, degreeToSemi, midiOf, stepSeconds, type ArpParams } from "@/audio/arp";
+import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
-import { chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
+import { arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
 // Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
@@ -47,8 +47,25 @@ const defaultSlots = (): Slot[] => [
   base("NOISE", "drum", 48, { level: 40, drum: drum({ kind: "snare", pitch: 200, pitchEnv: 0, noise: 1, filter: "bandpass", cutoff: 3000, res: 6, filterEnv: 2, filterDecay: 0.3, env: { a: 0.01, d: 0.4, s: 0, r: 0.2 } }) }),
   base("FM DRONE", "synth", 43, { fx: [makeFx("phaser"), makeFx("chorus")], synth: synth({ osc1: { wave: "triangle", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 0.3, d: 0.5, s: 0.7, r: 0.8 }, lfo: { wave: "triangle", rate: 0.5, depth: 0.5, target: "cutoff" } }) }),
 ];
-/** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit), 3 glide (slides the held note to this step's pitch). */
+/** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
+/** Which column a row plays on a tick. With a loop crop, the offset slides the loop window across the row. */
+export const stepAt = (tick: number, full: number, loop: number, offset: number) => {
+  if (loop && loop < full) { const start = ((offset % full) + full) % full; return (start + (tick % loop)) % full; }
+  return (((tick - offset) % full) + full) % full;
+};
+export type Bank = { pattern: StepVal[][]; lengths: number[]; vel: number[][]; chance: number[][] };
+const ones = () => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(1));
+const makeBank = (pattern: StepVal[][]): Bank => ({ pattern, lengths: Array(16).fill(STEPS), vel: ones(), chance: ones() });
+const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => r.map(v => (v === 3 ? 2 : v) as StepVal)), lengths: b.lengths ?? Array(16).fill(STEPS), vel: b.vel ?? ones(), chance: b.chance ?? ones() });
+const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
+function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
+  let r = reversed.get(b); if (r) return r;
+  r = ctx.createBuffer(b.numberOfChannels, b.length, b.sampleRate);
+  for (let c = 0; c < b.numberOfChannels; c++) { const src = b.getChannelData(c), dst = r.getChannelData(c); for (let k = 0, n = src.length; k < n; k++) dst[k] = src[n - 1 - k]; }
+  reversed.set(b, r); return r;
+}
+export type RepeatParams = { on: boolean; latch: boolean; rate: RateName };
 const emptyPattern = () => Array.from({ length: 16 }, () => Array<StepVal>(STEPS).fill(0));
 const defaultPattern = () => {
   const p = emptyPattern();
@@ -78,14 +95,13 @@ export function useGroovebox() {
   const fallback = useRef<AudioBuffer | null>(null);
   const [slots, setSlots] = useState<Slot[]>(defaultSlots);
   // Two independent pattern banks (A/B) for live performance; switching waits for the next bar while playing.
-  type Bank = { pattern: StepVal[][]; lengths: number[] };
-  const [banks, setBanks] = useState<Bank[]>(() => [{ pattern: defaultPattern(), lengths: Array(16).fill(STEPS) }, { pattern: emptyPattern(), lengths: Array(16).fill(STEPS) }]);
+  const [banks, setBanks] = useState<Bank[]>(() => [makeBank(defaultPattern()), makeBank(emptyPattern())]);
   const [bank, setBank] = useState(0);
   const [queued, setQueued] = useState<number | null>(null);
   const banksRef = useRef(banks); banksRef.current = banks;
   const bankRef = useRef(bank);
   const queuedRef = useRef<number | null>(null);
-  const pattern = banks[bank].pattern, lengths = banks[bank].lengths;
+  const pattern = banks[bank].pattern, lengths = banks[bank].lengths, vel = banks[bank].vel, chance = banks[bank].chance;
   const editBank = useCallback((f: (b: Bank) => Bank) => setBanks(bs => bs.map((b, i) => (i === bankRef.current ? f(b) : b))), []);
   const setPattern = useCallback((v: StepVal[][] | ((p: StepVal[][]) => StepVal[][])) => editBank(b => ({ ...b, pattern: typeof v === "function" ? v(b.pattern) : v })), [editBank]);
   const setLengths = useCallback((v: number[] | ((l: number[]) => number[])) => editBank(b => ({ ...b, lengths: typeof v === "function" ? v(b.lengths) : v })), [editBank]);
@@ -104,6 +120,15 @@ export function useGroovebox() {
   const slotsRef = useRef(slots); slotsRef.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
   const selectedRef = useRef(selected); selectedRef.current = selected;
+  // Pad repeat (momentary or latched) with a per-pad velocity set by finger height on the pad.
+  const [repeat, setRepeatState] = useState<RepeatParams>({ on: false, latch: false, rate: "1/16" });
+  const repeatRef = useRef(repeat); repeatRef.current = repeat;
+  const padVel = useRef<number[]>(Array(16).fill(1));
+  // Live recording: hits are quantized to the nearest 16th and written into the active pattern.
+  const [rec, setRec] = useState(false);
+  const recRef = useRef(rec); recRef.current = rec;
+  const lastTick = useRef<{ tick: number; time: number } | null>(null);
+  const skip = useRef(new Set<string>());
 
   const ctxOf = () => Tone.getContext().rawContext as unknown as BaseAudioContext;
   const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
@@ -124,55 +149,103 @@ export function useGroovebox() {
   // Pad lights use a compositor animation: no layout reflow and no timers, even on fast rolls of one pad.
   const flash = (i: number) => { padRefs.current[i]?.animate([{ backgroundColor: "hsl(var(--accent) / .45)" }, { backgroundColor: "hsl(var(--muted))" }], { duration: 140, easing: "ease-out" }); };
 
-  /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length. */
-  const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number) => {
+  /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length, `noteIdx` plays one chord note (arpeggio step). */
+  const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
-    const t = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate = gateSec ?? 60 / bpmRef.current / 4;
-    // Chord voices are grouped under one stop handle; drums remain bounded to one hit per pad.
-    e.mono[i]?.stop(t);
-    if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.mono[j]?.stop(t); e.mono[j] = null; } });
+    const t0 = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2);
     const notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
+    const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi;
-    const voices = notes.map(offset => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
-      : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
-      : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buffers.current[i] ?? fallbackBuf(), t, gate, vel / Math.sqrt(notes.length))
-      : s.engine === "poly" ? null
-      : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
-    if (s.engine === "poly") voices.push(playPoly(e.ctx, dest, { ...s.poly, env: scaledEnv(s.poly.env, factor) }, notes.map(n => pitch + n), t, gate, vel));
-    e.mono[i] = { stop: at => voices.forEach(v => v?.stop(at)), glide: (to, at, tm) => voices.forEach(v => v?.glide?.(to - semi, at, tm)) };
+    const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
+    const run = (t: number, gate: number, idx?: number) => {
+      // Chord voices are grouped under one stop handle; drums remain bounded to one hit per pad.
+      e.mono[i]?.stop(t);
+      if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.mono[j]?.stop(t); e.mono[j] = null; } });
+      const ns = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
+      const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
+      const voices = ns.map((offset, k) => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
+        : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
+        : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buf, at(k), gk(k), vel / Math.sqrt(ns.length))
+        : s.engine === "poly" ? null
+        : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
+      if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
+      e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
+    };
+    if (mode === "arp" && noteIdx === undefined) {
+      if (gate0 > 30) return; // held pads arpeggiate through the hold scheduler instead
+      const rs = 60 / bpmRef.current * RATES[s.chord.rate ?? "1/16"];
+      for (let k = 0; k * rs < gate0 - .001 && k < 64; k++) run(t0 + k * rs, Math.min(rs * .9, gate0 - k * rs), k);
+      return;
+    }
+    run(t0, gate0, noteIdx);
   }, []);
 
-  // Pad phrase sequencer: while a pad is held, a look-ahead scheduler books its steps on the audio clock.
-  const holds = useRef(new Map<number, { next: number; idx: number }>());
+  /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
+  const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean) => {
+    const c = a.cells[k % a.steps]; if (!c.on) return false;
+    const semi = degreeToSemi(a.scale, c.deg), prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
+    let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
+    const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
+    trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t)); return true;
+  }, [trigger]);
+
+  const recordHit = useCallback((i: number, at: number, v: number) => {
+    const lt = lastTick.current; if (!recRef.current || !lt || Tone.getTransport().state !== "started") return;
+    const six = 60 / bpmRef.current / 4, q = lt.tick + Math.round((at - lt.time) / six), qq = ((q % 55440) + 55440) % 55440;
+    const b = banksRef.current[bankRef.current], pf = performanceRef.current, col = stepAt(qq, b.lengths[i], pf.loop, pf.offset ?? 0);
+    if (q > lt.tick) skip.current.add(`${i}:${qq}`); // already heard live: don't play it again this pass
+    setBanks(bs => bs.map((bk, j) => (j !== bankRef.current ? bk : { ...bk, pattern: bk.pattern.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? 1 : x)) : r)), vel: bk.vel.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? Math.round(v * 100) / 100 : x)) : r)) })));
+  }, []);
+
+  // Pad holds: phrases, held chord arpeggios and pad repeat are booked ahead on the audio clock.
+  type Hold = { next: number; idx: number; count: number; kind: "phrase" | "chord" | "repeat" };
+  const holds = useRef(new Map<number, Hold>());
   const timer = useRef<number | null>(null);
   const pressed = useRef(new Set<number>());
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
-    const horizon = e.ctx.currentTime + 0.08;
+    const horizon = e.ctx.currentTime + 0.08, bpmNow = bpmRef.current;
     holds.current.forEach((h, i) => {
-      const a = slotsRef.current[i].arp, dur = stepSeconds(a, bpmRef.current);
+      const s = slotsRef.current[i], a = s.arp;
+      const dur = h.kind === "repeat" ? 60 / bpmNow * RATES[repeatRef.current.rate] : h.kind === "chord" ? 60 / bpmNow * RATES[s.chord.rate ?? "1/16"] : stepSeconds(a, bpmNow);
       while (h.next < horizon) {
-        const c = a.cells[h.idx % a.steps];
-        if (c.on) { trigger(i, h.next, c.vel, degreeToSemi(a.scale, c.deg), dur * c.gate); Tone.getDraw().schedule(() => flash(i), h.next); }
-        h.next += dur; h.idx = (h.idx + 1) % a.steps;
+        let fired = true;
+        if (h.kind === "repeat") { const v = padVel.current[i]; trigger(i, h.next, v, 0, Math.min(dur * .95, 60 / bpmNow / 4)); recordHit(i, h.next, v); }
+        else if (h.kind === "chord") trigger(i, h.next, 1, 0, dur * .9, h.idx);
+        else fired = phraseStep(i, a, h.idx, h.next, dur, Infinity, 1, h.count === 0);
+        if (fired) { const ft = h.next; Tone.getDraw().schedule(() => flash(i), ft); }
+        h.next += dur; h.idx = h.kind === "phrase" ? (h.idx + 1) % a.steps : h.idx + 1; h.count++;
       }
     });
-  }, [trigger]);
-  const startHold = useCallback((i: number) => {
+  }, [trigger, phraseStep, recordHit]);
+  const idle = () => { if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; } };
+  const startHold = useCallback((i: number, kind: Hold["kind"]) => {
     const e = engine.current; if (!e || holds.current.has(i) || !pressed.current.has(i)) return;
-    holds.current.set(i, { next: e.ctx.currentTime, idx: 0 }); pump();
+    holds.current.set(i, { next: e.ctx.currentTime, idx: 0, count: 0, kind }); pump();
     timer.current ??= window.setInterval(pump, 20);
   }, [pump]);
+  const stopHold = useCallback((i: number) => { if (!holds.current.delete(i)) return; const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime); idle(); }, []);
   const release = useCallback((i: number) => {
     pressed.current.delete(i);
-    if (!holds.current.delete(i)) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)))) e.mono[i]?.stop(e.ctx.currentTime); return; }
-    const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime);
-    if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; }
-  }, []);
-  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { const slot = slotsRef.current[i]; trigger(i, undefined, 1, 0, slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined); flash(i); } }, [startHold, trigger]);
-
+    const h = holds.current.get(i);
+    if (h?.kind === "repeat" && repeatRef.current.latch) return;
+    if (!h) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)))) e.mono[i]?.stop(e.ctx.currentTime); return; }
+    stopHold(i);
+  }, [stopHold]);
+  const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "poly" || s.engine === "sampler") && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
+  const play = useCallback((i: number) => {
+    const slot = slotsRef.current[i], e = engine.current;
+    if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
+    if (e) recordHit(i, e.ctx.currentTime, 1);
+    if (slot.arp.on) startHold(i, "phrase");
+    else if (isChordArp(slot)) startHold(i, "chord");
+    else { trigger(i, undefined, 1, 0, slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined); flash(i); }
+  }, [startHold, stopHold, trigger, recordHit]);
+  const setRepeat = useCallback((r: RepeatParams) => { if (!r.on || !r.latch) [...holds.current].forEach(([i, h]) => { if (h.kind === "repeat" && (!r.on || !pressed.current.has(i))) stopHold(i); }); setRepeatState(r); }, [stopHold]);
+  const setPadVel = useCallback((i: number, v: number) => { padVel.current[i] = v; }, []);
 
   const ensure = useCallback(async () => {
     await Tone.start(); await loadWorklets();
@@ -188,9 +261,10 @@ export function useGroovebox() {
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
       const cb = banksRef.current[bankRef.current];
       const pf = performanceRef.current;
+      lastTick.current = { tick, time };
       cb.pattern.forEach((row, i) => {
-        // Performance offset rotates each row; the loop shortener clamps it to its first N steps.
-        const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = (((tick - (pf.offset ?? 0)) % len) + len) % len;
+        // Offset rotates each row; with a loop crop it slides the cropped window across the row.
+        const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
         const eng = engine.current, slot = slotsRef.current[i], lane = slot.mods?.[bankRef.current], v = row[st];
         // Mod row: each active step sets its parameter to the drawn fill (0-100%) on the audio clock.
         let semiAt = 0;
@@ -201,17 +275,16 @@ export function useGroovebox() {
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } else if (eng && (!lane?.on || lane.target !== "cutoff")) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
-        if (v === 3) { eng?.mono[i]?.glide?.(semiAt, time, sixteenth * .7); return; }
         if (v !== 1) return;
-        let ties = 0; while (st + ties + 1 < len && row[st + ties + 1] >= 2) ties++;
+        if (skip.current.delete(`${i}:${tick}`)) return;
+        if (Math.random() >= (cb.chance?.[i]?.[st] ?? 1)) return;
+        const velo = cb.vel?.[i]?.[st] ?? 1;
+        let ties = 0; while (ties + 1 < len && row[stepAt(tick + ties + 1, full, pf.loop, pf.offset ?? 0)] >= 2 && (pf.loop ? (tick % len) + ties + 1 < len : st + ties + 1 < full)) ties++;
         const dur = (1 + ties) * sixteenth, a = slotsRef.current[i].arp;
-        if (!a.on) { trigger(i, time, 1, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
+        if (!a.on) { trigger(i, time, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
         // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts.
         const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002;
-        for (let k = 0, t = time; t < end; k++, t += sd) {
-          const c = a.cells[k % a.steps]; if (!c.on) continue;
-          trigger(i, t, c.vel, degreeToSemi(a.scale, c.deg), Math.min(sd * c.gate, end - t)); const ft = t; Tone.getDraw().schedule(() => flash(i), ft);
-        }
+        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, k, t, sd, end, velo, k === 0)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
@@ -220,7 +293,7 @@ export function useGroovebox() {
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
+  }, [trigger, phraseStep]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -244,7 +317,7 @@ export function useGroovebox() {
   const togglePlay = useCallback(async () => {
     try {
       await ensure(); const t = Tone.getTransport();
-      if (playing) { t.stop(); engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { t.position = 0; t.start("+0.05"); setPlaying(true); }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
@@ -298,19 +371,20 @@ export function useGroovebox() {
   // Cycle off -> hit -> tie -> off. A tie needs a hit or tie before it, otherwise it goes straight to off.
   const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => {
     if (j !== col) return v;
-    if (v === 0) return 1; if (v === 3) return 0; if (v === 2) return 3; return col > 0 && r[col - 1] !== 0 ? 2 : 0;
+    if (v === 0) return 1; if (v >= 2) return 0; return col > 0 && r[col - 1] !== 0 ? 2 : 0;
   }) : r))), []);
   // Mod rows live on each slot per pattern bank, so A/B can automate differently.
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current ? f(l) : l)) } : x))), []);
   const setModValue = useCallback((row: number, col: number, v: number) => editLane(row, l => ({ ...l, on: true, values: l.values.map((x, k) => (k === col ? v : x)) })), [editLane]);
   const setModTarget = useCallback((row: number, target: string) => editLane(row, l => ({ ...l, on: target !== "off", target: target === "off" ? l.target : target })), [editLane]);
+  const setStepValue = useCallback((kind: "vel" | "chance", row: number, col: number, v: number) => editBank(b => ({ ...b, [kind]: b[kind].map((r, j) => (j === row ? r.map((x, k) => (k === col ? v : x)) : r)) })), [editBank]);
   const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row ? len : v))), []);
   const selectBank = useCallback((b: number) => {
     if (b === bankRef.current) { queuedRef.current = null; setQueued(null); return; }
     if (Tone.getTransport().state === "started") { queuedRef.current = b; setQueued(b); }
     else { bankRef.current = b; setBank(b); }
   }, []);
-  const copyBank = useCallback(() => setBanks(bs => { const src = bs[bankRef.current]; return bs.map((b, i) => (i === bankRef.current ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths] })); }), []);
+  const copyBank = useCallback(() => setBanks(bs => { const src = bs[bankRef.current]; return bs.map((b, i) => (i === bankRef.current ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]) })); }), []);
   const setLevel = useCallback((i: number, level: number) => updateSlot(i, { level }), [updateSlot]);
   const toggleMute = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, mute: !x.mute } : x))), []);
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
@@ -322,7 +396,7 @@ export function useGroovebox() {
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     const d = defaultSlots();
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; return o ? { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...o.synth }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, eq: { ...x.eq, ...o.eq }, mods: o.mods ?? x.mods, fx: o.fx ?? x.fx } : x; }));
-    if (st.banks?.length === 2) setBanks(st.banks);
+    if (st.banks?.length === 2) setBanks(st.banks.map(fixBank));
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
     setBpm(st.bpm ?? 124); setVolume(st.volume ?? 60);
     buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
@@ -330,9 +404,9 @@ export function useGroovebox() {
   }, [loadById]);
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
-  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([{ pattern: defaultPattern(), lengths: Array(16).fill(STEPS) }, { pattern: emptyPattern(), lengths: Array(16).fill(STEPS) }]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
+  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([makeBank(defaultPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
-export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; volume: number; bank: number; banks: { pattern: StepVal[][]; lengths: number[] }[]; slots: Slot[]; performance?: PerformanceParams };
+export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
