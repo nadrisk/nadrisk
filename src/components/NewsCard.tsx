@@ -9,15 +9,15 @@ interface NewsCardProps {
 const NewsCard = ({ entry, index }: NewsCardProps) => {
   return (
     <article
-      className="group border-b border-border/30 py-12 first:pt-0 last:border-b-0"
-      style={{ animation: `fade-up 0.6s ease-out ${index * 0.05}s forwards`, opacity: 0 }}
+      className="group news-entry border-b border-border py-12 first:pt-0 last:border-b-0"
     >
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
         <div className="space-y-3">
+          <span className="news-entry-index">[{String(index + 1).padStart(3, "0")}]</span>
           <h3 className="text-lg md:text-xl font-medium text-foreground group-hover:text-accent transition-colors">
             {entry.title}
           </h3>
-          <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
+          <p className="news-description text-muted-foreground text-sm leading-relaxed">
             {entry.description}
           </p>
           {entry.link && (

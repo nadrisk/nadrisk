@@ -10,8 +10,8 @@ const News = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="pt-32 pb-24 px-6 md:px-12">
-        <div className="max-w-3xl mx-auto">
+      <main className="news-page">
+        <div className="max-w-4xl mx-auto">
           <div className="mb-16">
             <Link
               to="/"
@@ -20,9 +20,7 @@ const News = () => {
               <ArrowLeft size={14} />
               Back
             </Link>
-            <h1 className="text-5xl md:text-7xl font-light text-foreground tracking-wide text-glow">
-              NEWS
-            </h1>
+            <span className="eyebrow block mb-4">02 / FIELD NOTES</span><h1 className="news-title">Transmissions<span className="title-period">.</span></h1><div className="news-subheading"><span>RELEASES, EXPERIMENTS & OTHER SIGNALS</span><span>{newsEntries.length} ENTRIES</span></div>
           </div>
 
           <div>
