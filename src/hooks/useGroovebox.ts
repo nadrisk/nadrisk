@@ -96,19 +96,48 @@ export function useGroovebox() {
     return () => ["touchend", "click", "keydown"].forEach(ev => window.removeEventListener(ev, unlock, true));
   }, []);
 
-  // Pad lights are set directly on the element so a hit never waits for a React render.
-  const flash = (i: number) => { const el = padRefs.current[i]; if (!el) return; el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); window.setTimeout(() => el.classList.remove("hit"), 120); };
+  // Pad lights use a compositor animation: no layout reflow and no timers, even on fast rolls of one pad.
+  const flash = (i: number) => { padRefs.current[i]?.animate([{ backgroundColor: "hsl(var(--accent) / .45)" }, { backgroundColor: "hsl(var(--muted))" }], { duration: 140, easing: "ease-out" }); };
 
-  const trigger = useCallback((i: number, time?: number, vel = 1) => {
+  /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length. */
+  const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number) => {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute) return;
-    const t = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate = 60 / bpmRef.current / 4;
+    const t = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate = gateSec ?? 60 / bpmRef.current / 4;
     // Choke: each slot keeps one voice, like hardware drum machines, so fast rolls never pile up nodes.
     e.mono[i]?.stop(t);
-    e.mono[i] = s.engine === "drum" ? playDrum(e.ctx, dest, s.drum, t, vel)
-      : s.engine === "sampler" ? playSampler(e.ctx, dest, s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel)
-      : playSynth(e.ctx, dest, s.synth, s.note, t, gate, vel);
+    e.mono[i] = s.engine === "drum" ? playDrum(e.ctx, dest, semi ? { ...s.drum, pitch: s.drum.pitch * 2 ** (semi / 12) } : s.drum, t, vel)
+      : s.engine === "sampler" ? playSampler(e.ctx, dest, semi ? { ...s.sampler, pitch: s.sampler.pitch + semi } : s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel)
+      : playSynth(e.ctx, dest, s.synth, s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi, t, gate, vel);
   }, []);
+
+  // Pad phrase sequencer: while a pad is held, a look-ahead scheduler books its steps on the audio clock.
+  const holds = useRef(new Map<number, { next: number; idx: number }>());
+  const timer = useRef<number | null>(null);
+  const pump = useCallback(() => {
+    const e = engine.current; if (!e) return;
+    const horizon = e.ctx.currentTime + 0.08;
+    holds.current.forEach((h, i) => {
+      const a = slotsRef.current[i].arp, dur = stepSeconds(a, bpmRef.current);
+      while (h.next < horizon) {
+        const c = a.cells[h.idx % a.steps];
+        if (c.on) { trigger(i, h.next, c.vel, degreeToSemi(a.scale, c.deg), dur * c.gate); Tone.getDraw().schedule(() => flash(i), h.next); }
+        h.next += dur; h.idx = (h.idx + 1) % a.steps;
+      }
+    });
+  }, [trigger]);
+  const startHold = useCallback((i: number) => {
+    const e = engine.current; if (!e || holds.current.has(i)) return;
+    holds.current.set(i, { next: e.ctx.currentTime, idx: 0 }); pump();
+    timer.current ??= window.setInterval(pump, 20);
+  }, [pump]);
+  const release = useCallback((i: number) => {
+    if (!holds.current.delete(i)) return;
+    const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime);
+    if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; }
+  }, []);
+  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { trigger(i); flash(i); } }, [startHold, trigger]);
+
 
   const ensure = useCallback(async () => {
     await Tone.start(); await loadWorklets();
