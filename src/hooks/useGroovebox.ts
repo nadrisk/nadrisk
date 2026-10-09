@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
@@ -66,7 +66,7 @@ export function useGroovebox() {
   const [step, setStep] = useState(-1);
   const [bpm, setBpm] = useState(124);
   const [volume, setVolume] = useState(60);
-  const [hits, setHits] = useState<number[]>(() => Array(16).fill(0));
+  const padRefs = useRef<(HTMLButtonElement | null)[]>(Array(16).fill(null));
   const [peaks, setPeaks] = useState<(number[] | null)[]>(() => Array(16).fill(null));
   const [error, setError] = useState("");
   const [eco, setEco] = useState(false);
@@ -90,12 +90,13 @@ export function useGroovebox() {
     return () => ["touchend", "click", "keydown"].forEach(ev => window.removeEventListener(ev, unlock, true));
   }, []);
 
-  const flash = (i: number) => setHits(h => { const n = [...h]; n[i] = Date.now(); return n; });
+  // Pad lights are set directly on the element so a hit never waits for a React render.
+  const flash = (i: number) => { const el = padRefs.current[i]; if (!el) return; el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); window.setTimeout(() => el.classList.remove("hit"), 120); };
 
   const trigger = useCallback((i: number, time?: number, vel = 1) => {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute) return;
-    const t = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].gain, gate = 60 / bpmRef.current / 4;
+    const t = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate = 60 / bpmRef.current / 4;
     if (s.engine === "drum") playDrum(e.ctx, dest, s.drum, t, vel);
     else if (s.engine === "sampler") playSampler(e.ctx, dest, s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel);
     else { e.mono[i]?.stop(t); e.mono[i] = playSynth(e.ctx, dest, s.synth, s.note, t, gate, vel); }
@@ -148,7 +149,7 @@ export function useGroovebox() {
   const hit = useCallback(async (i: number) => {
     // Fast path: audio already running, so play synchronously with no await.
     const e = engine.current;
-    if (e && Tone.getContext().state === "running") { trigger(i); flash(i); setSelected(i); return; }
+    if (e && Tone.getContext().state === "running") { trigger(i); flash(i); startTransition(() => setSelected(i)); return; }
     setSelected(i);
     try { await ensure(); if (Tone.getContext().state !== "running") return; trigger(i); flash(i); } catch { setError("Audio unavailable."); }
   }, [ensure, trigger]);
@@ -168,5 +169,5 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
   const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, hits, peaks, error, eco, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
 }
