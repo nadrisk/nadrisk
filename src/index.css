@@ -226,7 +226,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-seq-tools { display: flex; gap: 6px; padding: 8px 10px 0; font-family: 'JetBrains Mono', monospace; }
 .gb-seq-tools button { font-size: 10px; text-transform: uppercase; gap: 4px; height: 26px; }
 .gb-seq-grid { padding: 10px; overflow-x: auto; display: flex; flex-direction: column; gap: 3px; }
-.gb-row { display: grid; grid-template-columns: 80px repeat(16, minmax(18px, 1fr)); gap: 3px; min-width: 520px; }
+.gb-row { display: grid; grid-template-columns: 80px 34px repeat(16, minmax(18px, 1fr)); gap: 3px; min-width: 560px; }
 .gb-row-label { font: 9px 'JetBrains Mono', monospace; text-align: left; color: hsl(var(--muted-foreground)); background: none; border: 0; overflow: hidden; white-space: nowrap; }
 .gb-row.selected .gb-row-label { color: hsl(var(--accent)); }
 .gb-step { height: 18px; border: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .6); }
@@ -287,7 +287,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   .gb-pad-kind, .gb-pad-index { font-size: 7px; }
   .gb-cols3, .gb-cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gb-editor-body { max-height: none; }
-  .gb-row { grid-template-columns: 58px repeat(16, 22px); min-width: 0; }
+  .gb-row { grid-template-columns: 58px 34px repeat(16, 22px); min-width: 0; }
   .gb-step { height: 22px; }
   .gb-fx-unit { width: 170px; }
   .workspace-heading, .workspace-footer { flex-wrap: wrap; gap: 4px 12px; }
@@ -318,3 +318,10 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .arp-notes button { height: 24px; font-size: 9px; border: 1px solid hsl(var(--border)); background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); padding: 0; min-width: 0; }
 .arp-notes button.selected { border-color: hsl(var(--accent)); color: hsl(var(--accent)); background: hsl(var(--accent) / .1); }
 .gb-pad.has-arp .gb-pad-kind::after { content: " · seq"; color: hsl(var(--primary)); }
+
+/* Tied steps + per-row loop length */
+.gb-row-len { font: 9px 'JetBrains Mono', monospace; height: 18px; background: hsl(var(--muted)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); padding: 0 2px; }
+.gb-step { position: relative; }
+.gb-step.tie { background: hsl(var(--accent) / .55); border-color: hsl(var(--accent)); border-left-color: transparent; }
+.gb-step.tie-next::after { content: ""; position: absolute; top: 25%; bottom: 25%; right: -5px; width: 5px; background: hsl(var(--accent)); }
+.gb-step.disabled { opacity: .18; pointer-events: none; }
