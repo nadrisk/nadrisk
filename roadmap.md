@@ -10,3 +10,4 @@
 - [ ] Audio-reactive visualizer (scope, spectrum, trippy visuals)
 - [x] Performance: A/B pattern banks + 16ch mixer (vol/mute/solo)
 - [x] Savable sets (local banks + JSON export/import)
+- [x] Sample recall: device cache, built-in library, folder load, set bundles
