@@ -34,6 +34,24 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   </div>; })}</div>;
 });
 
+const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, onClearSolo, onSelect }: {
+  slots: Slot[]; selected: number; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
+}) {
+  const anySolo = slots.some(s => s.solo);
+  return <div className="node-body">
+    <div className="gb-seq-tools" style={{ padding: 0 }}><Button variant="ghost" size="sm" disabled={!anySolo} onClick={onClearSolo}>clear solo</Button></div>
+    <div className="gb-mixer">{slots.map((s, i) => <div key={i} className={`gb-strip ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
+      <span className="gb-strip-val">{s.level}</span>
+      <Slider orientation="vertical" aria-label={`${s.name} volume`} min={0} max={100} value={[s.level]} onValueChange={([v]) => onLevel(i, v)} className="gb-vslider" />
+      <div className="gb-strip-btns">
+        <button className={`gb-ms ${s.mute ? "m-on" : ""}`} aria-pressed={s.mute} aria-label={`Mute ${s.name}`} onClick={() => onMute(i)}>M</button>
+        <button className={`gb-ms ${s.solo ? "s-on" : ""}`} aria-pressed={s.solo} aria-label={`Solo ${s.name}`} onClick={() => onSolo(i)}>S</button>
+      </div>
+      <button className="gb-strip-name" onClick={() => onSelect(i)}>{s.name}</button>
+    </div>)}</div>
+  </div>;
+});
+
 export default function Groovebox() {
   const g = useGroovebox();
   const s = g.slots[g.selected];
@@ -74,8 +92,14 @@ export default function Groovebox() {
         <FxChain slotName={s.name} fx={s.fx} onChange={onFx} />
       </PatchNode>
 
-      <PatchNode label="step.seq 16" tag="SEQUENCER" className="gb-seq">
+      <PatchNode label="mixer~ 16ch" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
+        <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
+      </PatchNode>
+
+      <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
         <div className="gb-seq-tools">
+          <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
+          <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
           <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
           <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
           <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
@@ -83,6 +107,6 @@ export default function Groovebox() {
         <StepGrid pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
       </PatchNode>
     </div>
-    <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
+    <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.queued != null ? `PATTERN ${g.queued ? "B" : "A"} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section>;
 }

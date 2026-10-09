@@ -325,3 +325,22 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-step.tie { background: hsl(var(--accent) / .55); border-color: hsl(var(--accent)); border-left-color: transparent; }
 .gb-step.tie-next::after { content: ""; position: absolute; top: 25%; bottom: 25%; right: -5px; width: 5px; background: hsl(var(--accent)); }
 .gb-step.disabled { opacity: .18; pointer-events: none; }
+
+/* A/B pattern banks + mixer */
+.gb-banks { display: flex; gap: 4px; }
+.gb-bank { font: 11px 'Michroma', sans-serif; width: 30px; height: 26px; border: 1px solid hsl(var(--border)); background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.gb-bank.active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
+.gb-bank.queued { border-color: hsl(var(--accent)); color: hsl(var(--accent)); animation: gb-blink .5s steps(2) infinite; }
+@keyframes gb-blink { 50% { opacity: .4; } }
+.gb-mixnode { grid-column: 1 / -1; }
+.gb-mixer { display: grid; grid-template-columns: repeat(16, minmax(44px, 1fr)); gap: 4px; overflow-x: auto; padding: 8px 0 4px; touch-action: pan-x; }
+.gb-strip { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; border: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .4); font-family: 'JetBrains Mono', monospace; }
+.gb-strip.selected { border-color: hsl(var(--primary)); }
+.gb-strip.silent { opacity: .45; }
+.gb-strip-val { font-size: 9px; color: hsl(var(--muted-foreground)); }
+.gb-vslider { height: 110px; width: 18px; touch-action: none; }
+.gb-strip-btns { display: flex; gap: 2px; }
+.gb-ms { font: 9px 'JetBrains Mono', monospace; width: 18px; height: 18px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--muted-foreground)); touch-action: manipulation; }
+.gb-ms.m-on { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+.gb-ms.s-on { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.gb-strip-name { font-size: 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--foreground)); background: none; border: 0; }
