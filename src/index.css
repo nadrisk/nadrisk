@@ -440,3 +440,4 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   .gb-grid [role="slider"] { width: 22px; height: 22px; }
   .gb-grid .gb-mute, .gb-grid .gb-kinds button { min-height: 38px; }
 }
+.gb-row-len { -webkit-appearance: none; appearance: none; text-align: center; text-align-last: center; padding: 0 2px; }
