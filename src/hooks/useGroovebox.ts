@@ -1,48 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
+import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
-export type VoiceKind = "kick" | "snare" | "hat" | "clap" | "tom" | "bass" | "lead" | "fm";
-export const VOICE_KINDS: VoiceKind[] = ["kick", "snare", "hat", "clap", "tom", "bass", "lead", "fm"];
-export const NOTES = ["C1", "E1", "G1", "C2", "D2", "E2", "G2", "A2", "C3", "D3", "E3", "G3", "A3", "C4", "E4", "G4"];
+export type EngineKind = "drum" | "synth" | "sampler";
 export const STEPS = 16;
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; outs: { gain: GainNode; pan: StereoPannerNode }[]; loop: number; mono: (Voice | null)[] };
 
-export type Slot = { name: string; kind: VoiceKind; note: string; level: number; decay: number; tone: number; mute: boolean };
-type Voice = { synth: Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth | Tone.MonoSynth | Tone.Synth | Tone.FMSynth; filter: Tone.Filter; gain: Tone.Gain };
-type Engine = { voices: Voice[]; master: Tone.Gain; analyser: Tone.Analyser; loop: number };
+const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 50, pitchEnv: 36, pitchDecay: 0.06, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
+const synth = (o: Partial<SynthParams>): SynthParams => ({
+  osc1: { wave: "sawtooth", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 0, coarse: 12, fine: 7, mode: "mix", fmAmount: 1 },
+  partials: [1, 0.5, 0.3, 0.2, 0.1, 0.05, 0, 0, 0.6, 0.3, 0.15, 0.08, 0, 0, 0, 0], noise: 0,
+  env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
+  pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
+const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
-const preset: [VoiceKind, string, string][] = [
-  ["kick", "C1", "KICK"], ["snare", "C3", "SNARE"], ["hat", "C4", "HAT CL"], ["clap", "C3", "CLAP"],
-  ["tom", "G1", "TOM LO"], ["tom", "D2", "TOM HI"], ["hat", "G4", "HAT OP"], ["fm", "C3", "FM BELL"],
-  ["bass", "C2", "BASS A"], ["bass", "G1", "BASS B"], ["lead", "C3", "LEAD"], ["lead", "G3", "LEAD 2"],
-  ["fm", "E3", "FM GLASS"], ["snare", "E3", "RIM"], ["clap", "C3", "NOISE"], ["fm", "A2", "FM DRONE"],
+const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, drum: drum({}), synth: synth({}), sampler: sampler(), ...extra });
+const defaultSlots = (): Slot[] => [
+  base("KICK", "drum"),
+  base("SNARE", "drum", 48, { drum: drum({ kind: "snare", pitch: 180, pitchEnv: 12, pitchDecay: 0.03, noise: 0.7, env: { a: 0.001, d: 0.2, s: 0, r: 0.08 }, cutoff: 8000 }) }),
+  base("HAT CL", "drum", 48, { level: 55, drum: drum({ kind: "hat", pitch: 400, pitchEnv: 0, noise: 0.7, fm: 2, fmRatio: 1.48, ring: 0.5, ringFreq: 1200, filter: "highpass", cutoff: 7000, env: { a: 0.001, d: 0.05, s: 0, r: 0.03 } }) }),
+  base("CLAP", "drum", 48, { drum: drum({ kind: "snare", pitch: 900, pitchEnv: 0, noise: 0.95, filter: "bandpass", cutoff: 1500, res: 2, env: { a: 0.002, d: 0.15, s: 0, r: 0.08 } }) }),
+  base("TOM LO", "drum", 48, { drum: drum({ pitch: 90, pitchEnv: 12, pitchDecay: 0.1, env: { a: 0.001, d: 0.3, s: 0, r: 0.1 } }) }),
+  base("TOM HI", "drum", 48, { drum: drum({ pitch: 150, pitchEnv: 12, pitchDecay: 0.1, env: { a: 0.001, d: 0.25, s: 0, r: 0.1 } }) }),
+  base("HAT OP", "drum", 48, { level: 50, drum: drum({ kind: "hat", pitch: 400, pitchEnv: 0, noise: 0.7, fm: 2, fmRatio: 1.48, ring: 0.5, ringFreq: 1200, filter: "highpass", cutoff: 6500, env: { a: 0.001, d: 0.3, s: 0, r: 0.1 } }) }),
+  base("RIDE", "drum", 48, { level: 45, drum: drum({ kind: "hat", pitch: 600, pitchEnv: 0, noise: 0.3, fm: 4, fmRatio: 2.3, ring: 0.8, ringFreq: 2200, filter: "highpass", cutoff: 4000, env: { a: 0.001, d: 0.6, s: 0, r: 0.2 } }) }),
+  base("BASS A", "synth", 36),
+  base("BASS FM", "synth", 31, { synth: synth({ osc1: { wave: "sine", gain: 0.9, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 12, fine: 0, mode: "fm", fmAmount: 1.5 }, cutoff: 2000, filterEnv: 1 }) }),
+  base("LEAD", "synth", 60, { synth: synth({ osc1: { wave: "additive", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "triangle", gain: 0.3, coarse: 0, fine: 9, mode: "mix", fmAmount: 1 }, cutoff: 3000, lfo: { wave: "sine", rate: 5, depth: 0.02, target: "pitch" } }) }),
+  base("SQUARE", "synth", 67, { synth: synth({ osc1: { wave: "square", gain: 0.6, coarse: 0, fine: -6 }, osc2: { wave: "square", gain: 0.4, coarse: -12, fine: 6, mode: "mix", fmAmount: 1 }, cutoff: 1800, pitchEnv: 12, pitchDecay: 0.04 }) }),
+  base("VOX", "sampler"),
+  base("CHOP", "sampler", 48, { sampler: sampler({ pitch: 7, start: 0.2 }) }),
+  base("NOISE", "drum", 48, { level: 40, drum: drum({ kind: "snare", pitch: 200, pitchEnv: 0, noise: 1, filter: "bandpass", cutoff: 3000, res: 6, filterEnv: 2, filterDecay: 0.3, env: { a: 0.01, d: 0.4, s: 0, r: 0.2 } }) }),
+  base("FM DRONE", "synth", 43, { synth: synth({ osc1: { wave: "triangle", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 0.3, d: 0.5, s: 0.7, r: 0.8 }, lfo: { wave: "triangle", rate: 0.5, depth: 0.5, target: "cutoff" } }) }),
 ];
-const defaultSlots = (): Slot[] => preset.map(([kind, note, name]) => ({ name, kind, note, level: 70, decay: kind === "hat" ? 0.08 : kind === "lead" || kind === "fm" ? 0.4 : 0.3, tone: 6000, mute: false }));
 const emptyPattern = () => Array.from({ length: 16 }, () => Array<boolean>(STEPS).fill(false));
 const defaultPattern = () => {
   const p = emptyPattern();
-  [0, 4, 8, 12].forEach(s => (p[0][s] = true));
-  [4, 12].forEach(s => (p[1][s] = true));
-  [0, 2, 4, 6, 8, 10, 12, 14].forEach(s => (p[2][s] = true));
-  [3, 7, 11].forEach(s => (p[8][s] = true));
-  p[6][14] = true; p[7][10] = true;
+  [0, 4, 8, 12].forEach(s => (p[0][s] = true)); [4, 12].forEach(s => (p[1][s] = true));
+  [0, 2, 4, 6, 8, 10, 12, 14].forEach(s => (p[2][s] = true)); [3, 7, 11].forEach(s => (p[8][s] = true));
+  p[6][14] = true; p[12][0] = true;
   return p;
 };
 
-function makeSynth(kind: VoiceKind): Voice["synth"] {
-  switch (kind) {
-    case "kick": return new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 6 });
-    case "tom": return new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3 });
-    case "snare": return new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } });
-    case "clap": return new Tone.NoiseSynth({ noise: { type: "pink" }, envelope: { attack: 0.005, decay: 0.15, sustain: 0 } });
-    case "hat": return new Tone.MetalSynth({ harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 });
-    case "bass": return new Tone.MonoSynth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.2 } });
-    case "lead": return new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.4 } });
-    case "fm": return new Tone.FMSynth({ harmonicity: 3, modulationIndex: 10, envelope: { attack: 0.005, decay: 0.4, sustain: 0, release: 0.5 } });
-  }
-}
-
 export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
+  const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
+  const fallback = useRef<AudioBuffer | null>(null);
   const [slots, setSlots] = useState<Slot[]>(defaultSlots);
   const [pattern, setPattern] = useState<boolean[][]>(defaultPattern);
   const [selected, setSelected] = useState(0);
@@ -51,91 +55,84 @@ export function useGroovebox() {
   const [bpm, setBpm] = useState(124);
   const [volume, setVolume] = useState(60);
   const [hits, setHits] = useState<number[]>(() => Array(16).fill(0));
+  const [peaks, setPeaks] = useState<(number[] | null)[]>(() => Array(16).fill(null));
   const [error, setError] = useState("");
   const slotsRef = useRef(slots); slotsRef.current = slots;
   const patternRef = useRef(pattern); patternRef.current = pattern;
+  const bpmRef = useRef(bpm); bpmRef.current = bpm;
+
+  const ctxOf = () => Tone.getContext().rawContext as unknown as BaseAudioContext;
+  const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
+  useEffect(() => { const p = peaksOf(fallbackBuf()); setPeaks(Array(16).fill(p)); }, []);
 
   const flash = (i: number) => setHits(h => { const n = [...h]; n[i] = Date.now(); return n; });
 
-  const trigger = useCallback((i: number, time?: number) => {
+  const trigger = useCallback((i: number, time?: number, vel = 1) => {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute) return;
-    const { synth } = e.voices[i];
-    const t = time ?? Tone.now();
-    const dur = Math.max(0.03, s.decay);
-    if (synth instanceof Tone.NoiseSynth) synth.triggerAttackRelease(dur, t);
-    else (synth as Tone.Synth).triggerAttackRelease(s.note, dur, t);
+    const t = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].gain, gate = 60 / bpmRef.current / 4;
+    if (s.engine === "drum") playDrum(e.ctx, dest, s.drum, t, vel);
+    else if (s.engine === "sampler") playSampler(e.ctx, dest, s.sampler, buffers.current[i] ?? fallbackBuf(), t, gate, vel);
+    else { e.mono[i]?.stop(t); e.mono[i] = playSynth(e.ctx, dest, s.synth, s.note, t, gate, vel); }
   }, []);
-
-  const buildVoice = (s: Slot, master: Tone.Gain): Voice => {
-    const gain = new Tone.Gain(s.level / 100).connect(master);
-    const filter = new Tone.Filter(s.tone, "lowpass").connect(gain);
-    const synth = makeSynth(s.kind).connect(filter);
-    (synth as unknown as { envelope: Tone.Envelope }).envelope.decay = s.decay;
-    return { synth, filter, gain };
-  };
 
   const ensure = useCallback(async () => {
     await Tone.start();
     if (engine.current) return engine.current;
-    const analyser = new Tone.Analyser("waveform", 1024);
-    const master = new Tone.Gain(volume / 100 * 0.8).toDestination();
-    master.connect(analyser);
-    const voices = slotsRef.current.map(s => buildVoice(s, master));
-    const transport = Tone.getTransport();
+    const ctx = ctxOf();
+    const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; master.connect(ctx.destination);
+    const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(master, analyser);
+    const outs = slotsRef.current.map(s => { const gain = ctx.createGain(), pan = ctx.createStereoPanner(); gain.gain.value = s.level / 100; pan.pan.value = s.pan; gain.connect(pan).connect(master); return { gain, pan }; });
     let cur = 0;
-    const loop = transport.scheduleRepeat(time => {
+    const loop = Tone.getTransport().scheduleRepeat(time => {
       const st = cur; cur = (cur + 1) % STEPS;
       patternRef.current.forEach((row, i) => { if (row[st]) { trigger(i, time); Tone.getDraw().schedule(() => flash(i), time); } });
       Tone.getDraw().schedule(() => setStep(st), time);
     }, "16n");
-    engine.current = { voices, master, analyser, loop };
+    engine.current = { ctx, master, analyser, outs, loop, mono: Array(16).fill(null) };
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger]);
 
-  // sync parameters to the engine
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => {
-      let v = e.voices[i];
-      const kindChanged = (v as Voice & { kind?: VoiceKind }).kind !== undefined && (v as Voice & { kind?: VoiceKind }).kind !== s.kind;
-      if (kindChanged) { v.synth.dispose(); v.filter.dispose(); v.gain.dispose(); v = e.voices[i] = buildVoice(s, e.master); }
-      (v as Voice & { kind?: VoiceKind }).kind = s.kind;
-      v.gain.gain.rampTo(s.level / 100, 0.05);
-      v.filter.frequency.rampTo(s.tone, 0.05);
-      (v.synth as unknown as { envelope: Tone.Envelope }).envelope.decay = s.decay;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime(s.level / 100, e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); });
   }, [slots, playing]);
-  useEffect(() => { engine.current?.master.gain.rampTo(volume / 100 * 0.8, 0.05); }, [volume]);
+  useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { Tone.getTransport().bpm.value = bpm; }, [bpm]);
   useEffect(() => () => {
-    const e = engine.current; const t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.voices.forEach(v => { v.synth.dispose(); v.filter.dispose(); v.gain.dispose(); }); e.master.dispose(); e.analyser.dispose(); }
+    const e = engine.current, t = Tone.getTransport();
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.gain.disconnect(); o.pan.disconnect(); }); e.master.disconnect(); e.analyser.dispose(); }
     engine.current = null;
   }, []);
 
   const togglePlay = useCallback(async () => {
     try {
-      await ensure();
-      const t = Tone.getTransport();
-      if (playing) { t.stop(); setStep(-1); setPlaying(false); }
-      else { t.position = 0; t.start("+0.05"); setPlaying(true); }
+      await ensure(); const t = Tone.getTransport();
+      if (playing) { t.stop(); setStep(-1); setPlaying(false); } else { t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
 
   const hit = useCallback(async (i: number) => {
     setSelected(i);
-    try { await ensure(); setPlaying(p => p); trigger(i); flash(i); } catch { setError("Audio unavailable."); }
+    try { await ensure(); trigger(i); flash(i); } catch { setError("Audio unavailable."); }
   }, [ensure, trigger]);
 
   const updateSlot = (i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const loadSample = async (i: number, file: File) => {
+    try {
+      const buf = await ctxOf().decodeAudioData(await file.arrayBuffer());
+      buffers.current[i] = buf;
+      setPeaks(p => p.map((x, j) => (j === i ? peaksOf(buf) : x)));
+      setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: file.name } } : x)));
+      setError("");
+    } catch { setError("Could not read that audio file. Try WAV or MP3."); }
+  };
   const toggleStep = (row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => (j === col ? !v : v)) : r)));
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
-  const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); };
+  const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, hits, error, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, hits, peaks, error, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, loadSample, toggleStep, clearPattern, randomizePattern, resetAll };
 }

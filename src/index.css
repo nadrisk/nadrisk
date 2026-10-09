@@ -233,3 +233,25 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-step.beat { background: hsl(var(--muted)); }
 .gb-step.on { background: hsl(var(--accent)); border-color: hsl(var(--accent)); }
 .gb-step.current { outline: 1px solid hsl(var(--foreground) / .7); }
+/* Groovebox stage 2: instruments */
+.gb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.gb-rack { grid-column: 1; grid-row: 1; }
+.gb-master { grid-column: 1; grid-row: 2; }
+.gb-editor { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 900px) { .gb-grid { grid-template-columns: 1fr; } .gb-rack, .gb-master, .gb-editor { grid-column: 1; grid-row: auto; } }
+.gb-editor-body { max-height: 760px; overflow-y: auto; }
+.gb-cols2, .gb-cols3, .gb-cols4 { display: grid; gap: 6px 12px; align-items: end; }
+.gb-cols2 { grid-template-columns: repeat(2, 1fr); } .gb-cols3 { grid-template-columns: repeat(3, 1fr); } .gb-cols4 { grid-template-columns: repeat(4, 1fr); }
+.gb-param { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.gb-param .parameter-label { font-size: 9px; }
+.gb-inline { display: flex; align-items: center; }
+.gb-group { border: 1px solid hsl(var(--border)); padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+.gb-group legend { font: 9px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .1em; color: hsl(var(--accent)); padding: 0 4px; }
+.gb-partials { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; height: 70px; }
+.gb-partial { position: relative; background: hsl(var(--muted)); cursor: ns-resize; touch-action: none; display: flex; align-items: flex-end; }
+.gb-partial i { width: 100%; display: block; background: hsl(var(--accent)); }
+.gb-partial i.even { background: hsl(var(--primary-foreground) / .7); }
+.gb-partial span { position: absolute; bottom: 1px; width: 100%; text-align: center; font: 8px 'JetBrains Mono', monospace; color: hsl(var(--background)); mix-blend-mode: difference; pointer-events: none; }
+.gb-sample { width: 100%; height: 70px; display: block; background: hsl(var(--background)); border: 1px solid hsl(var(--border)); cursor: crosshair; }
+.gb-upload { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font: 10px 'JetBrains Mono', monospace; text-transform: uppercase; border: 1px solid hsl(var(--accent) / .6); color: hsl(var(--accent)); padding: 4px 8px; cursor: pointer; }
+.gb-upload:hover { background: hsl(var(--accent) / .12); }
