@@ -20,6 +20,7 @@ export const FX_DEFS = {
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
   reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  acid: { label: "acid.drive~", params: { drive: [10, 1, 40, 0.1], bias: [0.35, 0, 0.9, 0.01], bite: [1800, 300, 6000, 10], tone: [7000, 800, 16000, 10], mix: [1, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -75,7 +76,14 @@ const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ?
 export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; keyInput?: AudioNode; dispose: () => void };
 
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
+function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
+// Impulses are cached by rounded length so a sequenced reverb decay doesn't rebuild noise on every step.
+const impulses = new WeakMap<BaseAudioContext, Map<number, AudioBuffer>>();
 function impulse(ctx: BaseAudioContext, sec: number) {
+  const key = Math.round(sec * 4) / 4, m = impulses.get(ctx) ?? new Map<number, AudioBuffer>(); impulses.set(ctx, m);
+  const hit = m.get(key); if (hit) return hit; const b = makeImpulse(ctx, Math.max(.2, key)); m.set(key, b); return b;
+}
+function makeImpulse(ctx: BaseAudioContext, sec: number) {
   const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3; }
   return b;
@@ -94,7 +102,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   const follower = () => { const f = Tone.getContext().createAudioWorkletNode("nad-follow", { outputChannelCount: [1] }) as unknown as AudioNode, g = ctx.createGain(); g.gain.value = 0; input.connect(f).connect(g); nodes.push(f, g); return g; };
   let apply: (p: Record<string, number>) => void;
 
-  if (type === "metal") {
+  if (type === "acid") {
+    // Diode-style asymmetric clipper with a resonant "bite" peak and fizzy top, for 303-style leads and basses.
+    const pre = ctx.createGain(), sh = ctx.createWaveShaper(), peak = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), comp = ctx.createGain();
+    peak.type = "peaking"; peak.Q.value = 1.4; peak.gain.value = 7; sh.oversample = eco ? "none" : "4x"; nodes.push(pre, sh, peak, lp, comp);
+    input.connect(pre).connect(sh).connect(peak).connect(lp).connect(comp).connect(wet); let key = "";
+    apply = p => { const k = `${p.drive}:${p.bias}`; if (k !== key) { key = k; sh.curve = acidCurve(p.drive, p.bias); }
+      set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, 1 / (1 + p.drive * .02)); };
+  } else if (type === "metal") {
     const d = ctx.createDelay(.05), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), clip = ctx.createWaveShaper();
     clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, clip); input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(clip).connect(d);
     apply = p => { set(d.delayTime, p.time); set(lp.frequency, p.tone); set(fb.gain, Math.min(.96, p.feedback)); };
@@ -131,7 +146,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let size = 0;
     input.connect(cv).connect(lp).connect(wet);
-    apply = p => { if (p.size !== size) { size = p.size; cv.buffer = impulse(ctx, eco ? Math.min(size * 0.5, 1.5) : size); } set(lp.frequency, p.damp); };
+    apply = p => { if (Math.round(p.size * 4) !== size) { size = Math.round(p.size * 4); cv.buffer = impulse(ctx, eco ? Math.min(p.size * 0.5, 1.5) : p.size); } set(lp.frequency, p.damp); };
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
@@ -167,3 +182,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   update(init);
   return { input, output, update, keyInput, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
+
+/** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "time", "feedback"] };
+export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
+export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount" };
+/** Maps a 0..1 lane value onto the param's real range. */
+export const modValue = (t: FxType, k: string, v: number) => { const r = (FX_DEFS[t].params as Record<string, Range>)[k]; return r ? r[1] + (r[2] - r[1]) * v : v; };

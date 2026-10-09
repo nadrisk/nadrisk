@@ -18,3 +18,6 @@
 - [x] Performance: A/B pattern banks + 16ch mixer (vol/mute/solo)
 - [x] Savable sets (local banks + JSON export/import)
 - [x] Sample recall: device cache, built-in library, folder load, set bundles
+
+- [x] Step grid doubles as mod sequencer, glide steps, 808 engine, acid drive, channel EQ, one-row partials, docked visualizers, phrase control touch-up
+- [ ] Phone test of the new features
