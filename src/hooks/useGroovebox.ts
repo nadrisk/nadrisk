@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit } from "@/audio/effects";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, type ArpParams } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
-import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
+import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
@@ -137,7 +137,7 @@ export function useGroovebox() {
     const pitch = s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi;
     const voices = notes.map(offset => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
       : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
-      : s.engine === "sampler" ? playSampler(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buffers.current[i] ?? fallbackBuf(), t, gate, vel / Math.sqrt(notes.length))
+      : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buffers.current[i] ?? fallbackBuf(), t, gate, vel / Math.sqrt(notes.length))
       : s.engine === "poly" ? null
       : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
     if (s.engine === "poly") voices.push(playPoly(e.ctx, dest, { ...s.poly, env: scaledEnv(s.poly.env, factor) }, notes.map(n => pitch + n), t, gate, vel));
@@ -167,11 +167,11 @@ export function useGroovebox() {
   }, [pump]);
   const release = useCallback((i: number) => {
     pressed.current.delete(i);
-    if (!holds.current.delete(i)) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || (slot.engine === "sampler" && slot.chord.on))) e.mono[i]?.stop(e.ctx.currentTime); return; }
+    if (!holds.current.delete(i)) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)))) e.mono[i]?.stop(e.ctx.currentTime); return; }
     const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime);
     if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; }
   }, []);
-  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { const slot = slotsRef.current[i]; trigger(i, undefined, 1, 0, slot.engine === "poly" || (slot.engine === "sampler" && slot.chord.on) ? 60 : undefined); flash(i); } }, [startHold, trigger]);
+  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { const slot = slotsRef.current[i]; trigger(i, undefined, 1, 0, slot.engine === "poly" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined); flash(i); } }, [startHold, trigger]);
 
 
   const ensure = useCallback(async () => {
@@ -187,8 +187,10 @@ export function useGroovebox() {
       const sixteenth = 60 / bpmRef.current / 4;
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
       const cb = banksRef.current[bankRef.current];
+      const pf = performanceRef.current;
       cb.pattern.forEach((row, i) => {
-        const len = cb.lengths[i], st = tick % len;
+        // Performance offset rotates each row; the loop shortener clamps it to its first N steps.
+        const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = (((tick - (pf.offset ?? 0)) % len) + len) % len;
         const eng = engine.current, slot = slotsRef.current[i], lane = slot.mods?.[bankRef.current], v = row[st];
         // Mod row: each active step sets its parameter to the drawn fill (0-100%) on the audio clock.
         let semiAt = 0;
