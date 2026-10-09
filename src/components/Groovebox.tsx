@@ -8,14 +8,16 @@ import type { FxUnit } from "@/audio/effects";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
 import FxChain from "./FxChain";
+import ArpEditor from "./ArpEditor";
+import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
-const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit }: {
-  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void;
+const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease }: {
+  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void;
 }) {
-  return <div className="gb-pads">{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); onHit(i); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onHit(i); } }} className={`gb-pad ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+  return <div className="gb-pads">{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); ev.currentTarget.setPointerCapture?.(ev.pointerId); onHit(i); }} onPointerUp={() => onRelease(i)} onPointerCancel={() => onRelease(i)} onLostPointerCapture={() => onRelease(i)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => onRelease(i)} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? `drum · ${slot.drum.kind}` : slot.engine}</span>
   </button>)}</div>;
 });
@@ -33,11 +35,12 @@ export default function Groovebox() {
   const g = useGroovebox();
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
+  const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
   return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.maxpat</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-grid">
       <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
-        <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} />
+        <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} />
       </PatchNode>
 
       <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
@@ -58,6 +61,10 @@ export default function Groovebox() {
           <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
           <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
         </div>
+      </PatchNode>
+
+      <PatchNode label={`phrase.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PAD SEQUENCER · PRE-INSTRUMENT" className="gb-arpnode">
+        <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
       </PatchNode>
 
       <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">

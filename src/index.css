@@ -298,3 +298,23 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-eco.on { color: hsl(var(--accent)); border-color: hsl(var(--accent)); }
 
 .gb-pad { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+
+/* Pad phrase sequencer */
+.gb-arpnode { grid-column: 1 / -1; }
+.arp-body { display: flex; flex-direction: column; gap: 10px; font-family: 'JetBrains Mono', monospace; }
+.arp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.arp-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: end; }
+.arp-controls.is-off { opacity: .55; }
+.arp-field { display: flex; flex-direction: column; gap: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--muted-foreground)); }
+.arp-field select, .arp-field input { background: hsl(var(--muted)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); font: inherit; font-size: 11px; height: 26px; padding: 0 6px; min-width: 56px; }
+.arp-grid { display: grid; gap: 3px; overflow-x: auto; }
+.arp-cell { position: relative; height: 56px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px; touch-action: manipulation; }
+.arp-cell i { position: absolute; left: 0; right: 0; bottom: 0; background: hsl(var(--accent)); pointer-events: none; }
+.arp-cell span { position: relative; font-size: 9px; color: hsl(var(--foreground)); }
+.arp-cell.rest span { color: hsl(var(--muted-foreground)); }
+.arp-cell.sel { border-color: hsl(var(--accent)); box-shadow: inset 0 0 0 1px hsl(var(--accent) / .5); }
+.arp-step { display: flex; flex-direction: column; gap: 8px; }
+.arp-notes { display: grid; gap: 2px; }
+.arp-notes button { height: 24px; font-size: 9px; border: 1px solid hsl(var(--border)); background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); padding: 0; min-width: 0; }
+.arp-notes button.selected { border-color: hsl(var(--accent)); color: hsl(var(--accent)); background: hsl(var(--accent) / .1); }
+.gb-pad.has-arp .gb-pad-kind::after { content: " · seq"; color: hsl(var(--primary)); }
