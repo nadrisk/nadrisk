@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, makeFx, type FxNode, type FxUnit } from "@/audio/effects";
+import { defaultArp, degreeToSemi, midiOf, stepSeconds, type ArpParams } from "@/audio/arp";
 import { defaultSample, peaksOf, playDrum, playSampler, playSynth, type DrumParams, type SamplerParams, type SynthParams, type Voice } from "@/audio/voices";
 
 // Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
@@ -9,7 +10,7 @@ if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?:
 }
 export type EngineKind = "drum" | "synth" | "sampler";
 export const STEPS = 16;
-export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[] };
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; outs: { gain: GainNode; pan: StereoPannerNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 50, pitchEnv: 36, pitchDecay: 0.06, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
@@ -20,7 +21,7 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
-const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], ...extra });
+const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), ...extra });
 const defaultSlots = (): Slot[] => [
   base("KICK", "drum"),
   base("SNARE", "drum", 48, { fx: [makeFx("reverb", { mix: 0.2, size: 1.8 })], drum: drum({ kind: "snare", pitch: 180, pitchEnv: 12, pitchDecay: 0.03, noise: 0.7, env: { a: 0.001, d: 0.2, s: 0, r: 0.08 }, cutoff: 8000 }) }),
@@ -175,6 +176,7 @@ export function useGroovebox() {
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
     t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.pan.disconnect(); }); e.master.disconnect(); e.analyser.dispose(); }
+    holds.current.clear(); if (timer.current != null) clearInterval(timer.current);
     engine.current = null;
   }, []);
 
@@ -190,10 +192,10 @@ export function useGroovebox() {
     // Fast path: audio already running, so play synchronously with no await.
     pressed.current.add(i);
     const e = engine.current;
-    if (e && Tone.getContext().state === "running") { trigger(i); flash(i); startTransition(() => setSelected(i)); return; }
+    if (e && Tone.getContext().state === "running") { play(i); startTransition(() => setSelected(i)); return; }
     setSelected(i);
-    try { await ensure(); if (Tone.getContext().state !== "running") return; trigger(i); flash(i); } catch { setError("Audio unavailable."); }
-  }, [ensure, trigger]);
+    try { await ensure(); if (Tone.getContext().state !== "running") return; play(i); } catch { setError("Audio unavailable."); }
+  }, [ensure, play]);
 
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
   const updateSlot = useCallback((i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))), []);
@@ -213,5 +215,5 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
   const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
 }
