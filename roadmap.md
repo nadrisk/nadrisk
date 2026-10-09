@@ -9,4 +9,4 @@
 - [ ] Master chain: EQ -> Saturator -> Limiter, each switchable
 - [ ] Audio-reactive visualizer (scope, spectrum, trippy visuals)
 - [x] Performance: A/B pattern banks + 16ch mixer (vol/mute/solo)
-- [ ] Savable sets (local banks + JSON export/import)
+- [x] Savable sets (local banks + JSON export/import)
