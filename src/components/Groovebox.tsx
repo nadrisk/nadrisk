@@ -11,6 +11,7 @@ import FxChain from "./FxChain";
 import ArpEditor from "./ArpEditor";
 import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
+import type { StepVal } from "@/hooks/useGroovebox";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
@@ -22,13 +23,15 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
   </button>)}</div>;
 });
 
-const StepGrid = memo(function StepGrid({ pattern, slots, selected, step, onToggle, onSelect }: {
-  pattern: boolean[][]; slots: Slot[]; selected: number; step: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void;
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, onToggle, onSelect, onLength }: {
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void;
 }) {
-  return <div className="gb-seq-grid">{pattern.map((row, r) => <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
+  return <div className="gb-seq-grid">{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : step % len; return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
-    {row.map((on, c) => <button key={c} aria-label={`${slots[r].name} step ${c + 1}`} aria-pressed={on} onPointerDown={ev => { ev.preventDefault(); onToggle(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }} className={`gb-step ${on ? "on" : ""} ${c === step ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />)}
-  </div>)}</div>;
+    <select className="gb-row-len" aria-label={`${slots[r].name} loop length`} value={len} onChange={e => onLength(r, +e.target.value)}>{Array.from({ length: 16 }, (_, k) => <option key={k} value={k + 1}>{k + 1}</option>)}</select>
+    {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] === 2 && v !== 0;
+      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${v === 2 ? "tie" : v === 1 ? "hit" : "off"}`} onPointerDown={ev => { ev.preventDefault(); onToggle(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }} className={`gb-step ${v === 1 ? "on" : v === 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />; })}
+  </div>; })}</div>;
 });
 
 export default function Groovebox() {
@@ -51,7 +54,7 @@ export default function Groovebox() {
         <div className="node-body">
           <div className="transport-body">
             <Button variant="ghost" className={`transport-button ${g.playing ? "is-playing" : ""}`} onClick={g.togglePlay} aria-label={g.playing ? "Stop" : "Play"}>{g.playing ? <Square /> : <Play />}</Button>
-            <div><span className="transport-state">{g.playing ? "RUNNING" : "STOPPED"}</span><span className="patch-small">step {g.step < 0 ? "--" : g.step + 1} / 16</span></div>
+            <div><span className="transport-state">{g.playing ? "RUNNING" : "STOPPED"}</span><span className="patch-small">step {g.step < 0 ? "--" : (g.step % 16) + 1} / 16</span></div>
           </div>
           <div className="parameter-label">Tempo <span>{g.bpm} BPM</span></div>
           <Slider aria-label="Tempo" min={60} max={180} value={[g.bpm]} onValueChange={([v]) => g.setBpm(v)} className="patch-slider" />
@@ -77,7 +80,7 @@ export default function Groovebox() {
           <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
           <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
         </div>
-        <StepGrid pattern={g.pattern} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
+        <StepGrid pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
       </PatchNode>
     </div>
     <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>

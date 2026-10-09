@@ -40,12 +40,14 @@ const defaultSlots = (): Slot[] => [
   base("NOISE", "drum", 48, { level: 40, drum: drum({ kind: "snare", pitch: 200, pitchEnv: 0, noise: 1, filter: "bandpass", cutoff: 3000, res: 6, filterEnv: 2, filterDecay: 0.3, env: { a: 0.01, d: 0.4, s: 0, r: 0.2 } }) }),
   base("FM DRONE", "synth", 43, { fx: [makeFx("phaser"), makeFx("chorus")], synth: synth({ osc1: { wave: "triangle", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 0.3, d: 0.5, s: 0.7, r: 0.8 }, lfo: { wave: "triangle", rate: 0.5, depth: 0.5, target: "cutoff" } }) }),
 ];
-const emptyPattern = () => Array.from({ length: 16 }, () => Array<boolean>(STEPS).fill(false));
+/** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). */
+export type StepVal = 0 | 1 | 2;
+const emptyPattern = () => Array.from({ length: 16 }, () => Array<StepVal>(STEPS).fill(0));
 const defaultPattern = () => {
   const p = emptyPattern();
-  [0, 4, 8, 12].forEach(s => (p[0][s] = true)); [4, 12].forEach(s => (p[1][s] = true));
-  [0, 2, 4, 6, 8, 10, 12, 14].forEach(s => (p[2][s] = true)); [3, 7, 11].forEach(s => (p[8][s] = true));
-  p[6][14] = true; p[12][0] = true;
+  [0, 4, 8, 12].forEach(s => (p[0][s] = 1)); [4, 12].forEach(s => (p[1][s] = 1));
+  [0, 2, 4, 6, 8, 10, 12, 14].forEach(s => (p[2][s] = 1)); [3, 7, 11].forEach(s => (p[8][s] = 1));
+  p[6][14] = 1; p[12][0] = 1;
   return p;
 };
 
@@ -65,7 +67,9 @@ export function useGroovebox() {
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);
   const [slots, setSlots] = useState<Slot[]>(defaultSlots);
-  const [pattern, setPattern] = useState<boolean[][]>(defaultPattern);
+  const [pattern, setPattern] = useState<StepVal[][]>(defaultPattern);
+  const [lengths, setLengths] = useState<number[]>(() => Array(16).fill(STEPS));
+  const lengthsRef = useRef(lengths); lengthsRef.current = lengths;
   const [selected, setSelected] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [step, setStep] = useState(-1);
@@ -151,9 +155,15 @@ export function useGroovebox() {
     const outs = slotsRef.current.map(s => { const gain = ctx.createGain(), pan = ctx.createStereoPanner(); gain.gain.value = s.level / 100; pan.pan.value = s.pan; pan.connect(master); return { gain, pan, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
-      const st = cur; cur = (cur + 1) % STEPS;
-      patternRef.current.forEach((row, i) => { if (row[st]) { trigger(i, time); Tone.getDraw().schedule(() => flash(i), time); } });
-      Tone.getDraw().schedule(() => setStep(st), time);
+      const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
+      const sixteenth = 60 / bpmRef.current / 4;
+      patternRef.current.forEach((row, i) => {
+        const len = lengthsRef.current[i], st = tick % len;
+        if (row[st] !== 1) return;
+        let ties = 0; while (st + ties + 1 < len && row[st + ties + 1] === 2) ties++;
+        trigger(i, time, 1, 0, (1 + ties) * sixteenth * 0.98); Tone.getDraw().schedule(() => flash(i), time);
+      });
+      Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
     engine.current = { ctx, master, analyser, outs, loop, mono: Array(16).fill(null) };
@@ -210,10 +220,15 @@ export function useGroovebox() {
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
   }, []);
   const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
-  const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => (j === col ? !v : v)) : r))), []);
+  // Cycle off -> hit -> tie -> off. A tie needs a hit or tie before it, otherwise it goes straight to off.
+  const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => {
+    if (j !== col) return v;
+    if (v === 0) return 1; if (v === 1) return col > 0 && r[col - 1] !== 0 ? 2 : 0; return 0;
+  }) : r))), []);
+  const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row ? len : v))), []);
   const clearPattern = () => setPattern(emptyPattern());
-  const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => Math.random() < (i < 3 ? 0.3 : 0.1))));
-  const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
+  const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
+  const resetAll = () => { setSlots(defaultSlots()); setPattern(defaultPattern()); setLengths(Array(16).fill(STEPS)); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, slots, pattern, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
+  return { engine, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, toggleStep, clearPattern, randomizePattern, resetAll };
 }
