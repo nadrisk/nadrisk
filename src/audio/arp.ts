@@ -36,3 +36,16 @@ export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
   cells: Array.from({ length: 16 }, (_, i) => ({ on: [0, 2, 3, 5, 6].includes(i % 8), deg: [0, 0, 2, 4, 4, 3, 7, 4][i % 8], vel: i % 4 === 0 ? 1 : 0.75, gate: 0.5 })),
   ...o,
 });
+
+/** Rolls a new in-key phrase: keeps root/scale/octave/steps, favours small melodic moves and downbeats. */
+export function randomizeArp(a: ArpParams): ArpParams {
+  const span = degreeCount(a.scale), n = SCALES[a.scale].length;
+  let deg = Math.floor(Math.random() * n);
+  const cells = a.cells.map((_, i) => {
+    const on = i === 0 || Math.random() < (i % 4 === 0 ? 0.9 : 0.62);
+    if (Math.random() < 0.25) deg = [0, n, 4 % n][Math.floor(Math.random() * 3)];
+    else deg = Math.max(0, Math.min(span - 1, deg + Math.floor(Math.random() * 5) - 2));
+    return { on, deg, vel: i % 4 === 0 ? 0.85 + Math.random() * 0.15 : 0.45 + Math.random() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(Math.random() * 5)] };
+  });
+  return { ...a, cells };
+}
