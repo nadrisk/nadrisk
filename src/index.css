@@ -273,3 +273,22 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-fx-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 10px 'JetBrains Mono', monospace; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
 .gb-fx-add button { border: 1px solid hsl(var(--border)); background: none; color: hsl(var(--foreground)); padding: 3px 7px; font: inherit; text-transform: none; }
 .gb-fx-add button:hover { border-color: hsl(var(--accent)); color: hsl(var(--accent)); }
+/* Groovebox: phone layout */
+.gb-grid > * { min-width: 0; }
+.gb-pads { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gb-pad { min-width: 0; overflow: hidden; }
+.gb-pad-name, .gb-pad-kind { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gb-row-label { position: sticky; left: 0; z-index: 1; background: hsl(var(--card)); }
+@media (max-width: 640px) {
+  .gb-grid { gap: 0.75rem; padding: 0.5rem; }
+  .gb-pads { gap: 4px; padding: 6px; }
+  .gb-pad { aspect-ratio: 1; padding: 5px; }
+  .gb-pad-name { font-size: 9px; letter-spacing: 0; }
+  .gb-pad-kind, .gb-pad-index { font-size: 7px; }
+  .gb-cols3, .gb-cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gb-editor-body { max-height: none; }
+  .gb-row { grid-template-columns: 58px repeat(16, 22px); min-width: 0; }
+  .gb-step { height: 22px; }
+  .gb-fx-unit { width: 170px; }
+  .workspace-heading, .workspace-footer { flex-wrap: wrap; gap: 4px 12px; }
+}
