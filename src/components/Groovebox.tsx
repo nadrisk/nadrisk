@@ -13,7 +13,8 @@ import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 import SetBank from "./SetBank";
 import PerformanceRack from "./PerformanceRack";
-import ModEditor from "./ModEditor";
+import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
+import { useState } from "react";
 import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 
@@ -27,19 +28,33 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
   </button>)}</div>;
 });
 
-const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, onToggle, onSelect, onLength }: {
-  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void;
+/** Targets a row can modulate: filter cutoff, pitch (for glides), and the params of each effect on that pad. */
+const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ...(slot.engine === "drum" || slot.engine === "poly" ? [] : [["pitch", "pitch"]]),
+  ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
+
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, mod, onToggle, onSelect, onLength, onModValue, onModTarget }: {
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; mod: boolean; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onModValue: (r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
-  return <div className="gb-seq-grid">{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : step % len; return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
+  const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onModValue(r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
+  return <div className={`gb-seq-grid ${mod ? "is-mod" : ""}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : step % len, lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
     <select className="gb-row-len" aria-label={`${slots[r].name} loop length`} value={len} onChange={e => onLength(r, +e.target.value)}>{Array.from({ length: 16 }, (_, k) => <option key={k} value={k + 1}>{k + 1}</option>)}</select>
-    {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] === 2 && v !== 0;
-      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${v === 2 ? "tie" : v === 1 ? "hit" : "off"}`} onPointerDown={ev => { ev.preventDefault(); onToggle(r, c); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }} className={`gb-step ${v === 1 ? "on" : v === 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""}`} />; })}
+    <select className={`gb-row-len gb-row-mod ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} value={tv} onChange={e => onModTarget(r, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+    {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, val = lane?.values[c] ?? .5, label = v === 3 ? "glide" : v === 2 ? "tie" : v === 1 ? "hit" : "off";
+      const canDrag = mod && v !== 0 && tv !== "off";
+      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${canDrag ? ` mod ${Math.round(val * 100)}%` : ""}`}
+        onPointerDown={ev => { ev.preventDefault(); if (canDrag) { ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } else onToggle(r, c); }}
+        onPointerMove={ev => { if (canDrag && ev.buttons) drag(r, c, ev); }}
+        onKeyDown={ev => { if (canDrag && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onModValue(r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onToggle(r, c); } }}
+        className={`gb-step ${v === 1 ? "on" : v === 2 ? "tie" : v === 3 ? "glide" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${canDrag ? "mod" : ""}`}>
+        {canDrag && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
+      </button>; })}
   </div>; })}</div>;
 });
 
-const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, onClearSolo, onSelect }: {
-  slots: Slot[]; selected: number; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
+const Mixer = memo(function Mixer({ slots, selected, onEq, onLevel, onMute, onSolo, onClearSolo, onSelect }: {
+  slots: Slot[]; selected: number; onEq: (i: number, eq: Slot["eq"]) => void; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
 }) {
   const anySolo = slots.some(s => s.solo);
   return <div className="node-body">
@@ -53,6 +68,13 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
       </div>
       <button className="gb-strip-name" onClick={() => onSelect(i)}>{s.name}</button>
     </div>)}</div>
+    <div className="gb-eq" aria-label={`EQ ${slots[selected].name}`}>
+      <span className="gb-eq-title">eq · {slots[selected].name}</span>
+      {([["low", "Low 100 Hz", -15, 15, 0.5, "dB"], ["mid", "Mid", -15, 15, 0.5, "dB"], ["midFreq", "Mid freq", 200, 6000, 10, "Hz"], ["high", "High 9 kHz", -15, 15, 0.5, "dB"]] as const).map(([k, l, mn, mx, st, u]) =>
+        <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{slots[selected].eq[k]} {u}</span></div>
+          <Slider aria-label={`${l} EQ`} min={mn} max={mx} step={st} value={[slots[selected].eq[k]]} onValueChange={([v]) => onEq(selected, { ...slots[selected].eq, [k]: v })} className="patch-slider" /></div>)}
+      <Button variant="ghost" size="sm" onClick={() => onEq(selected, { low: 0, mid: 0, midFreq: 1000, high: 0 })}>flat</Button>
+    </div>
   </div>;
 });
 
@@ -60,6 +82,8 @@ export default function Groovebox() {
   const g = useGroovebox();
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
+  const [modView, setModView] = useState(false);
+  const onEq = useCallback((i: number, eq: Slot["eq"]) => g.updateSlot(i, { eq }), [g.updateSlot]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
   return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
@@ -92,9 +116,6 @@ export default function Groovebox() {
         <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
       </PatchNode>
 
-      <PatchNode label={`mod.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PARAMETER SEQUENCER" className="gb-arpnode">
-        <ModEditor slot={s} bank={g.bank} onChange={mods => g.updateSelected({ mods })} />
-      </PatchNode>
       <PatchNode label="nad.performance~" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
         <PerformanceRack value={g.performance} onChange={g.setPerformance} />
       </PatchNode>
@@ -111,18 +132,20 @@ export default function Groovebox() {
       </PatchNode>
 
       <PatchNode label="mixer~ 16ch" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
-        <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
+        <Mixer onEq={onEq} slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
       </PatchNode>
 
       <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
         <div className="gb-seq-tools">
           <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
+          <div className="gb-banks"><button className={`gb-bank ${!modView ? "active" : ""}`} aria-pressed={!modView} onClick={() => setModView(false)}>NOTE</button><button className={`gb-bank ${modView ? "active" : ""}`} aria-pressed={modView} onClick={() => setModView(true)}>MOD</button></div>
           <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
           <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
           <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
           <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
         </div>
-        <StepGrid pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
+        <span className="patch-small gb-seq-hint">{modView ? "pick a target per row · drag lit steps up / down to set the amount" : "tap: hit → tie → glide → off · glide slides to the step's pitch mod"}</span>
+        <StepGrid bank={g.bank} mod={modView} onModValue={g.setModValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
       </PatchNode>
     </div>
     <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.queued != null ? `PATTERN ${g.queued ? "B" : "A"} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
