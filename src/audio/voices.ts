@@ -6,7 +6,11 @@ export type DrumParams = { kind: "kick" | "snare" | "hat"; pitch: number; pitchE
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string };
-export type Voice = { stop: (at: number) => void };
+/** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
+export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
+export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
+export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
+const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const v = p.value; p.cancelScheduledValues(at); p.setValueAtTime(v, at); p.setTargetAtTime(v * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
 export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR };
 export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 } });
 
@@ -73,7 +77,8 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p: DrumParams, 
 
 export function partialWave(ctx: BaseAudioContext, partials: number[]) {
   const real = new Float32Array(17), imag = new Float32Array(17);
-  partials.forEach((v, i) => { const h = i < 8 ? i * 2 + 1 : (i - 8) * 2 + 2; imag[h] = v; });
+  // One sequential row like a classic FM operator: index 0 = harmonic 1 (fundamental), index 15 = harmonic 16.
+  partials.slice(0, 16).forEach((v, i) => { imag[i + 1] = v; });
   if (!imag.some(v => v > 0)) imag[1] = 1;
   return ctx.createPeriodicWave(real, imag);
 }
@@ -111,7 +116,10 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   }
   nodes.push(g1, g2, mix, filt, wet, dry, trem, amp);
   const end = adsr(amp.gain, t, p.env, gate, vel * 0.5);
-  return finish(srcs, nodes, end, amp);
+  const v = finish(srcs, nodes, end, amp);
+  // Glide moves both oscillators from their current pitch, so slides start wherever the last one ended.
+  v.glide = (delta, at, time) => glideParams([o1.frequency, o2.frequency], delta, at, time);
+  return v;
 }
 
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
@@ -127,7 +135,42 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
   const timer = window.setTimeout(cleanup, Math.max(0, (end - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
-  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } } };
+  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } }, glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
+}
+
+const tubeCache = new Map<number, Float32Array>(), harmCache = new Map<number, Float32Array>();
+/** Asymmetric soft clip: the positive half saturates harder, adding even (tube-like) harmonics. */
+function tubeCurve(drive: number) { const k = Math.round(drive * 20) / 20; let c = tubeCache.get(k); if (c) return c; const g = 1 + k * 9; c = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = (x >= 0 ? Math.tanh(g * x) : Math.tanh(g * .65 * x) / .9) / Math.tanh(g); } tubeCache.set(k, c); return c; }
+/** Chebyshev enhancer: adds 2nd and 3rd harmonics so the sub is audible on small speakers. */
+function harmCurve(h: number) { const k = Math.round(h * 20) / 20; let c = harmCache.get(k); if (c) return c; c = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = (x + k * (.55 * (2 * x * x - 1) + .4 * (4 * x ** 3 - 3 * x))) / (1 + k * .95); } harmCache.set(k, c); return c; }
+
+/** 808 bass: sine with pitch sweep, sub octave, harmonic enhancer and tube drive; glides like a trap 808. */
+export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params, midi: number, t: number, gate: number, vel = 1): Voice {
+  const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
+  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const lp = ctx.createBiquadFilter(); lp.frequency.value = p.tone; lp.Q.value = .5; lp.connect(amp);
+  const dc = ctx.createBiquadFilter(); dc.type = "highpass"; dc.frequency.value = 18; dc.connect(lp);
+  const tube = ctx.createWaveShaper(); tube.curve = tubeCurve(p.tube); tube.oversample = "2x";
+  const pre = ctx.createGain(); pre.gain.value = 1 + p.tube * 2; pre.connect(tube).connect(dc);
+  const harm = ctx.createWaveShaper(); harm.curve = harmCurve(p.harmonics); harm.connect(pre);
+  const osc = at(ctx.createOscillator(), t), sub = at(ctx.createOscillator(), t), subG = ctx.createGain();
+  osc.frequency.setValueAtTime(clampF(f * 2 ** (p.pitchEnv / 12)), t); osc.frequency.exponentialRampToValueAtTime(f, t + p.pitchDecay + .001);
+  sub.frequency.setValueAtTime(f / 2, t); subG.gain.value = p.harmonics * .45;
+  osc.connect(harm); sub.connect(subG).connect(pre);
+  const click = at(ctx.createBufferSource(), t), cg = ctx.createGain(); click.buffer = noiseBuffer(ctx);
+  cg.gain.setValueAtTime(p.click * .5, t); cg.gain.exponentialRampToValueAtTime(.0001, t + .012); click.connect(cg).connect(lp);
+  srcs.push(osc, sub, click); nodes.push(osc, sub, subG, harm, pre, tube, dc, lp, click, cg, amp);
+  const peak = vel * .7 / (1 + p.tube * .6), hold = Math.max(gate, .02);
+  amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .002);
+  // Decay rings out; a held/tied note keeps the body alive until release so glides stay audible.
+  amp.gain.setTargetAtTime(peak * .55, t + .002, p.decay / 3);
+  amp.gain.setTargetAtTime(0, t + hold, Math.min(p.decay, .25) / 3 + .01);
+  const end = t + hold + Math.min(p.decay, .25) * 2 + .1;
+  const v = finish(srcs, nodes, end, amp);
+  v.glide = (delta, a, time) => glideParams([osc.frequency, sub.frequency], delta, a, time);
+  return v;
 }
 
 export function defaultSample(ctx: BaseAudioContext) {
