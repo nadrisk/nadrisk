@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import { ADVANCED_WORKLETS } from "./advanced";
+import { TAPE_WORKLET } from "./tapeWorklet";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
