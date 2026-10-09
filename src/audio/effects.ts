@@ -5,11 +5,16 @@ type Range = [number, number, number, number];
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], mix: [1, 0, 1, 0.01] } },
-  delay: { label: "tape.delay~", params: { time: [0.375, 0.01, 1.5, 0.005], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  delay: { label: "tape.delay~", params: { time: [0.375, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
-  chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
+  ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
 export const FX_TYPES = Object.keys(FX_DEFS) as FxType[];
@@ -53,6 +58,14 @@ let eco = false;
 export const setFxEco = (on: boolean) => { eco = on; };
 export const fxEco = () => eco;
 
+/** Tempo-sync divisions (index 0 = free). Value is length in quarter-note beats. */
+export const SYNC_DIVS: [string, number][] = [["free", 0], ["1/1", 4], ["1/2", 2], ["1/4", 1], ["1/8", 0.5], ["1/16", 0.25], ["1/4T", 2 / 3], ["1/8T", 1 / 3], ["1/16T", 1 / 6], ["1/4.", 1.5], ["1/8.", 0.75]];
+let fxBpm = 124;
+export const setFxBpm = (b: number) => { fxBpm = b; };
+const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)]?.[1] ?? 0;
+/** LFO rate in Hz, following the tempo when a sync division is chosen. */
+const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
+
 export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>) => void; dispose: () => void };
 
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
@@ -83,7 +96,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const d = ctx.createDelay(2), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), w = lfo(); nodes.push(d, lp, fb);
     w.o.frequency.value = 0.7; w.g.connect(d.delayTime);
     input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(d);
-    apply = p => { set(d.delayTime, p.time); set(fb.gain, p.feedback); set(lp.frequency, p.tone); set(w.g.gain, p.wow * 0.004); };
+    apply = p => { const b = beatsOf(p); set(d.delayTime, Math.min(b ? b * 60 / fxBpm : p.time, 1.99)); set(fb.gain, p.feedback); set(lp.frequency, p.tone); set(w.g.gain, p.wow * 0.004); };
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let size = 0;
     input.connect(cv).connect(lp).connect(wet);
@@ -91,15 +104,37 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
-    apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(m.o.frequency, p.rate); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
+    apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
+  } else if (type === "vibrato") {
+    const d = ctx.createDelay(0.05), m = lfo(); nodes.push(d); d.delayTime.value = 0.006;
+    input.connect(d).connect(wet); m.g.connect(d.delayTime);
+    apply = p => { set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * 0.005); };
+  } else if (type === "tremolo" || type === "gate") {
+    const vca = ctx.createGain(), m = lfo(); nodes.push(vca);
+    if (type === "gate") { const sm = ctx.createBiquadFilter(); sm.type = "lowpass"; nodes.push(sm); m.o.type = "square"; m.o.disconnect(); m.o.connect(sm).connect(m.g);
+      apply = p => { const r = rateOf(p); set(m.o.frequency, r); sm.frequency.setTargetAtTime(Math.max(r * 2, 400 * (1 - p.smooth) ** 2 + r * 2), ctx.currentTime, 0.02); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
+    } else apply = p => { set(m.o.frequency, rateOf(p)); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
+    m.g.connect(vca.gain); input.connect(vca).connect(wet);
+  } else if (type === "compressor") {
+    const c = ctx.createDynamicsCompressor(), mk = ctx.createGain(); nodes.push(c, mk);
+    input.connect(c).connect(mk).connect(wet);
+    apply = p => { set(c.threshold, p.threshold); set(c.ratio, p.ratio); set(c.attack, p.attack); set(c.release, p.release); set(mk.gain, 10 ** (p.makeup / 20)); };
+  } else if (type === "ott") {
+    // 3-band split; each band squashed hard with big makeup so quiet detail is pulled up and peaks pushed down.
+    const mk = ctx.createGain(); nodes.push(mk); mk.connect(wet);
+    const band = (lo?: number, hi?: number) => { let n: AudioNode = input;
+      for (const [t, f] of [["highpass", lo], ["lowpass", hi]] as const) if (f) { const b = ctx.createBiquadFilter(); b.type = t; b.frequency.value = f; b.Q.value = 0.5; nodes.push(b); n.connect(b); n = b; }
+      const c = ctx.createDynamicsCompressor(), g = ctx.createGain(); c.knee.value = 6; nodes.push(c, g); n.connect(c).connect(g).connect(mk); return { c, g }; };
+    const bands = [band(undefined, 120), band(120, 2500), band(2500)];
+    apply = p => { bands.forEach(({ c, g }) => { set(c.threshold, -10 - p.depth * 40); set(c.ratio, 1 + p.depth * 19); set(c.attack, 0.001 + (1 - p.speed) * 0.05); set(c.release, 0.03 + (1 - p.speed) * 0.4); set(g.gain, 10 ** ((p.depth * 18) / 20)); }); set(mk.gain, 10 ** (p.makeup / 20)); };
   } else {
     const aps = Array.from({ length: 4 }, () => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.Q.value = 0.7; return a; });
     const fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(...aps, fb);
     input.connect(aps[0]); aps.reduce((a, b) => (a.connect(b), b)).connect(wet); aps[3].connect(fb).connect(aps[0]);
     aps.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
-    apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, p.rate); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
+    apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
-  const update = (p: Record<string, number>) => { apply(p); set(wet.gain, p.mix); set(dry.gain, 1 - p.mix); };
+  const update = (p: Record<string, number>) => { const mix = p.mix ?? (type === "ott" ? p.depth : 1); apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
   update(init);
   return { input, output, update, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
