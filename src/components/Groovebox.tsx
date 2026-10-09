@@ -1,10 +1,12 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines, Dice5, Eraser, Play, Leaf, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { useGroovebox, type Slot } from "@/hooks/useGroovebox";
+import { Slider, ResetScope } from "@/components/ui/slider";
+import TapeDeck from "./TapeDeck";
+import { RATES, type RateName } from "@/audio/arp";
+import { useGroovebox, stepAt, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
@@ -20,36 +22,53 @@ import type { StepVal } from "@/hooks/useGroovebox";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
-const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease }: {
-  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void;
+const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel }: {
+  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
 }) {
-  return <div className="gb-pads">{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); ev.currentTarget.setPointerCapture?.(ev.pointerId); onHit(i); }} onPointerUp={() => onRelease(i)} onPointerCancel={() => onRelease(i)} onLostPointerCapture={() => onRelease(i)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => onRelease(i)} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+  // With pad repeat on, finger height inside the pad sets velocity (bottom = soft, top = loud), drawn as a fill.
+  const vel = (i: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(), v = Math.round(Math.min(1, Math.max(.05, 1 - (e.clientY - b.top) / b.height)) * 100) / 100; e.currentTarget.style.setProperty("--vel", String(v)); onVel(i, v); };
+  return <div className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); ev.currentTarget.setPointerCapture?.(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.buttons) vel(i, ev); }} onPointerUp={() => onRelease(i)} onPointerCancel={() => onRelease(i)} onLostPointerCapture={() => onRelease(i)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => onRelease(i)} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+    {velMode && <i className="gb-pad-vel" aria-hidden="true" />}
     <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? `drum · ${slot.drum.kind}` : slot.engine}</span>
   </button>)}</div>;
 });
+
+function RepeatBar({ repeat, onRepeat, rec, onRec }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void }) {
+  return <div className="gb-seq-tools gb-repeat">
+    <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
+    <div className="gb-banks"><button className={`gb-bank ${!repeat.latch ? "active" : ""}`} aria-pressed={!repeat.latch} onClick={() => onRepeat({ ...repeat, latch: false })}>HOLD</button><button className={`gb-bank ${repeat.latch ? "active" : ""}`} aria-pressed={repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, latch: true })}>LATCH</button></div>
+    <select className="gb-row-len" aria-label="Repeat rate" value={repeat.rate} onChange={e => onRepeat({ ...repeat, rate: e.target.value as RateName })}>{Object.keys(RATES).map(r => <option key={r}>{r}</option>)}</select>
+    <button className={`gb-mute gb-rec ${rec ? "selected" : ""}`} aria-pressed={rec} aria-label="Record into sequencer" onClick={() => onRec(!rec)}>● REC</button>
+  </div>;
+}
 
 /** Targets a row can modulate: filter cutoff, pitch (for glides), and the params of each effect on that pad. */
 const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ...(slot.engine === "drum" || slot.engine === "poly" ? [] : [["pitch", "pitch"]]),
   ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
 
-const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, mod, offset, loop, onToggle, onSelect, onLength, onModValue, onModTarget }: {
-  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; mod: boolean; offset: number; loop: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onModValue: (r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
+type View = "note" | "mod" | "vel" | "chance";
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, offset, loop, onToggle, onSelect, onLength, onValue, onModTarget }: {
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; offset: number; loop: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
-  const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onModValue(r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
-  return <div className={`gb-seq-grid ${mod ? "is-mod" : ""}`}>{pattern.map((row, r) => { const len = lengths[r], pl = loop ? Math.min(len, loop) : len, cur = step < 0 ? -1 : (((step - offset) % pl) + pl) % pl, lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+  const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onValue(view, r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
+  return <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    const start = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - start + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
     <select className="gb-row-len" aria-label={`${slots[r].name} loop length`} value={len} onChange={e => onLength(r, +e.target.value)}>{Array.from({ length: 16 }, (_, k) => <option key={k} value={k + 1}>{k + 1}</option>)}</select>
     <select className={`gb-row-len gb-row-mod ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} value={tv} onChange={e => onModTarget(r, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-    {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, val = lane?.values[c] ?? .5, label = v === 3 ? "glide" : v === 2 ? "tie" : v === 1 ? "hit" : "off";
-      const canDrag = mod && v !== 0 && tv !== "off";
-      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${canDrag ? ` mod ${Math.round(val * 100)}%` : ""}`}
-        onPointerDown={ev => { if (canDrag) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } }}
-        onClick={() => { if (!canDrag) onToggle(r, c); }}
-        onPointerMove={ev => { if (canDrag && ev.buttons) drag(r, c, ev); }}
-        onKeyDown={ev => { if (canDrag && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onModValue(r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
-        className={`gb-step ${v === 1 ? "on" : v === 2 ? "tie" : v === 3 ? "glide" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${canDrag ? "mod" : ""}`}>
-        {canDrag && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
+    {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, label = v >= 2 ? "tie" : v === 1 ? "hit" : "off";
+      const val = view === "vel" ? vel[r]?.[c] ?? 1 : view === "chance" ? chance[r]?.[c] ?? 1 : lane?.values[c] ?? .5;
+      const canDrag = view !== "note" && v === 1 || (view === "mod" && v !== 0 && tv !== "off");
+      const drag2 = canDrag && (view !== "mod" || tv !== "off");
+      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? ` ${view} ${Math.round(val * 100)}%` : ""}`}
+        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } }}
+        onClick={() => { if (!drag2) onToggle(r, c); }}
+        onPointerMove={ev => { if (drag2 && ev.buttons) drag(r, c, ev); }}
+        onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
+        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${drag2 ? "mod" : ""}`}>
+        {drag2 && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
+        {view === "note" && v === 1 && ((vel[r]?.[c] ?? 1) < .99 || (chance[r]?.[c] ?? 1) < .99) && <i className="gb-step-dot" />}
       </button>; })}
   </div>; })}</div>;
 });
