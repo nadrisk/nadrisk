@@ -10,12 +10,11 @@ import Waveform from "./Waveform";
 export default function Groovebox() {
   const g = useGroovebox();
   const s = g.slots[g.selected];
-  const now = Date.now();
   return <section className="instrument-workspace" aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.maxpat</span><span>16-SLOT RACK / STEP SEQUENCER</span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-grid">
       <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
-        <div className="gb-pads">{g.slots.map((slot, i) => <button key={i} onPointerDown={() => g.hit(i)} className={`gb-pad ${g.selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""} ${now - g.hits[i] < 140 ? "hit" : ""}`} aria-label={`Play ${slot.name}`}>
+        <div className="gb-pads">{g.slots.map((slot, i) => <button key={i} ref={el => (g.padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); g.hit(i); }} onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); g.hit(i); } }} className={`gb-pad ${g.selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
           <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? `drum · ${slot.drum.kind}` : slot.engine}</span>
         </button>)}</div>
       </PatchNode>
