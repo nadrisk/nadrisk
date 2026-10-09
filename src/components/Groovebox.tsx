@@ -66,7 +66,7 @@ export default function Groovebox() {
       </PatchNode>
 
       <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
-        <SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} />
+        <SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} />
       </PatchNode>
 
       <PatchNode label="gain~ → ezdac~" tag="MASTER OUTPUT" className="gb-master">

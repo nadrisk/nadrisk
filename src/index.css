@@ -254,6 +254,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-partial span { position: absolute; bottom: 1px; width: 100%; text-align: center; font: 8px 'JetBrains Mono', monospace; color: hsl(var(--background)); mix-blend-mode: difference; pointer-events: none; }
 .gb-sample { width: 100%; height: 70px; display: block; background: hsl(var(--background)); border: 1px solid hsl(var(--border)); cursor: crosshair; }
 .gb-upload { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font: 10px 'JetBrains Mono', monospace; text-transform: uppercase; border: 1px solid hsl(var(--accent) / .6); color: hsl(var(--accent)); padding: 4px 8px; cursor: pointer; }
+.gb-sample-pick { width: 100%; min-width: 0; }
 .gb-upload:hover { background: hsl(var(--accent) / .12); }
 /* Groovebox stage 3: effects */
 .gb-fxnode { grid-column: 1 / -1; }
