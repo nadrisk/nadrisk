@@ -10,3 +10,7 @@
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
 - Step-sequencer modulation is stored per slot per pattern bank (slot.mods[bank].values indexed by step) and applied only on lit steps, so the note grid stays the single place where rhythm lives.
 - MIDI learn binds CC/notes to controls by their aria-label and drives them via synthetic DOM events (src/hooks/useMidi.ts), so every labelled control is mappable without per-control wiring.
+- Tone registers only one AudioWorklet module per context, so every processor (including the tape recorder in src/audio/tapeWorklet.ts) must be concatenated into the single loadWorklets bundle.
+- Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
+- Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
+- Groovebox sections render through a keyed layout list; the classic layout keeps wrappers display:contents so the original grid placement still applies.
