@@ -34,6 +34,7 @@ export default function Groovebox() {
           <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
           <Slider aria-label="Master volume" min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
           <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
+          <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
           <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
         </div>
       </PatchNode>
