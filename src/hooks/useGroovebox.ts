@@ -161,7 +161,14 @@ export function useGroovebox() {
         const len = lengthsRef.current[i], st = tick % len;
         if (row[st] !== 1) return;
         let ties = 0; while (st + ties + 1 < len && row[st + ties + 1] === 2) ties++;
-        trigger(i, time, 1, 0, (1 + ties) * sixteenth * 0.98); Tone.getDraw().schedule(() => flash(i), time);
+        const dur = (1 + ties) * sixteenth, a = slotsRef.current[i].arp;
+        if (!a.on) { trigger(i, time, 1, 0, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
+        // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts.
+        const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002;
+        for (let k = 0, t = time; t < end; k++, t += sd) {
+          const c = a.cells[k % a.steps]; if (!c.on) continue;
+          trigger(i, t, c.vel, degreeToSemi(a.scale, c.deg), Math.min(sd * c.gate, end - t)); const ft = t; Tone.getDraw().schedule(() => flash(i), ft);
+        }
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
