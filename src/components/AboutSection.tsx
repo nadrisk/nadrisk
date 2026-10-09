@@ -1,12 +1,10 @@
 const AboutSection = () => {
   return (
-    <section id="about" className="relative py-24 md:py-32 px-6 md:px-12">
-      <div className="max-w-3xl mx-auto">
-        <h2 className="text-xs font-medium tracking-[0.3em] uppercase text-accent mb-12">
-          About
-        </h2>
+    <section id="about" className="about-section">
+      <div className="about-heading"><span className="eyebrow">03 / BEHIND THE SIGNAL</span><h2>The person<br />in the patch.</h2><span className="about-object">p nadrisk</span></div>
+      <div>
 
-        <div className="space-y-6 text-muted-foreground leading-relaxed text-base md:text-lg">
+        <div className="about-copy space-y-6 text-muted-foreground leading-relaxed text-sm">
           <p className="text-foreground text-lg md:text-xl font-light italic">
             Nadrisk is what you play for that friend who says they're into everything, just to see if they mean it.
           </p>
