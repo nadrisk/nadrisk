@@ -138,7 +138,7 @@ export default function Groovebox() {
     editor: <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
       <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
     </PatchNode>,
-    master: <PatchNode label="gain~ → dac~" tag="MASTER OUTPUT" className="gb-master">
+    master: <PatchNode label="gain~ → nad.out~" tag="MASTER OUTPUT" className="gb-master">
       <div className="node-body">
         <div className="transport-body">
           <Button variant="ghost" className={`transport-button ${g.playing ? "is-playing" : ""}`} onClick={g.togglePlay} aria-label={g.playing ? "Stop" : "Play"}>{g.playing ? <Square /> : <Play />}</Button>
