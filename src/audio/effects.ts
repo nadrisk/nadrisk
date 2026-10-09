@@ -146,7 +146,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let size = 0;
     input.connect(cv).connect(lp).connect(wet);
-    apply = p => { if (Math.round(p.size * 4) !== size) { size = Math.round(p.size * 4); cv.buffer = impulse(ctx, eco ? Math.min(size * 0.5, 1.5) : size); } set(lp.frequency, p.damp); };
+    apply = p => { if (Math.round(p.size * 4) !== size) { size = Math.round(p.size * 4); cv.buffer = impulse(ctx, eco ? Math.min(p.size * 0.5, 1.5) : p.size); } set(lp.frequency, p.damp); };
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
