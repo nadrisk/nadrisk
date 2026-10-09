@@ -114,6 +114,7 @@ export function useGroovebox() {
   // Pad phrase sequencer: while a pad is held, a look-ahead scheduler books its steps on the audio clock.
   const holds = useRef(new Map<number, { next: number; idx: number }>());
   const timer = useRef<number | null>(null);
+  const pressed = useRef(new Set<number>());
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
     const horizon = e.ctx.currentTime + 0.08;
@@ -127,11 +128,12 @@ export function useGroovebox() {
     });
   }, [trigger]);
   const startHold = useCallback((i: number) => {
-    const e = engine.current; if (!e || holds.current.has(i)) return;
+    const e = engine.current; if (!e || holds.current.has(i) || !pressed.current.has(i)) return;
     holds.current.set(i, { next: e.ctx.currentTime, idx: 0 }); pump();
     timer.current ??= window.setInterval(pump, 20);
   }, [pump]);
   const release = useCallback((i: number) => {
+    pressed.current.delete(i);
     if (!holds.current.delete(i)) return;
     const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime);
     if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; }
@@ -186,6 +188,7 @@ export function useGroovebox() {
 
   const hit = useCallback(async (i: number) => {
     // Fast path: audio already running, so play synchronously with no await.
+    pressed.current.add(i);
     const e = engine.current;
     if (e && Tone.getContext().state === "running") { trigger(i); flash(i); startTransition(() => setSelected(i)); return; }
     setSelected(i);
