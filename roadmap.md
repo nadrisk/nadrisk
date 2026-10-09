@@ -2,7 +2,7 @@
 - [ ] NAD branding: remove visible Max associations
 - [ ] Metallic feedback, spectral gate, sidechain, DJ filter and reverse delay
 - [ ] Choke groups, chord pads and lush poly synth
-- [ ] Per-pad modulation sequencing and four phrase memories
+- [ ] Per-pad A/B modulation sequencing and programmable gate rhythms
 - [ ] Global envelope time, tension riser, tape stop, reverse and stutter performance rack
 - [ ] Verify new sound routing, controls and set recall
 - [x] Stage 1: 16-pad rack, 16-step sequencer, master volume + scope

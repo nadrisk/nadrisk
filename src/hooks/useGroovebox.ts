@@ -64,7 +64,7 @@ function syncChain(e: Engine, i: number, s: Slot) {
     out.chain = live.map(f => createFx(e.ctx, f.type, { ...defaultFxParams(f.type), ...f.params }));
     let node: AudioNode = out.filter;
     out.chain.forEach(f => { node.connect(f.input); node = f.output; }); node.connect(out.pan);
-    out.chain.forEach((f, k) => { if (f.keyInput) e.outs[Math.max(0, Math.min(15, Math.round(live[k].params.source ?? 1) - 1))].tap.connect(f.keyInput); });
+    out.chain.forEach((f, k) => { if (f.keyInput) { const key = f.keyInput, source = e.outs[Math.max(0, Math.min(15, Math.round(live[k].params.source ?? 1) - 1))].tap; source.connect(key); const dispose = f.dispose; f.dispose = () => { try { source.disconnect(key); } catch { /* already detached */ } dispose(); }; } });
     out.sig = sig;
   } else live.forEach((f, k) => out.chain[k].update({ ...Object.fromEntries(Object.entries(defaultFxParams(f.type))), ...f.params }));
 }
@@ -213,7 +213,7 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime(s.level / 100, e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
