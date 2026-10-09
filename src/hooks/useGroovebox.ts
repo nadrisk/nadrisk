@@ -132,10 +132,10 @@ export function useGroovebox() {
     const factor = 2 ** (performanceRef.current.time * 2);
     const notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     const pitch = s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi;
-    const voices = notes.map(offset => s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
+    const voices = notes.map(offset => s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
       : s.engine === "sampler" ? playSampler(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buffers.current[i] ?? fallbackBuf(), t, gate, vel / Math.sqrt(notes.length))
       : s.engine === "poly" ? null
-      : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
+      : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
     if (s.engine === "poly") voices.push(playPoly(e.ctx, dest, { ...s.poly, env: scaledEnv(s.poly.env, factor) }, notes.map(n => pitch + n), t, gate, vel));
     e.mono[i] = { stop: at => voices.forEach(v => v?.stop(at)) };
   }, []);
@@ -163,11 +163,11 @@ export function useGroovebox() {
   }, [pump]);
   const release = useCallback((i: number) => {
     pressed.current.delete(i);
-    if (!holds.current.delete(i)) return;
+    if (!holds.current.delete(i)) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || (slot.engine === "sampler" && slot.chord.on))) e.mono[i]?.stop(e.ctx.currentTime); return; }
     const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime);
     if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; }
   }, []);
-  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { trigger(i); flash(i); } }, [startHold, trigger]);
+  const play = useCallback((i: number) => { if (slotsRef.current[i].arp.on) startHold(i); else { const slot = slotsRef.current[i]; trigger(i, undefined, 1, 0, slot.engine === "poly" || (slot.engine === "sampler" && slot.chord.on) ? 60 : undefined); flash(i); } }, [startHold, trigger]);
 
 
   const ensure = useCallback(async () => {

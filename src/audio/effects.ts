@@ -96,7 +96,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 
   if (type === "metal") {
     const d = ctx.createDelay(.05), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), clip = ctx.createWaveShaper();
-    clip.curve = satCurve(1); nodes.push(d, lp, fb, clip); input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(clip).connect(d);
+    clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, clip); input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(clip).connect(d);
     apply = p => { set(d.delayTime, p.time); set(lp.frequency, p.tone); set(fb.gain, Math.min(.96, p.feedback)); };
   } else if (type === "djfilter") {
     const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
