@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Analyser } from "tone";
 
-export default function Waveform({ analyser, playing }: { analyser: Analyser | null; playing: boolean }) {
+export default function Waveform({ analyser, playing, eco = false }: { analyser: Analyser | null; playing: boolean; eco?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const element = canvas.current;
@@ -11,8 +11,10 @@ export default function Waveform({ analyser, playing }: { analyser: Analyser | n
     const colors = getComputedStyle(element);
     const line = colors.getPropertyValue("--scope-line").trim();
     const grid = colors.getPropertyValue("--scope-grid").trim();
-    let frame = 0;
-    const draw = () => {
+    let frame = 0, last = 0;
+    const draw = (now = 0) => {
+      if (eco && now - last < 66) { frame = requestAnimationFrame(draw); return; }
+      last = now;
       const width = element.clientWidth, height = element.clientHeight;
       const ratio = window.devicePixelRatio || 1;
       if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio; }
@@ -31,6 +33,6 @@ export default function Waveform({ analyser, playing }: { analyser: Analyser | n
       context.stroke(); frame = requestAnimationFrame(draw);
     };
     draw(); return () => cancelAnimationFrame(frame);
-  }, [analyser, playing]);
+  }, [analyser, playing, eco]);
   return <canvas ref={canvas} className="scope-canvas" aria-label={playing ? "Live audio waveform" : "Audio waveform idle"} role="img" />;
 }

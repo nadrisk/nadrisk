@@ -48,6 +48,11 @@ registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`
 let loading: Promise<void> | null = null;
 export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS], { type: "application/javascript" }))));
 
+let eco = false;
+/** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
+export const setFxEco = (on: boolean) => { eco = on; };
+export const fxEco = () => eco;
+
 export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>) => void; dispose: () => void };
 
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
@@ -67,7 +72,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   let apply: (p: Record<string, number>) => void;
 
   if (type === "saturation") {
-    const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = "4x"; nodes.push(sh, lp);
+    const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = eco ? "none" : "4x"; nodes.push(sh, lp);
     input.connect(sh).connect(lp).connect(wet); let k = 0;
     apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
@@ -82,7 +87,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let size = 0;
     input.connect(cv).connect(lp).connect(wet);
-    apply = p => { if (p.size !== size) { size = p.size; cv.buffer = impulse(ctx, size); } set(lp.frequency, p.damp); };
+    apply = p => { if (p.size !== size) { size = p.size; cv.buffer = impulse(ctx, eco ? Math.min(size * 0.5, 1.5) : size); } set(lp.frequency, p.damp); };
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
