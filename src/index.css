@@ -771,3 +771,4 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 }
 /* Utility screens fill the selector width: centered bezel, largest whole-number scale. */
 .instrument-workspace .gb-utility-body .px-wrap { justify-content: center; border: 1px solid hsl(var(--foreground)); padding: 4px 0; }
+.px-screen .px-zone::before, .px-screen .px-zone::after { content: none !important; display: none !important; }
