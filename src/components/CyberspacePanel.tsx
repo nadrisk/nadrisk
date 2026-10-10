@@ -39,40 +39,64 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     return envKnobs(s.env, env => S({ env }));
   };
 
+  // Oscilloscope trace computed from the current settings so it reacts as the sound is shaped.
+  const scope = (p: import("@/pixel/draw").Px, page: string) => {
+    const X0 = 3, W = 122, Y0 = 26, H = 15, mid = Y0 + 7;
+    p.box(2, Y0 - 1, 124, H + 2);
+    for (let x = X0; x < X0 + W; x += 4) p.dot(x, mid);
+    const shape = (w: Wave, ph: number) => { const t = ((ph % 1) + 1) % 1;
+      if (w === "sine") return Math.sin(t * Math.PI * 2);
+      if (w === "triangle") return 1 - Math.abs(t * 4 - 2);
+      if (w === "sawtooth") return t * 2 - 1;
+      return t < .5 ? 1 : -1; };
+    const lfoShape = (t: number) => shape(s.lfo.wave, t);
+    if (page === "LFO") {
+      const amp = Math.max(.15, s.lfo.depth);
+      let prev: [number, number] | null = null;
+      for (let i = 0; i < W; i++) { const t = i / W;
+        const v = lfoShape(t * Math.min(6, Math.max(.5, s.lfo.rate / 2))) * amp;
+        const pt: [number, number] = [X0 + i, mid - Math.round(Math.max(-1, Math.min(1, v)) * 6)];
+        if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
+      return;
+    }
+    const k = page === "O1" ? "osc1" : "osc2", o = s[k];
+    if (o.wave === "additive") return; // additive shows the partial bars instead
+    // Two detuned cycles of the oscillator, FM-wobbled by the LFO, smoothed by the filter, plus noise.
+    const cycles = 2 + Math.max(0, o.coarse + 24) / 48 * 3, det = 1 + o.fine / 400;
+    const smooth = 1 - Math.min(.92, Math.log(s.cutoff / 40) / Math.log(400));
+    const lfoAmt = s.lfo.target === "pitch" ? s.lfo.depth / 24 : 0, lfoCyc = Math.min(6, s.lfo.rate / 2);
+    let y = 0, ph = 0, prev: [number, number] | null = null, seed = 7;
+    for (let i = 0; i < W; i++) { const t = i / W;
+      const fm = 1 + lfoShape(t * lfoCyc) * lfoAmt * .5; ph += cycles / W * fm;
+      seed = (seed * 16807) % 2147483647; const nz = (seed / 2147483647 * 2 - 1) * s.noise * .5;
+      const v = shape(o.wave as Wave, ph) * (o.gain * .6 + .4) + shape(o.wave as Wave, ph * det) * .2 + nz;
+      y += (v - y) * (1 - smooth * .85);
+      const pt: [number, number] = [X0 + i, mid - Math.round(Math.max(-1, Math.min(1, y)) * 6)];
+      if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
+  };
+
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      drawWaveIcon(p, o.wave, 14, 12, 24, 14);
-      p.text(o.wave.slice(0, 5).toUpperCase(), 42, 14);
-      if (k === "osc2") { p.box(42, 22, 25, 7); if (s.osc2.mode === "fm") p.invert(43, 23, 23, 5); p.text(s.osc2.mode.toUpperCase(), 45, 23, s.osc2.mode !== "fm"); }
+      drawWaveIcon(p, o.wave, 2, 11, 22, 12);
+      p.text(o.wave.slice(0, 5).toUpperCase(), 28, 15);
+      if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode.toUpperCase(), 77, 13, s.osc2.mode !== "fm"); }
       if (k === "osc1" && o.wave === "additive") {
         // A bounded 16-partial display leaves a clean row for the four knobs below.
-        p.box(13, 17, 114, 25, true);
-        for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 20); p.rect(15 + i * 7, 40 - bh, 4, bh); if (i % 2) p.dot(16 + i * 7, 40); }
+        p.box(2, 25, 124, 19, true);
+        for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
       } else {
-        // Big stepped waveform preview.
-        p.box(2, 28, 124, 17);
-        for (let i = 0; i < 112; i++) {
-          const t = i / 112; let dy = 0;
-          if (o.wave === "sine") dy = Math.sin(t * Math.PI * 4);
-          else if (o.wave === "triangle") dy = Math.abs(t * 4 - 2) - 1;
-          else if (o.wave === "sawtooth") dy = t * 2 - 1;
-          else dy = t < .5 ? -1 : 1;
-          p.dot(15 + i, 36 - Math.round(dy * 6));
-        }
+        scope(p, page);
       }
     } else if (page === "FLT") {
-      drawFilterCurve(p, s.filter, s.cutoff, s.res);
-      p.text(s.filter.slice(0, 2).toUpperCase(), 16, 13);
+      drawFilterCurve(p, s.filter, s.cutoff, s.res, 2, 11, 124, 32);
+      p.text(s.filter.slice(0, 2).toUpperCase(), 4, 13);
     } else if (page === "LFO") {
-      drawWaveIcon(p, s.lfo.wave, 14, 12, 24, 14);
-      p.text(s.lfo.target.toUpperCase().slice(0, 5), 42, 14);
-      // LFO cycle preview with depth-scaled amplitude.
-      p.box(2, 28, 124, 17);
-      const amp = Math.max(1, Math.round(s.lfo.depth * 6));
-      for (let i = 0; i < 112; i++) { const t = i / 112; p.dot(15 + i, 36 - Math.round(Math.sin(t * Math.PI * 2) * amp)); }
+      drawWaveIcon(p, s.lfo.wave, 2, 11, 22, 12);
+      p.text(`${s.lfo.wave.slice(0, 3).toUpperCase()} ${s.lfo.target.toUpperCase().slice(0, 4)}`, 28, 15);
+      scope(p, page);
     } else {
-      drawEnvGraph(p, s.env);
+      drawEnvGraph(p, s.env, 2, 11, 124, 32);
     }
   };
 
@@ -82,16 +106,16 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const waves: (Wave | "additive")[] = k === "osc1" ? ["sine", "triangle", "sawtooth", "square", "additive"] : ["sine", "triangle", "sawtooth", "square"];
       const idx = Math.max(0, waves.indexOf(o.wave as Wave));
       return <>
-        <Zone x={14} y={11} w={24} h={15} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
-        {k === "osc2" && <Zone x={42} y={21} w={25} h={9} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
+        <Zone x={2} y={11} w={22} h={12} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
+        {k === "osc2" && <Zone x={74} y={12} w={25} h={7} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
         {k === "osc1" && o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
-          <Zone key={i} x={14 + i * 7} y={18} w={6} h={23} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
+          <Zone key={i} x={3 + i * 7.6} y={26} w={7} h={17} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
             onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
         ))}
       </>;
     }
-    if (page === "FLT") return <Zone x={14} y={10} w={114} h={35} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
-    if (page === "LFO") return <Zone x={14} y={11} w={24} h={15} label="LFO waveform" value={["sine", "triangle", "sawtooth", "square"].indexOf(s.lfo.wave)} min={0} max={3} step={1} onChange={v => S({ lfo: { ...s.lfo, wave: (["sine", "triangle", "sawtooth", "square"] as Wave[])[Math.round(v)] } })} />;
+    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
+    if (page === "LFO") return <Zone x={2} y={11} w={22} h={12} label="LFO waveform" value={["sine", "triangle", "sawtooth", "square"].indexOf(s.lfo.wave)} min={0} max={3} step={1} onChange={v => S({ lfo: { ...s.lfo, wave: (["sine", "triangle", "sawtooth", "square"] as Wave[])[Math.round(v)] } })} />;
     return null;
   };
 
