@@ -2,7 +2,10 @@
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
 export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch";
 export type ADSR = { a: number; d: number; s: number; r: number };
-export type DrumParams = { kind: "kick" | "snare" | "hat"; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
+export type DrumKind = "kick" | "snare" | "hat" | "clap";
+/** Machine fields are optional so older sets load unchanged; drumDefaults() fills them per kind. */
+export type DrumMachine = { pAtk?: number; pCurve?: number; pEnd?: number; fmDecay?: number; transient?: number; bodyDecay?: number; noiseDecay?: number; noiseTone?: number; tone2?: number; spread?: number; bursts?: number; burstGap?: number; tail?: number; drive?: number; fltBase?: number; fltWidth?: number };
+export type DrumParams = DrumMachine & { kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
@@ -58,27 +61,67 @@ function filterWithEnv(ctx: BaseAudioContext, t: number, kind: FilterKind, cutof
   return f;
 }
 
-export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p: DrumParams, t: number, vel = 1): Voice {
-  const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
+export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ pAtk: 0, pCurve: .7, pEnd: 0, fmDecay: .08, transient: k === "kick" ? .4 : .2, bodyDecay: k === "snare" ? .12 : .3, noiseDecay: k === "snare" ? .18 : .1, noiseTone: k === "clap" ? 1200 : 2500, tone2: k === "clap" ? 2.5 : 1.58, spread: 1, bursts: 4, burstGap: .009, tail: .6, drive: 0, fltBase: 20, fltWidth: 10 });
+const mach = (p: DrumParams) => ({ ...drumDefaults(p.kind), ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) }) as DrumParams & Required<DrumMachine>;
+
+/** Full pitch envelope: optional attack rise to `base*2^(amt/12)`, then a curved fall to `base*2^(end/12)`. Curve 0 = linear glide, 1 = snappy. */
+function pitchEnvelope(f: AudioParam, base: number, t: number, amt: number, atk: number, dec: number, curve: number, end: number) {
+  const peak = clampF(base * 2 ** (amt / 12)), fin = clampF(base * 2 ** (end / 12)), d = Math.max(.003, dec);
+  if (atk > .0005) { f.setValueAtTime(fin, t); f.linearRampToValueAtTime(peak, t + atk); } else f.setValueAtTime(peak, t);
+  const k = 1 + curve * 9, n = 48, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const u = i / (n - 1), sh = 1 - (1 - u) ** k; c[i] = peak * (fin / peak) ** sh; }
+  f.setValueCurveAtTime(c, t + atk + .0001, d);
+}
+const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createWaveShaper(), k = 1 + drive * 14, c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } w.curve = c; w.oversample = "2x"; return w; };
+
+export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams, t: number, vel = 1): Voice {
+  const p = mach(p0), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
-  const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay); filt.connect(amp);
-  const osc = at(ctx.createOscillator(), t); osc.type = p.kind === "hat" ? "square" : p.kind === "snare" ? "triangle" : "sine";
-  osc.frequency.setValueAtTime(clampF(p.pitch * 2 ** (p.pitchEnv / 12)), t);
-  osc.frequency.exponentialRampToValueAtTime(clampF(p.pitch), t + p.pitchDecay + 0.001);
-  if (p.fm > 0) {
-    const mod = at(ctx.createOscillator(), t); mod.frequency.value = p.pitch * p.fmRatio;
-    const mg = ctx.createGain(); mg.gain.value = p.fm * p.pitch; mod.connect(mg).connect(osc.frequency); srcs.push(mod); nodes.push(mod, mg);
+  // Output strip: base-width (HP base, LP base*2^width) -> multimode filter -> drive -> amp.
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = clampF(p.fltBase); hp.Q.value = .707;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = clampF(p.fltBase * 2 ** p.fltWidth); lp.Q.value = .707;
+  const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay);
+  hp.connect(lp).connect(filt); let tail: AudioNode = filt;
+  if (p.drive > 0) { const w = shaper(ctx, p.drive), g = ctx.createGain(); g.gain.value = 1 / (1 + p.drive * 1.5); tail.connect(w).connect(g); nodes.push(w, g); tail = g; }
+  tail.connect(amp); nodes.push(hp, lp, filt, amp);
+  const bus = hp;
+  const sweep = p.pitchEnv * (.6 + .4 * vel);
+  const pe = (f: AudioParam, base: number) => pitchEnvelope(f, base, t, sweep, p.pAtk, p.pitchDecay, p.pCurve, p.pEnd);
+  const osc = (type: OscillatorType, base: number) => { const o = at(ctx.createOscillator(), t); o.type = type; pe(o.frequency, base); srcs.push(o); nodes.push(o); return o; };
+  const decGain = (lvl: number, dec: number, start = t) => { const g = ctx.createGain(); g.gain.setValueAtTime(lvl, start); g.gain.setTargetAtTime(0, start + .001, Math.max(.002, dec) / 3); nodes.push(g); return g; };
+  const noise = () => { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; srcs.push(n); nodes.push(n); return n; };
+  const fmTo = (targets: AudioParam[], base: number) => { if (p.fm <= 0) return; const m = at(ctx.createOscillator(), t); pe(m.frequency, base * p.fmRatio); const g = decGain(p.fm * base, p.fmDecay); m.connect(g); targets.forEach(x => g.connect(x)); srcs.push(m); nodes.push(m); };
+  if (p.kind === "kick") {
+    const o = osc("sine", p.pitch); fmTo([o.frequency], p.pitch);
+    o.connect(decGain(1 - p.noise * .5, p.env.d * 4)).connect(bus);
+    if (p.transient > 0) { const n = noise(), f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1500; nodes.push(f); n.connect(f).connect(decGain(p.transient * vel * 1.4, .006)).connect(bus); }
+    if (p.noise > 0) noise().connect(decGain(p.noise * .4, p.noiseDecay)).connect(bus);
+  } else if (p.kind === "snare") {
+    const o1 = osc("triangle", p.pitch), o2 = osc("sine", p.pitch * p.tone2); fmTo([o1.frequency, o2.frequency], p.pitch);
+    const body = decGain(1 - p.noise * .6, p.bodyDecay); o1.connect(body); o2.connect(body); body.connect(bus);
+    const nf = ctx.createBiquadFilter(); nf.type = "highpass"; nf.frequency.value = clampF(p.noiseTone); nodes.push(nf);
+    noise().connect(nf).connect(decGain(p.noise * (.7 + .3 * vel), p.noiseDecay)).connect(bus);
+  } else if (p.kind === "hat") {
+    const R = [1, 1.304, 1.466, 1.787, 1.932, 2.536], sum = ctx.createGain(); sum.gain.value = (1 - p.noise) / 3; nodes.push(sum);
+    const os = R.map(r => osc("square", p.pitch * r ** p.spread)); fmTo(os.map(o => o.frequency), p.pitch);
+    const ring = ctx.createGain(); ring.gain.value = 1 - p.ring; nodes.push(ring);
+    if (p.ring > 0) { const ro = osc("sine", p.ringFreq), rd = ctx.createGain(); rd.gain.value = p.ring; ro.connect(rd).connect(ring.gain); nodes.push(rd); }
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = .8; pe(bp.frequency, p.pitch * 12); nodes.push(bp);
+    os.forEach(o => o.connect(ring)); ring.connect(sum).connect(bp).connect(bus);
+    noise().connect(decGain(p.noise * .8, p.env.d + .02)).connect(bus);
+    if (p.transient > 0) noise().connect(decGain(p.transient * vel * .6, .004)).connect(bus);
+  } else {
+    // Clap: N short noise bursts then a room tail, all through a band-pass whose centre follows the pitch envelope.
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = p.tone2; pe(bp.frequency, p.noiseTone); nodes.push(bp);
+    const g = ctx.createGain(); g.gain.value = 0; nodes.push(g);
+    const nb = Math.max(1, Math.round(p.bursts));
+    for (let i = 0; i < nb; i++) { const bt = t + i * p.burstGap; g.gain.setValueAtTime(i === nb - 1 ? 1 : .8 + .2 * vel, bt); g.gain.setTargetAtTime(0, bt + .0005, .0025); }
+    const tt = t + (nb - 1) * p.burstGap + .002; g.gain.setValueAtTime(p.tail, tt); g.gain.setTargetAtTime(0, tt + .001, Math.max(.01, p.env.d) / 3);
+    noise().connect(g).connect(bp).connect(bus);
+    const clapEnv: ADSR = { ...p.env, d: p.env.d + (nb - 1) * p.burstGap, a: Math.min(p.env.a, .001) };
+    const end = adsr(amp.gain, t, { ...clapEnv, s: 1 }, clapEnv.d + .05, vel * 1.6);
+    return finish(srcs, nodes, end, amp);
   }
-  const ringVca = ctx.createGain(); ringVca.gain.value = 1 - p.ring;
-  if (p.ring > 0) {
-    const ro = at(ctx.createOscillator(), t); ro.frequency.value = p.ringFreq;
-    const rd = ctx.createGain(); rd.gain.value = p.ring; ro.connect(rd).connect(ringVca.gain); srcs.push(ro); nodes.push(ro, rd);
-  }
-  const toneG = ctx.createGain(); toneG.gain.value = 1 - p.noise;
-  osc.connect(ringVca).connect(toneG).connect(filt);
-  const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true;
-  const ng = ctx.createGain(); ng.gain.value = p.noise; n.connect(ng).connect(filt);
-  srcs.unshift(osc); srcs.push(n); nodes.push(osc, ringVca, toneG, n, ng, filt, amp);
   const end = adsr(amp.gain, t, p.env, p.env.a + p.env.d, vel);
   return finish(srcs, nodes, end, amp);
 }
