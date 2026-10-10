@@ -822,3 +822,4 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-pads.vel-mode .gb-pad.hit .gb-pad-kind { border-color: hsl(var(--foreground)) !important; color: hsl(var(--foreground)) !important; }
 .gb-pads.vel-mode .gb-pad-vel, .instrument-workspace .gb-pads.vel-mode .gb-pad-vel { background: hsl(var(--foreground)); border-top: 2px solid hsl(var(--foreground)); mix-blend-mode: difference; z-index: 2; }
 .gb-pad-velnum { position: absolute; top: 4px; right: 6px; font-size: 10px; letter-spacing: .05em; pointer-events: none; z-index: 1; }
+.instrument-workspace .gb-meter i.on.clip { background: hsl(var(--destructive, var(--foreground))); }
