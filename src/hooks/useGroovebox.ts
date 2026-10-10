@@ -13,9 +13,9 @@ if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?:
   const c = new Tone.Context({ latencyHint: "interactive", lookAhead: 0.1 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
 }
 export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
-/** Channel-rack EQ in dB (mid frequency in Hz). */
-export type ChannelEQ = { low: number; mid: number; midFreq: number; q: number; high: number };
-export const defaultEQ = (): ChannelEQ => ({ low: 0, mid: 0, midFreq: 1000, q: 1, high: 0 });
+/** Channel-rack EQ in dB (frequencies in Hz). */
+export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: number; q: number; high: number; highFreq: number };
+export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: 1, high: 0, highFreq: 9000 });
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };

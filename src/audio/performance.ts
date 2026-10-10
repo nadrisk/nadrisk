@@ -76,5 +76,5 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const gl = p.glueOn ?? false; set(glue.threshold, gl ? p.glueThresh ?? -12 : 0); set(glue.ratio, gl ? p.glueRatio ?? 2 : 1); set(glueMk.gain, gl ? db(p.glueMakeup ?? 2) : 1);
     set(limiter.threshold, p.ceiling ?? -1); set(limOn.gain, lim ? 1 : 0); set(limBy.gain, lim ? 0 : 1);
   };
-  return { input, output: final, meter, update, dispose: () => { noise.stop(); [input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, dyn, update, dispose: () => { noise.stop(); [input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
 }
