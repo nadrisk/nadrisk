@@ -28,6 +28,8 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, pitchEnvShape: { a: .001, d: .05, s: 0, r: .02 }, filterEnvShape: { a: .001, d: .2, s: 0, r: .02 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 /** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
+/** Temporary pad diagnostics (shown with ?padtest=1): taps received vs voices started vs failures. */
+export const padStats = { tap: 0, play: 0, err: 0, late: 0, audio: "", msg: "" };
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
@@ -169,7 +171,10 @@ export function useGroovebox() {
   const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
-    const t0 = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
+    // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
+    const late = time === undefined ? 0 : time - e.ctx.currentTime;
+    padStats.late = Math.round(late * 1000); padStats.audio = (e.ctx as AudioContext).state;
+    const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2);
     let notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
@@ -220,7 +225,8 @@ export function useGroovebox() {
       for (let k = 0; k * rs < gate0 - .001 && k < 64; k++) run(t0 + k * rs, Math.min(rs * .9, gate0 - k * rs), k);
       return;
     }
-    run(t0, gate0, noteIdx);
+    try { run(t0, gate0, noteIdx); padStats.play++; }
+    catch (err) { padStats.err++; padStats.msg = String((err as Error)?.message ?? err).slice(0, 60); console.warn("pad voice failed", err); }
   }, []);
 
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
@@ -438,6 +444,7 @@ export function useGroovebox() {
   const getMasterDyn = useCallback((): { gr: number; out: number } | null => engine.current?.performance.dyn() ?? null, []);
 
   const hit = useCallback(async (i: number) => {
+    padStats.tap++;
     // Fast path: audio already running, so play synchronously with no await.
     pressed.current.add(i);
     const e = engine.current;

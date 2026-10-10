@@ -28,15 +28,31 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
 }) {
   // With pad repeat on, finger height inside the pad sets velocity (bottom = soft, top = loud), drawn as a fill.
   const vel = (i: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(), v = Math.round(Math.min(1, Math.max(.05, 1 - (e.clientY - b.top) / b.height)) * 100) / 100; e.currentTarget.style.setProperty("--vel", String(v)); const n = e.currentTarget.querySelector(".gb-pad-velnum"); if (n) n.textContent = `VEL ${Math.round(v * 127)}`; onVel(i, v); };
-  // iOS can hold back or swallow fast repeated taps as a double-tap/zoom gesture; cancelling the native touch
-  // events on the pad grid stops every gesture recogniser, so each touch reaches the pad as a pointer event.
+  // Touch screens: pads read the raw touch signal (every finger in changedTouches is its own hit), like native
+  // drum apps; cancelling the touch also stops iOS gesture recognisers from holding back fast repeated taps.
+  // Mouse and pen keep using pointer events below.
   const grid = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = grid.current; if (!el) return; const stop = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); };
-    ["touchstart", "touchend", "touchmove"].forEach(t => el.addEventListener(t, stop as EventListener, { passive: false }));
-    return () => ["touchstart", "touchend", "touchmove"].forEach(t => el.removeEventListener(t, stop as EventListener)); }, []);
+  const live = useRef({ onHit, onRelease, velMode, vel });
+  live.current = { onHit, onRelease, velMode, vel };
   // Release a pad only when its last finger lifts, so lifting one finger never cuts a newer tap's sound.
   const fingers = useRef<Set<number>[]>(Array.from({ length: 16 }, () => new Set()));
   const up = (i: number, id: number) => { const f = fingers.current[i]; if (!f.delete(id)) return; if (!f.size) onRelease(i); };
+  const touchPad = useRef(new Map<number, number>());
+  useEffect(() => {
+    const el = grid.current; if (!el) return;
+    const padOf = (t: Touch) => { const b = (t.target as Element | null)?.closest?.(".gb-pad") as HTMLElement | null; return b ? Number(b.dataset.pad) : -1; };
+    const start = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) { const i = padOf(t); if (i < 0) continue; touchPad.current.set(t.identifier, i); fingers.current[i].add(-1 - t.identifier);
+        const L = live.current; if (L.velMode) { const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(), v = Math.round(Math.min(1, Math.max(.05, 1 - (t.clientY - b.top) / b.height)) * 100) / 100; L.vel(i, v); } L.onHit(i); } };
+    const move = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); const L = live.current; if (!L.velMode) return;
+      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(); L.vel(i, Math.round(Math.min(1, Math.max(.05, 1 - (t.clientY - b.top) / b.height)) * 100) / 100); } };
+    const end = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; touchPad.current.delete(t.identifier); const f = fingers.current[i]; f.delete(-1 - t.identifier); if (!f.size) live.current.onRelease(i); } };
+    el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
+
   return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} onPointerDown={ev => { ev.preventDefault(); ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && (ev.buttons || ev.pointerType === "touch")) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
     <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? "syn" : slot.engine}</span>
