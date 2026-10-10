@@ -25,13 +25,21 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
   const del = () => { const n = sets.slice(); n[sel] = null; if (store(n)) setMsg("slot cleared"); };
   const exportSet = async (bundle: boolean) => {
     const base = sets[sel] ?? getSet(name || "set");
-    const st = bundle ? { ...base, samples: await packSamples(base.slots.map(x => x.sampler?.sampleId ?? "")) } : base;
+    let st: GrooveSet & { samples?: Awaited<ReturnType<typeof packSamples>> } = base, missing = 0;
+    if (bundle) {
+      const ids = [...new Set(base.slots.map(x => x.sampler?.sampleId ?? "").filter(id => id.startsWith("db:")))];
+      try { const samples = await packSamples(ids); missing = ids.filter(id => !samples[id]).length; st = { ...base, samples }; }
+      catch { setMsg("samples unreadable — exported without"); missing = -1; }
+    }
     const url = URL.createObjectURL(new Blob([JSON.stringify(st, null, 1)], { type: "application/json" }));
     const a = document.createElement("a"); a.href = url; a.download = `${st.name.replace(/[^\w-]+/g, "_")}${bundle ? ".bundle" : ""}.nadrisk.json`; a.click(); URL.revokeObjectURL(url);
+    if (missing > 0) setMsg(`exported · ${missing} sample${missing > 1 ? "s" : ""} missing`); else if (!missing) setMsg(bundle ? "exported with samples" : "exported");
   };
   const importSet = async (f?: File) => {
     if (!f) return;
-    try { const raw = JSON.parse(await f.text()) as GrooveSet & { samples?: Parameters<typeof unpackSamples>[0] }; if (!Array.isArray(raw.slots)) throw 0; await unpackSamples(raw.samples); const { samples: _s, ...st } = raw; const n = sets.slice(); n[sel] = st; store(n); setName(st.name); applySet(st); setMsg(`imported "${st.name}"`); }
+    try { const raw = JSON.parse(await f.text()) as GrooveSet & { samples?: Parameters<typeof unpackSamples>[0] }; if (!Array.isArray(raw.slots)) throw 0; let samplesOk = true; try { await unpackSamples(raw.samples); } catch { samplesOk = false; }
+      const { samples: _s, ...st } = raw; const n = sets.slice(); n[sel] = st; const kept = store(n); setName(st.name); applySet(st);
+      if (!samplesOk) setMsg("imported · samples not saved"); else if (kept) setMsg(`imported "${st.name}"`); }
     catch { setMsg("not a valid set file"); }
     if (file.current) file.current.value = "";
   };
