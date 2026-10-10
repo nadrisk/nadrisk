@@ -112,6 +112,8 @@ export function useGroovebox() {
   const [playing, setPlaying] = useState(false);
   const [step, setStep] = useState(-1);
   const [bpm, setBpm] = useState(124);
+  const [tune, setTune] = useState(0);
+  const tuneRef = useRef(0); tuneRef.current = tune;
   const [volume, setVolume] = useState(60);
   const [performance, setPerformance] = useState<PerformanceParams>(defaultPerformance);
   const performanceRef = useRef(performance); performanceRef.current = performance;
@@ -162,7 +164,7 @@ export function useGroovebox() {
     const factor = 2 ** (performanceRef.current.time * 2);
     const notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
-    const pitch = s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi;
+    const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     const run = (t: number, gate: number, idx?: number) => {
       // Chord voices are grouped under one stop handle; drums remain bounded to one hit per pad.
@@ -408,7 +410,7 @@ export function useGroovebox() {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 1, name, savedAt: Date.now(), bpm: bpmRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 1, name, savedAt: Date.now(), bpm: bpmRef.current, tune: tuneRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
     engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); holds.current.clear();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
@@ -416,7 +418,7 @@ export function useGroovebox() {
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: o.mods ?? x.mods, fx: o.fx ?? x.fx }; }));
     if (st.banks?.length === 2) setBanks(st.banks.map(fixBank));
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
-    setBpm(st.bpm ?? 124); setVolume(st.volume ?? 60);
+    setBpm(st.bpm ?? 124); setTune(st.tune ?? 0); setVolume(st.volume ?? 60);
     buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
     st.slots?.forEach((o, i) => { if (o?.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName); });
   }, [loadById]);
@@ -424,7 +426,7 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([makeBank(defaultPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
-export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
+export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

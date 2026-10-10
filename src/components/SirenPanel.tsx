@@ -1,3 +1,4 @@
+import { noteName } from "@/audio/arp";
 import { memo } from "react";
 import { Zone } from "@/pixel/PixelScreen";
 import { Panel, drawWaveIcon, hz, ms, st, type Knob } from "./pixelScreens";
@@ -15,7 +16,7 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
   const knobs = (page: string): Knob[] => {
     if (page === "OSC") return [
       { label: "Tone", short: "TONE", value: z.tone, min: 300, max: 12000, step: 10, fmt: hz, set: tone => Z({ tone }) },
-      { label: "Note", short: "NOTE", value: slot.note, min: 36, max: 96, step: 1, fmt: v => `${Math.round(v)}`, set: note => onChange({ note }) },
+      { label: "Note", short: "NOTE", value: slot.note, min: 36, max: 96, step: 1, fmt: v => noteName(Math.round(v)), set: note => onChange({ note }) },
       { label: "Siren release", short: "REL", value: z.release, min: .02, max: 3, step: .01, fmt: ms, set: release => Z({ release }) },
       { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     ];
