@@ -322,6 +322,8 @@ export function useGroovebox() {
     const outs = slotsRef.current.map(s => { const eq = (["lowshelf", "peaking", "highshelf"] as const).map((type, k) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = [100, 1000, 9000][k]; b.Q.value = k === 1 ? 1 : .707; return b; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; gain.connect(eq[0]).connect(eq[1]).connect(eq[2]).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); return { gain, eq, filter, tap, pan, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
+      // Guard: after an audio interruption Tone's clock can replay ticks for a transport that is already stopped.
+      if (Tone.getTransport().getStateAtTime(time) !== "started") return;
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
