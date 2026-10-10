@@ -19,7 +19,18 @@ export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
 export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number };
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop };
+/** Repeat the first or last `len` steps `times` times before moving on (times 1 = off). */
+export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
+
+/** Play order of cell indexes with the loop expanded; shared by the scheduler and the editor. */
+export function phraseOrder(a: Pick<ArpParams, "steps" | "loop">): number[] {
+  const n = Math.max(1, a.steps), all = Array.from({ length: n }, (_, i) => i), l = a.loop;
+  if (!l || l.times <= 1) return all;
+  const len = Math.max(1, Math.min(n, l.len)), seg = l.where === "first" ? all.slice(0, len) : all.slice(n - len);
+  const rep = Array.from({ length: l.times }, () => seg).flat();
+  return l.where === "first" ? [...rep, ...all.slice(len)] : [...all.slice(0, n - len), ...rep];
+}
 
 /** Degree span offered in the step pitch picker: two octaves of the scale plus the top root. */
 export const degreeCount = (scale: ScaleName) => SCALES[scale].length * 2 + 1;
