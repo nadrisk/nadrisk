@@ -19,12 +19,17 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const show = (s: string) => setReadout(s);
 
   type K = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
-  const knobs: K[] = page === "SMP" ? [
+  const knobs: K[] = page === "SMP" ? (sm.loop ? [
+    { label: "Loop start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start }) },
+    { label: "Loop end", short: "END", value: sm.loopEnd ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: loopEnd => M({ loopEnd }) },
+    { label: "Loop crossfade", short: "XFD", value: sm.loopXfade ?? 0, min: 0, max: .5, step: .005, fmt: ms, set: loopXfade => M({ loopXfade }) },
+    { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
+  ] : [
     { label: "Start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start }) },
     { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
     { label: "R", short: "REL", value: env.r, min: .01, max: 3, step: .01, fmt: ms, set: r => M({ env: { ...env, r } }) },
-  ] : page === "ENV" ? (["a", "d", "s", "r"] as const).map(k => ({
+  ]) : page === "ENV" ? (["a", "d", "s", "r"] as const).map(k => ({
     label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k], min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
     fmt: k === "s" ? pct : ms, set: (v: number) => M({ env: { ...env, [k]: v } }),
   })) : [
@@ -37,12 +42,15 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const wave = (p: Px, x0: number, y0: number, w: number, h: number) => {
     const lane = Math.floor(h / 2);
     for (let x = 0; x < w; x++) {
-      const v = peaks ? peaks[Math.floor(x / w * peaks.length)] ?? 0 : 0, a = Math.max(0, Math.round(v * (lane / 2 - 1)));
+      // Reverse mirrors the display so it matches the actual playback direction.
+      const idx = sm.reverse ? peaks!.length - 1 - Math.floor(x / w * peaks!.length) : Math.floor(x / w * (peaks?.length ?? 1));
+      const v = peaks ? peaks[idx] ?? 0 : 0, a = Math.max(0, Math.round(v * (lane / 2 - 1)));
       for (let l = 0; l < 2; l++) { const m = y0 + l * lane + Math.floor(lane / 2); p.rect(x0 + x, m - a, 1, a * 2 + 1); }
     }
     const sx = x0 + Math.round(sm.start * (w - 1));
     for (let y = y0; y < y0 + h; y += 2) p.dot(sx, y);
     p.rect(sx, y0, 3, 1);
+    if (sm.loop) { const ex = x0 + Math.round((sm.loopEnd ?? 1) * (w - 1)); for (let y = y0; y < y0 + h; y += 2) p.dot(ex, y); p.rect(ex - 2, y0 + h - 1, 3, 1); }
   };
 
   const draw = (p: Px) => {
