@@ -5,7 +5,7 @@ import { LIBRARY, listCached, type SampleRef } from "@/audio/sampleStore";
 
 const ROWS = 3;
 
-export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { value?: string; onPick: (id: string, name: string) => void; onFolder: (f: File[]) => Promise<{ total: number; matched: number }>; onLoad: (f: File) => void }) {
+export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { value?: string; onPick: (id: string, name: string) => void; onFolder: (f: File[]) => Promise<{ total: number; matched: number; saved?: number }>; onLoad: (f: File) => void }) {
   const [cached, setCached] = useState<SampleRef[]>([]);
   const [sel, setSel] = useState(0);
   const [msg, setMsg] = useState("");
