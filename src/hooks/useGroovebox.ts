@@ -19,7 +19,7 @@ export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFr
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -335,7 +335,7 @@ export function useGroovebox() {
     const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); master.connect(perf.input); perf.update(performanceRef.current, bpmRef.current);
     perf.meter.port.onmessage = (ev: MessageEvent<{ m: number; s: number; i: number; sub: number; peak: number }>) => { const v = ev.data; meterPeak.current = Math.max(v.peak, meterPeak.current - .6); setMeter({ m: v.m, s: v.s, i: v.i, sub: v.sub, subPeak: meterPeak.current }); };
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
-    const outs = slotsRef.current.map(s => { const eq = (["lowshelf", "peaking", "highshelf"] as const).map((type, k) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = [100, 1000, 9000][k]; b.Q.value = k === 1 ? 1 : .707; return b; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; gain.connect(eq[0]).connect(eq[1]).connect(eq[2]).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); return { gain, eq, filter, tap, pan, chain: [] as FxNode[], sig: "?" }; });
+    const outs = slotsRef.current.map(s => { const eq = (["lowshelf", "peaking", "highshelf"] as const).map((type, k) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = [100, 1000, 9000][k]; b.Q.value = k === 1 ? 1 : .707; return b; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; gain.connect(eq[0]).connect(eq[1]).connect(eq[2]).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
@@ -394,7 +394,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
@@ -413,6 +413,12 @@ export function useGroovebox() {
     if (!e || !s) return null;
     const index = s.fx.filter(f => f.on).findIndex(f => f.id === id);
     return index < 0 ? null : e.outs[slot].chain[index]?.levels() ?? null;
+  }, []);
+  /** Post-fader peak level (dBFS) for each mixer channel, read from a silent analyser tap after pan. */
+  const meterBuf = useRef(new Float32Array(512));
+  const getChannelLevels = useCallback((): number[] | null => {
+    const e = engine.current; if (!e) return null; const b = meterBuf.current;
+    return e.outs.map(o => { o.meter.getFloatTimeDomainData(b); let pk = 0; for (let k = 0; k < b.length; k++) { const a = Math.abs(b[k]); if (a > pk) pk = a; } return pk > 1e-5 ? 20 * Math.log10(pk) : -Infinity; });
   }, []);
   /** Live master dynamics: true gain reduction (dB) from glue+limiter and post-chain output level. */
   const getMasterDyn = useCallback((): { gr: number; out: number } | null => engine.current?.performance.dyn() ?? null, []);
@@ -505,7 +511,7 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([makeBank(defaultPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

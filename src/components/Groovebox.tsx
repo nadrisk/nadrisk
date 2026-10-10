@@ -95,17 +95,38 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   </div>;
 });
 
-const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, onClearSolo, onSelect }: {
+const SEGS = 10, FLOOR = -48;
+const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, onClearSolo, onSelect, getLevels }: {
+  getLevels: () => number[] | null;
   slots: Slot[]; selected: number; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
 }) {
   const [page, setPage] = useState(0);
   const anySolo = slots.some(s => s.solo);
   const start = page * 8;
-  return <div className="gb-mixer-workspace">
+  // Live post-fader dB meters: polled each frame and written straight to the DOM so playback never re-renders the mixer.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0; const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
+    const poll = () => {
+      const lv = getLevels(), el = root.current;
+      if (lv && el) el.querySelectorAll<HTMLElement>("[data-ch]").forEach(strip => {
+        const i = +strip.dataset.ch!, v = lv[i] ?? -Infinity;
+        disp[i] = v > disp[i] ? v : Math.max(v, disp[i] - 0.8);
+        if (v >= hold[i]) { hold[i] = v; held[i] = 45; } else if (--held[i] < 0) hold[i] = Math.max(-Infinity, hold[i] - 1);
+        const seg = (d: number) => Number.isFinite(d) ? Math.ceil(Math.max(0, Math.min(1, (d - FLOOR) / -FLOOR)) * SEGS) : 0;
+        const on = seg(disp[i]), pk = seg(hold[i]);
+        strip.querySelectorAll("i").forEach((c, n) => { c.className = n < on ? (n >= SEGS - 1 ? "on clip" : "on") : n === pk - 1 ? "on" : ""; });
+        const t = strip.querySelector<HTMLElement>(".gb-strip-val"); if (t) { const s = Number.isFinite(hold[i]) && hold[i] > FLOOR ? (hold[i] >= 0 ? "CLIP" : hold[i].toFixed(0)) : "-INF"; if (t.textContent !== s) t.textContent = s; }
+      });
+      raf = requestAnimationFrame(poll);
+    };
+    raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
+  }, [getLevels]);
+  return <div className="gb-mixer-workspace" ref={root}>
     <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
-    <div className="gb-mixer">{slots.slice(start, start + 8).map((s, ii) => { const i = start + ii; return <div key={i} className={`gb-strip ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
-      <span className="gb-strip-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-strip-val">{s.level}</span>
-      <div className="gb-meter" aria-hidden="true">{Array.from({ length: 10 }, (_, n) => <i key={n} className={n < Math.round(s.level / 10) ? "on" : ""} />)}</div>
+    <div className="gb-mixer">{slots.slice(start, start + 8).map((s, ii) => { const i = start + ii; return <div key={i} data-ch={i} className={`gb-strip ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
+      <span className="gb-strip-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-strip-val" title="Peak dBFS">-INF</span>
+      <div className="gb-meter" aria-hidden="true">{Array.from({ length: SEGS }, (_, n) => <i key={n} />)}</div>
       <Slider orientation="vertical" aria-label={`${s.name} volume`} min={0} max={100} value={[s.level]} onValueChange={([v]) => onLevel(i, v)} className="gb-vslider" />
       <div className="gb-strip-btns">
         <button className={`gb-ms ${s.mute ? "m-on" : ""}`} aria-pressed={s.mute} aria-label={`Mute ${s.name}`} onClick={() => onMute(i)}>M</button>
@@ -141,7 +162,7 @@ export default function Groovebox() {
     fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} />,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />,
     seq: <><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></>,
-    mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />,
+    mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: <PerformanceRack value={g.performance} onChange={g.setPerformance} />,
     tape: <TapeDeck getSource={tapSource} />,
