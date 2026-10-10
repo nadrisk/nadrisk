@@ -32,3 +32,15 @@ describe("scale-fit chords", () => {
     expect(scaleChordOffsets("minor", 3, 4)).toEqual([0, 4, 7, 11]);
   });
 });
+import { shapeInScale } from "./arp";
+import { CHORDS } from "./musical";
+describe("selected chord kept when it fits", () => {
+  it("detects fitting and non-fitting shapes", () => {
+    expect(shapeInScale("minor", 0, CHORDS.min7)).toBe(true);
+    expect(shapeInScale("minor", 0, CHORDS.major)).toBe(false);
+    expect(shapeInScale("minor", 0, CHORDS["house m9"])).toBe(false);
+    expect(shapeInScale("minor", 3, CHORDS.maj7)).toBe(true);
+    expect(shapeInScale("minor", -2, CHORDS.major)).toBe(true);
+    expect(shapeInScale("chromatic", 4, CHORDS.dom7)).toBe(true);
+  });
+});
