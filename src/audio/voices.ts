@@ -34,7 +34,8 @@ function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
   return rel + e.r * 1.5 + 0.05;
 }
 
-function modAdsr(p: AudioParam, t: number, e: ADSR, gate: number, base: number, amount: number) {
+function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, base: number, amount: number) {
+  e ??= { a: .001, d: .1, s: 0, r: .02 };
   p.setValueAtTime(base, t); p.linearRampToValueAtTime(base + amount, t + e.a);
   p.setTargetAtTime(base + amount * e.s, t + e.a, e.d / 3 + .001);
   const rel = t + Math.max(gate, e.a); p.setTargetAtTime(base, rel, e.r / 3 + .001);

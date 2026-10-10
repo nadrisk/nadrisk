@@ -110,7 +110,16 @@ const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)
 /** LFO rate in Hz, following the tempo when a sync division is chosen. */
 const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
 
-export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; keyInput?: AudioNode; dispose: () => void };
+export type FxLevels = { input: number; output: number };
+export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; dispose: () => void };
+
+const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
+  analyser.getFloatTimeDomainData(data);
+  let sum = 0, peak = 0;
+  for (let i = 0; i < data.length; i++) { const v = data[i]; sum += v * v; peak = Math.max(peak, Math.abs(v)); }
+  const level = Math.max(Math.sqrt(sum / data.length), peak * .35);
+  return level > 0.00001 ? Math.max(-60, 20 * Math.log10(level)) : -60;
+};
 
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
 function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
@@ -129,7 +138,13 @@ function makeImpulse(ctx: BaseAudioContext, sec: number) {
 export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<string, number>): FxNode {
   const input = ctx.createGain(), output = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain();
   input.connect(dry).connect(output); wet.connect(output);
-  const nodes: AudioNode[] = [input, output, dry, wet], oscs: OscillatorNode[] = [];
+  const inputMeter = ctx.createAnalyser(), outputMeter = ctx.createAnalyser();
+  inputMeter.fftSize = outputMeter.fftSize = 256;
+  inputMeter.smoothingTimeConstant = outputMeter.smoothingTimeConstant = .65;
+  input.connect(inputMeter); output.connect(outputMeter);
+  const inputData = new Float32Array(new ArrayBuffer(inputMeter.fftSize * Float32Array.BYTES_PER_ELEMENT));
+  const outputData = new Float32Array(new ArrayBuffer(outputMeter.fftSize * Float32Array.BYTES_PER_ELEMENT));
+  const nodes: AudioNode[] = [input, output, dry, wet, inputMeter, outputMeter], oscs: OscillatorNode[] = [];
   let automationTime = ctx.currentTime;
   const set = (p: AudioParam | undefined, v: number) => { if (p && Number.isFinite(v)) p.setTargetAtTime(v, automationTime, 0.005); };
   let keyInput: AudioNode | undefined;
@@ -230,7 +245,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   }
   const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = p.mix ?? (type === "ott" ? p.depth : 1); apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
   update(init);
-  return { input, output, update, keyInput, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
+  return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData) }), keyInput, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
 
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */

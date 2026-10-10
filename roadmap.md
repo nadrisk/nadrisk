@@ -28,3 +28,4 @@
 - [x] Fixed rack layout: persistent pads, selected-instrument workspace, switchable utility workspace, paged 8-channel mixer, paged sequencer, bounded additive partials
 - [x] Post-master M/S/I LUFS and 20–120 Hz sub meter with reactive pixel-screen, visualizer and rename-dialog themes
 - [x] Poly control layout, centered filter response, independent synth AMP/PIT/FLT envelopes, draggable ADSR graphs, and additive draw gesture
+- [x] Live pre/post signal meters for compressor, sidechain, gate, drum bus and OTT effects
