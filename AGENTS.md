@@ -24,3 +24,4 @@
 - Pad holds (phrase, repeat, chord arp) are pumped from Tone's worker clock tick with a 150 ms horizon, and every voice booked ahead is tracked per pad so release, transport stop and set load cancel future notes; the grid uses a 100 ms look-ahead, so scheduling survives main-thread stalls without notes after release.
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
 - Mixer channel meters read a silent post-pan AnalyserNode per slot and write to the DOM each frame, so live metering never re-renders the mixer.
+- The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
