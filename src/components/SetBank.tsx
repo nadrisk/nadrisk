@@ -50,7 +50,7 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
       const on = i !== sel;
       p.text(String(i + 1).padStart(2, "0"), x + 2, y, on);
       p.text((st?.name ?? "EMPTY").slice(0, 8).toUpperCase(), x + 12, y, on);
-      if (st) p.text(`${st.bpm}`, x + 12, y + 4, on);
+      if (st) p.text(`${st.bpm}`, x + 47, y, on);
     }
     BTNS.forEach((b, i) => { const x = 1 + i * 21, w = b === "EXP+" ? 22 : 20; p.box(x, 53, w, 9); p.text(b, x + 2, 55); });
   };
