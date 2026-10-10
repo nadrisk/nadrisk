@@ -344,7 +344,7 @@ export function useGroovebox() {
     // Fast path: audio already running, so play synchronously with no await.
     pressed.current.add(i);
     const e = engine.current;
-    if (e && Tone.getContext().state === "running") { play(i); startTransition(() => setSelected(i)); return; }
+    if (e && Tone.getContext().state === "running") { play(i); if (selectedRef.current !== i) { selectedRef.current = i; setSelected(i); } return; }
     setSelected(i);
     try { await ensure(); if (Tone.getContext().state !== "running") return; play(i); } catch { setError("Audio unavailable."); }
   }, [ensure, play]);
