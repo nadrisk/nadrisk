@@ -14,7 +14,7 @@ export const SCALES = {
 } as const;
 export type ScaleName = keyof typeof SCALES;
 export const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-export const RATES = { "1/8": 0.5, "1/8T": 1 / 3, "1/16": 0.25, "1/16T": 1 / 6, "1/32": 0.125 } as const;
+export const RATES = { "1/8": 0.5, "1/8T": 1 / 3, "1/16": 0.25, "1/16T": 1 / 6, "1/32": 0.125, "1/32T": 1 / 12, "1/64": 0.0625 } as const;
 export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */

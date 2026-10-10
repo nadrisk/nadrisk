@@ -23,6 +23,8 @@ export const FX_DEFS = {
   reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
   acid: { label: "acid.drive~", params: { drive: [10, 1, 40, 0.1], bias: [0.35, 0, 0.9, 0.01], bite: [1800, 300, 6000, 10], tone: [7000, 800, 16000, 10], mix: [1, 0, 1, 0.01] } },
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
+  noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
+  drumbus: { label: "drum.bus~", params: { attack: [0.3, -1, 1, 0.01], sustain: [0, -1, 1, 0.01], drive: [3, 1, 20, 0.1], boom: [3, 0, 12, 0.5], boomFreq: [60, 30, 150, 1], color: [10000, 1500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -57,6 +59,38 @@ class Follow extends AudioWorkletProcessor {
     return true;
   }
 }
+class NGate extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'threshold', defaultValue: -40 }, { name: 'attack', defaultValue: .001 }, { name: 'hold', defaultValue: .03 }, { name: 'release', defaultValue: .12 }, { name: 'range', defaultValue: 0 }]; }
+  constructor() { super(); this.g = 0; this.h = 0; }
+  process(ins, outs, p) {
+    const x = ins[0], y = outs[0]; if (!x || !x.length) return true; const th = Math.pow(10, p.threshold[0] / 20), fl = p.range[0];
+    const ka = 1 - Math.exp(-1 / (sampleRate * Math.max(.0002, p.attack[0]))), kr = 1 - Math.exp(-1 / (sampleRate * Math.max(.005, p.release[0]))), hs = p.hold[0] * sampleRate;
+    for (let n = 0; n < y[0].length; n++) {
+      const v = Math.max(Math.abs(x[0][n] || 0), Math.abs((x[1] || x[0])[n] || 0));
+      if (v > th) this.h = hs; else if (this.h > 0) this.h--;
+      const open = v > th || this.h > 0, tg = open ? 1 : fl; this.g += (tg - this.g) * (open ? ka : kr);
+      for (let c = 0; c < y.length; c++) y[c][n] = ((x[c] || x[0])[n] || 0) * this.g;
+    }
+    return true;
+  }
+}
+class Transient extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'attack', defaultValue: 0 }, { name: 'sustain', defaultValue: 0 }]; }
+  constructor() { super(); this.f = 0; this.s = 0; this.g = 1; }
+  process(ins, outs, p) {
+    const x = ins[0], y = outs[0]; if (!x || !x.length) return true; const a = p.attack[0], su = p.sustain[0];
+    const kf = 1 - Math.exp(-1 / (sampleRate * .0008)), kfr = 1 - Math.exp(-1 / (sampleRate * .03)), ks = 1 - Math.exp(-1 / (sampleRate * .02)), ksr = 1 - Math.exp(-1 / (sampleRate * .25));
+    for (let n = 0; n < y[0].length; n++) {
+      const v = Math.max(Math.abs(x[0][n] || 0), Math.abs((x[1] || x[0])[n] || 0));
+      this.f += (v - this.f) * (v > this.f ? kf : kfr); this.s += (v - this.s) * (v > this.s ? ks : ksr);
+      const r = (this.f + 1e-5) / (this.s + 1e-5), t = Math.min(8, Math.max(.05, Math.pow(r, r > 1 ? a * 1.6 : -su * 1.6)));
+      this.g += (t - this.g) * .02;
+      for (let c = 0; c < y.length; c++) y[c][n] = ((x[c] || x[0])[n] || 0) * this.g;
+    }
+    return true;
+  }
+}
+registerProcessor('nad-ngate', NGate); registerProcessor('nad-transient', Transient);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
@@ -169,6 +203,15 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const c = ctx.createDynamicsCompressor(), mk = ctx.createGain(); nodes.push(c, mk);
     input.connect(c).connect(mk).connect(wet);
     apply = p => { set(c.threshold, p.threshold); set(c.ratio, p.ratio); set(c.attack, p.attack); set(c.release, p.release); set(mk.gain, 10 ** (p.makeup / 20)); };
+  } else if (type === "noisegate") {
+    const n = worklet("nad-ngate"); input.connect(n).connect(wet);
+    apply = p => wp(n, p, ["threshold", "attack", "hold", "release", "range"]);
+  } else if (type === "drumbus") {
+    // Transient shaper -> soft drive -> low "boom" shelf -> colour low-pass: an all-in-one drum channel.
+    const n = worklet("nad-transient"), pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain(), boom = ctx.createBiquadFilter(), col = ctx.createBiquadFilter();
+    boom.type = "lowshelf"; sh.oversample = eco ? "none" : "2x"; nodes.push(pre, sh, post, boom, col);
+    input.connect(n).connect(pre).connect(sh).connect(post).connect(boom).connect(col).connect(wet); let k = 0;
+    apply = p => { wp(n, p, ["attack", "sustain"]); if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(post.gain, 1 / (1 + (p.drive - 1) * .04)); set(boom.gain, p.boom); set(boom.frequency, p.boomFreq); set(col.frequency, p.color); };
   } else if (type === "ott") {
     // 3-band split; each band squashed hard with big makeup so quiet detail is pulled up and peaks pushed down.
     const mk = ctx.createGain(); nodes.push(mk); mk.connect(wet);

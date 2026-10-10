@@ -233,3 +233,20 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
   });
   return finish(srcs, nodes, adsr(amp.gain, t, p.env, gate, vel * .25), amp);
 }
+
+export type SirenParams = { wave: Wave; lfoWave: Wave; rate: number; depth: number; sweep: number; sweepTime: number; release: number; tone: number };
+export const defaultSiren = (): SirenParams => ({ wave: "square", lfoWave: "square", rate: 4, depth: 7, sweep: 12, sweepTime: 1.5, release: .4, tone: 3500 });
+/** Dub siren: one oscillator wobbled by an LFO (semitones) plus a long pitch rise/fall; sustains while the pad is held. */
+export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams, midi: number, t: number, gate: number, vel = 1): Voice {
+  const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
+  const amp = ctx.createGain(), lp = ctx.createBiquadFilter(); amp.gain.value = 0; lp.frequency.value = p.tone; lp.Q.value = 2; lp.connect(amp).connect(dest);
+  const osc = at(ctx.createOscillator(), t), lfo = at(ctx.createOscillator(), t), lg = ctx.createGain();
+  osc.type = p.wave; lfo.type = p.lfoWave; lfo.frequency.value = p.rate; lg.gain.value = p.depth * 100;
+  osc.frequency.setValueAtTime(f, t); osc.detune.setValueAtTime(0, t); osc.detune.linearRampToValueAtTime(p.sweep * 100, t + Math.max(.01, p.sweepTime));
+  lfo.connect(lg).connect(osc.detune); osc.connect(lp); srcs.push(osc, lfo); nodes.push(osc, lfo, lg, lp, amp);
+  const peak = vel * (p.wave === "sine" ? .5 : .28), hold = Math.max(gate, .02);
+  amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .005); amp.gain.setTargetAtTime(0, t + hold, p.release / 3 + .005);
+  const v = finish(srcs, nodes, t + hold + p.release * 2 + .1, amp);
+  const stop = v.stop; v.stop = st => { amp.gain.cancelScheduledValues(st); amp.gain.setTargetAtTime(0, st, p.release / 3 + .005); stop(st + p.release * 2 + .05); };
+  return v;
+}

@@ -24,3 +24,4 @@
 - [x] Oct batch: seq responsiveness, channel.eq~ fx (drop flat), master clipper+limiter, seq offset + loop shortener, MIDI learn, sampler grain mode, iPad layout
 - [x] Oct batch 2: sliding loop window, double-click slider reset, sampler reverse, movable layout, LCD display themes, glide moved to phrase.seq (slide steps), chord strum/arp + performance override, pad repeat (hold/latch, in-pad velocity), quantized live recording, step velocity + chance, tape.rec~ master recorder with WAV/MP3 export
 - [ ] Real iPad/phone test of batch 2 (repeat velocity slide, recording timing, tape export size)
+- [x] Oct batch 3: perf DJ filter + dub echo, dub siren, gate~, drum.bus~, mastering EQ + glue, step ROLL lane, accelerating repeat roll, flat no-glow themes
