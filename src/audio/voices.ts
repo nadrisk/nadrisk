@@ -15,7 +15,7 @@ export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
-export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
+export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
@@ -49,13 +49,22 @@ function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, ba
   const rel = t + Math.max(gate, e.a); p.setTargetAtTime(base, rel, e.r / 3 + .001);
 }
 
+/** Holds the gain where it is at `at`, then fades to silence with release r; returns when the voice is silent. */
+function fadeOut(g: AudioParam, at: number, r: number) {
+  const h = g as AudioParam & { cancelAndHoldAtTime?: (t: number) => AudioParam };
+  if (h.cancelAndHoldAtTime) h.cancelAndHoldAtTime(at); else { g.cancelScheduledValues(at); g.setValueAtTime(g.value, at); }
+  g.setTargetAtTime(0, at, Math.max(.001, r) / 3 + .001);
+  return at + Math.max(.001, r) * 1.5 + .06;
+}
 function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode): Voice {
   srcs.forEach(s => { s.start(Math.max(0, (s as unknown as { _t?: number })._t ?? 0)); s.stop(end); });
   let cleaned = false;
   const cleanup = () => { if (cleaned) return; cleaned = true; nodes.forEach(n => n.disconnect()); };
   const timer = window.setTimeout(cleanup, Math.max(0, (end - amp.context.currentTime) * 1000) + 200);
   srcs[0].onended = () => { clearTimeout(timer); cleanup(); };
-  return { stop: at => { amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); } };
+  let endT = end;
+  return { stop: at => { endT = at; amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
+    release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp.gain, at, r); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
 }
 const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
 
@@ -257,17 +266,20 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
     else { src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
   }
   src.connect(amp);
-  // A tapped loop sustains through the envelope (attack+decay plus a musical hold) instead of
-  // stopping at the short one-shot gate, so the loop is actually heard; held pads still hold it.
-  // endFrac (slices) stops one-shots at the slice boundary instead of the buffer end.
+  // The sampler follows the gate (finger down / step length), then fades by RELEASE. One-shots that end
+  // before the gate just end; slices stop at their slice edge. Loops sustain for the whole gate.
   const stopSec = p.endFrac !== undefined && !p.loop ? Math.max(offset + .005, p.endFrac * buf.duration) : buf.duration;
-  const g = p.loop ? Math.max(gate, p.env.a + p.env.d + 1.5) : Math.max(p.env.a, Math.min(p.endFrac !== undefined ? gate + (stopSec - offset) : Infinity, (stopSec - offset) / rate - p.env.r));
-  const end = adsr(amp.gain, t, p.env, g, vel);
-  src.start(t, offset); src.stop(end);
+  const playLen = (stopSec - offset) / rate;
+  const g = p.loop ? Math.max(.005, gate) : Math.max(.005, Math.min(gate, playLen));
+  const envEnd = adsr(amp.gain, t, p.env, g, vel);
+  let endT = p.loop ? envEnd : Math.min(envEnd, t + playLen + .01);
+  src.start(t, offset); src.stop(endT);
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
-  const timer = window.setTimeout(cleanup, Math.max(0, (end - ctx.currentTime) * 1000) + 200);
+  const timer = window.setTimeout(cleanup, Math.max(0, (endT - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
-  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } }, glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
+  return { stop: s => { endT = s; amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } },
+    release: (s, r) => { if (s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp.gain, s, r); try { src.stop(endT); } catch { /* stopped */ } },
+    glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
 // Granular budget: one shared Hann window, at most 12 grains sounding at once across all pads, at most ~25 grains/s per voice.
@@ -293,7 +305,8 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => amp.disconnect(), Math.max(0, (stopAt - ctx.currentTime) * 1000) + 300); }
   };
   const iv = window.setInterval(pump, 40); pump();
-  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, Math.max(.004, p.env.r / 4)); stopAt = Math.min(stopAt, s + Math.max(.05, p.env.r)); } };
+  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, .004); stopAt = Math.min(stopAt, s + .05); },
+    release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp.gain, s, r); } };
 }
 
 const tubeCache = new Map<number, Float32Array<ArrayBuffer>>(), harmCache = new Map<number, Float32Array<ArrayBuffer>>();
