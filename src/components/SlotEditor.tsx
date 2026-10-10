@@ -53,8 +53,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
     {slot.engine === "poly" && <EnsemblePanel slot={slot} onChange={onChange} />}
     {slot.engine === "sampler" && <>
       <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />
-      <SamplePicker value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} />
-      <label className="gb-upload"><Upload size={12} /> import sample<input type="file" accept="audio/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) onLoad(f); e.target.value = ""; }} /></label>
+      <LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} />
     </>}
   </div>;
 }
