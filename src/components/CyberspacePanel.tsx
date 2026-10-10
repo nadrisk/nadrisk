@@ -130,6 +130,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     return null;
   };
 
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s]} />;
+  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage]} />;
 }
 export default memo(CyberspacePanel);
