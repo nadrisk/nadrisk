@@ -187,14 +187,41 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   return v;
 }
 
+// Crossfaded loop buffers are baked per sample/region so the seam is click-free; cached by parameters.
+const loopCache = new WeakMap<AudioBuffer, Map<string, AudioBuffer>>();
+function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, end: number, xf: number) {
+  const key = `${start.toFixed(3)}:${end.toFixed(3)}:${xf.toFixed(3)}`;
+  let m = loopCache.get(buf); if (!m) { m = new Map(); loopCache.set(buf, m); }
+  const hit = m.get(key); if (hit) return hit;
+  const sr = buf.sampleRate, s0 = Math.floor(start * sr), s1 = Math.floor(end * sr), x = Math.floor(xf * sr);
+  const len = s1 - s0 - x;
+  if (len < 256) return null;
+  const out = ctx.createBuffer(buf.numberOfChannels, len, sr);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const sd = buf.getChannelData(c), dst = out.getChannelData(c);
+    for (let i = 0; i < len; i++) dst[i] = sd[s0 + i];
+    // Equal-power blend of the approaching loop end with the loop start across the last x samples.
+    for (let i = 0; i < x; i++) { const g = i / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[s0 + i] * Math.sin(g * Math.PI / 2); }
+  }
+  m.set(key, out); return out;
+}
+
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   const src = ctx.createBufferSource(); src.buffer = buf;
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
-  const offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
-  if (p.loop) { src.loop = true; src.loopStart = offset; src.loopEnd = buf.duration; }
+  let offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
+  if (p.loop) {
+    const endSec = Math.max(offset + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
+    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - offset) / 2 - 0.005));
+    const baked = xf > 0.004 ? loopBufferOf(ctx, buf, offset, endSec, xf) : null;
+    if (baked) { src.buffer = baked; src.loop = true; src.loopStart = 0; src.loopEnd = baked.duration; offset = 0; }
+    else { src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
+  }
   src.connect(amp);
-  const g = p.loop ? gate : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
+  // A tapped loop sustains through the envelope (attack+decay plus a musical hold) instead of
+  // stopping at the short one-shot gate, so the loop is actually heard; held pads still hold it.
+  const g = p.loop ? Math.max(gate, p.env.a + p.env.d + 1.5) : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
   const end = adsr(amp.gain, t, p.env, g, vel);
   src.start(t, offset); src.stop(end);
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
