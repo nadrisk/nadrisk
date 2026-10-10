@@ -5,7 +5,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 
 type Page = "SMP" | "ENV" | "GRN";
 const PAGES: Page[] = ["SMP", "ENV", "GRN"];
-const KX = [30, 58, 86, 114];
+const KX = [16, 48, 80, 112];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 const ms = (v: number) => `${Math.round(v * 1000)}MS`, pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -71,7 +71,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
       p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 125 - Math.max(3, gx - sp)), 24, true);
     }
-    knobs.forEach((k, i) => { p.knob(KX[i], 52, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 59); });
+    knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 58); });
   };
 
   return <div className="px-panel">
