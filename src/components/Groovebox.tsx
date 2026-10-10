@@ -50,8 +50,24 @@ type View = "note" | "mod" | "vel" | "chance" | "roll";
 const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, offset, loop, onToggle, onSelect, onLength, onValue, onModTarget }: {
   pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; offset: number; loop: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
-  const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onValue(view, r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
+  // Relative drag: tap sets the value at tap height, then the whole drag distance refines it (1% per 2px).
+  const dragRef = useRef<{ r: number; c: number; y: number; v0: number } | null>(null);
+  const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
+  const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
+  const fmtV = (r: number, v: number) => view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
+  const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const q = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
+  const down = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => {
+    const k = `${r}:${c}`, now = performance.now();
+    if (lastTap.current.k === k && now - lastTap.current.t < 300) { lastTap.current = { k: "", t: 0 }; dragRef.current = null; apply(r, c, view === "mod" ? .5 : view === "roll" ? 0 : 1, e); return; }
+    lastTap.current = { k, t: now };
+    const b = e.currentTarget.getBoundingClientRect();
+    const v0 = apply(r, c, 1 - (e.clientY - b.top) / b.height, e);
+    dragRef.current = { r, c, y: e.clientY, v0 };
+  };
+  const move = (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (!d || !e.buttons) return; apply(d.r, d.c, d.v0 + (d.y - e.clientY) / 200, e); };
+  const up = () => { dragRef.current = null; setTimeout(() => setReadout(null), 600); };
   return <div className="gb-seq-workspace">
+    {readout && <div className="gb-step-readout" style={{ left: readout.x, top: readout.y }}>{readout.text}</div>}
     <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
@@ -62,13 +78,15 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
       const val = view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : view === "vel" ? vel[r]?.[c] ?? 1 : view === "chance" ? chance[r]?.[c] ?? 1 : lane?.values[c] ?? .5;
       const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
       return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? (view === "roll" ? ` roll x${ratchet[r]?.[c] ?? 1}` : ` ${view} ${Math.round(val * 100)}%`) : ""}`}
-        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); drag(r, c, ev); } }}
+        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); down(r, c, ev); } }}
         onClick={() => { if (!drag2) onToggle(r, c); }}
-        onPointerMove={ev => { if (drag2 && ev.buttons) drag(r, c, ev); }}
+        onPointerMove={ev => { if (drag2) move(ev); }}
+        onPointerUp={up} onPointerCancel={up}
         onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
         className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${drag2 ? "mod" : ""}`}>
         {drag2 && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
-        {drag2 && view === "roll" && (ratchet[r]?.[c] ?? 1) > 1 && <b className="gb-step-roll">{ratchet[r]?.[c]}</b>}
+        {drag2 && view !== "roll" && <b className="gb-step-val">{Math.round(val * 100)}</b>}
+        {drag2 && view === "roll" && <b className="gb-step-roll">X{ratchet[r]?.[c] ?? 1}</b>}
         {view === "note" && v === 1 && (ratchet[r]?.[c] ?? 1) > 1 && <b className="gb-step-roll">{ratchet[r]?.[c]}</b>}
         {view === "note" && v === 1 && ((vel[r]?.[c] ?? 1) < .99 || (chance[r]?.[c] ?? 1) < .99) && <i className="gb-step-dot" />}
       </button>; })}
@@ -139,7 +157,7 @@ export default function Groovebox() {
       <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
-      <div className="gb-workspaces">
+      <div className={`gb-workspaces ${utility === "seq" ? "seq-wide" : ""}`}>
         <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
