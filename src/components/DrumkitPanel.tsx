@@ -49,7 +49,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
 
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "SRC" || page === "SHP") {
-      KINDS.forEach((k, i) => { const x = 2 + i * 31; p.box(x, 10, 29, 9); if (k === d.kind) p.invert(x + 1, 11, 27, 7); p.textC(KLAB[k], x + 15, 12, k === d.kind); });
+      KINDS.forEach((k, i) => { const x = 2 + i * 31; p.box(x, 10, 29, 9); if (k === d.kind) p.invert(x + 1, 11, 27, 7); p.textC(KLAB[k], x + 15, 12, k !== d.kind); });
       if (d.kind === "hat") {
         // Six metallic partials on a log frequency axis; spread and tune move them.
         p.box(2, 20, 124, 25);
