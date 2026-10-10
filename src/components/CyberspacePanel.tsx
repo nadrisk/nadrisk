@@ -51,7 +51,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 20); p.rect(15 + i * 7, 40 - bh, 4, bh); if (i % 2) p.dot(16 + i * 7, 40); }
       } else {
         // Big stepped waveform preview.
-        p.box(14, 28, 114, 17);
+        p.box(2, 28, 124, 17);
         for (let i = 0; i < 112; i++) {
           const t = i / 112; let dy = 0;
           if (o.wave === "sine") dy = Math.sin(t * Math.PI * 4);
@@ -68,7 +68,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       drawWaveIcon(p, s.lfo.wave, 14, 12, 24, 14);
       p.text(s.lfo.target.toUpperCase().slice(0, 5), 42, 14);
       // LFO cycle preview with depth-scaled amplitude.
-      p.box(14, 28, 114, 17);
+      p.box(2, 28, 124, 17);
       const amp = Math.max(1, Math.round(s.lfo.depth * 6));
       for (let i = 0; i < 112; i++) { const t = i / 112; p.dot(15 + i, 36 - Math.round(Math.sin(t * Math.PI * 2) * amp)); }
     } else {

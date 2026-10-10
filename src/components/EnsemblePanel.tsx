@@ -23,7 +23,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "VOX") {
       // Voice-stack icon: three offset squares, then sub/pulse bars.
-      p.box(14, 11, 114, 34);
+      p.box(2, 11, 124, 34);
       for (let i = 0; i < 3; i++) p.box(18 + i * 3, 14 - i * 2 + 4, 12, 9);
       const bars: [string, number][] = [["SUB", y.sub], ["PLS", y.pulse], ["CHR", y.chorus], ["DET", y.detune / 30]];
       bars.forEach(([lb, v], i) => { const x = 42 + i * 22, bh = Math.round(v * 24); p.rect(x, 41 - bh, 10, bh); p.textC(lb, x + 5, 14); });

@@ -680,7 +680,7 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); gap: 4px; padding: 4px !important; align-items: start; }
 
 /* Hardware pass: every remaining DOM control is a square 1-bit key. */
-.instrument-workspace .px-strip .px-wrap { max-width: 640px; }
+
 .instrument-workspace canvas.scope-canvas { image-rendering: auto; }
 .instrument-workspace button:not(.px-zone), .instrument-workspace select, .instrument-workspace input:not([type=file]) {
   border-radius: 0 !important; box-shadow: none !important; background-image: none !important; transition: none !important;
@@ -752,7 +752,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Full 16-track sequencer grid: compact rows, all tracks visible at once. */
 .instrument-workspace .gb-seq-workspace { min-width: 0; display: flex; flex-direction: column; }
-.instrument-workspace .utility-seq .px-strip .px-wrap { max-width: 400px; }
+.instrument-workspace .utility-seq .px-strip .px-wrap { max-width: 520px; }
 .instrument-workspace .gb-seq-grid { padding: 4px; overflow-x: auto; gap: 2px; }
 .instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, minmax(14px, 1fr)); min-width: 380px; gap: 1px; }
 .instrument-workspace .gb-row-label { width: 46px; font-size: 6px; }
@@ -769,3 +769,5 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-mixer { grid-template-columns: repeat(8, 44px); overflow-x: auto; }
   .instrument-workspace .gb-utility-nav { grid-template-columns: repeat(5, minmax(48px, 1fr)); overflow-x: auto; }
 }
+/* Utility screens fill the selector width: centered bezel, largest whole-number scale. */
+.instrument-workspace .gb-utility-body .px-wrap { justify-content: center; border: 1px solid hsl(var(--foreground)); padding: 4px 0; }
