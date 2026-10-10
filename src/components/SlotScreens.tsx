@@ -65,3 +65,19 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
       <Tap x={94} y={22} w={33} h={9} label="Chord arp order" onClick={() => set({ arp: ORD[(ORD.indexOf(ord) + 1) % ORD.length] })} />
     </>} />;
 }
+
+export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
+  const eq = slot.eq, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
+  const knobs: Knob[] = [
+    { label: "Low 100 Hz EQ", short: "LOW", value: eq.low, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: low => set({ low }) },
+    { label: "Mid EQ", short: "MID", value: eq.mid, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: mid => set({ mid }) },
+    { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 6000, step: 10, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
+    { label: "High 9 kHz EQ", short: "HIGH", value: eq.high, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: high => set({ high }) },
+  ];
+  return <Panel name="INSERT" label="Channel EQ insert" pages={["EQ"]} deps={[eq.low, eq.mid, eq.midFreq, eq.high]} knobs={() => knobs}
+    body={p => {
+      const gains = [eq.low, eq.mid, eq.high], centers = [20, 65, 111]; let px = 5, py = 29;
+      for (let x = 5; x < 124; x++) { let y = 29; centers.forEach((c, i) => { y -= gains[i] * Math.max(0, 1 - Math.abs(x - c) / 25) * .65; }); p.line(px, py, x, Math.max(12, Math.min(41, Math.round(y)))); px = x; py = Math.max(12, Math.min(41, Math.round(y))); }
+      p.line(4, 29, 124, 29, true); p.text("100", 4, 12); p.text(`${Math.round(eq.midFreq)}`, 50, 12); p.text("9K", 112, 12);
+    }} />;
+}
