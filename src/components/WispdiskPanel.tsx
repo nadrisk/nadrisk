@@ -4,7 +4,7 @@ import { EnvZones } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
 
-type Page = "SMP" | "ENV" | "GRN";
+type Page = "SMP" | "ENV" | "GRN" | "STR";
 const PAGES: Page[] = ["SMP", "ENV", "GRN", "STR"];
 const KX = [16, 48, 80, 112];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
@@ -82,11 +82,11 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       const amt = sm.stretchAmt ?? 1;
       p.box(2, 11, 21, 7); if (sm.stretch) p.invert(3, 12, 19, 5); p.text("VNT", 6, 12, !sm.stretch);
       p.text(`X${amt.toFixed(2)} ${Math.round((sm.stretchGrain ?? .05) * 1000)}MS`, 28, 12);
-      // Stretched waveform: blocks of the source laid out at the new length, block size = grain.
+      // Length bar: the sample drawn at its stretched length (full width = x4), with block seams marking the grain.
       p.box(2, 19, 124, 26);
-      const view = Math.max(1, amt), blocks = Math.max(2, Math.min(40, Math.round(4 / ((sm.stretchGrain ?? .05) * 10) * view)));
-      const bw = 122 / view / blocks * Math.min(1, amt);
-      for (let b = 0; b < blocks; b++) { const x0 = 3 + Math.round(b * 122 / blocks * Math.min(1, amt)); p.save?.(); wave(p, x0, 20, Math.max(2, Math.round(bw)), 24); if (sm.stretch && b) p.line(x0, 20, x0, 43, true); }
+      const w = Math.max(8, Math.round(122 * (sm.stretch ? amt : 1) / 4)); wave(p, 3, 20, w, 24);
+      if (sm.stretch) { const step = Math.max(3, Math.round((sm.stretchGrain ?? .05) * 120)); for (let x = 3 + step; x < 3 + w; x += step) p.line(x, 20, x, 22, true); }
+      for (let x = 3 + Math.round(122 / 4); x < 125; x += 4) p.dot(x, 44);
     } else {
       p.box(2, 11, 21, 7); if (sm.grain) p.invert(3, 12, 19, 5); p.text("GRN", 6, 12, !sm.grain);
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
