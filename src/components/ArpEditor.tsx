@@ -5,7 +5,7 @@ import { pkey } from "@/components/HwScreens";
 import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, randomizeArp, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
 type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void };
-const SC = Object.keys(SCALES) as ScaleName[];
+const SC: ScaleName[] = ["major", "minor", "pent maj", "pent min", "dorian", "phrygian", "lydian", "mixolydian", "harm min", "chromatic"];
 const RT = Object.keys(RATES) as RateName[];
 
 function ArpEditor({ arp, slotName, onChange }: Props) {
@@ -29,8 +29,10 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
     { label: "Phrase glide time", short: "GLID", value: arp.glide ?? 80, min: 10, max: 400, step: 5, fmt: v => `${v}MS`, set: glide => set({ glide }) }];
   type Key = [string, string, number, boolean, () => void];
   const keysFor = (page: string): Key[] => page === "SEQ" ? [
-    ["RAND", "Randomize phrase", 1, false, () => onChange(randomizeArp(arp))], ["SLIDE", "Step slide", 33, !!cur.slide, () => setCell({ slide: !cur.slide, on: true })],
-  ] : page === "KEY" ? [[arp.on ? "ON" : "OFF", "Phrase on", 1, arp.on, () => set({ on: !arp.on })]]
+    [arp.on ? "ON" : "OFF", "Phrase on", 1, arp.on, () => set({ on: !arp.on })],
+    ["RAND", "Randomize phrase", 33, false, () => onChange(randomizeArp(arp))],
+    ["SLIDE", "Step slide", 65, !!cur.slide, () => setCell({ slide: !cur.slide, on: true })],
+  ] : page === "KEY" ? []
     : [[arp.sync ? "SYNC" : "FREE", "Phrase sync", 1, arp.sync, () => set({ sync: !arp.sync })]];
   return <div className="node-body arp-body">
     <Panel name="PHRASE" label="Phrase sequencer" pages={["SEQ", "KEY", "TIM"]} deps={[JSON.stringify(arp), si, slotName]} knobs={knobs}
