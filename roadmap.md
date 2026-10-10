@@ -32,3 +32,8 @@
 - [x] Elektron-style drum machines (kick/snare/hat/clap) with full pitch envelopes
 - [x] Phrase STEP mode, phrase loops, chords follow phrase (SCL/FIX), lighter granular
 - [ ] Round 2: sampler reverse waveform, AKAI-style stretch, breakbeat warp + slices
+
+## Stabilization log
+- [x] Phase 1 timing (D1/D2): src/hooks/useGroovebox.ts. Late notes under 120 ms load 57 → 38 (worst 85 → 30 ms); 300 ms load worst 252 → 162 ms; held phrase/repeat 0 late incl. under load; 0 notes after release/stop. Open: stalls longer than 100 ms still delay grid notes; real iPad/background tab untested.
+- [ ] Phase 2 audio interruption recovery (S1) — awaiting approval
+- [ ] Phase 3 musical correctness (D3, D4, D5)

@@ -10,7 +10,7 @@ import { createPerformance, defaultPerformance, type PerformanceParams } from "@
 
 // Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
 if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?: boolean }).__nad) {
-  const c = new Tone.Context({ latencyHint: "interactive", lookAhead: 0.03 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
+  const c = new Tone.Context({ latencyHint: "interactive", lookAhead: 0.1 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
 }
 export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
 /** Channel-rack EQ in dB (mid frequency in Hz). */
@@ -156,6 +156,13 @@ export function useGroovebox() {
   // Pad lights use a compositor animation: no layout reflow and no timers, even on fast rolls of one pad.
   const flash = (i: number) => { const el = padRefs.current[i]; if (!el) return; el.classList.add("hit"); clearTimeout((el as unknown as { _t?: number })._t); (el as unknown as { _t?: number })._t = window.setTimeout(() => el.classList.remove("hit"), 90); };
 
+  const booked = useRef<{ at: number; stop: (t: number) => void }[][]>(Array.from({ length: 16 }, () => []));
+  /** Silences notes booked to start after `now` (they never become audible) and releases the sounding voice. */
+  const cancelBooked = useCallback((i: number) => {
+    const e = engine.current; if (!e) return; const now = e.ctx.currentTime;
+    booked.current[i].forEach(b => { if (b.at > now) b.stop(b.at); }); booked.current[i] = [];
+    e.mono[i]?.stop(now);
+  }, []);
   /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length, `noteIdx` plays one chord note (arpeggio step). */
   const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
     const e = engine.current, s = slotsRef.current[i];
@@ -188,6 +195,8 @@ export function useGroovebox() {
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
+      // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
+      const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
     };
     if (mode === "arp" && noteIdx === undefined) {
       if (gate0 > 30) return; // held pads arpeggiate through the hold scheduler instead
@@ -228,11 +237,11 @@ export function useGroovebox() {
   // Pad holds: phrases, held chord arpeggios and pad repeat are booked ahead on the audio clock.
   type Hold = { next: number; idx: number; count: number; kind: "phrase" | "chord" | "repeat" };
   const holds = useRef(new Map<number, Hold>());
-  const timer = useRef<number | null>(null);
+  const timer = useRef<boolean>(false); // subscribed to the audio clock tick
   const pressed = useRef(new Set<number>());
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
-    const horizon = e.ctx.currentTime + 0.08, bpmNow = bpmRef.current;
+    const horizon = e.ctx.currentTime + 0.15, bpmNow = bpmRef.current;
     holds.current.forEach((h, i) => {
       const s = slotsRef.current[i], a = s.arp;
       const rb = 60 / bpmNow * RATES[repeatRef.current.rate];
@@ -248,13 +257,16 @@ export function useGroovebox() {
       }
     });
   }, [trigger, phraseStep, recordHit, stepHit]);
-  const idle = () => { if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; } };
+  // The hold pump runs from Tone's worker-driven clock tick, which background tabs throttle far less than page timers.
+  const idle = () => { if (!holds.current.size && timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; } };
+  const pumpRef = useRef(() => {}); pumpRef.current = pump;
+  const tickPump = useRef(() => pumpRef.current()).current;
   const startHold = useCallback((i: number, kind: Hold["kind"]) => {
     const e = engine.current; if (!e || holds.current.has(i) || !pressed.current.has(i)) return;
     holds.current.set(i, { next: e.ctx.currentTime, idx: 0, count: 0, kind }); pump();
-    timer.current ??= window.setInterval(pump, 20);
+    if (!timer.current) { Tone.getContext().on("tick", tickPump); timer.current = true; }
   }, [pump]);
-  const stopHold = useCallback((i: number) => { if (!holds.current.delete(i)) return; const e = engine.current; if (e) e.mono[i]?.stop(e.ctx.currentTime); idle(); }, []);
+  const stopHold = useCallback((i: number) => { if (!holds.current.delete(i)) return; cancelBooked(i); idle(); }, [cancelBooked]);
   const release = useCallback((i: number) => {
     pressed.current.delete(i);
     const h = holds.current.get(i);
@@ -336,20 +348,20 @@ export function useGroovebox() {
   useEffect(() => { Tone.getTransport().bpm.value = bpm; setFxBpm(bpm); const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s)); }, [bpm]);
   // Shorter scheduler look-ahead = tighter sequencer response; eco keeps a safer buffer for weak CPUs.
   useEffect(() => {
-    setFxEco(eco); Tone.getContext().lookAhead = eco ? 0.1 : 0.03;
+    setFxEco(eco); Tone.getContext().lookAhead = 0.1;
     const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s));
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
     t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
-    holds.current.clear(); if (timer.current != null) clearInterval(timer.current);
+    holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
 
   const togglePlay = useCallback(async () => {
     try {
       await ensure(); const t = Tone.getTransport();
-      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
@@ -432,7 +444,7 @@ export function useGroovebox() {
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
   const getSet = useCallback((name: string): GrooveSet => ({ v: 1, name, savedAt: Date.now(), bpm: bpmRef.current, tune: tuneRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
-    engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); holds.current.clear();
+    for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     const d = defaultSlots();
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: o.mods ?? x.mods, fx: o.fx ?? x.fx }; }));
