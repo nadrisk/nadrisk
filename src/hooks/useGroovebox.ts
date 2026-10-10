@@ -149,7 +149,7 @@ export function useGroovebox() {
   }, []);
 
   // Pad lights use a compositor animation: no layout reflow and no timers, even on fast rolls of one pad.
-  const flash = (i: number) => { padRefs.current[i]?.animate([{ backgroundColor: "hsl(var(--accent) / .45)" }, { backgroundColor: "hsl(var(--muted))" }], { duration: 140, easing: "ease-out" }); };
+  const flash = (i: number) => { const el = padRefs.current[i]; if (!el) return; el.classList.add("hit"); clearTimeout((el as unknown as { _t?: number })._t); (el as unknown as { _t?: number })._t = window.setTimeout(() => el.classList.remove("hit"), 90); };
 
   /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length, `noteIdx` plays one chord note (arpeggio step). */
   const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {

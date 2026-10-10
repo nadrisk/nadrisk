@@ -108,7 +108,7 @@ const PRESETS: Record<string, Layout> = {
   "seq under pads": { preset: "custom", order: ["rack", "seq", "editor", "master", "perf", "tape", "phrase", "fx", "mixer", "vis", "sets", "midi"], wide: WIDE },
   "perform": { preset: "custom", order: ["rack", "perf", "seq", "mixer", "master", "tape", "editor", "phrase", "fx", "vis", "sets", "midi"], wide: WIDE },
 };
-const THEMES = [["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
+const THEMES = [["oled", "1-bit oled"], ["zoom", "blue-grey lcd"], ["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
 const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d; } catch { return d; } };
 
 export default function Groovebox() {
@@ -123,7 +123,7 @@ export default function Groovebox() {
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
   const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "roll") g.setStepValue("ratchet", r, c, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
   const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: e.performance.output }; }, [g.ensure]);
-  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("nadrisk.lcd.v1") || "nadrisk"; } catch { return "nadrisk"; } });
+  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("nadrisk.lcd.v1") || "oled"; } catch { return "oled"; } });
   const [layout, setLayout] = useState<Layout>(() => { const l = load("nadrisk.layout.v1", PRESETS.classic); return { ...l, order: [...l.order.filter(k => SECTIONS.includes(k)), ...SECTIONS.filter(k => !l.order.includes(k))] }; });
   const [editLayout, setEditLayout] = useState(false);
   useEffect(() => { try { localStorage.setItem("nadrisk.lcd.v1", theme); } catch { /* private mode */ } }, [theme]);

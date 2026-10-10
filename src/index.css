@@ -599,3 +599,65 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace .node-heading, .instrument-workspace .node-heading * { color: hsl(var(--background)) !important; }
 .instrument-workspace .gb-repeat .gb-bank { padding: 0 2px !important; font-size: 9px !important; min-width: 0; width: 100%; overflow: hidden; font-family: 'JetBrains Mono', monospace; }
 .instrument-workspace .gb-pad.selected:not(.hit) { background: hsl(var(--background)); color: hsl(var(--foreground)); border-width: 2px; }
+
+/* ===== 1-BIT PIXEL HARDWARE SYSTEM ===== */
+.instrument-workspace[data-lcd="oled"] { --lcd-h: 0; --lcd-s: 0%; --background: 0 0% 3%; --foreground: 0 0% 93%; --accent: 0 0% 93%; --accent-foreground: 0 0% 3%; --muted-foreground: 0 0% 62%; --border: 0 0% 70%; --patch-surface: 0 0% 3%; --patch-header: 0 0% 93%; --patch-background: 0 0% 9%; --primary: 0 0% 93%; --scope-line: hsl(0 0% 93%); --scope-grid: hsl(0 0% 22%); }
+.instrument-workspace[data-lcd="zoom"] { --lcd-h: 205; --lcd-s: 14%; --background: 205 14% 74%; --foreground: 215 30% 14%; --accent: 215 30% 14%; --accent-foreground: 205 14% 74%; --muted-foreground: 215 18% 32%; --border: 215 25% 20%; --patch-surface: 205 14% 74%; --patch-header: 215 30% 14%; --patch-background: 0 0% 9%; --primary: 215 30% 14%; --scope-line: hsl(215 30% 14%); --scope-grid: hsl(205 12% 62%); }
+.instrument-workspace[data-lcd="acid"] { --background: 0 0% 3%; --foreground: 72 100% 55%; --accent: 72 100% 55%; --accent-foreground: 0 0% 3%; --border: 72 100% 45%; --patch-header: 72 100% 55%; --patch-surface: 0 0% 3%; }
+.instrument-workspace:not([data-lcd="studio"]),
+.instrument-workspace:not([data-lcd="studio"]) * {
+  font-family: 'Silkscreen', monospace !important;
+  -webkit-font-smoothing: none !important; -moz-osx-font-smoothing: unset !important; font-smooth: never;
+  border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important;
+  background-image: none !important; transition: none !important; animation: none !important;
+  letter-spacing: 0 !important;
+}
+.instrument-workspace:not([data-lcd="studio"]) { background: hsl(0 0% 9%); border: 2px solid hsl(0 0% 16%); font-size: 8px; }
+.instrument-workspace:not([data-lcd="studio"]) .patch-canvas { background: hsl(0 0% 9%) !important; padding: 10px; gap: 10px; column-gap: 10px; row-gap: 10px; }
+.instrument-workspace:not([data-lcd="studio"]) .patch-cables, .instrument-workspace:not([data-lcd="studio"]) .node-ports { display: none; }
+.instrument-workspace:not([data-lcd="studio"]) canvas, .instrument-workspace:not([data-lcd="studio"]) svg { image-rendering: pixelated; shape-rendering: crispEdges; }
+/* every panel = a sunken LCD module */
+.instrument-workspace:not([data-lcd="studio"]) .patch-node { background: hsl(var(--background)) !important; color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); outline: 3px solid hsl(0 0% 5%); outline-offset: 0; }
+.instrument-workspace:not([data-lcd="studio"]) .node-heading,
+.instrument-workspace:not([data-lcd="studio"]) .workspace-heading { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; padding: 2px 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; border: 0; }
+.instrument-workspace:not([data-lcd="studio"]) .node-tag { color: hsl(var(--background)); border: 1px solid hsl(var(--background)); padding: 0 3px; font-size: 7px; }
+.instrument-workspace:not([data-lcd="studio"]) .node-body { padding: 6px; }
+.instrument-workspace:not([data-lcd="studio"]) .parameter-label, .instrument-workspace:not([data-lcd="studio"]) .patch-small, .instrument-workspace:not([data-lcd="studio"]) .patch-comment { font-size: 8px; color: hsl(var(--foreground)); text-transform: uppercase; margin-bottom: 3px; }
+/* values in a tall LCD digit face */
+.instrument-workspace:not([data-lcd="studio"]) .hw-val, .instrument-workspace:not([data-lcd="studio"]) .parameter-label > span, .instrument-workspace:not([data-lcd="studio"]) .number-display input { font-family: 'VT323', monospace !important; font-size: 15px; line-height: 1; }
+/* buttons/selects/inputs = framed hardware keys, invert when active */
+.instrument-workspace:not([data-lcd="studio"]) button, .instrument-workspace:not([data-lcd="studio"]) select, .instrument-workspace:not([data-lcd="studio"]) input:not([type=range]), .instrument-workspace:not([data-lcd="studio"]) .gb-upload {
+  background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--foreground)) !important; font-size: 8px; text-transform: uppercase; min-height: 18px; padding: 1px 4px; -webkit-appearance: none; appearance: none; }
+.instrument-workspace:not([data-lcd="studio"]) button.selected, .instrument-workspace:not([data-lcd="studio"]) button.active, .instrument-workspace:not([data-lcd="studio"]) button[aria-pressed="true"], .instrument-workspace:not([data-lcd="studio"]) button.is-playing, .instrument-workspace:not([data-lcd="studio"]) button:active {
+  background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) button svg { width: 10px; height: 10px; }
+/* Radix sliders -> segmented ladder */
+.instrument-workspace:not([data-lcd="studio"]) [data-orientation="horizontal"].relative { height: 8px !important; }
+.instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) { height: 8px !important; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .35) 0 1px, transparent 1px 4px) !important; border: 1px solid hsl(var(--foreground)); }
+.instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) > span { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 3px, transparent 3px 4px) !important; }
+.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
+/* knobs: hairline 1-bit */
+.instrument-workspace:not([data-lcd="studio"]) .hw-track { stroke: hsl(var(--foreground) / .35); stroke-width: 1; }
+.instrument-workspace:not([data-lcd="studio"]) .hw-fill { stroke: hsl(var(--foreground)); stroke-width: 2; }
+.instrument-workspace:not([data-lcd="studio"]) .hw-cap { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 1; }
+.instrument-workspace:not([data-lcd="studio"]) .hw-needle, .instrument-workspace:not([data-lcd="studio"]) .hw-line { stroke: hsl(var(--foreground)); stroke-width: 1.5; }
+.instrument-workspace:not([data-lcd="studio"]) .hw-node { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); }
+.instrument-workspace:not([data-lcd="studio"]) .hw-adsr, .instrument-workspace:not([data-lcd="studio"]) .gb-sample, .instrument-workspace:not([data-lcd="studio"]) .scope-canvas { border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); }
+.instrument-workspace:not([data-lcd="studio"]) .gb-group { border: 1px solid hsl(var(--foreground)); padding: 4px; margin: 4px 0; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-group > legend { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 4px; font-size: 8px; }
+/* pads: dense, playable, instant invert */
+.instrument-workspace:not([data-lcd="studio"]) .gb-pads { gap: 3px !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--foreground)) !important; min-height: 56px; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad.selected { outline: 1px solid hsl(var(--foreground)); outline-offset: -4px; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad.hit, .instrument-workspace:not([data-lcd="studio"]) .gb-pad:active { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad.muted { border-style: dotted !important; opacity: .55; }
+/* steps: square pixel cells */
+.instrument-workspace:not([data-lcd="studio"]) .gb-step { border: 1px solid hsl(var(--foreground)) !important; background: hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.on, .instrument-workspace:not([data-lcd="studio"]) .gb-step.active { background: hsl(var(--foreground)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.tie { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 2px, transparent 2px 4px) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.current { outline: 2px solid hsl(var(--foreground)); outline-offset: -3px; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.out-loop, .instrument-workspace:not([data-lcd="studio"]) .gb-step.disabled { border-style: dotted !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step-fill { background: hsl(var(--foreground)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad-index { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 2px; font-size: 7px; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad.hit .gb-pad-index { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.instrument-workspace:not([data-lcd="studio"]) .gb-pad-name { font-weight: 700; font-size: 9px; }

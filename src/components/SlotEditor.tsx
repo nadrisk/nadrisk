@@ -43,11 +43,18 @@ function SampleView({ peaks, start, onStart }: { peaks: number[] | null; start: 
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current, ctx = c?.getContext("2d"); if (!c || !ctx || !peaks) return;
-    const w = c.clientWidth, h = c.clientHeight, r = window.devicePixelRatio || 1; c.width = w * r; c.height = h * r; ctx.setTransform(r, 0, 0, r, 0, 0);
-    const css = getComputedStyle(document.documentElement), accent = `hsl(${css.getPropertyValue("--accent")})`, fg = `hsl(${css.getPropertyValue("--muted-foreground")})`;
-    ctx.clearRect(0, 0, w, h);
-    peaks.forEach((p, i) => { const x = i / peaks.length * w; ctx.fillStyle = i / peaks.length >= start ? accent : fg; ctx.fillRect(x, h / 2 - p * h / 2, Math.max(1, w / peaks.length - 1), p * h); });
-    ctx.fillStyle = `hsl(${css.getPropertyValue("--foreground")})`; ctx.fillRect(start * w, 0, 1.5, h);
+    // Low-res 1-bit raster: draw at half resolution, upscale with nearest-neighbour (CSS pixelated).
+    const w = Math.max(32, Math.floor(c.clientWidth / 2)), h = Math.max(16, Math.floor(c.clientHeight / 2)); c.width = w; c.height = h;
+    const fg = `hsl(${getComputedStyle(c).getPropertyValue("--foreground")})`;
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = fg;
+    const lane = h / 2, mid = [lane / 2, lane + lane / 2];
+    for (let x = 0; x < w; x++) {
+      const p = peaks[Math.floor(x / w * peaks.length)] ?? 0, a = Math.max(1, Math.round(p * (lane / 2 - 1)));
+      for (const m of mid) { ctx.fillRect(x, Math.round(m - a), 1, a * 2); if (x % 2 === 0) ctx.fillRect(x, Math.round(m), 1, 1); }
+    }
+    const sx = Math.round(start * w);
+    for (let y = 0; y < h; y += 2) ctx.fillRect(sx, y, 1, 1);
+    ctx.fillRect(sx, 0, 6, 5); ctx.clearRect(sx + 1, 1, 4, 3); ctx.fillRect(sx + 2, 2, 2, 1);
   }, [peaks, start]);
   return <canvas ref={ref} className="gb-sample" role="img" aria-label="Sample waveform, click to set start" onPointerDown={e => { const r = e.currentTarget.getBoundingClientRect(); onStart(Math.min(0.95, Math.max(0, (e.clientX - r.left) / r.width))); }} />;
 }
