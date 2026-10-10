@@ -14,6 +14,7 @@ export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Parti
   const [cur, setCur] = useState(0);
   const name = slot.name.padEnd(10, " ").slice(0, 10);
   const ci = Math.max(0, CH.indexOf(name[cur]));
+  const setChar = (next: number) => { const a = [...name]; a[cur] = CH[(next + CH.length) % CH.length]; onChange({ name: a.join("").trimEnd() }); };
   const knobs: Knob[] = slot.engine === "sampler" ? [] : [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
@@ -24,12 +25,16 @@ export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Parti
       [...name].forEach((c, i) => { const x = 2 + i * 6; if (i === cur) { p.rect(x - 1, 22, 6, 9); p.text(c, x, 24, false); } else p.text(c, x, 24); });
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 30, slot.mute);
       key(p, slot.choke ? `CHK${slot.choke}` : "CHK-", 96, 22, 31, slot.choke > 0);
+      key(p, "<", 2, 34, 14, false); key(p, name[cur] === " " ? "SPC" : name[cur], 18, 34, 26, true); key(p, ">", 46, 34, 14, false);
+      p.text(`CHAR ${cur + 1}/10`, 66, 36);
       if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 50);
     }}
     extra={() => <>
       {ENG.map(([e], i) => <Tap key={e} x={1 + i * 21} y={11} w={21} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e })} />)}
       {[...name].map((_, i) => <Tap key={i} x={1 + i * 6} y={22} w={6} h={9} label={`Name character ${i + 1}`} pressed={i === cur} onClick={() => setCur(i)} />)}
-      <Zone x={0} y={32} w={62} h={10} label="Name letter" value={ci} min={0} max={CH.length - 1} horizontal onChange={v => { const a = [...name]; a[cur] = CH[v]; onChange({ name: a.join("").trimEnd() }); }} />
+      <Tap x={2} y={34} w={14} h={9} label="Previous name letter" onClick={() => setChar(ci - 1)} />
+      <Zone x={18} y={34} w={26} h={9} label="Name letter" value={ci} min={0} max={CH.length - 1} step={1} horizontal onChange={setChar} />
+      <Tap x={46} y={34} w={14} h={9} label="Next name letter" onClick={() => setChar(ci + 1)} />
       <Tap x={64} y={22} w={30} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
     </>} />;
@@ -67,17 +72,27 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
 }
 
 export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
-  const eq = slot.eq, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
-  const knobs: Knob[] = [
+  const eq = { q: 1, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
+  const gainKnobs: Knob[] = [
     { label: "Low 100 Hz EQ", short: "LOW", value: eq.low, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: low => set({ low }) },
     { label: "Mid EQ", short: "MID", value: eq.mid, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: mid => set({ mid }) },
-    { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 6000, step: 10, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
     { label: "High 9 kHz EQ", short: "HIGH", value: eq.high, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: high => set({ high }) },
   ];
-  return <Panel name="INSERT" label="Channel EQ insert" pages={["EQ"]} deps={[eq.low, eq.mid, eq.midFreq, eq.high]} knobs={() => knobs}
+  const midKnobs: Knob[] = [
+    { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 6000, step: 10, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
+    { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, fmt: v => v.toFixed(1), set: q => set({ q }) },
+  ];
+  return <Panel name="INSERT" label="Channel EQ insert" pages={["LVL", "MID"]} deps={[eq.low, eq.mid, eq.midFreq, eq.q, eq.high]} knobs={page => page === "LVL" ? gainKnobs : midKnobs}
     body={p => {
-      const gains = [eq.low, eq.mid, eq.high], centers = [20, 65, 111]; let px = 5, py = 29;
-      for (let x = 5; x < 124; x++) { let y = 29; centers.forEach((c, i) => { y -= gains[i] * Math.max(0, 1 - Math.abs(x - c) / 25) * .65; }); p.line(px, py, x, Math.max(12, Math.min(41, Math.round(y)))); px = x; py = Math.max(12, Math.min(41, Math.round(y))); }
-      p.line(4, 29, 124, 29, true); p.text("100", 4, 12); p.text(`${Math.round(eq.midFreq)}`, 50, 12); p.text("9K", 112, 12);
+      const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120;
+      const midX = xOf(eq.midFreq), sigma = Math.max(2.5, 18 / Math.sqrt(eq.q)); let px = 4, py = 30;
+      for (let x = 4; x <= 124; x++) {
+        const lo = eq.low / (1 + Math.exp((x - xOf(100)) / 5));
+        const hi = eq.high / (1 + Math.exp((xOf(9000) - x) / 5));
+        const mid = eq.mid * Math.exp(-.5 * ((x - midX) / sigma) ** 2);
+        const y = Math.max(17, Math.min(43, Math.round(30 - (lo + mid + hi) * .72)));
+        p.line(px, py, x, y); px = x; py = y;
+      }
+      p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${eq.midFreq >= 1000 ? `${(eq.midFreq / 1000).toFixed(1)}K` : Math.round(eq.midFreq)}`, Math.max(45, Math.min(94, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
     }} />;
 }
