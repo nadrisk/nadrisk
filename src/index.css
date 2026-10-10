@@ -635,7 +635,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) [data-orientation="horizontal"].relative { height: 8px !important; }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) { height: 8px !important; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .35) 0 1px, transparent 1px 4px) !important; border: 1px solid hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) > span { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 3px, transparent 3px 4px) !important; }
-.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial):not(.px-zone) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
 /* knobs: hairline 1-bit */
 .instrument-workspace:not([data-lcd="studio"]) .hw-track { stroke: hsl(var(--foreground) / .35); stroke-width: 1; }
 .instrument-workspace:not([data-lcd="studio"]) .hw-fill { stroke: hsl(var(--foreground)); stroke-width: 2; }
