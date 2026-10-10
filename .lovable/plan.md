@@ -13,6 +13,7 @@ Make the synth editors faster and clearer without changing their sound engines, 
 
 ### 1. Rebalance the poly VOX page
 - Remove CUT and RES from the poly `VOX` page; give the poly filter its own compact `FLT` page with its responsive filter curve, CUT, RES, and matching direct curve interaction.
+- Reframe the shared synth/poly filter graph so its neutral response line sits around the vertical center, leaving dedicated headroom above it. Resonance peaks will then remain fully visible instead of flattening against the top edge, while cutoff still travels across the full frequency width.
 - Keep `VOX` focused on the oscillator stack: four evenly spaced bottom knobs for SUB, PLS, CHR, and DET.
 - Remove the duplicate vertical faders. Expand and reposition the square-stack visual into the freed area so it cannot overlap controls.
 - Make the visual react distinctly to the four voice controls: sub layer, pulse layer, chorus spread, and detune separation, while retaining the current detune response.
@@ -35,12 +36,13 @@ Make the synth editors faster and clearer without changing their sound engines, 
 
 ## Technical scope
 - Update `EnsemblePanel.tsx` for the new VOX/FLT split and non-overlapping poly visualization.
-- Extend the shared pixel controls in `PixelScreen.tsx` and `pixelScreens.tsx` with reusable ADSR and multi-bar drawing interactions.
+- Extend the shared pixel controls in `PixelScreen.tsx` and `pixelScreens.tsx` with reusable ADSR and multi-bar drawing interactions, plus the centered filter-curve geometry.
 - Adopt the shared envelope interaction in `CyberspacePanel.tsx`, `DrumkitPanel.tsx`, `EnsemblePanel.tsx`, and `WispdiskPanel.tsx`.
 - Add additive drawing in `CyberspacePanel.tsx`; leave `voices.ts`, transport, effects, sequencing, sets, recording, and master processing unchanged.
 
 ## Verification
 - Check every poly page at tablet and phone widths for icon/control overlap and readable labels.
+- Sweep cutoff and resonance on the synth and poly filter pages; confirm the cutoff marker tracks correctly and the entire resonance peak stays inside the graph at maximum resonance.
 - Drag each ADSR handle on synth, poly, drum, and sampler screens; confirm the graph, bottom knobs, readout, saved state, and audible envelope stay synchronized.
 - Draw slow and fast additive curves across both oscillator pages; confirm all crossed harmonics update and saved sets recall the shape.
 - Confirm touch scrolling is not intercepted outside active graphs, themes still redraw all screens, MIDI-labelled controls remain discoverable, and no runtime or console errors appear.
