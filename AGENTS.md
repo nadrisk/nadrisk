@@ -3,15 +3,12 @@
 - Keep the site on React and Vite with shared patcher styling across home and news so navigation remains consistent.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Per-slot effects live in src/audio/effects.ts as rebuildable chains whose order is the audio order; custom DSP (bitcrush, envelope follower) runs in inline AudioWorklets so no extra files need hosting.
 - Preserve the original news data as the archive's source of truth; the home page may select entries but must not duplicate their content.- Pad phrase sequencers store pitch as scale degrees (src/audio/arp.ts) and run on a look-ahead audio-clock scheduler while a pad is held, so phrases stay in key and in time.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
-- Advanced rhythmic, ducking, multiband and buffer-capture processing uses inline AudioWorklets on the shared audio context, so effects remain audio-clock driven without hosted DSP files.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
 - Step-sequencer modulation is stored per slot per pattern bank (slot.mods[bank].values indexed by step) and applied only on lit steps, so the note grid stays the single place where rhythm lives.
 - MIDI learn binds CC/notes to controls by their aria-label and drives them via synthetic DOM events (src/hooks/useMidi.ts), so every labelled control is mappable without per-control wiring.
-- Tone registers only one AudioWorklet module per context, so every processor (including the tape recorder in src/audio/tapeWorklet.ts) must be concatenated into the single loadWorklets bundle.
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
@@ -19,13 +16,9 @@
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
 - Hardware-style instrument screens render on a fixed 128x64 canvas with a bitmap font (src/pixel), integer-scaled, with invisible aria-labelled hit-zones on top, so pixels stay crisp on every device and MIDI learn still works.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
-- Dynamics effect displays read silent analyser taps on each effect's pre/post nodes, so meters show live signal without altering the audible chain.
-- Drum voices are per-kind machines in src/audio/voices.ts with optional fields filled by drumDefaults(), so older sets load without migration.
 - Pad holds (phrase, repeat, chord arp) are pumped from Tone's worker clock tick with a 150 ms horizon, and every voice booked ahead is tracked per pad so release, transport stop and set load cancel future notes; the grid uses a 100 ms look-ahead, so scheduling survives main-thread stalls without notes after release.
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
 - Mixer meters read a silent post-pan AnalyserNode per slot, written to the DOM per frame, so metering never re-renders the mixer.
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
-- Pad hits never build buffers or curves (sample variants pre-baked at idle, drive curves cached; max 4 ringing voices per pad), so every instrument triggers instantly.
 - Pads use touch-action:none plus non-passive touch preventDefault and release on the last lifted pointer, so iOS never swallows fast taps.
-- Voices expose stop() (instant cut for chokes, cap, transport) and release(at, r) (fade from the current level that only ever shortens a tail); retriggers and live release edits re-time a pad's ringing tails with its current release, so release changes are heard immediately.
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
