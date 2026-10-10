@@ -90,7 +90,10 @@ function pitchEnvelope(f: AudioParam, base: number, t: number, amt: number, atk:
   for (let i = 0; i < n; i++) { const u = i / (n - 1), sh = 1 - (1 - u) ** k; c[i] = peak * (fin / peak) ** sh; }
   f.setValueCurveAtTime(c, t + atk + .0001, d);
 }
-const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createWaveShaper(), k = 1 + drive * 14, c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } w.curve = c; w.oversample = "2x"; return w; };
+// Drive curves are cached per 0.05 step so a drum hit never rebuilds a 1024-point table on the pad's critical path.
+const driveCache = new Map<number, Float32Array>();
+const driveCurve = (drive: number) => { const q = Math.round(drive * 20) / 20; let c = driveCache.get(q); if (c) return c; const k = 1 + q * 14; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } driveCache.set(q, c); return c; };
+const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createWaveShaper(); w.curve = driveCurve(drive); w.oversample = "2x"; return w; };
 
 export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams, t: number, vel = 1): Voice {
   const p = mach(p0), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];

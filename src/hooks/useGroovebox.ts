@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
-import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
+import { stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { CHORDS, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
@@ -207,10 +207,10 @@ export function useGroovebox() {
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
-      // Ring list: every live voice per pad, pruned when silent and capped so rapid rolls stay bounded.
+      // Ring list: every live voice per pad, pruned when silent and capped at 4 so rapid rolls never overload the audio thread.
       const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0));
       rl.push({ stop: e.mono[i]!.stop, until: Math.max(now0, t) + gate + 8 });
-      if (rl.length > 8) rl.splice(0, rl.length - 8).forEach(r => r.stop(t));
+      if (rl.length > 4) rl.splice(0, rl.length - 4).forEach(r => r.stop(t));
       // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
       const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
     };
@@ -414,6 +414,20 @@ export function useGroovebox() {
     const index = s.fx.filter(f => f.on).findIndex(f => f.id === id);
     return index < 0 ? null : e.outs[slot].chain[index]?.levels() ?? null;
   }, []);
+  // Pre-bake reversed / warped / stretched sample buffers off the pad's critical path (idle time after any
+  // sample, setting or tempo change), so the first hit after a change is as immediate as every other one.
+  useEffect(() => {
+    const e = engine.current; if (!e) return;
+    const idle = (window as unknown as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 30));
+    const id = idle(() => slots.forEach((s, i) => {
+      if (s.engine !== "sampler" || s.sampler.grain) return;
+      const raw = buffers.current[i]; if (!raw) return;
+      const buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw, sm = s.sampler;
+      const amt = sm.warp ? Math.max(.25, Math.min(4, (sm.beats || guessBeats(raw.duration, bpm)) * 60 / bpm / raw.duration)) : sm.stretch ? sm.stretchAmt ?? 1 : 1;
+      if (Math.abs(amt - 1) > .01) stretchBuffer(e.ctx, buf, amt, sm.stretchGrain ?? .05);
+    }));
+    return () => { (window as unknown as { cancelIdleCallback?: (n: number) => void }).cancelIdleCallback?.(id); clearTimeout(id); };
+  }, [slots, bpm]);
   /** Post-fader peak level (dBFS) for each mixer channel, read from a silent analyser tap after pan. */
   const meterBuf = useRef(new Float32Array(512));
   const getChannelLevels = useCallback((): number[] | null => {
