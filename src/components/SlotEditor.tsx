@@ -7,6 +7,7 @@ import { RATES, type RateName } from "@/audio/arp";
 import HwKnob, { AdsrView } from "@/components/HwKnob";
 import { defaultSiren, type ADSR, type FilterKind, type Wave } from "@/audio/voices";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
+import WispdiskPanel from "@/components/WispdiskPanel";
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const noteName = (m: number) => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
@@ -200,30 +201,9 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
     </>}
 
     {slot.engine === "sampler" && <>
-      <Group title={`sample · ${sm.sampleName}`}>
-        <SampleView peaks={peaks} start={sm.start} onStart={start => M({ start })} />
-        <SamplePicker value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} />
-        <label className="gb-upload"><Upload size={12} /> import sample<input type="file" accept="audio/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) onLoad(f); e.target.value = ""; }} /></label>
-        <div className="gb-cols3">
-          <P label="Start" value={sm.start} min={0} max={0.95} step={0.005} fmt={pct} onChange={start => M({ start })} />
-          <P label="Pitch" value={sm.pitch} min={-24} max={24} fmt={v => `${v} st`} onChange={pitch => M({ pitch })} />
-          <button className={`gb-mute ${sm.loop ? "selected" : ""}`} aria-pressed={sm.loop} onClick={() => M({ loop: !sm.loop })}>{sm.loop ? "LOOP ON" : "LOOP OFF"}</button>
-          <button className={`gb-mute ${sm.reverse ? "selected" : ""}`} aria-pressed={!!sm.reverse} aria-label="Reverse sample" onClick={() => M({ reverse: !sm.reverse })}>{sm.reverse ? "REV ON" : "REV OFF"}</button>
-        </div>
-      </Group>
-      <Group title="grain mode">
-        <div className="gb-cols2">
-          <button className={`gb-mute ${sm.grain ? "selected" : ""}`} aria-pressed={!!sm.grain} aria-label="Grain mode" onClick={() => M({ grain: !sm.grain })}>{sm.grain ? "GRAIN ON" : "GRAIN OFF"}</button>
-          <button className={`gb-mute ${sm.freeze ? "selected" : ""}`} aria-pressed={!!sm.freeze} aria-label="Grain freeze" disabled={!sm.grain} onClick={() => M({ freeze: !sm.freeze })}>{sm.freeze ? "FREEZE ON" : "FREEZE OFF"}</button>
-        </div>
-        {sm.grain && <div className="gb-cols3">
-          <P label="Position" value={sm.start} min={0} max={0.95} step={0.005} fmt={pct} onChange={start => M({ start })} />
-          <P label="Grain size" value={sm.grainSize ?? 0.08} min={0.01} max={0.4} step={0.005} fmt={ms} onChange={grainSize => M({ grainSize })} />
-          <P label="Spray" value={sm.spray ?? 0.1} min={0} max={1} step={0.01} fmt={pct} onChange={spray => M({ spray })} />
-        </div>}
-        {sm.grain && <span className="patch-small">hold the pad to keep the grain cloud going</span>}
-      </Group>
-      <Group title="amp"><Env env={sm.env} onChange={env => M({ env })} /></Group>
+      <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />
+      <SamplePicker value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} />
+      <label className="gb-upload"><Upload size={12} /> import sample<input type="file" accept="audio/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) onLoad(f); e.target.value = ""; }} /></label>
     </>}
   </div>;
 }
