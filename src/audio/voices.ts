@@ -13,7 +13,7 @@ export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -217,8 +217,32 @@ function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, en
   m.set(key, out); return out;
 }
 
+// Vintage (Akai-style) time stretch: fixed-size blocks re-read from the source at the stretched rate with only
+// tiny crossfades, so length changes without pitch and long settings give the classic metallic, stuttery artefacts.
+const stretchCache = new WeakMap<AudioBuffer, Map<string, AudioBuffer>>();
+export function stretchBuffer(ctx: BaseAudioContext, buf: AudioBuffer, ratio: number, grainSec: number) {
+  const key = `${ratio.toFixed(3)}:${grainSec.toFixed(3)}`;
+  let m = stretchCache.get(buf); if (!m) { m = new Map(); stretchCache.set(buf, m); }
+  const hit = m.get(key); if (hit) return hit;
+  const sr = buf.sampleRate, N = Math.max(64, Math.round(grainSec * sr)), fade = Math.min(Math.round(N / 8), Math.round(.002 * sr)) || 1;
+  const outLen = Math.max(1, Math.round(buf.length * ratio)), out = ctx.createBuffer(buf.numberOfChannels, outLen, sr);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const src = buf.getChannelData(c), dst = out.getChannelData(c);
+    for (let o = 0; o < outLen; o += N - fade) {
+      const from = Math.floor(o / ratio);
+      for (let i = 0; i < N && o + i < outLen; i++) {
+        const v = src[from + i] ?? 0, w = i < fade ? i / fade : i >= N - fade ? (N - i) / fade : 1;
+        dst[o + i] = i < fade ? dst[o + i] + v * w : v * w;
+      }
+    }
+  }
+  if (m.size > 6) m.clear();
+  m.set(key, out); return out;
+}
+
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  if (p.stretch && Math.abs((p.stretchAmt ?? 1) - 1) > .01) buf = stretchBuffer(ctx, buf, p.stretchAmt ?? 1, p.stretchGrain ?? .05);
   const src = ctx.createBufferSource(); src.buffer = buf;
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
   let offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
