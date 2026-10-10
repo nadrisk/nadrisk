@@ -12,6 +12,7 @@ import DrumkitPanel from "@/components/DrumkitPanel";
 import Sub808Panel from "@/components/Sub808Panel";
 import SirenPanel from "@/components/SirenPanel";
 import EnsemblePanel from "@/components/EnsemblePanel";
+import { SlotScreen, ChordScreen } from "@/components/SlotScreens";
 
 function P(props: { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void }) {
   return <HwKnob {...props} />;
@@ -42,30 +43,8 @@ function SamplePicker({ value, onPick, onFolder }: { value?: string; onPick: (id
 function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler;
   return <div className="node-body gb-editor-body">
-    <div className="gb-cols2">
-      <label className="parameter-label gb-inline">Name<input className="gb-input" value={slot.name} maxLength={10} onChange={e => onChange({ name: e.target.value.toUpperCase() })} /></label>
-      <button className={`gb-mute ${slot.mute ? "selected" : ""}`} onClick={() => onChange({ mute: !slot.mute })}>{slot.mute ? "MUTED" : "MUTE"}</button>
-    </div>
-    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly", "808", "siren"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
-    {slot.engine !== "sampler" && <div className="gb-cols2">
-      <P label="Volume" value={slot.level} min={0} max={100} fmt={v => `${v}%`} onChange={level => onChange({ level })} />
-      <P label="Pan" value={slot.pan} min={-1} max={1} step={0.01} fmt={v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} onChange={pan => onChange({ pan })} />
-    </div>}
-
-
-    <label className="arp-field">Choke group<select aria-label="Choke group" value={slot.choke} onChange={e => onChange({ choke: +e.target.value })}>{[0,1,2,3,4].map(n => <option key={n} value={n}>{n ? `Group ${n}` : "Off"}</option>)}</select></label>
-    {(slot.engine === "sampler" || slot.engine === "poly") && <fieldset className="gb-group"><legend>chord pad</legend>
-      <div className="arp-controls"><Button variant="outline" size="sm" aria-pressed={slot.chord.on} onClick={() => onChange({ chord: { ...slot.chord, on: !slot.chord.on } })}>CHORD {slot.chord.on ? "ON" : "OFF"}</Button>
-      <label className="arp-field">Voicing<select aria-label="Chord voicing" value={slot.chord.type} onChange={e => onChange({ chord: { ...slot.chord, type: e.target.value as keyof typeof CHORDS } })}>{Object.keys(CHORDS).map(c => <option key={c}>{c}</option>)}</select></label>
-      <label className="arp-field">Inversion<select aria-label="Chord inversion" value={slot.chord.inversion} onChange={e => onChange({ chord: { ...slot.chord, inversion: +e.target.value } })}>{[0,1,2].map(n => <option value={n} key={n}>{n === 0 ? "Root" : `${n}${n === 1 ? "st" : "nd"}`}</option>)}</select></label>
-      <Button variant="outline" size="sm" aria-pressed={slot.chord.spread} onClick={() => onChange({ chord: { ...slot.chord, spread: !slot.chord.spread } })}>Spread {slot.chord.spread ? "on" : "off"}</Button></div>
-      <Seg label="Chord play mode" options={["block", "strum", "arp"] as const} value={slot.chord.play ?? "block"} onChange={(play: ChordPlay) => onChange({ chord: { ...slot.chord, play } })} />
-      {slot.chord.play === "arp" && <div className="arp-controls">
-        <label className="arp-field">Order<select aria-label="Chord arp order" value={slot.chord.arp ?? "up"} onChange={e => onChange({ chord: { ...slot.chord, arp: e.target.value as ChordArp } })}>{["up", "down", "updown", "random"].map(o => <option key={o}>{o}</option>)}</select></label>
-        <label className="arp-field">Rate<select aria-label="Chord arp rate" value={slot.chord.rate ?? "1/16"} onChange={e => onChange({ chord: { ...slot.chord, rate: e.target.value as RateName } })}>{Object.keys(RATES).map(r => <option key={r}>{r}</option>)}</select></label>
-      </div>}
-      {slot.chord.play === "strum" && <P label="Strum time" value={slot.chord.strum ?? 30} min={5} max={150} step={1} fmt={v => `${v} ms`} onChange={strum => onChange({ chord: { ...slot.chord, strum } })} />}
-    </fieldset>}
+    <SlotScreen slot={slot} onChange={onChange} />
+    {(slot.engine === "sampler" || slot.engine === "poly") && <ChordScreen slot={slot} onChange={onChange} />}
 
     {slot.engine === "drum" && <DrumkitPanel slot={slot} onChange={onChange} />}
     {slot.engine === "synth" && <CyberspacePanel slot={slot} onChange={onChange} />}
