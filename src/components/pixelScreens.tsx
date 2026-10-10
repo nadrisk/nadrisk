@@ -28,7 +28,7 @@ export function tabZones(pages: readonly string[], page: string, setPage: (p: st
 }
 
 export function drawKnobs(p: Px, knobs: Knob[]) {
-  knobs.forEach((k, i) => { const x = (knobs.length < 4 ? [64, 64][0] - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
+  knobs.forEach((k, i) => { const x = (knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
