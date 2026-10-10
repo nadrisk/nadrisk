@@ -56,7 +56,7 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "OSC" || page === "LFO") {
       const w = page === "OSC" ? z.wave : z.lfoWave;
-      p.box(2, 11, 22, 12); drawWaveIcon(p, w, 4, 13, 18, 8);
+      drawWaveIcon(p, w, 2, 11, 22, 12);
       p.text(page === "OSC" ? w.slice(0, 5).toUpperCase() : `${w.slice(0, 3).toUpperCase()} ${z.rate.toFixed(1)}HZ`, 28, 15);
       scope(p, page === "LFO");
     } else {
