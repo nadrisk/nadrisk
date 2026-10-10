@@ -2,6 +2,7 @@ import { Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import type { PerformanceParams } from "@/audio/performance";
+import type { MasterMeter } from "@/hooks/useGroovebox";
 
 export const pkey = (p: Px, s: string, x: number, y: number, w: number, on: boolean, h = 9) => { if (on) p.rect(x, y, w, h); else p.box(x, y, w, h); p.textC(s, x + w / 2, y + Math.floor((h - 5) / 2), !on); };
 type K = { s: string; label: string; x: number; y: number; w: number; on: boolean; fn: () => void; disabled?: boolean };
@@ -9,9 +10,9 @@ const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w,
 const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
-export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf }: {
+export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter }: {
   playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; volume: number; setVolume: (v: number) => void;
-  eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void;
+  eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
 }) {
   const keys = (page: string): K[] => page === "OUT" ? [
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
@@ -20,7 +21,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     { s: "CLIP", label: "Master clipper", x: 2, y: 14, w: 40, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
     { s: "LIMIT", label: "Master limiter", x: 44, y: 14, w: 40, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
     { s: "GLUE", label: "Glue compressor", x: 86, y: 14, w: 40, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
-  ] : page === "EQ" ? [{ s: "EQ", label: "Mastering EQ", x: 1, y: 11, w: 22, on: !!pf.mEqOn, fn: () => setPf({ mEqOn: !pf.mEqOn }) }] : [];
+  ] : page === "EQ" ? [{ s: "EQ", label: "Mastering EQ", x: 1, y: 11, w: 22, on: !!pf.mEqOn, fn: () => setPf({ mEqOn: !pf.mEqOn }) }] : page === "MTR" ? [{ s: "RESET", label: "Reset integrated loudness", x: 100, y: 11, w: 27, on: false, fn: resetMeter }] : [];
   const knobs = (page: string): Knob[] => page === "OUT" ? [
     kn("Tempo", "BPM", bpm, 60, 180, 1, "", setBpm), kn("Master volume", "VOL", volume, 0, 100, 1, "%", setVolume),
   ] : page === "DYN" ? [
@@ -30,15 +31,15 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     kn("Master Low 90Hz", "90", pf.mLow ?? 0, -6, 6, .5, "DB", mLow => setPf({ mLow })), kn("Master Mud 300Hz", "300", pf.mMud ?? 0, -6, 6, .5, "DB", mMud => setPf({ mMud })),
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "12K", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
-  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf)]} knobs={knobs}
+  const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
+  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter)]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
         p.text(`${bpm}`, 62, 11, true, 2); p.text("BPM", 90, 16);
         for (let i = 0; i < 16; i++) { const x = 2 + i * 8, cur = step >= 0 && step % 16 === i; if (cur) p.rect(x, 23, 6, 5); else p.box(x, 23, 6, 5); }
         p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
-        // Output level ladder follows master volume.
-        p.text("OUT", 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(volume / 100 * 12)) p.rect(x, 32, 3, 5); else p.box(x, 32, 3, 5, true); }
+        p.text(`LU ${fmt(meter.m)}`, 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(Math.max(0, (db(meter.m) + 36) / 36) * 12)) p.rect(x, 40, 3, 5); else p.box(x, 40, 3, 5, true); }
       } else if (page === "DYN") {
         // Transfer curve: drive pushes the input, clipper squares the knee, limiter caps at ceiling, glue bends above threshold.
         p.box(2, 25, 44, 22, true);
@@ -60,6 +61,12 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         let px = 14, py = 28;
         for (let x = 14; x < 126; x++) { let y = 28; xs.forEach((c, i) => { y -= g[i] * Math.max(0, 1 - Math.abs(x - c) / 14) * 1.4; }); if (x < 14 + (pf.mHpf ?? 25) / 4) y = 36; p.line(px, py, x, Math.round(y)); px = x; py = Math.round(y); }
         p.text(pf.mEqOn ? "ON" : "BYP", 26, 13);
+      } else if (page === "MTR") {
+        const vals = [["M", meter.m], ["S", meter.s], ["I", meter.i]] as const;
+        p.text(`${fmt(meter.m)} LUFS`, 2, 12, true, 2);
+        vals.forEach(([n, v], i) => { const x = 2 + i * 31, fill = Math.round(Math.max(0, Math.min(1, (db(v) + 36) / 36)) * 25); p.text(`${n}${fmt(v)}`, x, 31); p.box(x, 39, 27, 5); if (fill) p.rect(x + 1, 40, fill, 3); p.dot(x + 16, 38); });
+        const sub = Math.round(Math.max(0, Math.min(1, (db(meter.sub) + 60) / 60)) * 122), peak = Math.round(Math.max(0, Math.min(1, (db(meter.subPeak) + 60) / 60)) * 122);
+        p.text(`SUB ${fmt(meter.sub)}DB`, 2, 48); p.box(2, 55, 124, 6); if (sub) p.rect(3, 56, sub, 4); p.line(3 + peak, 54, 3 + peak, 62);
       }
     }}
     extra={page => keyZones(keys(page))} />;
