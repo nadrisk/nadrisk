@@ -85,8 +85,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
       if (o.wave === "additive") {
         // A bounded 16-partial display leaves a clean row for the four knobs below.
+        const pl = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
         p.box(2, 25, 124, 19, true);
-        for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
+        for (let i = 0; i < 16; i++) { const v = pl[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
       } else {
         scope(p, page);
       }
@@ -114,8 +115,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {o.wave === "additive" && <>
-          <BarDraw x={3} y={26} w={122} h={17} values={s.partials.slice(0, 16)} onChange={partials => S({ partials })} />
-          {s.partials.slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />)}
+          {/* Each oscillator owns its partial set: osc2 edits partials2 (seeded from partials once). */}
+          <BarDraw x={3} y={26} w={122} h={17} values={(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16)}
+            onChange={partials => S(k === "osc2" ? { partials2: partials } : { partials })} />
+          {(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`${k} harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = (k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(); partials[i] = nv; S(k === "osc2" ? { partials2: partials } : { partials }); }} />)}
         </>}
       </>;
     }
