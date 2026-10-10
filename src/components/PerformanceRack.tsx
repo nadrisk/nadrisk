@@ -1,4 +1,4 @@
-import { Tap } from "@/pixel/PixelScreen";
+import { Tap, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { ECHO_DIVS, type PerformanceParams } from "@/audio/performance";
@@ -32,30 +32,66 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
   return <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v)]} knobs={knobs}
     body={(p, page) => {
       if (page === "FX") {
-        // DJ filter curve: LP slopes right, HP slopes left
-        const cx = 14 + Math.round((dj + 1) / 2 * 110);
-        for (let x = 14; x < 126; x++) { const y = dj === 0 ? 14 : dj < 0 ? (x < cx ? 14 : Math.min(38, 14 + (x - cx) / 2)) : (x > cx ? 14 : Math.min(38, 14 + (cx - x) / 2)); p.dot(x, Math.round(y)); }
-        p.text(dj === 0 ? "DJ OFF" : dj < 0 ? "LOWPASS" : "HIGHPASS", 2, 32);
+        // Framed DJ filter response: LP slopes down right of cutoff, HP left of it, resonance bump at cutoff.
+        p.box(2, 11, 124, 30);
+        const top = 15, bot = 36, x0 = 3, x1 = 124, res = v.djRes ?? 1, bump = Math.min(6, Math.round(res * .7));
+        const cx = dj < 0 ? x0 + Math.round((1 + dj) * (x1 - x0)) : x0 + Math.round(dj * (x1 - x0));
+        let py = top;
+        for (let x = x0; x <= x1; x++) {
+          let y = top;
+          if (dj !== 0) {
+            const d = dj < 0 ? x - cx : cx - x;
+            y = d > 0 ? Math.min(bot, top + d / 1.5) : top - Math.max(0, bump - Math.abs(d) / 2);
+          }
+          y = Math.round(Math.max(12, y)); p.line(x === x0 ? x : x - 1, x === x0 ? y : py, x, y); py = y;
+        }
+        const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
+        p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
+        p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}`, 104, 20);
+        p.rect(3, 38, Math.round(v.tension * 121), 2);
       } else if (page === "ECO") {
-        const fb = v.echoFeedback ?? .7; let h = 22;
-        for (let i = 0; i < 12 && h >= 1; i++) { p.rect(6 + i * 10, 38 - Math.round(h), 4, Math.round(h)); h *= Math.min(1, fb) * .85 + .05; }
-        p.text(ECHO_DIVS[v.echoDiv ?? 3][0], 100, 12);
+        // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
+        p.box(2, 11, 124, 30);
+        const beat = 24, sp = Math.max(4, Math.round((ECHO_DIVS[v.echoDiv ?? 3]?.[1] ?? .75) * beat)), fb = v.echoFeedback ?? .7, send = v.echoSend ?? 0;
+        const dark = 1 - ((v.echoTone ?? 2200) - 400) / 7600;
+        for (let x = 4; x < 125; x += 6) p.dot(x, 39); for (let x = 5; x < 125; x += beat) p.rect(x, 38, 1, 2);
+        p.rect(5, 16, 3, 21);
+        let h = 21 * Math.max(.15, send);
+        for (let i = 1, x = 5 + sp; x < 122 && i < 40; i++, x += sp) {
+          const hh = Math.max(1, Math.min(21, Math.round(h))), w = i * dark > 1.5 ? 1 : i * dark > .6 ? 2 : 3;
+          if (send === 0 || i * dark > 3) p.box(x, 37 - hh, w, hh, true); else p.rect(x, 37 - hh, w, hh);
+          h *= fb; if (h < .6) break;
+        }
+        p.text(ECHO_DIVS[v.echoDiv ?? 3][0], 100, 13);
+        if (fb > 1) p.text("SELF", 100, 20);
+        if (send === 0) p.text("NO SEND", 40, 13);
       } else if (page === "SEQ") {
-        LOOPS.forEach((n, i) => key(p, n ? String(n) : "FULL", 1 + i * 18, 11, 17, v.loop === n));
-        DIVS.forEach(([d, s], i) => key(p, s, 1 + i * 22, 22, 21, v.division === d));
-        p.text(v.loop ? "LOOP WIN" : "OFFSET", 92, 13);
-        p.text("CAPT", 92, 24);
-        p.textC(`${v.offset > 0 ? "+" : ""}${v.offset} STEPS`, 64, 34);
+        LOOPS.forEach((n, i) => key(p, n ? String(n) : "FULL", 2 + i * 25, 11, 24, v.loop === n));
+        DIVS.forEach(([d, s], i) => key(p, s, 2 + i * 31, 22, 30, v.division === d));
+        // 16-step strip: loop window solid, outside dotted, offset start marked.
+        const len = v.loop || 16, start = ((v.offset % 16) + 16) % 16;
+        for (let i = 0; i < 16; i++) {
+          const x = 8 + i * 7, inLoop = ((i - start + 16) % 16) < len;
+          if (inLoop) p.rect(x, 34, 6, 5); else p.box(x, 34, 6, 5, true);
+        }
+        const ax = 8 + start * 7 + 2; p.rect(ax, 32, 2, 1); p.dot(ax - 1, 32); p.dot(ax + 2, 32);
       } else {
         key(p, "REV", 1, 11, 30, v.mode === 1); key(p, "STUT", 33, 11, 30, v.mode === 2); key(p, "STOP", 65, 11, 30, v.mode === 3); key(p, "RST", 97, 11, 30, false);
         STYLES.forEach((s, i) => key(p, s.slice(0, 5).toUpperCase(), 1 + i * 42, 24, 41, v.style === s));
         CMODES.forEach((m, i) => key(p, m.toUpperCase(), 1 + i * 32, 37, 31, (v.chordMode ?? "pad") === m));
-        p.text("HOLD  TENSION  CHORD MODE", 2, 54);
+        p.box(2, 49, 124, 14);
+        if (v.mode === 1) { p.line(110, 56, 18, 56); p.line(18, 56, 24, 52); p.line(18, 56, 24, 60); p.text("REV", 54, 51); }
+        else if (v.mode === 2) { for (let i = 0; i < 8; i++) p.rect(8 + i * 14, 52, 8, 8); }
+        else if (v.mode === 3) { p.line(6, 52, 70, 54); p.line(70, 54, 120, 61); p.text("STOP", 96, 51); }
+        else p.textC("HOLD A KEY", 64, 54);
       }
     }}
-    extra={page => page === "SEQ" ? <>
-      {LOOPS.map((n, i) => <Tap key={n} x={1 + i * 18} y={11} w={17} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}
-      {DIVS.map(([d, s], i) => <Tap key={s} x={1 + i * 22} y={22} w={21} h={9} label={`Repeat length ${s}`} pressed={v.division === d} onClick={() => set({ division: d })} />)}
+    extra={page => page === "FX" ? <Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} />
+    : page === "ECO" ? <Zone x={2} y={11} w={124} h={30} horizontal label="Echo time pad" value={v.echoDiv ?? 3} min={0} max={ECHO_DIVS.length - 1} step={1} onChange={echoDiv => set({ echoDiv })} />
+    : page === "SEQ" ? <>
+      {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}
+      {DIVS.map(([d, s], i) => <Tap key={s} x={2 + i * 31} y={22} w={30} h={9} label={`Repeat length ${s}`} pressed={v.division === d} onClick={() => set({ division: d })} />)}
+      <Zone x={8} y={32} w={112} h={8} horizontal label="Offset strip" value={v.offset} min={-8} max={8} step={1} onChange={offset => set({ offset })} />
     </> : page === "HLD" ? <>
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
       <Tap x={97} y={11} w={30} h={9} label="Reset performance" onClick={() => set({ time: 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, echoSend: 0 })} />
