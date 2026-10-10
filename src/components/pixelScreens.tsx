@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
+import { textWidth } from "@/pixel/font";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 
@@ -12,19 +13,26 @@ export const st = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}ST`;
 
 export type Knob = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
 
+// Measured tab layout: each tab is as wide as its word plus padding, right-aligned with 1px gaps.
+export function tabLayout(pages: readonly string[]) {
+  const widths = pages.map(pg => textWidth(pg) + 2);
+  const total = widths.reduce((a, b) => a + b, 0) + pages.length - 1;
+  let x = 128 - total;
+  return pages.map((pg, i) => { const t = { pg, x, w: widths[i] }; x += widths[i] + 1; return t; });
+}
+
 // Inverted title bar with machine name, live readout and page tabs.
 export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string) {
   p.invert(0, 0, 128, 9);
-  const tw = pages.length * 15;
+  const tabs = tabLayout(pages);
   p.text(name.slice(0, 8), 2, 2, false);
-  const maxReadout = Math.max(0, Math.floor((129 - tw - 40) / 4));
+  const maxReadout = Math.max(0, Math.floor((tabs[0].x - 40) / 4));
   p.text(readout.slice(0, maxReadout), 38, 2, false);
-  pages.forEach((pg, i) => { const x = 129 - tw + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
+  tabs.forEach(({ pg, x, w }) => { if (pg === page) { p.rect(x, 1, w, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
 }
 
 export function tabZones(pages: readonly string[], page: string, setPage: (p: string) => void) {
-  const tw = pages.length * 15;
-  return pages.map((pg, i) => <Tap key={pg} x={128 - tw + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />);
+  return tabLayout(pages).map(({ pg, x, w }) => <Tap key={pg} x={x} y={0} w={w} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />);
 }
 
 export function drawKnobs(p: Px, knobs: Knob[]) {
