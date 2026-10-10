@@ -299,7 +299,8 @@ export function useGroovebox() {
         for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); pressed.current.clear(); idle();
         setError("AUDIO INTERRUPTED · TAP TO RESUME");
       } else if (st === "running") {
-        if (interrupted.current) { interrupted.current = false; if (t.state === "paused") t.start(); } // no offset: a STOP issued right after still lands after this start
+        // Deferred so a STOP tap that caused the resume (pointerdown precedes click) cancels the restart first.
+        if (interrupted.current) window.setTimeout(() => { if (interrupted.current && t.state === "paused") { interrupted.current = false; t.start(); } }, 120);
         setError(e => (e.startsWith("AUDIO INTERRUPTED") ? "" : e));
       }
     };
