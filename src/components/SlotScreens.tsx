@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
@@ -8,37 +10,59 @@ import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
 const ENG: [EngineKind, string][] = [["drum", "DRM"], ["synth", "SYN"], ["sampler", "SMP"], ["poly", "PLY"], ["808", "808"], ["siren", "SRN"]];
 
+function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9 \-]/g, "").slice(0, 10);
+  const submit = () => { const c = v.trimEnd(); if (c) onSave(c); onClose(); };
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <form onSubmit={e => { e.preventDefault(); submit(); }}
+        className="w-full max-w-sm border-4 border-foreground bg-background text-foreground"
+        style={{ fontFamily: "Silkscreen, monospace", imageRendering: "pixelated" }}>
+        <div className="flex items-center justify-between bg-foreground px-3 py-1 text-background text-sm uppercase tracking-widest">
+          <span>Rename slot</span><span>{v.length}/10</span>
+        </div>
+        <div className="p-4 space-y-4">
+          <input autoFocus value={v} maxLength={10} aria-label="Slot name"
+            onChange={e => setV(clean(e.target.value))}
+            onKeyDown={e => { if (e.key === "Escape") onClose(); }}
+            onFocus={e => e.currentTarget.select()}
+            className="w-full border-2 border-foreground bg-background px-3 py-2 text-2xl uppercase tracking-[0.2em] text-foreground outline-none caret-foreground focus:bg-foreground/10"
+            style={{ fontFamily: "Silkscreen, monospace", borderRadius: 0 }} />
+          <div className="grid grid-cols-2 gap-3 text-sm uppercase tracking-widest">
+            <button type="button" onClick={onClose} className="border-2 border-foreground py-2 hover:bg-foreground/10">Cancel</button>
+            <button type="submit" className="border-2 border-foreground bg-foreground py-2 text-background">OK</button>
+          </div>
+        </div>
+      </form>
+    </div>, document.body);
+}
+
 export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
-  const rename = () => {
-    const next = window.prompt("Rename slot", slot.name);
-    if (next !== null) {
-      const clean = next.toUpperCase().replace(/[^A-Z0-9 \-]/g, "").slice(0, 10).trimEnd();
-      if (clean) onChange({ name: clean });
-    }
-  };
+  const [renaming, setRenaming] = useState(false);
   const knobs: Knob[] = slot.engine === "sampler" ? [] : [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
   ];
-  return <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan]} knobs={() => knobs}
+  return <>
+    <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan]} knobs={() => knobs}
     body={p => {
       ENG.forEach(([e, s], i) => key(p, s, 1 + i * 21, 11, 21, slot.engine === e));
       p.box(1, 22, 62, 9);
       p.text(name.trimEnd() || "—", 4, 24);
-      key(p, "EDIT", 64, 22, 30, false);
+      key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
       key(p, slot.choke ? `CHK${slot.choke}` : "CHK-", 96, 22, 31, slot.choke > 0);
-      key(p, slot.mute ? "MUTED" : "MUTE", 64, 34, 30, slot.mute);
-      p.text("TAP NAME TO RENAME", 2, 36);
-      if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 50);
+      if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 36);
     }}
     extra={() => <>
       {ENG.map(([e], i) => <Tap key={e} x={1 + i * 21} y={11} w={21} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e })} />)}
-      <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={rename} />
-      <Tap x={64} y={22} w={30} h={9} label="Edit slot name" onClick={rename} />
-      <Tap x={64} y={34} w={30} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
+      <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
+      <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
-    </>} />;
+    </>} />
+    {renaming && <RenameDialog value={slot.name} onClose={() => setRenaming(false)} onSave={n => onChange({ name: n })} />}
+  </>;
 }
 
 const VOI = Object.keys(CHORDS) as (keyof typeof CHORDS)[];
