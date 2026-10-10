@@ -135,7 +135,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           drawFxVisual(p, f, levels);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
-          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 31, 9, !ok); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
+          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 5) * 25, y = 10 + Math.floor(k / 5) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 24, 9, !ok); p.textC(nm(t).slice(0, 5), x + 12, y + 2); });
           const lw = Math.round(Math.min(1, load / MAX_FX_LOAD) * 90); p.text(load > MAX_FX_LOAD ? "OVER" : load + 1 > MAX_FX_LOAD ? "FULL" : "LOAD", 1, 57); p.box(30, 56, 92, 7); p.rect(31, 57, lw, 5);
         }
       }}
@@ -146,7 +146,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>
-        {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 4) * 32} y={10 + Math.floor(k / 4) * 9} w={31} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
+        {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 5) * 25} y={10 + Math.floor(k / 5) * 9} w={24} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
       </>} />
   </div>;
 }
