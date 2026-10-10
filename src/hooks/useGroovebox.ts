@@ -183,9 +183,9 @@ export function useGroovebox() {
     const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     const run = (t: number, gate: number, idx?: number) => {
-      // Chord voices are grouped under one stop handle; drums remain bounded to one hit per pad.
-      e.mono[i]?.stop(t);
-      if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.mono[j]?.stop(t); e.mono[j] = null; } });
+      // Retriggers let the previous voice ring out per its release (like the 808); choke groups cut
+      // every ringing voice in the same group immediately, and never touch other groups.
+      if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       const ns = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const voices = ns.map((offset, k) => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
