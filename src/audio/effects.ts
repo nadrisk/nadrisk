@@ -116,7 +116,7 @@ class Smash extends AudioWorkletProcessor {
     // FET "all buttons in": near-instant attack, very high ratio, program-dependent release, driven input stage.
     const x = ins[0], y = outs[0]; if (!x || !x.length) return true; const a = p.amount[0];
     if (a < .001) { for (let c = 0; c < y.length; c++) y[c].set(x[c] || x[0]); return true; }
-    const th = Math.pow(10, (-6 - a * 30) / 20), ratio = 4 + a * 26, pre = 1 + a * 3, mk = Math.pow(10, a * 22 / 20), ka = 1 - Math.exp(-1 / (sampleRate * .0002));
+    const th = Math.pow(10, (-6 - a * 30) / 20), ratio = 4 + a * 26, pre = 1 + a * 3, mk = Math.pow(10, a * 30 / 20), ka = 1 - Math.exp(-1 / (sampleRate * .0002));
     for (let n = 0; n < y[0].length; n++) {
       const v = Math.max(Math.abs((x[0][n] || 0) * pre), Math.abs(((x[1] || x[0])[n] || 0) * pre));
       this.r = this.r * .9995 + (v > th ? .0005 : 0);
@@ -210,7 +210,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const sh = Tone.getContext().createAudioWorkletNode("nad-sh", { numberOfInputs: 1, outputChannelCount: [3] }) as unknown as AudioWorkletNode, split = ctx.createChannelSplitter(3), mT = ctx.createGain(), mF = ctx.createGain(), mB = ctx.createGain();
     nodes.push(sh, split, mT, mF, mB); sh.connect(split); split.connect(mT, 0); split.connect(mF, 1); split.connect(mB, 2);
     clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, fbMod, clip, fbAmt);
-    fb.gain.value = 0; env.channelCountMode = "explicit"; env.channelCount = 2;
+    fb.gain.value = 0;
     input.connect(env); env.connect(fbAmt).connect(fb.gain);
     input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(fbMod).connect(clip).connect(d);
     mT.connect(d.delayTime); mF.connect(lp.detune); mB.connect(fbMod.gain);
