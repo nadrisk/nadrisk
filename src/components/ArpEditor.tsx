@@ -57,12 +57,12 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
         } else {
           keysFor(page).forEach(([s, , x, on]) => pkey(p, s, x, 11, 30, on));
           if (page === "LOOP") {
-            p.text(`${step ? "EACH HIT = NEXT" : "HOLD TO RUN"} ${phraseOrder(arp).length}ST`.slice(0, 31), 2, 24);
+            p.text(`${step ? "EACH HIT: NEXT" : "HOLD TO RUN"} ${phraseOrder(arp).length}ST`.slice(0, 31), 2, 24);
             arp.cells.slice(0, arp.steps).forEach((c, i) => { const x = i * W; if (looped(i)) p.rect(x + 1, 33, W - 2, 6); else if (c.on) p.rect(x + 1, 37, W - 2, 2); });
             return;
           }
           p.text(page === "KEY" ? `${NOTE_NAMES[arp.root]} ${arp.scale.toUpperCase()} OCT${arp.octave}` : arp.sync ? `RATE ${arp.rate}` : `FREE ${arp.freeMs}MS`, 2, 25);
-          p.text((!arp.on ? "OFF: TURN ON IN SEQ" : step ? "STEP: EACH HIT = NEXT" : `RUN: HOLD ${slotName}`).slice(0, 31), 2, 34);
+          p.text((!arp.on ? "OFF: TURN ON IN SEQ" : step ? "STEP: HITS ADVANCE" : `RUN: HOLD ${slotName}`).slice(0, 31), 2, 34);
         }
       }}
       extra={page => page === "SEQ"
