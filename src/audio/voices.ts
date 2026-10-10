@@ -255,16 +255,17 @@ export function stretchBuffer(ctx: BaseAudioContext, buf: AudioBuffer, ratio: nu
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   if (p.stretch && Math.abs((p.stretchAmt ?? 1) - 1) > .01) buf = stretchBuffer(ctx, buf, p.stretchAmt ?? 1, p.stretchGrain ?? .05);
-  const src = ctx.createBufferSource(); src.buffer = buf;
+  const src = ctx.createBufferSource();
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
   let offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
   if (p.loop) {
     const endSec = Math.max(offset + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
     const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - offset) / 2 - 0.005));
     const baked = xf > 0.004 ? loopBufferOf(ctx, buf, offset, endSec, xf) : null;
+    // A source buffer can only be assigned once, so the baked crossfade loop is chosen before assignment.
     if (baked) { src.buffer = baked; src.loop = true; src.loopStart = 0; src.loopEnd = baked.duration; offset = 0; }
-    else { src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
-  }
+    else { src.buffer = buf; src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
+  } else src.buffer = buf;
   src.connect(amp);
   // The sampler follows the gate (finger down / step length), then fades by RELEASE. One-shots that end
   // before the gate just end; slices stop at their slice edge. Loops sustain for the whole gate.
