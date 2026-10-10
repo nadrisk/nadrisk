@@ -81,7 +81,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       drawWaveIcon(p, o.wave, 2, 11, 22, 12);
       p.text(`${o.wave.slice(0, 5).toUpperCase()} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
-      if (k === "osc1" && o.wave === "additive") {
+      if (o.wave === "additive") {
         // A bounded 16-partial display leaves a clean row for the four knobs below.
         p.box(2, 25, 124, 19, true);
         for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
@@ -103,12 +103,12 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const extra = (page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      const waves: (Wave | "additive")[] = k === "osc1" ? ["sine", "triangle", "sawtooth", "square", "additive"] : ["sine", "triangle", "sawtooth", "square"];
-      const idx = Math.max(0, waves.indexOf(o.wave as Wave));
+      const waves: (Wave | "additive")[] = ["sine", "triangle", "sawtooth", "square", "additive"];
+      const idx = Math.max(0, waves.indexOf(o.wave));
       return <>
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
-        {k === "osc1" && o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
+        {o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
           <Zone key={i} x={3 + i * 7.6} y={26} w={7} h={17} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
             onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
         ))}
