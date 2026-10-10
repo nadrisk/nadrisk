@@ -677,11 +677,14 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .node-heading { border-radius: 0 !important; padding: 2px 6px !important; font-family: 'Silkscreen', monospace !important; font-size: 8px !important; letter-spacing: .1em; }
 .instrument-workspace .node-heading .node-tag { border: 0 !important; padding: 0 !important; font-size: 8px !important; }
 .instrument-workspace .node-ports { display: none !important; }
-.instrument-workspace .gb-editor-body { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px !important; align-items: stretch; }
-.instrument-workspace .gb-ed-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.instrument-workspace .gb-ed-col > * { flex: 1 0 auto; display: flex; flex-direction: column; }
-.instrument-workspace .gb-ed-col .px-wrap { flex: 1 0 auto; align-items: center; }
-@media (max-width: 700px) { .instrument-workspace .gb-editor-body { grid-template-columns: 1fr; } }
+.instrument-workspace .gb-editor-body { display: flex; flex-direction: column; gap: 0; padding: 0 !important; }
+.instrument-workspace .gb-editor-body > * + * { border-top: 1px solid hsl(var(--foreground)); }
+.instrument-workspace .gb-ed-main .px-wrap { justify-content: center; }
+.instrument-workspace .gb-ed-sub { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0; }
+.instrument-workspace .gb-ed-sub > * + * { border-left: 1px solid hsl(var(--foreground)); }
+.instrument-workspace .gb-ed-sub .px-wrap { justify-content: center; }
+.instrument-workspace .gb-editor-body .patch-node, .instrument-workspace .gb-editor-body .px-wrap { border: 0 !important; margin: 0 !important; }
+.instrument-workspace { gap: 0 !important; }
 
 /* Hardware pass: every remaining DOM control is a square 1-bit key. */
 
