@@ -154,14 +154,13 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   const trem = ctx.createGain(); trem.connect(amp);
   const mix = ctx.createGain();
-  const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay);
-  filt.frequency.cancelScheduledValues(t); filt.frequency.value = p.cutoff;
-  modAdsr(filt.detune, t, p.filterEnvShape, gate, 0, p.filterEnv * 1200);
+  const filt = ctx.createBiquadFilter(); filt.type = p.filter; filt.Q.value = p.res;
+  filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, p.filterEnv);
   const wet = ctx.createGain(); wet.gain.value = p.wet; const dry = ctx.createGain(); dry.gain.value = 1 - p.wet;
   mix.connect(filt).connect(wet).connect(trem); mix.connect(dry).connect(trem);
-  const makeOsc = (o: OscParams) => {
+  const makeOsc = (o: OscParams, partials: number[]) => {
     const osc = at(ctx.createOscillator(), t);
-    if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, p.partials)); else osc.type = o.wave;
+    if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, partials)); else osc.type = o.wave;
     osc.frequency.value = base * 2 ** (o.coarse / 12);
     modAdsr(osc.detune, t, p.pitchEnvShape, gate, o.fine, p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
