@@ -62,6 +62,19 @@ function filterWithEnv(ctx: BaseAudioContext, t: number, kind: FilterKind, cutof
   return f;
 }
 
+/** Full ADSR on a filter's frequency: attack sweeps to cutoff*2^envOct, decays toward the sustain
+ *  octave point, releases back to cutoff. Scheduled directly on frequency (not detune) so every
+ *  fresh voice retriggers cleanly, including rapid repeated and overlapping notes. */
+function filterEnvAdsr(f: AudioParam, t: number, e: ADSR | undefined, gate: number, cutoff: number, envOct: number) {
+  e ??= { a: .001, d: .2, s: 0, r: .02 };
+  const base = clampF(cutoff), peak = clampF(cutoff * 2 ** envOct), sus = clampF(cutoff * 2 ** (envOct * e.s));
+  f.setValueAtTime(base, t);
+  f.linearRampToValueAtTime(peak, t + Math.max(.001, e.a));
+  f.setTargetAtTime(sus, t + Math.max(.001, e.a), e.d / 3 + .001);
+  const rel = t + Math.max(gate, e.a);
+  f.setTargetAtTime(base, rel, e.r / 3 + .001);
+}
+
 export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ pAtk: 0, pCurve: .7, pEnd: 0, fmDecay: .08, transient: k === "kick" ? .4 : .2, bodyDecay: k === "snare" ? .12 : .3, noiseDecay: k === "snare" ? .18 : .1, noiseTone: k === "clap" ? 1200 : 2500, tone2: k === "clap" ? 2.5 : 1.58, spread: 1, bursts: 4, burstGap: .009, tail: .6, drive: 0, fltBase: 20, fltWidth: 10 });
 const mach = (p: DrumParams) => ({ ...drumDefaults(p.kind), ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) }) as DrumParams & Required<DrumMachine>;
 
