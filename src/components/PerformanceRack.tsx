@@ -101,6 +101,6 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
     </> : null} />
-  <button type="button" className="gb-perf-reset" aria-label="Reset performance" onPointerDown={e => { e.preventDefault(); reset(); }} onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); reset(); } }}>RESET · DROP</button>
+  <button type="button" className="gb-perf-reset" aria-label="Reset performance" onPointerDown={e => { e.preventDefault(); reset(); }} onClick={reset} onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); reset(); } }}>RESET · DROP</button>
   </div>;
 }
