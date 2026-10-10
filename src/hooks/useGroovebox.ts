@@ -28,8 +28,6 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, pitchEnvShape: { a: .001, d: .05, s: 0, r: .02 }, filterEnvShape: { a: .001, d: .2, s: 0, r: .02 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 /** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
-/** Temporary pad diagnostics (shown with ?padtest=1): taps received vs voices started vs failures. */
-export const padStats = { tap: 0, play: 0, err: 0, late: 0, audio: "", msg: "" };
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
@@ -212,10 +210,10 @@ export function useGroovebox() {
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
-      // Ring list: every live voice per pad, pruned when silent and capped at 4 so rapid rolls never overload the audio thread.
+      // Ring list: every live voice per pad, pruned when silent and capped at 6 so rapid rolls never overload the audio thread.
       const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0));
       rl.push({ stop: e.mono[i]!.stop, until: Math.max(now0, t) + gate + 8 });
-      if (rl.length > 4) rl.splice(0, rl.length - 4).forEach(r => r.stop(t));
+      if (rl.length > 6) rl.splice(0, rl.length - 6).forEach(r => r.stop(t));
       // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
       const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
     };
@@ -225,8 +223,8 @@ export function useGroovebox() {
       for (let k = 0; k * rs < gate0 - .001 && k < 64; k++) run(t0 + k * rs, Math.min(rs * .9, gate0 - k * rs), k);
       return;
     }
-    try { run(t0, gate0, noteIdx); padStats.play++; }
-    catch (err) { padStats.err++; padStats.msg = String((err as Error)?.message ?? err).slice(0, 60); console.warn("pad voice failed", err); }
+    try { run(t0, gate0, noteIdx); }
+    catch (err) { console.warn("pad voice failed", err); }
   }, []);
 
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
@@ -444,7 +442,6 @@ export function useGroovebox() {
   const getMasterDyn = useCallback((): { gr: number; out: number } | null => engine.current?.performance.dyn() ?? null, []);
 
   const hit = useCallback(async (i: number) => {
-    padStats.tap++;
     // Fast path: audio already running, so play synchronously with no await.
     pressed.current.add(i);
     const e = engine.current;
