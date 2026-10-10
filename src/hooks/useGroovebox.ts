@@ -19,7 +19,7 @@ export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFr
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -63,6 +63,10 @@ export const ROLLS = [1, 2, 3, 4, 6, 8];
 const ones = () => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(1));
 const makeBank = (pattern: StepVal[][]): Bank => ({ pattern, lengths: Array(16).fill(STEPS), vel: ones(), chance: ones(), ratchet: ones() });
 const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => r.map(v => (v === 3 ? 2 : v) as StepVal)), lengths: b.lengths ?? Array(16).fill(STEPS), vel: b.vel ?? ones(), chance: b.chance ?? ones(), ratchet: b.ratchet ?? ones() });
+/** Engines whose pad taps sustain until the finger lifts. */
+const heldEngine = (s: Slot) => s.engine === "poly" || s.engine === "siren" || s.engine === "sampler";
+/** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
+const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? s.poly.env.r : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? s.siren?.release ?? .4 : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
 function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
   let r = reversed.get(b); if (r) return r;
@@ -207,10 +211,13 @@ export function useGroovebox() {
         : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel)
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
-      e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
+      const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
+      e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), release: rel, glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
       // Ring list: every live voice per pad, pruned when silent and capped at 6 so rapid rolls never overload the audio thread.
-      const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0));
-      rl.push({ stop: e.mono[i]!.stop, until: Math.max(now0, t) + gate + 8 });
+      // Earlier tails fade with the pad's current release, so a shortened release is heard on the very next hit.
+      const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0)), curR = relOf(s);
+      if (idx === undefined || idx === 0) rl.forEach(r => r.release(t, curR));
+      rl.push({ stop: e.mono[i]!.stop, release: rel, until: Math.max(now0, t) + gate + 8 });
       if (rl.length > 6) rl.splice(0, rl.length - 6).forEach(r => r.stop(t));
       // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
       const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
@@ -289,7 +296,7 @@ export function useGroovebox() {
     pressed.current.delete(i);
     const h = holds.current.get(i);
     if (h?.kind === "repeat" && repeatRef.current.latch) return;
-    if (!h) { const slot = slotsRef.current[i], e = engine.current; if (e && (slot.engine === "poly" || slot.engine === "siren" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)))) e.mono[i]?.stop(e.ctx.currentTime); return; }
+    if (!h) { const slot = slotsRef.current[i], e = engine.current; if (e && heldEngine(slot)) e.mono[i]?.release?.(e.ctx.currentTime, relOf(slot)); return; }
     stopHold(i);
   }, [stopHold]);
   const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "poly" || s.engine === "sampler") && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
@@ -297,10 +304,10 @@ export function useGroovebox() {
     const slot = slotsRef.current[i], e = engine.current;
     if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
     if (e) recordHit(i, e.ctx.currentTime, 1);
-    if (slot.arp.on && slot.arp.mode === "step") { const lg = slot.engine === "poly" || slot.engine === "siren" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined; if (stepHit(i, undefined, 1, lg)) flash(i); }
+    if (slot.arp.on && slot.arp.mode === "step") { const lg = heldEngine(slot) ? 60 : undefined; if (stepHit(i, undefined, 1, lg)) flash(i); }
     else if (slot.arp.on) startHold(i, "phrase");
     else if (isChordArp(slot)) startHold(i, "chord");
-    else { trigger(i, undefined, 1, 0, slot.engine === "poly" || slot.engine === "siren" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined); flash(i); }
+    else { trigger(i, undefined, 1, 0, heldEngine(slot) ? 60 : undefined); flash(i); }
   }, [startHold, stopHold, trigger, recordHit, stepHit]);
   const setRepeat = useCallback((r: RepeatParams) => { if (!r.on || !r.latch) [...holds.current].forEach(([i, h]) => { if (h.kind === "repeat" && (!r.on || !pressed.current.has(i))) stopHold(i); }); setRepeatState(r); }, [stopHold]);
   const setPadVel = useCallback((i: number, v: number) => { padVel.current[i] = v; }, []);
@@ -449,7 +456,14 @@ export function useGroovebox() {
   }, [ensure, play]);
 
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
-  const resetCursor = (i: number, patch: Partial<Slot>) => { if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0; };
+  const resetCursor = (i: number, patch: Partial<Slot>) => {
+    if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
+    // A shorter release re-times tails that are still ringing (a held note keeps sounding until lift).
+    const e = engine.current, old = slotsRef.current[i]; if (!e || !old) return;
+    const r = relOf({ ...old, ...patch }); if (r >= relOf(old)) return;
+    const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
+    e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
+  };
   const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.

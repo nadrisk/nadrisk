@@ -395,6 +395,5 @@ export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams
   const peak = vel * (p.wave === "sine" ? .5 : .28), hold = Math.max(gate, .02);
   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .005); amp.gain.setTargetAtTime(0, t + hold, p.release / 3 + .005);
   const v = finish(srcs, nodes, t + hold + p.release * 2 + .1, amp);
-  const stop = v.stop; v.stop = st => { amp.gain.cancelScheduledValues(st); amp.gain.setTargetAtTime(0, st, p.release / 3 + .005); stop(st + p.release * 2 + .05); };
   return v;
 }
