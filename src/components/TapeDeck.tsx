@@ -1,20 +1,11 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Circle, Download, Play, Square, Trash2 } from "lucide-react";
+import { Tap } from "@/pixel/PixelScreen";
+import type { Px } from "@/pixel/draw";
+import { Panel } from "@/components/pixelScreens";
 import { createTape, encodeMp3, encodeWav, MAX_TAPE_SEC, type Take } from "@/audio/tape";
 
 type Source = () => Promise<{ ctx: BaseAudioContext; node: AudioNode } | null>;
 const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}.${Math.floor((s % 1) * 10)}`;
-
-function Reel({ fill, spin, reverse }: { fill: number; spin: boolean; reverse?: boolean }) {
-  const r = 14 + fill * 22;
-  return <svg viewBox="0 0 100 100" className={`tape-reel ${spin ? "spin" : ""} ${reverse ? "rev" : ""}`} aria-hidden="true">
-    <circle cx="50" cy="50" r={r + 8} className="tape-pack" />
-    <circle cx="50" cy="50" r="46" className="tape-flange" />
-    {[0, 120, 240].map(a => <path key={a} transform={`rotate(${a} 50 50)`} d="M50 50 L42 12 A40 40 0 0 1 58 12 Z" className="tape-window" />)}
-    <circle cx="50" cy="50" r="9" className="tape-hub" />
-    {[0, 60, 120, 180, 240, 300].map(a => <rect key={a} transform={`rotate(${a} 50 50)`} x="48.5" y="40" width="3" height="5" className="tape-tooth" />)}
-  </svg>;
-}
 
 /** tape.rec~ — records the final master output; exports WAV (16-bit) or MP3 (320 kbps), all on the device. */
 function TapeDeck({ getSource }: { getSource: Source }) {
@@ -55,26 +46,30 @@ function TapeDeck({ getSource }: { getSource: Source }) {
     else { setBusy("encoding mp3 0%"); blob = await encodeMp3(take, p => setBusy(`encoding mp3 ${Math.round(p * 100)}%`)); setBusy(""); }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   };
-  const fill = Math.min(1, secs / 180), spinning = state !== "idle";
+  const fill = Math.min(1, secs / 180);
 
+  const ang = secs * 3;
+  const reel = (p: Px, cx: number, f: number) => { p.circle(cx, 24, 12); p.circle(cx, 24, Math.max(3, Math.round(4 + f * 7))); p.circle(cx, 24, 2); for (let k = 0; k < 3; k++) { const a = ang + k * 2.094; p.line(cx + 3 * Math.cos(a), 24 + 3 * Math.sin(a), cx + 10 * Math.cos(a), 24 + 10 * Math.sin(a)); } };
+  const keys: [string, string, number, boolean, () => void][] = [
+    ["REC", "Record master", 1, state !== "rec", record], ["STOP", "Stop tape", 33, state !== "idle", stop], ["PLAY", "Play take", 65, !!url && state === "idle", play], ["CLR", "Clear take", 97, !!take && state === "idle", () => { setTake(null); setUrl(null); setSecs(0); }],
+  ];
+  const ex: [string, string, number, () => void][] = [["WAV", "Download WAV", 1, () => save("wav")], ["MP3", "Download MP3", 65, () => save("mp3")]];
   return <div className="node-body tape-deck">
-    <div className={`tape-machine ${state}`}>
-      <Reel fill={1 - fill} spin={spinning} />
-      <div className="tape-path" aria-hidden="true"><i className="tape-guide" /><span className="tape-head">{state === "rec" ? "REC" : state === "play" ? "PB" : "HEAD"}</span><i className="tape-guide" /></div>
-      <Reel fill={fill} spin={spinning} />
-    </div>
-    <div className="tape-counter"><span className={`tape-lamp ${state === "rec" ? "on" : ""}`} />{clock(secs)}<span className="patch-small">{state === "rec" ? "recording master" : take ? "take ready" : "empty reel"}</span></div>
-    <div className="tape-buttons">
-      <button className={`gb-mute tape-rec ${state === "rec" ? "selected" : ""}`} aria-label="Record master" aria-pressed={state === "rec"} disabled={state === "rec"} onClick={record}><Circle size={11} /> REC</button>
-      <button className="gb-mute" aria-label="Stop tape" disabled={state === "idle"} onClick={stop}><Square size={11} /> STOP</button>
-      <button className="gb-mute" aria-label="Play take" disabled={!url || state !== "idle"} onClick={play}><Play size={11} /> PLAY</button>
-      <button className="gb-mute" aria-label="Clear take" disabled={!take || state !== "idle"} onClick={() => { setTake(null); setUrl(null); setSecs(0); }}><Trash2 size={11} /></button>
-    </div>
-    <div className="tape-buttons">
-      <button className="gb-mute" aria-label="Download WAV" disabled={!take || !!busy} onClick={() => save("wav")}><Download size={11} /> WAV</button>
-      <button className="gb-mute" aria-label="Download MP3" disabled={!take || !!busy} onClick={() => save("mp3")}><Download size={11} /> MP3 320</button>
-    </div>
-    <span className="patch-small">{busy || `records everything you hear · up to ${MAX_TAPE_SEC / 60} min`}</span>
+    <Panel name="TAPE" label="Tape recorder" pages={["REC"]} deps={[state, secs, !!take, busy]} knobs={() => []}
+      body={p => {
+        reel(p, 22, 1 - fill); reel(p, 106, fill);
+        p.line(22, 36, 106, 36); p.rect(58, 33, 12, 4);
+        p.textC(clock(secs), 64, 14);
+        p.textC(state === "rec" ? "REC" : state === "play" ? "PLAY" : take ? "READY" : "EMPTY", 64, 22, true);
+        if (state === "rec") p.rect(46, 22, 3, 5);
+        keys.forEach(([s, , x, en]) => { const on = (s === "REC" && state === "rec") || (s === "PLAY" && state === "play"); if (on) p.rect(x, 41, 30, 9); else p.box(x, 41, 30, 9, !en); p.textC(s, x + 15, 43, !on); });
+        ex.forEach(([s, , x]) => { p.box(x, 53, 62, 10, !take || !!busy); p.textC(s, x + 31, 56); });
+        if (busy) { p.rect(0, 53, 128, 10, false); p.textC(busy.toUpperCase().slice(0, 30), 64, 56); }
+      }}
+      extra={() => <>
+        {keys.map(([s, l, x, en, fn]) => <Tap key={s} x={x} y={41} w={30} h={9} label={l} disabled={!en} pressed={s === "REC" ? state === "rec" : undefined} onClick={fn} />)}
+        {ex.map(([s, l, x, fn]) => <Tap key={s} x={x} y={53} w={62} h={10} label={l} disabled={!take || !!busy} onClick={fn} />)}
+      </>} />
     {url && <audio ref={audio} src={url} onEnded={() => setState("idle")} hidden />}
   </div>;
 }

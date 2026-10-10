@@ -16,14 +16,14 @@ export default function Waveform({ analyser, playing, eco = false }: { analyser:
       if (eco && now - last < 66) { frame = requestAnimationFrame(draw); return; }
       last = now;
       const width = element.clientWidth, height = element.clientHeight;
-      const ratio = window.devicePixelRatio || 1;
+      const ratio = 1 / 3;
       if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio; }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
-      context.strokeStyle = grid; context.lineWidth = 1;
+      context.strokeStyle = grid; context.lineWidth = 3;
       for (let x = 0; x <= width; x += width / 8) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
       for (let y = 0; y <= height; y += height / 4) { context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
-      context.strokeStyle = line; context.lineWidth = 1.6; context.beginPath();
+      context.strokeStyle = line; context.lineWidth = 3; context.beginPath();
       const values = playing && analyser ? analyser.getValue() as Float32Array : null;
       for (let x = 0; x < width; x++) {
         const value = values ? Number(values[Math.floor(x / width * values.length)]) || 0 : 0;

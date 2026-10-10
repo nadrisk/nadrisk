@@ -37,16 +37,16 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
     const draw = (now = 0) => {
       raf = requestAnimationFrame(draw);
       if (now - last < (eco ? 66 : 16)) return; last = now;
-      const w = el.clientWidth, h = el.clientHeight, dpr = devicePixelRatio || 1;
+      const w = el.clientWidth, h = el.clientHeight, dpr = 1 / 3; // coarse pixel grid, scaled up nearest-neighbour
       if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = taps;
       if (t) { t.l.getFloatTimeDomainData(t.td as Float32Array<ArrayBuffer>); t.r.getFloatTimeDomainData(t.td2 as Float32Array<ArrayBuffer>); t.l.getByteFrequencyData(t.fd as Uint8Array<ArrayBuffer>); }
       const L = t?.td, Rr = t?.td2, F = t?.fd;
-      if (type !== "waterfall") { c.clearRect(0, 0, w, h); c.strokeStyle = G; c.lineWidth = 1; for (let x = 0; x <= w; x += w / 8) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } for (let y = 0; y <= h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
+      if (type !== "waterfall") { c.clearRect(0, 0, w, h); c.strokeStyle = G; c.lineWidth = 3; for (let x = 0; x <= w; x += w / 8) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } for (let y = 0; y <= h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
       c.font = "9px 'JetBrains Mono', monospace";
       if (type === "scope") {
-        [[L, A], [Rr, P]].forEach(([d, col]) => { c.strokeStyle = col as string; c.lineWidth = 1.4; c.beginPath();
+        [[L, A], [Rr, P]].forEach(([d, col]) => { c.strokeStyle = col as string; c.lineWidth = 3; c.beginPath();
           for (let x = 0; x < w; x++) { const v = d ? (d as Float32Array)[Math.floor((x / w) * 1024)] : 0; const y = h / 2 - v * h * 0.9; x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); });
       } else if (type === "spectrum") {
         const bars = Math.max(16, Math.floor(w / 5));

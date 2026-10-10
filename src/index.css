@@ -678,3 +678,28 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .node-heading .node-tag { border: 0 !important; padding: 0 !important; font-size: 8px !important; }
 .instrument-workspace .node-ports { display: none !important; }
 .instrument-workspace .gb-editor-body { display: flex; flex-direction: column; gap: 4px; padding: 4px !important; }
+
+/* Hardware pass: every remaining DOM control is a square 1-bit key. */
+.instrument-workspace .px-strip .px-wrap { max-width: 640px; }
+.instrument-workspace canvas.scope-canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+.instrument-workspace button:not(.px-zone), .instrument-workspace select, .instrument-workspace input:not([type=file]) {
+  border-radius: 0 !important; box-shadow: none !important; background-image: none !important; transition: none !important;
+  font-family: 'Silkscreen', monospace !important; text-transform: uppercase; letter-spacing: .04em;
+}
+.instrument-workspace select, .instrument-workspace input:not([type=file]) {
+  appearance: none; -webkit-appearance: none; background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--foreground)) !important; font-size: 8px !important; padding: 1px 4px !important; height: auto !important;
+}
+.instrument-workspace button:not(.px-zone) { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--foreground)) !important; }
+.instrument-workspace button:not(.px-zone)[aria-pressed="true"], .instrument-workspace button:not(.px-zone).selected, .instrument-workspace button:not(.px-zone).active, .instrument-workspace button:not(.px-zone).on { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; }
+.instrument-workspace button:not(.px-zone):disabled { border-style: dotted !important; opacity: 1 !important; }
+.instrument-workspace button svg { display: none; }
+/* pads: square blocks, solid while held */
+.instrument-workspace .gb-pads button { border-radius: 0 !important; }
+.instrument-workspace .gb-pads button:active, .instrument-workspace .gb-pads button.hit { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; }
+/* step cells: hard pixel squares */
+.instrument-workspace .gb-seq-grid button { border-radius: 0 !important; }
+/* sliders: flat bar, square thumb */
+.instrument-workspace [role="slider"]:not(.px-zone) { border-radius: 0 !important; box-shadow: none !important; }
+.instrument-workspace span[data-orientation] , .instrument-workspace .patch-slider * { border-radius: 0 !important; }
+.instrument-workspace .patch-small, .instrument-workspace .parameter-label { font-family: 'Silkscreen', monospace !important; font-size: 7px !important; text-transform: uppercase; }

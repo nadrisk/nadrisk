@@ -8,6 +8,7 @@ import TapeDeck from "./TapeDeck";
 import { RATES, type RateName } from "@/audio/arp";
 import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
+import { MasterScreen, MidiScreen, SeqScreen } from "@/components/HwScreens";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
 import FxChain from "./FxChain";
@@ -132,86 +133,48 @@ export default function Groovebox() {
   const custom = layout.preset === "custom";
 
   const nodes: Record<Section, ReactNode> = {
-    rack: <PatchNode label="drum.rack 4x4" tag="INSTRUMENT RACK" className="gb-rack">
+    rack: <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
       <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} />
       <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
     </PatchNode>,
-    editor: <PatchNode label={`slot.${String(g.selected + 1).padStart(2, "0")} ${s.engine}~`} tag="INSTRUMENT" className="gb-editor">
+    editor: <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor">
       <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
     </PatchNode>,
-    master: <PatchNode label="gain~ → nad.out~" tag="MASTER OUTPUT" className="gb-master">
+    master: <PatchNode label="MASTER" tag="MASTER OUTPUT" className="gb-master">
       <div className="node-body">
-        <div className="transport-body">
-          <Button variant="ghost" className={`transport-button ${g.playing ? "is-playing" : ""}`} onClick={g.togglePlay} aria-label={g.playing ? "Stop" : "Play"}>{g.playing ? <Square /> : <Play />}</Button>
-          <div><span className="transport-state">{g.playing ? "RUNNING" : "STOPPED"}</span><span className="patch-small">step {g.step < 0 ? "--" : (g.step % 16) + 1} / 16</span></div>
-        </div>
-        <div className="parameter-label">Tempo <span>{g.bpm} BPM</span></div>
-        <Slider aria-label="Tempo" resetValue={[124]} min={60} max={180} value={[g.bpm]} onValueChange={([v]) => g.setBpm(v)} className="patch-slider" />
-        <div className="parameter-label"><span className="volume-label"><Volume2 size={14} /> Master</span><span>{g.volume}%</span></div>
-        <Slider aria-label="Master volume" resetValue={[60]} min={0} max={100} value={[g.volume]} onValueChange={([v]) => g.setVolume(v)} className="patch-slider" />
-        <Button variant="ghost" size="sm" className={`gb-eco ${g.eco ? "on" : ""}`} aria-pressed={g.eco} onClick={() => g.setEco(!g.eco)}><Leaf size={12} /> eco mode {g.eco ? "on" : "off"}</Button>
-        <div className="gb-cols2">
-          <Button variant="ghost" size="sm" className={`gb-eco ${pf.clipOn ? "on" : ""}`} aria-label="Master clipper" aria-pressed={pf.clipOn} onClick={() => setPf({ clipOn: !pf.clipOn })}>clipper {pf.clipOn ? "on" : "off"}</Button>
-          <Button variant="ghost" size="sm" className={`gb-eco ${pf.limitOn ? "on" : ""}`} aria-label="Master limiter" aria-pressed={pf.limitOn} onClick={() => setPf({ limitOn: !pf.limitOn })}>limiter {pf.limitOn ? "on" : "off"}</Button>
-        </div>
-        <div className="parameter-label">Clip drive <span>{pf.clipDrive} dB</span></div>
-        <Slider aria-label="Clip drive" resetValue={[6]} disabled={!pf.clipOn} min={0} max={18} step={0.5} value={[pf.clipDrive]} onValueChange={([clipDrive]) => setPf({ clipDrive })} className="patch-slider" />
-        <div className="parameter-label">Limiter ceiling <span>{pf.ceiling} dB</span></div>
-        <Slider aria-label="Limiter ceiling" resetValue={[-1]} disabled={!pf.limitOn} min={-12} max={0} step={0.5} value={[pf.ceiling]} onValueChange={([ceiling]) => setPf({ ceiling })} className="patch-slider" />
-        <div className="gb-cols2">
-          <Button variant="ghost" size="sm" className={`gb-eco ${pf.mEqOn ? "on" : ""}`} aria-label="Mastering EQ" aria-pressed={!!pf.mEqOn} onClick={() => setPf({ mEqOn: !pf.mEqOn })}>master eq {pf.mEqOn ? "on" : "off"}</Button>
-          <Button variant="ghost" size="sm" className={`gb-eco ${pf.glueOn ? "on" : ""}`} aria-label="Glue compressor" aria-pressed={!!pf.glueOn} onClick={() => setPf({ glueOn: !pf.glueOn })}>glue {pf.glueOn ? "on" : "off"}</Button>
-        </div>
-        {pf.mEqOn && <div className="gb-cols2">{([["mHpf", "Sub cut", 10, 60, 1, " Hz", 25], ["mLow", "Low 90Hz", -6, 6, .5, " dB", 0], ["mMud", "Mud 300Hz", -6, 6, .5, " dB", 0], ["mPresence", "Presence 3k", -6, 6, .5, " dB", 0], ["mAir", "Air 12k", -6, 6, .5, " dB", 0]] as const).map(([k, l, mn, mx, st, u, d]) => <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{pf[k] ?? d}{u}</span></div><Slider aria-label={`Master ${l}`} resetValue={[d]} min={mn} max={mx} step={st} value={[pf[k] ?? d]} onValueChange={([v]) => setPf({ [k]: v })} className="patch-slider" /></div>)}</div>}
-        {pf.glueOn && <div className="gb-cols3">{([["glueThresh", "Glue thresh", -30, 0, .5, " dB", -12], ["glueRatio", "Ratio", 1, 4, .1, ":1", 2], ["glueMakeup", "Makeup", 0, 12, .5, " dB", 2]] as const).map(([k, l, mn, mx, st, u, d]) => <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{pf[k] ?? d}{u}</span></div><Slider aria-label={l} resetValue={[d]} min={mn} max={mx} step={st} value={[pf[k] ?? d]} onValueChange={([v]) => setPf({ [k]: v })} className="patch-slider" /></div>)}</div>}
-        <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
+        <MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} />
         <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
       </div>
     </PatchNode>,
-    phrase: <PatchNode label={`phrase.seq slot.${String(g.selected + 1).padStart(2, "0")}`} tag="PAD SEQUENCER · PRE-INSTRUMENT" className="gb-arpnode">
+    phrase: <PatchNode label={`PHRASE ${String(g.selected + 1).padStart(2, "0")}`} tag="PAD SEQUENCER · PRE-INSTRUMENT" className="gb-arpnode">
       <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />
     </PatchNode>,
-    perf: <PatchNode label="nad.performance~" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
+    perf: <PatchNode label="PERFORM" tag="MASTER · TENSION / CAPTURE" className="gb-mixnode">
       <PerformanceRack value={g.performance} onChange={g.setPerformance} />
     </PatchNode>,
-    tape: <PatchNode label="tape.rec~" tag="MASTER RECORDER · WAV / MP3" className="gb-mixnode gb-tapenode">
+    tape: <PatchNode label="TAPE" tag="MASTER RECORDER · WAV / MP3" className="gb-mixnode gb-tapenode">
       <TapeDeck getSource={tapSource} />
     </PatchNode>,
-    fx: <PatchNode label={`fx.chain slot.${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
+    fx: <PatchNode label={`FX ${String(g.selected + 1).padStart(2, "0")}`} tag="EFFECTS · SIGNAL ORDER" className="gb-fxnode">
       <FxChain slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} />
     </PatchNode>,
-    midi: <PatchNode label="midi.map~" tag="MIDI · LEARN" className="gb-mixnode">
+    midi: <PatchNode label="MIDI" tag="MIDI · LEARN" className="gb-mixnode">
       <div className="node-body gb-midi" data-midi-ui>
-        <div className="gb-seq-tools" style={{ padding: 0, flexWrap: "wrap" }}>
-          <Button variant="ghost" size="sm" onClick={midi.connect}>{midi.devices ? `${midi.devices.length} device${midi.devices.length === 1 ? "" : "s"}` : "connect midi"}</Button>
-          <Button variant="ghost" size="sm" className={`gb-eco ${midi.learn ? "on" : ""}`} style={{ marginTop: 0 }} aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>learn {midi.learn ? "on" : "off"}</Button>
-          <Button variant="ghost" size="sm" disabled={!midi.target || !Object.values(midi.maps).includes(midi.target)} onClick={() => midi.target && midi.unmap(midi.target)}>unmap</Button>
-          <Button variant="ghost" size="sm" disabled={!Object.keys(midi.maps).length} onClick={midi.clear}>clear all</Button>
-        </div>
-        <span className="patch-small">{midi.status || (midi.learn ? (midi.target ? `move a knob or hit a key for: ${midi.target}` : "tap any control, then move a knob or hit a key") : `${Object.keys(midi.maps).length} mappings · notes 36–51 play pads 1–16`)}</span>
-        {midi.devices && midi.devices.length > 0 && <span className="patch-small">{midi.devices.join(" · ")}</span>}
+        <MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} />
       </div>
     </PatchNode>,
-    vis: <PatchNode label="vis.rack~" tag="VISUALIZERS · METERS" className="gb-mixnode">
+    vis: <PatchNode label="VISUALS" tag="VISUALIZERS · METERS" className="gb-mixnode">
       <VisualizerRack master={g.engine.current?.master ?? null} eco={g.eco} />
     </PatchNode>,
-    sets: <PatchNode label="set.bank 8" tag="SAVED SETS · SONGS" className="gb-mixnode">
+    sets: <PatchNode label="MEMORY" tag="SAVED SETS · SONGS" className="gb-mixnode">
       <SetBank getSet={g.getSet} applySet={g.applySet} />
     </PatchNode>,
-    mixer: <PatchNode label="mixer~ 16ch" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
+    mixer: <PatchNode label="MIXER 16CH" tag="MIXER · VOL / MUTE / SOLO" className="gb-mixnode">
       <Mixer onEq={onEq} slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} />
     </PatchNode>,
-    seq: <PatchNode label={`step.seq 16 · pattern ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
-      <div className="gb-seq-tools">
-        <div className="gb-banks">{["A", "B"].map((n, b) => <button key={n} className={`gb-bank ${g.bank === b ? "active" : ""} ${g.queued === b ? "queued" : ""}`} aria-pressed={g.bank === b} onClick={() => g.selectBank(b)}>{n}</button>)}</div>
-        <div className="gb-banks gb-view">{(["note", "vel", "chance", "roll", "mod"] as View[]).map(v => <button key={v} className={`gb-bank ${view === v ? "active" : ""}`} aria-pressed={view === v} onClick={() => setView(v)}>{v === "chance" ? "CHNC" : v.toUpperCase()}</button>)}</div>
-        <Button variant="ghost" size="sm" onClick={g.copyBank}>copy → {g.bank ? "A" : "B"}</Button>
-        <Button variant="ghost" size="sm" onClick={g.randomizePattern}><Dice5 size={12} /> random</Button>
-        <Button variant="ghost" size="sm" onClick={g.clearPattern}><Eraser size={12} /> clear</Button>
-        <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
-      </div>
-      <span className="patch-small gb-seq-hint">{view === "mod" ? "pick a target per row · drag lit steps up / down to set the amount" : view === "vel" ? "drag lit steps up / down to set how hard each hit plays" : view === "chance" ? "drag lit steps up / down to set how likely each hit plays" : "tap: hit → tie → off · a dot means the step has velocity or chance set"}</span>
+    seq: <PatchNode label={`STEPSEQ ${g.bank ? "B" : "A"}`} tag="SEQUENCER" className="gb-seq">
+      <SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} />
       <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
     </PatchNode>,
   };
