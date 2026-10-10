@@ -7,7 +7,6 @@ import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
 const ENG: [EngineKind, string][] = [["drum", "DRM"], ["synth", "SYN"], ["sampler", "SMP"], ["poly", "PLY"], ["808", "808"], ["siren", "SRN"]];
-const CH = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
 
 export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
