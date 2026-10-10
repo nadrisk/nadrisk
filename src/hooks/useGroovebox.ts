@@ -286,6 +286,30 @@ export function useGroovebox() {
   }, [startHold, stopHold, trigger, recordHit, stepHit]);
   const setRepeat = useCallback((r: RepeatParams) => { if (!r.on || !r.latch) [...holds.current].forEach(([i, h]) => { if (h.kind === "repeat" && (!r.on || !pressed.current.has(i))) stopHold(i); }); setRepeatState(r); }, [stopHold]);
   const setPadVel = useCallback((i: number, v: number) => { padVel.current[i] = v; }, []);
+  // Audio interruptions (phone call, Siri, locked screen, OS suspends): silence booked notes and pause the
+  // transport in place, then resume on the next return/tap so playback continues without a burst of late notes.
+  const interrupted = useRef(false);
+  useEffect(() => {
+    const raw = ctxOf() as AudioContext;
+    const onState = () => {
+      if (!engine.current) return;
+      const st = raw.state as string, t = Tone.getTransport();
+      if (st !== "running" && st !== "closed") {
+        if (t.state === "started") { interrupted.current = true; t.pause(); }
+        for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); pressed.current.clear(); idle();
+        setError("AUDIO INTERRUPTED · TAP TO RESUME");
+      } else if (st === "running") {
+        if (interrupted.current) { interrupted.current = false; if (t.state === "paused") t.start("+0.05"); }
+        setError(e => (e.startsWith("AUDIO INTERRUPTED") ? "" : e));
+      }
+    };
+    const tryResume = () => { if (engine.current && raw.state !== "running" && raw.state !== "closed") raw.resume().catch(() => { /* needs a user gesture; the next tap retries */ }); };
+    const onVis = () => { if (document.visibilityState === "visible") tryResume(); };
+    raw.addEventListener("statechange", onState); document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pointerdown", tryResume, true); window.addEventListener("keydown", tryResume, true);
+    return () => { raw.removeEventListener("statechange", onState); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("pointerdown", tryResume, true); window.removeEventListener("keydown", tryResume, true); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelBooked]);
 
   const ensure = useCallback(async () => {
     await Tone.start(); await loadWorklets();
