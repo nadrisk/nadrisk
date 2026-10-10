@@ -18,17 +18,24 @@ Make the synth editors faster and clearer without changing their sound engines, 
 - Remove the duplicate vertical faders. Expand and reposition the square-stack visual into the freed area so it cannot overlap controls.
 - Make the visual react distinctly to the four voice controls: sub layer, pulse layer, chorus spread, and detune separation, while retaining the current detune response.
 
-### 2. Directly draggable ADSR graphs everywhere
+### 2. Give the synth three independent envelopes
+- Expand the synth from its current arrangement—one full volume ADSR plus simple amount/decay pitch and filter sweeps—to three independent full ADSR envelopes: AMP, PIT, and FLT.
+- Keep pitch and filter envelope amounts bipolar and separate from their timing/shape, so users can choose upward or downward modulation without coupling those envelopes to volume.
+- Turn the synth `ENV` viewer into a three-way AMP/PIT/FLT selector. The graph and bottom ATK/DEC/SUS/REL controls will update to the selected envelope.
+- Remove PENV from the LFO page. Re-center the remaining RATE, DPTH, and WET controls evenly beneath the LFO visualization.
+- Preserve older saved sets by filling missing pitch/filter ADSR data with defaults derived from their existing decay settings when a set is loaded.
+
+### 3. Directly draggable ADSR graphs everywhere
 - Add a shared interactive envelope overlay to the existing pixel graph.
 - Let users drag the visible ADSR handles in the familiar DAW style:
   - attack handle: horizontal attack time
   - decay/sustain handle: horizontal decay and vertical sustain
   - release handle: horizontal release time
-- Apply this same behavior to synth, poly, drum, and sampler ENV pages.
+- Apply this same behavior to all three synth envelopes and to the poly, drum, and sampler ENV pages.
 - Keep the four bottom ATK/DEC/SUS/REL knobs as precise alternatives, including keyboard, MIDI-learn, reset, and readout behavior.
 - Give each handle an adequate invisible touch target while keeping the visible 1-bit nodes small and crisp.
 
-### 3. Draw additive partial shapes
+### 4. Draw additive partial shapes
 - Replace the sixteen separate partial hit areas with one bounded draw surface over the existing sixteen bars.
 - On press and drag, map horizontal position to harmonic 1–16 and vertical position to level 0–100%; interpolate crossed bars so fast strokes create continuous shapes without gaps.
 - Keep the same sixteen partial values and existing additive audio path, so sets and sound behavior remain compatible.
@@ -37,12 +44,15 @@ Make the synth editors faster and clearer without changing their sound engines, 
 ## Technical scope
 - Update `EnsemblePanel.tsx` for the new VOX/FLT split and non-overlapping poly visualization.
 - Extend the shared pixel controls in `PixelScreen.tsx` and `pixelScreens.tsx` with reusable ADSR and multi-bar drawing interactions, plus the centered filter-curve geometry.
+- Update the synth parameter model and voice scheduling for independent AMP/PIT/FLT ADSRs, while keeping existing amount controls and backward-compatible set loading.
 - Adopt the shared envelope interaction in `CyberspacePanel.tsx`, `DrumkitPanel.tsx`, `EnsemblePanel.tsx`, and `WispdiskPanel.tsx`.
-- Add additive drawing in `CyberspacePanel.tsx`; leave `voices.ts`, transport, effects, sequencing, sets, recording, and master processing unchanged.
+- Add additive drawing in `CyberspacePanel.tsx`; leave transport, effects, sequencing, recording, and master processing unchanged.
 
 ## Verification
 - Check every poly page at tablet and phone widths for icon/control overlap and readable labels.
 - Sweep cutoff and resonance on the synth and poly filter pages; confirm the cutoff marker tracks correctly and the entire resonance peak stays inside the graph at maximum resonance.
-- Drag each ADSR handle on synth, poly, drum, and sampler screens; confirm the graph, bottom knobs, readout, saved state, and audible envelope stay synchronized.
+- Switch among AMP/PIT/FLT on the synth ENV screen and drag every ADSR handle; confirm each envelope remains independent, its graph/knobs/readout stay synchronized, and the audible volume, pitch, or filter response matches the selected envelope.
+- Recall an older set without the new pitch/filter ADSRs and confirm it retains its previous sound rather than failing or resetting unrelated settings.
+- Confirm the LFO page has no pitch-envelope control and its three remaining controls are centered without overlap.
 - Draw slow and fast additive curves across both oscillator pages; confirm all crossed harmonics update and saved sets recall the shape.
 - Confirm touch scrolling is not intercepted outside active graphs, themes still redraw all screens, MIDI-labelled controls remain discoverable, and no runtime or console errors appear.
