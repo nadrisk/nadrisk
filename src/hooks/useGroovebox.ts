@@ -384,6 +384,7 @@ export function useGroovebox() {
 
   const togglePlay = useCallback(async () => {
     try {
+      if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
       if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
