@@ -2,7 +2,7 @@ import { memo, useState } from "react";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import type { Wave } from "@/audio/voices";
+import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
 const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
 
@@ -12,6 +12,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const S = (p: Partial<typeof s>) => onChange({ synth: { ...s, ...p } });
   const [envPage, setEnvPage] = useState<"AMP" | "PIT" | "FLT">("AMP");
   const selectedEnv = envPage === "AMP" ? s.env : envPage === "PIT" ? s.pitchEnvShape : s.filterEnvShape;
+  const [lfoPage, setLfoPage] = useState<"SHP" | "DST">("SHP");
+  const ld = lfoDests(s.lfo), lfoMax = Math.max(ld.pitch, ld.cutoff, ld.amp, ld.osc1, ld.osc2);
+  const setDest = (k: keyof LfoDests, v: number) => { const dests = { ...ld, [k]: v }; S({ lfo: { ...s.lfo, dests, depth: Math.max(...Object.values(dests)) } }); };
   const setSelectedEnv = (env: typeof s.env) => envPage === "AMP" ? S({ env }) : envPage === "PIT" ? S({ pitchEnvShape: env }) : S({ filterEnvShape: env });
 
   const knobs = (page: string): Knob[] => {
@@ -33,10 +36,16 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       { label: "Filter env", short: "FENV", value: s.filterEnv, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}`, set: filterEnv => S({ filterEnv }) },
       { label: "Env decay", short: "FDEC", value: s.filterDecay, min: .005, max: 2, step: .005, fmt: ms, set: filterDecay => S({ filterDecay }) },
     ];
-    if (page === "LFO") return [
+    if (page === "LFO") return lfoPage === "SHP" ? [
       { label: "LFO rate", short: "RATE", value: s.lfo.rate, min: .05, max: 20, step: .05, fmt: v => `${v.toFixed(1)}HZ`, set: rate => S({ lfo: { ...s.lfo, rate } }) },
-      { label: "LFO depth", short: "DPTH", value: s.lfo.depth, min: 0, max: 1, step: .01, fmt: pct, set: depth => S({ lfo: { ...s.lfo, depth } }) },
+      { label: "LFO attack", short: "ATK", value: s.lfo.attack ?? 0, min: 0, max: 4, step: .01, fmt: ms, set: attack => S({ lfo: { ...s.lfo, attack } }) },
       { label: "Dry / wet", short: "WET", value: s.wet, min: 0, max: 1, step: .01, fmt: pct, set: wet => S({ wet }) },
+    ] : [
+      { label: "LFO to pitch", short: "PIT", value: ld.pitch, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("pitch", v) },
+      { label: "LFO to cutoff", short: "CUT", value: ld.cutoff, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("cutoff", v) },
+      { label: "LFO to volume", short: "VOL", value: ld.amp, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("amp", v) },
+      { label: "LFO to osc 1 level", short: "O1", value: ld.osc1, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("osc1", v) },
+      { label: "LFO to osc 2 level", short: "O2", value: ld.osc2, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("osc2", v) },
     ];
     return envKnobs(selectedEnv, setSelectedEnv);
   };
@@ -53,10 +62,11 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return t < .5 ? 1 : -1; };
     const lfoShape = (t: number) => shape(s.lfo.wave, t);
     if (page === "LFO") {
-      const amp = Math.max(.15, s.lfo.depth);
+      const amp = Math.max(.15, lfoMax), atk = s.lfo.attack ?? 0;
       let prev: [number, number] | null = null;
-      for (let i = 0; i < W; i++) { const t = i / W;
-        const v = lfoShape(t * Math.min(6, Math.max(.5, s.lfo.rate / 2))) * amp;
+      // The trace fades in across the first part of the window to show the LFO attack (window ~ 2 s).
+      for (let i = 0; i < W; i++) { const t = i / W, fade = atk > 0 ? Math.min(1, t * 2 / atk) : 1;
+        const v = lfoShape(t * Math.min(6, Math.max(.5, s.lfo.rate / 2))) * amp * fade;
         const pt: [number, number] = [X0 + i, mid - Math.round(Math.max(-1, Math.min(1, v)) * 6)];
         if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
       return;
@@ -66,7 +76,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     // Two detuned cycles of the oscillator, FM-wobbled by the LFO, smoothed by the filter, plus noise.
     const cycles = 2 + Math.max(0, o.coarse + 24) / 48 * 3, det = 1 + o.fine / 400;
     const smooth = 1 - Math.min(.92, Math.log(s.cutoff / 40) / Math.log(400));
-    const lfoAmt = s.lfo.target === "pitch" ? s.lfo.depth / 24 : 0, lfoCyc = Math.min(6, s.lfo.rate / 2);
+    const lfoAmt = ld.pitch / 24, lfoCyc = Math.min(6, s.lfo.rate / 2);
     let y = 0, ph = 0, prev: [number, number] | null = null, seed = 7;
     for (let i = 0; i < W; i++) { const t = i / W;
       const fm = 1 + lfoShape(t * lfoCyc) * lfoAmt * .5; ph += cycles / W * fm;
@@ -96,7 +106,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.text(s.filter.slice(0, 2).toUpperCase(), 4, 13);
     } else if (page === "LFO") {
       drawWaveIcon(p, s.lfo.wave, 2, 11, 22, 12);
-      p.text(`${s.lfo.wave.slice(0, 3).toUpperCase()} ${s.lfo.target.toUpperCase().slice(0, 4)}`, 28, 15);
+      p.text(s.lfo.wave.slice(0, 3).toUpperCase(), 28, 15);
+      (["SHP", "DST"] as const).forEach((k, i) => { const x = 76 + i * 25; p.box(x, 10, 24, 8); if (k === lfoPage) p.invert(x + 1, 11, 22, 6); p.textC(k, x + 12, 11, k !== lfoPage); });
       scope(p, page);
     } else {
       drawEnvGraph(p, selectedEnv, 2, 16, 124, 27);
@@ -123,7 +134,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       </>;
     }
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
-    if (page === "LFO") return <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />;
+    if (page === "LFO") return <>
+      <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />
+      {(["SHP", "DST"] as const).map((k, i) => <Tap key={k} x={76 + i * 25} y={10} w={24} h={8} label={k === "SHP" ? "LFO shape page" : "LFO destinations page"} pressed={lfoPage === k} onClick={() => setLfoPage(k)} />)}
+    </>;
     if (page === "ENV") return <>
       {envPage === "PIT" && <Zone x={2} y={10} w={55} h={7} label="Pitch envelope amount" value={s.pitchEnv} min={-24} max={24} step={1} onChange={pitchEnv => S({ pitchEnv })} />}
       {envPage === "FLT" && <Zone x={2} y={10} w={55} h={7} label="Filter envelope amount" value={s.filterEnv} min={-4} max={4} step={.1} onChange={filterEnv => S({ filterEnv })} />}
@@ -133,6 +147,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     return null;
   };
 
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage]} />;
+  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage, lfoPage]} />;
 }
 export default memo(CyberspacePanel);
