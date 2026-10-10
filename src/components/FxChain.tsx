@@ -37,9 +37,35 @@ function drawFxVisual(d: Px, f: FxUnit) {
   } else if (["chorus", "flanger", "phaser", "vibrato", "tremolo"].includes(type)) {
     const depth = pv(p, "depth", .5), rate = pv(p, "rate", 1), cycles = Math.max(1, Math.min(5, rate / 2)); let py = 33;
     for (let x = 3; x < 125; x++) { const y = 33 + Math.round(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles) * depth * 9); d.line(x - 1, py, x, y); py = y; }
-  } else if (["eq", "djfilter"].includes(type)) {
-    const sweep = pv(p, "sweep", 0), center = type === "djfilter" ? 64 + sweep * 52 : 64, q = pv(p, "q", pv(p, "resonance", 1)), gain = pv(p, "mid", sweep === 0 ? 0 : -12); let py = 33;
-    for (let x = 3; x < 125; x++) { const bell = gain * Math.exp(-Math.abs(x - center) / Math.max(2, 15 / q)); const slope = type === "djfilter" ? (sweep < 0 ? Math.max(0, x - center) : -Math.max(0, center - x)) * Math.abs(sweep) * .25 : 0; const y = Math.max(23, Math.min(43, Math.round(33 - bell * .5 + slope))); d.line(x - 1, py, x, y); py = y; }
+  } else if (type === "eq") {
+    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121);
+    const lf = pv(p, "lowFreq", 100), mf = pv(p, "midFreq", 1000), hf = pv(p, "highFreq", 9000), q = pv(p, "q", 1);
+    const lg = pv(p, "low", 0), mg = pv(p, "mid", 0), hg = pv(p, "high", 0); let py = 33;
+    d.line(3, 33, 124, 33, true);
+    for (let x = 3; x < 125; x++) { const fr = fx(x), oc = Math.log2(fr / mf);
+      const db = lg / (1 + Math.pow(fr / lf, 2)) + hg / (1 + Math.pow(hf / fr, 2)) + mg * Math.exp(-oc * oc * q * q * 1.5);
+      const y = Math.max(22, Math.min(44, Math.round(33 - db * .65))); d.line(x - 1, py, x, y); py = y; }
+    const mx = 3 + Math.round(Math.log(mf / 20) / Math.log(1000) * 121); d.line(mx, 42, mx, 44);
+  } else if (type === "djfilter") {
+    const sw = pv(p, "sweep", 0), w = Math.round(Math.abs(sw) * 58);
+    d.text("LP", 4, 25); d.text("HP", 117, 25); d.line(64, 30, 64, 42);
+    d.box(4, 32, 120, 9);
+    if (sw < 0) d.rect(64 - w, 33, w, 7); else if (sw > 0) d.rect(65, 33, w, 7);
+    if (!w) d.textC("FLAT", 64, 25);
+    else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
+  } else if (["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(type)) {
+    // Transfer curve left, IN / GR / OUT meters right for a nominal -12dB input.
+    const thr = pv(p, "threshold", type === "ott" ? -30 : type === "drumbus" ? -18 : -24);
+    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : type === "drumbus" ? 1 + pv(p, "drive", 3) / 4 : type === "noisegate" ? 1 : pv(p, "ratio", 4);
+    const makeup = pv(p, "makeup", 0), depth = type === "sidechain" ? pv(p, "depth", 1) : 1;
+    const out = (i: number) => type === "noisegate" ? (i < thr ? -60 + (1 - pv(p, "range", 0)) * 0 + i * pv(p, "range", 0) : i) : (i > thr ? thr + (i - thr) / ratio : i) * 1;
+    const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
+    d.line(3, 43, 69, 22, true); let py = toY(out(-60));
+    for (let x = 3; x <= 69; x++) { const y = toY(out((x - 3) / 66 * 60 - 60) + makeup); d.line(x - 1, py, x, y); py = y; }
+    d.line(toX(thr), 22, toX(thr), 43, true);
+    const inDb = -12, gr = Math.max(0, (inDb - out(inDb)) * depth), o = inDb - gr + makeup;
+    const bar = (x: number, lbl: string, f: number, down = false) => { d.box(x, 22, 9, 16); const h = Math.round(Math.max(0, Math.min(1, f)) * 14); if (down) d.rect(x + 1, 23, 7, h); else d.rect(x + 1, 37 - h, 7, h); d.textC(lbl, x + 5, 39); };
+    bar(78, "IN", (inDb + 60) / 60); bar(96, "GR", gr / 30, true); bar(114, "OUT", (o + 60) / 60);
   } else {
     const amount = pv(p, "depth", pv(p, "mix", .7)), threshold = pv(p, "threshold", -24); const split = 3 + Math.round((threshold + 60) / 60 * 120);
     d.line(3, 42, split, 42 - Math.round((split - 3) * .15)); d.line(split, 42 - Math.round((split - 3) * .15), 124, 42 - Math.round((split - 3) * .15) - Math.round((124 - split) * .15 * (1 - amount * .8)));
@@ -74,7 +100,6 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
           drawFxVisual(p, f);
-          p.text(f.on ? "ON" : "BYP", 114, 14);
         } else {
           FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
         }
