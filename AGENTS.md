@@ -27,3 +27,5 @@
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
 - Pad hits never build buffers or curves (sample variants pre-baked at idle, drive curves cached; max 4 ringing voices per pad), so every instrument triggers instantly.
 - Pads use touch-action:none plus non-passive touch preventDefault and release on the last lifted pointer, so iOS never swallows fast taps.
+- Voices expose stop() (instant cut for chokes, cap, transport) and release(at, r) (fade from the current level that only ever shortens a tail); retriggers and live release edits re-time a pad's ringing tails with its current release, so release changes are heard immediately.
+- Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
