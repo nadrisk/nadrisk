@@ -9,7 +9,7 @@
 ## Fix
 - In VEL / CHNC / MOD / ROLL views, a lit step becomes an **empty framed cell with a solid fill rising from the bottom** to its value, and a small numeric readout (for example 75 or x3) in inverted pixels. Unlit steps stay dotted and can't be dragged.
 - CHNC fill uses a striped pattern so it reads differently from VEL; MOD uses a centre line so you can tell values above and below the middle.
-- Edit cells get taller (about 40px desktop, 44px phone) only in these views; the NOTE view keeps its compact grid with all 16 rows.
+- **Unified step size:** every step is the same square size in every view (NOTE, VEL, CHNC, ROLL, MOD) and on every row, so the grid never jumps when you switch views. The size is set once from the available width (square cells, about 20-28px), tall enough to drag comfortably, and all 16 rows stay visible.
 - The page no longer scrolls while you drag a step; it still scrolls when you swipe the row labels or the space outside the grid.
 - Tapping a lit step in the edit views sets the value at the tap height (no drag needed).
 - A pixel readout in the STEPSEQ header shows the value being changed (for example "VEL 03-07 82%").
@@ -19,5 +19,5 @@
 Playwright at desktop and phone width: in each view, drag a lit step and confirm the fill height and value change and the sound follows (velocity/chance read back in the grid after switching views). No page errors.
 
 ## Technical details
-- `src/index.css`: override `.gb-step.mod` (background transparent, keep border), `.gb-step-fill` color/patterns per view, `touch-action: none` on `.gb-step.mod` (replace the pan-x rule), taller `.is-mod` rows, pixel-font `.gb-step-roll` / `.gb-step-dot` with inverted colors.
+- `src/index.css`: override `.gb-step.mod` (background transparent, keep border), `.gb-step-fill` color/patterns per view, `touch-action: none` on `.gb-step.mod` (replace the pan-x rule), remove the scattered `.gb-step` / `.is-mod` height rules and replace them with one `aspect-ratio: 1` rule, pixel-font `.gb-step-roll` / `.gb-step-dot` with inverted colors.
 - `src/components/Groovebox.tsx` (StepGrid only): show value label inside drag cells, report the edited value to SeqScreen's readout. No changes to useGroovebox, timing, sets or MIDI.
