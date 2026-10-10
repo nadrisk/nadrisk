@@ -823,3 +823,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-pads.vel-mode .gb-pad-vel, .instrument-workspace .gb-pads.vel-mode .gb-pad-vel { background: hsl(var(--foreground)); border-top: 2px solid hsl(var(--foreground)); mix-blend-mode: difference; z-index: 2; }
 .gb-pad-velnum { position: absolute; top: 4px; right: 6px; font-size: 10px; letter-spacing: .05em; pointer-events: none; z-index: 1; }
 .instrument-workspace .gb-meter i.on.clip { background: hsl(var(--destructive, var(--foreground))); }
+
+/* Performance panel: wide one-tap reset under the PERFORM screen, shown on every page. */
+.instrument-workspace .gb-perf { display: flex; flex-direction: column; gap: 6px; }
+.instrument-workspace .gb-perf-reset { font-family: 'Silkscreen', monospace; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; width: 100%; min-height: 48px; background: hsl(var(--background)); color: hsl(var(--foreground)); border: 2px solid hsl(var(--foreground)); border-radius: 0; cursor: pointer; touch-action: manipulation; }
+.instrument-workspace .gb-perf-reset:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }

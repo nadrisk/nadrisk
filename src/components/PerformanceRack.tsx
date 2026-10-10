@@ -13,6 +13,8 @@ const LOOPS = [0, 1, 2, 4, 8];
 export default function PerformanceRack({ value, onChange }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
+  // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
+  const reset = () => set({ time: 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0 });
   const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
     onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); set({ mode }); }} onPointerUp={() => set({ mode: 0 })} onPointerCancel={() => set({ mode: 0 })} onLostPointerCapture={() => set({ mode: 0 })}
     onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); set({ mode }); } }} onKeyUp={() => set({ mode: 0 })} onBlur={() => set({ mode: 0 })} />;
@@ -29,7 +31,8 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
   ] : page === "SEQ" ? [
     { label: "Sequencer offset", short: "OFFS", value: v.offset, min: -8, max: 8, step: 1, fmt: x => `${x > 0 ? "+" : ""}${x}`, set: offset => set({ offset }) },
   ] : [];
-  return <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v)]} knobs={knobs}
+  return <div className="gb-perf">
+  <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v)]} knobs={knobs}
     body={(p, page) => {
       if (page === "FX") {
         // Framed DJ filter response: LP slopes down right of cutoff, HP left of it, resonance bump at cutoff.
@@ -94,8 +97,10 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
       <Zone x={8} y={32} w={112} h={8} horizontal label="Offset strip" value={v.offset} min={-8} max={8} step={1} onChange={offset => set({ offset })} />
     </> : page === "HLD" ? <>
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
-      <Tap x={97} y={11} w={30} h={9} label="Reset performance" onClick={() => set({ time: 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, echoSend: 0 })} />
+      <Tap x={97} y={11} w={30} h={9} label="Reset performance (HLD)" onClick={reset} />
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
-    </> : null} />;
+    </> : null} />
+  <button type="button" className="gb-perf-reset" aria-label="Reset performance" onPointerDown={e => { e.preventDefault(); reset(); }} onClick={reset} onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); reset(); } }}>RESET · DROP</button>
+  </div>;
 }
