@@ -33,7 +33,8 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
     { label: "Phrase glide time", short: "GLID", value: arp.glide ?? 80, min: 10, max: 400, step: 5, fmt: v => `${v}MS`, set: glide => set({ glide }) }];
   type Key = [string, string, number, boolean, () => void];
   const keysFor = (page: string): Key[] => page === "SEQ" ? [
-    [arp.on ? "ON" : "OFF", "Phrase on", 1, arp.on, () => set({ on: !arp.on })],
+    // Lit key = phrase on; its label shows the play mode chosen on LOOP (RUN or STEP).
+    [arp.on ? (step ? "STEP" : "RUN") : "OFF", "Phrase on", 1, arp.on, () => set({ on: !arp.on })],
     ["RAND", "Randomize phrase", 33, false, () => onChange(randomizeArp(arp))],
     ["SLIDE", "Step slide", 65, !!cur.slide, () => setCell({ slide: !cur.slide, on: true })],
   ] : page === "LOOP" ? [
@@ -61,7 +62,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
             return;
           }
           p.text(page === "KEY" ? `${NOTE_NAMES[arp.root]} ${arp.scale.toUpperCase()} OCT${arp.octave}` : arp.sync ? `RATE ${arp.rate}` : `FREE ${arp.freeMs}MS`, 2, 25);
-          p.text(arp.on ? `HOLD ${slotName} TO LOOP`.slice(0, 31) : "PAD PLAYS SINGLE NOTES", 2, 34);
+          p.text((!arp.on ? "OFF: TURN ON IN SEQ" : step ? "STEP: EACH HIT = NEXT" : `RUN: HOLD ${slotName}`).slice(0, 31), 2, 34);
         }
       }}
       extra={page => page === "SEQ"
