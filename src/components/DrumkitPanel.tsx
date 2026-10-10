@@ -54,7 +54,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
         // Six metallic partials on a log frequency axis; spread and tune move them.
         p.box(2, 20, 124, 25);
         [1, 1.304, 1.466, 1.787, 1.932, 2.536].forEach(r => { const f = d.pitch * r ** d.spread, x = 4 + Math.round(Math.max(0, Math.min(1, Math.log2(f / 20) / 10)) * 118); p.rect(x, 24 + Math.round(d.noise * 8), 2, 19 - Math.round(d.noise * 8)); });
-        for (let x = 4; x < 124; x += 2) if (Math.random() < d.noise * .5) p.rect(x, 42, 1, 1);
+        for (let x = 4; x < 124; x += 2) if (((x * 37) % 11) / 11 < d.noise * .5) p.rect(x, 42, 1, 1);
       } else if (d.kind === "clap") {
         // Burst spikes then the tail.
         p.box(2, 20, 124, 25);
