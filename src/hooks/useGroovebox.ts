@@ -20,7 +20,7 @@ export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFr
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -220,8 +220,8 @@ export function useGroovebox() {
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
         : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length))
         : s.engine === "poly" ? null
-        : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel)
-        : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
+        : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel, e.lfos[i])
+        : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel, e.lfos[i]));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), release: rel, glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
@@ -395,7 +395,8 @@ export function useGroovebox() {
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
-    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
+    const lfos = slotsRef.current.map(() => { const o = ctx.createOscillator(); o.start(); return o; });
+    engine.current = { ctx, master, performance: perf, analyser, outs, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,7 +404,8 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02)); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); { const o = e.lfos[i], sir = s.engine === "siren", w = (sir ? s.siren?.lfoWave : s.synth.lfo.wave) ?? "sine", r = (sir ? s.siren?.rate : s.synth.lfo.rate) ?? 1; if (o.type !== w && w !== "custom") o.type = w as OscillatorType; o.frequency.setTargetAtTime(r, e.ctx.currentTime, .02); }
+      configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02)); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
@@ -415,7 +417,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
