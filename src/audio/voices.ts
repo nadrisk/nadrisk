@@ -13,7 +13,7 @@ export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -256,7 +256,9 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   src.connect(amp);
   // A tapped loop sustains through the envelope (attack+decay plus a musical hold) instead of
   // stopping at the short one-shot gate, so the loop is actually heard; held pads still hold it.
-  const g = p.loop ? Math.max(gate, p.env.a + p.env.d + 1.5) : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
+  // endFrac (slices) stops one-shots at the slice boundary instead of the buffer end.
+  const stopSec = p.endFrac !== undefined && !p.loop ? Math.max(offset + .005, p.endFrac * buf.duration) : buf.duration;
+  const g = p.loop ? Math.max(gate, p.env.a + p.env.d + 1.5) : Math.max(p.env.a, Math.min(p.endFrac !== undefined ? gate + (stopSec - offset) : Infinity, (stopSec - offset) / rate - p.env.r));
   const end = adsr(amp.gain, t, p.env, g, vel);
   src.start(t, offset); src.stop(end);
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
