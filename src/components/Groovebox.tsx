@@ -52,11 +52,11 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
 }) {
   const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onValue(view, r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
   const [trackPage, setTrackPage] = useState(0);
-  const start = trackPage * 4;
+  const pageStart = trackPage * 4;
   return <div className="gb-seq-workspace">
     <div className="gb-track-pages"><button aria-label="Tracks 1 to 4" aria-pressed={trackPage === 0} onClick={() => setTrackPage(0)}>01–04</button><button aria-label="Tracks 5 to 8" aria-pressed={trackPage === 1} onClick={() => setTrackPage(1)}>05–08</button><button aria-label="Tracks 9 to 12" aria-pressed={trackPage === 2} onClick={() => setTrackPage(2)}>09–12</button><button aria-label="Tracks 13 to 16" aria-pressed={trackPage === 3} onClick={() => setTrackPage(3)}>13–16</button></div>
-    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.slice(start, start + 4).map((row, rr) => { const r = start + rr, len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
-    const start = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - start + len) % len) < loop;
+    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.slice(pageStart, pageStart + 4).map((row, rr) => { const r = pageStart + rr, len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
     <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
@@ -103,7 +103,6 @@ const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "vi
 type Utility = typeof UTILITIES[number];
 const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", vis: "VIS", sets: "MEM", midi: "MIDI" };
 const THEMES = [["oled", "1-bit oled"], ["zoom", "blue-grey lcd"], ["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
-const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d; } catch { return d; } };
 function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox() {
