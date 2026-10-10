@@ -4,8 +4,8 @@ import { EnvZones } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
 
-type Page = "SMP" | "ENV" | "GRN";
-const PAGES: Page[] = ["SMP", "ENV", "GRN"];
+type Page = "SMP" | "ENV" | "GRN" | "STR";
+const PAGES: Page[] = ["SMP", "ENV", "GRN", "STR"];
 const KX = [16, 48, 80, 112];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 const ms = (v: number) => `${Math.round(v * 1000)}MS`, pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -29,7 +29,12 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
     { label: "R", short: "REL", value: env.r, min: .01, max: 3, step: .01, fmt: ms, set: r => M({ env: { ...env, r } }) },
-  ]) : page === "ENV" ? (["a", "d", "s", "r"] as const).map(k => ({
+  ]) : page === "STR" ? [
+    { label: "Stretch time", short: "TIME", value: sm.stretchAmt ?? 1, min: .25, max: 4, step: .01, fmt: v => `X${v.toFixed(2)}`, set: stretchAmt => M({ stretchAmt }) },
+    { label: "Stretch grain", short: "GRN", value: sm.stretchGrain ?? .05, min: .01, max: .15, step: .001, fmt: ms, set: stretchGrain => M({ stretchGrain }) },
+    { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
+    { label: "R", short: "REL", value: env.r, min: .01, max: 3, step: .01, fmt: ms, set: r => M({ env: { ...env, r } }) },
+  ] : page === "ENV" ? (["a", "d", "s", "r"] as const).map(k => ({
     label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k], min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
     fmt: k === "s" ? pct : ms, set: (v: number) => M({ env: { ...env, [k]: v } }),
   })) : [
@@ -57,8 +62,8 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     // Header: inverted bar, name, page tabs.
     p.invert(0, 0, 128, 9);
     p.text((slot.name || "SMP").slice(0, 8), 2, 2, false);
-    p.text(readout.slice(0, 9), 38, 2, false);
-    PAGES.forEach((pg, i) => { const x = 81 + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
+    p.text(readout.slice(0, 6), 36, 2, false);
+    PAGES.forEach((pg, i) => { const x = 68 + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
     // Left: level fader.
     if (page === "SMP") {
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
@@ -73,6 +78,15 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       pts.slice(1, 4).forEach(([x]) => p.line(x, 12, x, 43, true));
       for (let i = 0; i < 4; i++) p.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
       pts.slice(1, 4).forEach(([x, y]) => p.rect(x - 1, y - 1, 3, 3));
+    } else if (page === "STR") {
+      const amt = sm.stretchAmt ?? 1;
+      p.box(2, 11, 21, 7); if (sm.stretch) p.invert(3, 12, 19, 5); p.text("VNT", 6, 12, !sm.stretch);
+      p.text(`X${amt.toFixed(2)} ${Math.round((sm.stretchGrain ?? .05) * 1000)}MS`, 28, 12);
+      // Length bar: the sample drawn at its stretched length (full width = x4), with block seams marking the grain.
+      p.box(2, 19, 124, 26);
+      const w = Math.max(8, Math.round(122 * (sm.stretch ? amt : 1) / 4)); wave(p, 3, 20, w, 24);
+      if (sm.stretch) { const step = Math.max(3, Math.round((sm.stretchGrain ?? .05) * 120)); for (let x = 3 + step; x < 3 + w; x += step) p.line(x, 20, x, 22, true); }
+      for (let x = 3 + Math.round(122 / 4); x < 125; x += 4) p.dot(x, 44);
     } else {
       p.box(2, 11, 21, 7); if (sm.grain) p.invert(3, 12, 19, 5); p.text("GRN", 6, 12, !sm.grain);
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
@@ -85,16 +99,17 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
 
   return <div className="px-panel">
     <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, readout, slot.name, slot.level, slot.pan, sm, peaks]}>
-      {PAGES.map((pg, i) => <Tap key={pg} x={81 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
+      {PAGES.map((pg, i) => <Tap key={pg} x={68 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />
         <Tap x={21} y={10} w={21} h={9} label="Loop" pressed={sm.loop} onClick={() => M({ loop: !sm.loop })} />
       </>}
+      {page === "STR" && <Tap x={2} y={10} w={21} h={9} label="Vintage stretch" pressed={!!sm.stretch} onClick={() => M({ stretch: !sm.stretch })} />}
       {page === "GRN" && <>
         <Tap x={2} y={10} w={21} h={9} label="Grain mode" pressed={!!sm.grain} onClick={() => M({ grain: !sm.grain })} />
         <Tap x={25} y={10} w={21} h={9} label="Grain freeze" pressed={!!sm.freeze} disabled={!sm.grain} onClick={() => M({ freeze: !sm.freeze })} />
       </>}
-      {page !== "ENV" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
+      {page !== "ENV" && page !== "STR" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
       {knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />)}
     </PixelScreen>
