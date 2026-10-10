@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
-import { Download, Save, Upload, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import PixelScreen, { Tap } from "@/pixel/PixelScreen";
+import type { Px } from "@/pixel/draw";
 import type { GrooveSet } from "@/hooks/useGroovebox";
 import { packSamples, unpackSamples } from "@/audio/sampleStore";
 
 const KEY = "nadrisk.sets.v1", N = 8;
 const read = (): (GrooveSet | null)[] => { try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.from({ length: N }, (_, i) => v[i] ?? null); } catch { return Array(N).fill(null); } };
 
+const BTNS = ["SAVE", "LOAD", "DEL", "EXP", "EXP+", "IMP"] as const;
+
+// MEMORY: the set bank as a 128x64 1-bit hardware screen. Storage logic unchanged.
 export default function SetBank({ getSet, applySet }: { getSet: (name: string) => GrooveSet; applySet: (s: GrooveSet) => void }) {
   const [sets, setSets] = useState(read);
   const [sel, setSel] = useState(0);
@@ -32,21 +35,39 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
     catch { setMsg("not a valid set file"); }
     if (file.current) file.current.value = "";
   };
+  const act = (b: (typeof BTNS)[number]) => {
+    if (b === "SAVE") save(); else if (b === "LOAD") load(); else if (b === "DEL") del();
+    else if (b === "EXP") void exportSet(false); else if (b === "EXP+") void exportSet(true); else file.current?.click();
+  };
+
+  const draw = (p: Px) => {
+    p.invert(0, 0, 128, 9);
+    p.text("MEMORY", 2, 2, false);
+    p.text(msg.slice(0, 12).toUpperCase(), 40, 2, false);
+    for (let i = 0; i < N; i++) {
+      const col = i % 2, row = Math.floor(i / 2), x = 1 + col * 64, y = 11 + row * 10, st = sets[i];
+      if (i === sel) p.invert(x, y - 1, 63, 9);
+      const on = i !== sel;
+      p.text(String(i + 1).padStart(2, "0"), x + 2, y, on);
+      p.text((st?.name ?? "EMPTY").slice(0, 8).toUpperCase(), x + 12, y, on);
+      if (st) p.text(`${st.bpm}`, x + 47, y, on);
+    }
+    BTNS.forEach((b, i) => { const x = 1 + i * 21, w = b === "EXP+" ? 22 : 20; p.box(x, 53, w, 9); p.text(b, x + 2, 55); });
+  };
 
   return <div className="node-body">
-    <div className="gb-sets">{sets.map((st, i) => <button key={i} className={`gb-set ${sel === i ? "sel" : ""} ${st ? "full" : ""}`} onClick={() => pick(i)} onDoubleClick={() => { pick(i); if (st) { applySet(st); setMsg(`loaded "${st.name}"`); } }}>
-      <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-set-name">{st?.name ?? "empty"}</span>{st && <span className="gb-pad-kind">{st.bpm} bpm</span>}
-    </button>)}</div>
+    <div className="px-panel">
+      <PixelScreen label="Memory set bank screen" draw={draw} deps={[sets, sel, msg]}>
+        {sets.map((st, i) => <Tap key={i} x={1 + (i % 2) * 64} y={9 + Math.floor(i / 2) * 10} w={63} h={10} label={`Set slot ${i + 1}${st ? ` ${st.name}` : " empty"}`} pressed={i === sel}
+          onClick={() => pick(i)} />)}
+        {BTNS.map((b, i) => <Tap key={b} x={1 + i * 21} y={52} w={b === "EXP+" ? 22 : 20} h={11} label={b === "DEL" ? "Clear slot" : b === "EXP" ? "Export set" : b === "EXP+" ? "Export set with samples" : b === "IMP" ? "Import set" : b === "SAVE" ? "Save set" : "Load set"}
+          disabled={(b === "LOAD" || b === "DEL") && !sets[sel]} onClick={() => act(b)} />)}
+      </PixelScreen>
+    </div>
     <div className="gb-seq-tools" style={{ padding: "8px 0 0", flexWrap: "wrap" }}>
       <input className="gb-input" aria-label="Set name" value={name} maxLength={24} onChange={e => setName(e.target.value)} style={{ width: 120 }} />
-      <Button variant="ghost" size="sm" onClick={save}><Save size={12} /> save</Button>
-      <Button variant="ghost" size="sm" disabled={!sets[sel]} onClick={load}><Upload size={12} /> load</Button>
-      <Button variant="ghost" size="sm" disabled={!sets[sel]} onClick={del}><Trash2 size={12} /> clear</Button>
-      <Button variant="ghost" size="sm" onClick={() => void exportSet(false)}><Download size={12} /> export</Button>
-      <Button variant="ghost" size="sm" onClick={() => void exportSet(true)}><Download size={12} /> export + samples</Button>
-      <Button variant="ghost" size="sm" onClick={() => file.current?.click()}><Upload size={12} /> import</Button>
       <input ref={file} type="file" accept=".json,application/json" hidden onChange={e => void importSet(e.target.files?.[0])} />
     </div>
-    <span className="patch-small">{msg || "tap a slot · save / load · double-tap to load · samples are remembered on this device · use export + samples to move a set with its audio"}</span>
+    <span className="patch-small">{msg || "tap a slot · SAVE / LOAD / DEL · EXP+ packs the samples too · samples are remembered on this device"}</span>
   </div>;
 }
