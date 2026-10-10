@@ -32,23 +32,24 @@ export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.mi
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
 const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: [defaultMod(), defaultMod()], bass: default808(), eq: defaultEQ(), siren: defaultSiren(), ...extra });
+// Default kit: modern IDM palette — clicky drums, FM metal, glitch chops, rubbery bass, glassy chords and textures.
 const defaultSlots = (): Slot[] => [
-  base("KICK", "drum"),
-  base("SNARE", "drum", 48, { fx: [makeFx("reverb", { mix: 0.2, size: 1.8 })], drum: drum({ kind: "snare", pitch: 190, pitchEnv: 14, pitchDecay: 0.03, noise: 0.6, fm: 1.2, fmRatio: 2.4, drive: 0.25, env: { a: 0.001, d: 0.2, s: 0, r: 0.08 }, cutoff: 8000 }) }),
-  base("HAT CL", "drum", 48, { level: 55, drum: drum({ kind: "hat", pitch: 400, pitchEnv: 7, pitchDecay: 0.02, noise: 0.35, fm: 2, fmRatio: 1.48, ring: 0.5, ringFreq: 1200, filter: "highpass", cutoff: 7000, env: { a: 0.001, d: 0.05, s: 0, r: 0.03 } }) }),
-  base("CLAP", "drum", 48, { drum: drum({ kind: "clap", pitch: 900, pitchEnv: 4, pitchDecay: 0.04, noise: 1, noiseTone: 1300, tone2: 2.5, bursts: 4, burstGap: 0.009, tail: 0.6, cutoff: 12000, env: { a: 0.001, d: 0.22, s: 0, r: 0.08 } }) }),
-  base("TOM LO", "drum", 48, { drum: drum({ pitch: 90, pitchEnv: 12, pitchDecay: 0.1, env: { a: 0.001, d: 0.3, s: 0, r: 0.1 } }) }),
-  base("TOM HI", "drum", 48, { drum: drum({ pitch: 150, pitchEnv: 12, pitchDecay: 0.1, env: { a: 0.001, d: 0.25, s: 0, r: 0.1 } }) }),
-  base("HAT OP", "drum", 48, { level: 50, drum: drum({ kind: "hat", pitch: 400, pitchEnv: 7, pitchDecay: 0.02, noise: 0.35, fm: 2, fmRatio: 1.48, ring: 0.5, ringFreq: 1200, filter: "highpass", cutoff: 6500, env: { a: 0.001, d: 0.3, s: 0, r: 0.1 } }) }),
-  base("RIDE", "drum", 48, { level: 45, drum: drum({ kind: "hat", pitch: 600, pitchEnv: 0, noise: 0.3, fm: 4, fmRatio: 2.3, ring: 0.8, ringFreq: 2200, filter: "highpass", cutoff: 4000, env: { a: 0.001, d: 0.6, s: 0, r: 0.2 } }) }),
-  base("BASS A", "synth", 36, { fx: [makeFx("saturation", { drive: 6 })] }),
-  base("808", "808", 31, { fx: [] }),
-  base("BASS FM", "synth", 31, { synth: synth({ osc1: { wave: "sine", gain: 0.9, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 12, fine: 0, mode: "fm", fmAmount: 1.5 }, cutoff: 2000, filterEnv: 1 }) }),
-  base("LEAD", "synth", 60, { fx: [makeFx("delay"), makeFx("reverb")], synth: synth({ osc1: { wave: "additive", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "triangle", gain: 0.3, coarse: 0, fine: 9, mode: "mix", fmAmount: 1 }, cutoff: 3000, lfo: { wave: "sine", rate: 5, depth: 0.02, target: "pitch" } }) }),
-  base("VOX", "sampler"),
-  base("CHOP", "sampler", 48, { fx: [makeFx("bitcrush")], sampler: sampler({ pitch: 7, start: 0.2 }) }),
-  base("NOISE", "drum", 48, { level: 40, drum: drum({ kind: "snare", pitch: 200, pitchEnv: 0, noise: 1, filter: "bandpass", cutoff: 3000, res: 6, filterEnv: 2, filterDecay: 0.3, env: { a: 0.01, d: 0.4, s: 0, r: 0.2 } }) }),
-  base("FM DRONE", "synth", 43, { fx: [makeFx("phaser"), makeFx("chorus")], synth: synth({ osc1: { wave: "triangle", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 0.3, d: 0.5, s: 0.7, r: 0.8 }, lfo: { wave: "triangle", rate: 0.5, depth: 0.5, target: "cutoff" } }) }),
+  base("KICK", "drum", 48, { fx: [makeFx("drumbus", { drive: 4, boom: 4, attack: .5 })], drum: drum({ pitch: 52, pitchEnv: 40, pitchDecay: .025, transient: .8, drive: .3, env: { a: .001, d: .26, s: 0, r: .06 }, noise: .01 }) }),
+  base("SNR GRN", "drum", 48, { fx: [makeFx("bitcrush", { bits: 7, reduce: 6, mix: .6 }), makeFx("reverb", { mix: .18, size: 1.2, damp: 7000 })], drum: drum({ kind: "snare", pitch: 230, pitchEnv: 18, pitchDecay: .02, noise: .7, fm: 2, fmRatio: 3.3, drive: .4, env: { a: .001, d: .16, s: 0, r: .05 }, cutoff: 9000 }) }),
+  base("HAT FM", "drum", 48, { level: 50, choke: 1, drum: drum({ kind: "hat", pitch: 520, pitchEnv: 5, pitchDecay: .01, noise: .25, fm: 5, fmRatio: 1.41, ring: .7, ringFreq: 3100, filter: "highpass", cutoff: 8000, env: { a: .001, d: .035, s: 0, r: .02 } }) }),
+  base("CLICK", "drum", 48, { level: 55, fx: [makeFx("delay", { time: .09, feedback: .3, mix: .2, tone: 6000 })], drum: drum({ kind: "hat", pitch: 1800, pitchEnv: 24, pitchDecay: .004, noise: .05, fm: 8, fmRatio: 2.7, filter: "bandpass", cutoff: 5000, res: 3, env: { a: .001, d: .012, s: 0, r: .01 } }) }),
+  base("GLITCH", "sampler", 48, { level: 65, fx: [makeFx("bitcrush", { bits: 8, reduce: 3, mix: .5 }), makeFx("delay", { time: .1875, feedback: .35, mix: .25 })], sampler: sampler({ sampleName: "glitch-chop", sampleId: "lib:glitch-chop", slices: 8, env: { a: .001, d: .2, s: 1, r: .03 } }) }),
+  base("PERC MTL", "drum", 48, { level: 55, fx: [makeFx("metal", { time: .004, feedback: .85, tone: 7000, mix: .45 })], drum: drum({ kind: "snare", pitch: 820, pitchEnv: 8, pitchDecay: .008, noise: .2, fm: 3, fmRatio: 4.1, env: { a: .001, d: .05, s: 0, r: .03 }, cutoff: 10000 }) }),
+  base("HAT OP", "drum", 48, { level: 45, choke: 1, drum: drum({ kind: "hat", pitch: 480, pitchEnv: 4, pitchDecay: .01, noise: .3, fm: 4, fmRatio: 1.48, ring: .6, ringFreq: 2600, filter: "highpass", cutoff: 7000, env: { a: .001, d: .32, s: 0, r: .12 } }) }),
+  base("808", "808", 29, { level: 70, bass: { ...default808(), decay: 1.1, tube: .45, harmonics: .5, click: .4, pitchEnv: 18 } }),
+  base("BASS RBR", "synth", 36, { fx: [makeFx("acid", { drive: 6, mix: .45 })], synth: synth({ osc1: { wave: "sine", gain: .9, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 2.2 }, cutoff: 1400, res: 6, filterEnv: 2.5, filterEnvShape: { a: .001, d: .12, s: .1, r: .05 }, env: { a: .002, d: .2, s: .4, r: .08 }, pitchEnv: 5, pitchEnvShape: { a: .001, d: .03, s: 0, r: .02 } }) }),
+  base("PAD ADD", "synth", 55, { level: 55, fx: [makeFx("chorus", { depth: .6, mix: .5 }), makeFx("reverb", { size: 5, mix: .45, damp: 5000 })], synth: synth({ osc1: { wave: "additive", gain: .7, coarse: 0, fine: -8 }, osc2: { wave: "additive", gain: .6, coarse: 12, fine: 9, mode: "mix", fmAmount: 1 }, partials2: [1, 0, .4, 0, .3, 0, .2, 0, .15, 0, .1, 0, .05, 0, 0, 0], cutoff: 2600, res: 1.5, filterEnv: .8, env: { a: .6, d: 1, s: .7, r: 1.8 }, lfo: { wave: "sine", rate: .3, depth: .3, target: "cutoff" } }) }),
+  base("GLASS", "poly", 60, { level: 50, fx: [makeFx("delay", { time: .28, feedback: .45, mix: .3, tone: 5000 }), makeFx("reverb", { size: 3.5, mix: .35 })], chord: { ...defaultChord(), on: true, type: "min9", spread: true }, poly: { ...defaultPoly(), cutoff: 4200, res: 2, detune: 6, sub: .1, pulse: .5, chorus: .6, env: { a: .005, d: .6, s: .25, r: 1.2 } } }),
+  base("VOX TEX", "sampler", 48, { level: 50, fx: [makeFx("spectral", { freq: 1600, res: 8, mix: .7 }), makeFx("reverb", { size: 6, mix: .5 })], sampler: sampler({ sampleName: "vox-ah", sampleId: "lib:vox-ah", loop: true, start: .1, loopEnd: .6, loopXfade: .05, env: { a: .25, d: .5, s: .8, r: 1.2 } }) }),
+  base("NOISE", "drum", 48, { level: 35, fx: [makeFx("phaser", { mix: .5 })], drum: drum({ kind: "snare", pitch: 200, pitchEnv: 0, noise: 1, filter: "bandpass", cutoff: 2500, res: 8, filterEnv: 3, filterDecay: .5, env: { a: .05, d: .6, s: 0, r: .3 } }) }),
+  base("BLIP", "synth", 72, { level: 45, fx: [makeFx("delay", { time: .375, feedback: .55, mix: .4, tone: 4000 })], synth: synth({ osc1: { wave: "square", gain: .5, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: .8, coarse: 19, fine: 0, mode: "fm", fmAmount: 1.2 }, cutoff: 3500, res: 3, env: { a: .001, d: .08, s: 0, r: .05 } }) }),
+  base("TOM FM", "drum", 48, { level: 55, fx: [makeFx("reverb", { size: 1.5, mix: .2 })], drum: drum({ pitch: 130, pitchEnv: 20, pitchDecay: .05, fm: 1.5, fmRatio: 1.7, env: { a: .001, d: .22, s: 0, r: .08 } }) }),
+  base("DRONE", "synth", 43, { level: 40, fx: [makeFx("phaser"), makeFx("reverb", { size: 7, mix: .5 })], synth: synth({ osc1: { wave: "triangle", gain: .8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 1.2, d: 1, s: .8, r: 2.5 }, lfo: { wave: "triangle", rate: .2, depth: .5, target: "cutoff" } }) }),
 ];
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
@@ -78,12 +79,20 @@ function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
 }
 export type RepeatParams = { on: boolean; latch: boolean; rate: RateName; roll?: boolean };
 const emptyPattern = () => Array.from({ length: 16 }, () => Array<StepVal>(STEPS).fill(0));
-const defaultPattern = () => {
-  const p = emptyPattern();
-  [0, 4, 8, 12].forEach(s => (p[0][s] = 1)); [4, 12].forEach(s => (p[1][s] = 1));
-  [0, 2, 4, 6, 8, 10, 12, 14].forEach(s => (p[2][s] = 1)); [3, 7, 11].forEach(s => (p[8][s] = 1));
-  p[6][14] = 1; p[12][0] = 1;
-  return p;
+/** Broken, off-grid IDM groove: displaced kicks, ghost snares, ratcheted hats and glitch fills. */
+const R = (row: string) => Array.from(row).map(c => (c === "x" || c === "o" || c === "r" ? 1 : c === "-" ? 2 : 0)) as StepVal[];
+const DEFAULT_ROWS = [
+  "x..x...x..x...x.", "....x..o....x.o.", "rx.x.xr.x.xrx.x.", "..x.....x..x...x",
+  ".x....x...x..x..", "...o.x.....o..x.", "......x.......x.", "x.......x.x.....",
+  "..x-.x...x-..x..", "x---------------", "....x-.......x--", "........x-------",
+  "..........x.....", ".....x.........x", "...x......x.....", "x---------------",
+];
+const defaultPattern = () => DEFAULT_ROWS.map(R);
+const defaultBank = (): Bank => {
+  const b = defaultBank();
+  DEFAULT_ROWS.forEach((row, i) => Array.from(row).forEach((c, k) => { if (c === "o") { b.vel[i][k] = .45; b.chance[i][k] = .6; } if (c === "r") b.ratchet![i][k] = k % 4 === 0 ? 3 : 2; }));
+  b.chance[3] = b.chance[3].map(() => .75); b.chance[4] = b.chance[4].map(() => .7); b.vel[2] = b.vel[2].map((v, k) => (k % 2 ? .6 : v));
+  return b;
 };
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
@@ -106,7 +115,7 @@ export function useGroovebox() {
   const fallback = useRef<AudioBuffer | null>(null);
   const [slots, setSlots] = useState<Slot[]>(defaultSlots);
   // Two independent pattern banks (A/B) for live performance; switching waits for the next bar while playing.
-  const [banks, setBanks] = useState<Bank[]>(() => [makeBank(defaultPattern()), makeBank(emptyPattern())]);
+  const [banks, setBanks] = useState<Bank[]>(() => [defaultBank(), makeBank(emptyPattern())]);
   const [bank, setBank] = useState(0);
   const [queued, setQueued] = useState<number | null>(null);
   const banksRef = useRef(banks); banksRef.current = banks;
@@ -546,7 +555,7 @@ export function useGroovebox() {
   }, [loadById]);
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
-  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([makeBank(defaultPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
+  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([defaultBank(), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
   return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
