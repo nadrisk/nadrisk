@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
-import { Tap } from "@/pixel/PixelScreen";
+import { DisplayThemeContext, Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
@@ -11,11 +11,12 @@ const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => 
 const ENG: [EngineKind, string][] = [["drum", "DRM"], ["synth", "SYN"], ["sampler", "SMP"], ["poly", "PLY"], ["808", "808"], ["siren", "SRN"]];
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
+  const theme = useContext(DisplayThemeContext);
   const [v, setV] = useState(value);
   const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9 \-]/g, "").slice(0, 10);
   const submit = () => { const c = v.trimEnd(); if (c) onSave(c); onClose(); };
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div data-lcd={theme} className="instrument-workspace gb-rename-portal fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <form onSubmit={e => { e.preventDefault(); submit(); }}
         className="w-full max-w-sm border-4 border-foreground bg-background text-foreground"
         style={{ fontFamily: "Silkscreen, monospace", imageRendering: "pixelated" }}>

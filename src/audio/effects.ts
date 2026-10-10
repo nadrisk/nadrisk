@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import { ADVANCED_WORKLETS } from "./advanced";
 import { TAPE_WORKLET } from "./tapeWorklet";
+import { METER_WORKLET } from "./meterWorklet";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
@@ -94,7 +95,7 @@ registerProcessor('nad-ngate', NGate); registerProcessor('nad-transient', Transi
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET], { type: "application/javascript" }))));
 
 let eco = false;
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */

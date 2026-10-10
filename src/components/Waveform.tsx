@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Analyser } from "tone";
 
-export default function Waveform({ analyser, playing, eco = false }: { analyser: Analyser | null; playing: boolean; eco?: boolean }) {
+export default function Waveform({ analyser, playing, eco = false, theme }: { analyser: Analyser | null; playing: boolean; eco?: boolean; theme: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const element = canvas.current;
@@ -33,6 +33,6 @@ export default function Waveform({ analyser, playing, eco = false }: { analyser:
       context.stroke(); frame = requestAnimationFrame(draw);
     };
     draw(); return () => cancelAnimationFrame(frame);
-  }, [analyser, playing, eco]);
+  }, [analyser, playing, eco, theme]);
   return <canvas ref={canvas} className="scope-canvas" aria-label={playing ? "Live audio waveform" : "Audio waveform idle"} role="img" />;
 }
