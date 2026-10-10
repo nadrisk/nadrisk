@@ -14,3 +14,4 @@
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
 - Groovebox sections render through a keyed layout list; the classic layout keeps wrappers display:contents so the original grid placement still applies.
+- Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
