@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
-import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES} from "@/audio/arp";
+import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
@@ -172,11 +172,11 @@ export function useGroovebox() {
     let notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     if (notes.length > 1 && s.arp.on && (s.chord.fit ?? "scale") === "scale") {
-      const sc = SCALES[s.arp.scale], n = sc.length; let d = 0; while (d < n * 3 && degreeToSemi(s.arp.scale, d) < semi) d++;
-      const base = degreeToSemi(s.arp.scale, d), size = CHORDS[s.chord.type].length;
-      let ns = Array.from({ length: size }, (_, k) => degreeToSemi(s.arp.scale, d + k * 2) - base);
-      for (let k = 0; k < Math.min(s.chord.inversion, size - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns;
+      // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
+      const fit = scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
+      if (fit) { let ns = fit;
+      for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
+      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns; }
     }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
@@ -208,9 +208,9 @@ export function useGroovebox() {
   }, []);
 
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
-  const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean) => {
+  const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
-    const semi = degreeToSemi(a.scale, c.deg), prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    const semi = degreeToSemi(a.scale, c.deg) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
     if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
     let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
     const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
@@ -353,7 +353,7 @@ export function useGroovebox() {
         if (a.mode === "step") { if (stepHit(i, time, velo, dur * .98, semiAt)) Tone.getDraw().schedule(() => flash(i), time); return; }
         // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts.
         const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002, ord = phraseOrder(a);
-        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, ord[k % ord.length], t, sd, end, velo, k === 0)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
+        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, ord[k % ord.length], t, sd, end, velo, k === 0, semiAt)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");

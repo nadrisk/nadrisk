@@ -61,3 +61,17 @@ export function randomizeArp(a: ArpParams): ArpParams {
   });
   return { ...a, cells };
 }
+
+/** Exact scale degree whose pitch is `semi` above the root, or null when `semi` is off-scale. */
+export function degreeOf(scale: ScaleName, semi: number): number | null {
+  const n = SCALES[scale].length, oct = Math.floor(semi / 12), idx = SCALES[scale].indexOf((((semi % 12) + 12) % 12) as never);
+  return idx < 0 ? null : oct * n + idx;
+}
+/** In-key stacked-thirds chord offsets (relative to `semi`), or null when the scale can't define one
+ *  (chromatic scale or an off-scale pitch) so the caller keeps the chord's fixed shape instead. */
+export function scaleChordOffsets(scale: ScaleName, semi: number, size: number): number[] | null {
+  if (scale === "chromatic") return null;
+  const d = degreeOf(scale, semi); if (d === null) return null;
+  const base = degreeToSemi(scale, d);
+  return Array.from({ length: size }, (_, k) => degreeToSemi(scale, d + k * 2) - base);
+}
