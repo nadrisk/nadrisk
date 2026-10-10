@@ -133,7 +133,8 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .masthead-note { display: flex; flex-direction: column; gap: 10px; font-size: 10px; color: hsl(var(--muted-foreground)); text-align: right; padding-bottom: 7px; }
 .masthead-note > span:last-child { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .status-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--accent)); }
-.instrument-workspace { margin: 0 4%; border: 1px solid hsl(var(--border)); border-radius: 4px; overflow: hidden; }
+.instrument-workspace { margin: 0 4%; border: 1px solid hsl(var(--border)); border-radius: 4px; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.instrument-workspace input, .instrument-workspace textarea, .instrument-workspace [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .workspace-heading { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 9px; color: hsl(var(--muted-foreground)); background: hsl(var(--patch-header)); border-bottom: 1px solid hsl(var(--border)); }
 .workspace-heading > span:first-child { color: hsl(var(--foreground)); display: flex; align-items: center; gap: 9px; }
 .patch-canvas { position: relative; padding: 28px 32px 26px; display: grid; grid-template-columns: minmax(180px, 0.9fr) minmax(300px, 1.85fr) minmax(210px, 1fr); column-gap: 7%; row-gap: 44px; background-color: hsl(var(--patch-background)); background-image: radial-gradient(hsl(var(--patch-grid)) 0.8px, transparent 0.8px); background-size: 16px 16px; }
