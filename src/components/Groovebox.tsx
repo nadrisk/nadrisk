@@ -38,7 +38,7 @@ function RepeatBar({ repeat, onRepeat, rec, onRec }: { repeat: RepeatParams; onR
   return <div className="gb-seq-tools gb-repeat">
     <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
     <div className="gb-banks"><button className={`gb-bank ${!repeat.latch ? "active" : ""}`} aria-pressed={!repeat.latch} onClick={() => onRepeat({ ...repeat, latch: false })}>HOLD</button><button className={`gb-bank ${repeat.latch ? "active" : ""}`} aria-pressed={repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, latch: true })}>LATCH</button><button className={`gb-bank ${repeat.roll ? "active" : ""}`} aria-pressed={!!repeat.roll} aria-label="Repeat roll" onClick={() => onRepeat({ ...repeat, roll: !repeat.roll })}>ROLL</button></div>
-    <select className="gb-row-len" aria-label="Repeat rate" value={repeat.rate} onChange={e => onRepeat({ ...repeat, rate: e.target.value as RateName })}>{Object.keys(RATES).map(r => <option key={r}>{r}</option>)}</select>
+    <button className="gb-cycle" aria-label="Repeat rate" onClick={() => onRepeat({ ...repeat, rate: cyc(Object.keys(RATES), repeat.rate) as RateName })}>{repeat.rate}</button>
     <button className={`gb-mute gb-rec ${rec ? "selected" : ""}`} aria-pressed={rec} aria-label="Record into sequencer" onClick={() => onRec(!rec)}>● REC</button>
   </div>;
 }
@@ -56,8 +56,8 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     const start = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - start + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
-    <select className="gb-row-len" aria-label={`${slots[r].name} loop length`} value={len} onChange={e => onLength(r, +e.target.value)}>{Array.from({ length: 16 }, (_, k) => <option key={k} value={k + 1}>{k + 1}</option>)}</select>
-    <select className={`gb-row-len gb-row-mod ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} value={tv} onChange={e => onModTarget(r, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+    <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
+    <button className={`gb-cycle ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} onClick={() => onModTarget(r, cyc(opts.map(o => o[0]), tv))}>{(opts.find(o => o[0] === tv)?.[1] ?? "off").slice(0, 10)}</button>
     {row.map((v, c) => { const off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, label = v >= 2 ? "tie" : v === 1 ? "hit" : "off";
       const val = view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : view === "vel" ? vel[r]?.[c] ?? 1 : view === "chance" ? chance[r]?.[c] ?? 1 : lane?.values[c] ?? .5;
       const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
@@ -111,6 +111,7 @@ const PRESETS: Record<string, Layout> = {
 };
 const THEMES = [["oled", "1-bit oled"], ["zoom", "blue-grey lcd"], ["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
 const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d; } catch { return d; } };
+function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox() {
   const g = useGroovebox();
@@ -182,7 +183,7 @@ export default function Groovebox() {
   return <section ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span>
       <span className="gb-heading-tools">
-        <label className="arp-field">display<select aria-label="Display theme" value={theme} onChange={e => setTheme(e.target.value)}>{THEMES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <button className="gb-cycle" aria-label="Display theme" onClick={() => setTheme(cyc(THEMES.map(t => t[0]), theme))}>DISP: {THEMES.find(t => t[0] === theme)?.[1] ?? theme}</button>
         <button className={`gb-mute ${editLayout ? "selected" : ""}`} aria-pressed={editLayout} onClick={() => setEditLayout(!editLayout)}>LAYOUT</button>
       </span>
       <span className="workspace-index">01 / GROOVEBOX</span></div>
