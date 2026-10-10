@@ -25,3 +25,4 @@
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
 - Mixer channel meters read a silent post-pan AnalyserNode per slot and write to the DOM each frame, so live metering never re-renders the mixer.
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
+- Pad hits must not do buffer or curve building: reversed/stretched/warped sample buffers are pre-baked at idle after changes, drive curves are cached, and each pad keeps at most 4 ringing voices, so every instrument triggers as fast as the synth.
