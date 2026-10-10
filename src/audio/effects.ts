@@ -272,6 +272,13 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
     apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
+  } else if (type === "phaser") {
+    // Six cascaded allpass stages swept by an LFO (and optional envelope) around MAN, with feedback.
+    const stages = Array.from({ length: 6 }, () => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.Q.value = .6; return a; });
+    const fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(...stages, fb);
+    let prev: AudioNode = input; stages.forEach(a => { prev.connect(a); prev = a; }); prev.connect(wet); prev.connect(fb).connect(stages[0]);
+    stages.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
+    apply = p => { set(m.o.frequency, rateOf(p)); stages.forEach(a => set(a.frequency, p.manual)); set(m.g.gain, p.depth * p.manual * .9); set(env.gain, p.env * p.manual * 2); set(fb.gain, -p.feedback * .85); };
   } else if (type === "vibrato") {
     const d = ctx.createDelay(0.05), m = lfo(); nodes.push(d); d.delayTime.value = 0.006;
     input.connect(d).connect(wet); m.g.connect(d.delayTime);
