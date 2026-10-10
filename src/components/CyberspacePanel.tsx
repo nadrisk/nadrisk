@@ -46,9 +46,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.text(o.wave.slice(0, 5).toUpperCase(), 42, 14);
       if (k === "osc2") { p.box(42, 22, 25, 7); if (s.osc2.mode === "fm") p.invert(43, 23, 23, 5); p.text(s.osc2.mode.toUpperCase(), 45, 23, s.osc2.mode !== "fm"); }
       if (k === "osc1" && o.wave === "additive") {
-        // 16 harmonic bars.
-        for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 26); p.rect(14 + i * 7, 43 - bh, 5, bh); if (i % 2) p.rect(14 + i * 7, 44, 5, 1); }
-        p.box(13, 16, 114, 29, true);
+        // A bounded 16-partial display leaves a clean row for the four knobs below.
+        p.box(13, 17, 114, 25, true);
+        for (let i = 0; i < 16; i++) { const v = s.partials[i] ?? 0, bh = Math.round(v * 20); p.rect(15 + i * 7, 40 - bh, 4, bh); if (i % 2) p.dot(16 + i * 7, 40); }
       } else {
         // Big stepped waveform preview.
         p.box(14, 28, 114, 17);
@@ -85,7 +85,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         <Zone x={14} y={11} w={24} h={15} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
         {k === "osc2" && <Zone x={42} y={21} w={25} h={9} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
         {k === "osc1" && o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
-          <Zone key={i} x={14 + i * 7} y={17} w={6} h={27} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
+          <Zone key={i} x={14 + i * 7} y={18} w={6} h={23} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
             onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
         ))}
       </>;
