@@ -323,7 +323,7 @@ export function useGroovebox() {
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
       // Guard: after an audio interruption Tone's clock can replay ticks for a transport that is already stopped.
-      if (Tone.getTransport().getStateAtTime(time) !== "started") return;
+      if ((Tone.getTransport() as unknown as { _clock: { getStateAtTime: (t: number) => string } })._clock.getStateAtTime(time) !== "started") return;
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
