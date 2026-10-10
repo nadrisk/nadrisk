@@ -371,8 +371,9 @@ export function useGroovebox() {
   }, [ensure, play]);
 
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))), []);
-  const updateSelected = useCallback((patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))), []);
+  const resetCursor = (i: number, patch: Partial<Slot>) => { if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0; };
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
     const buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
