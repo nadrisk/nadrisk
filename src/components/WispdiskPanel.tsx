@@ -58,9 +58,9 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 9), 68, 12);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
     } else if (page === "ENV") {
-      const t = env.a + env.d + env.r + .6, X = (v: number) => 14 + Math.round(v / t * 112), Y = (v: number) => 43 - Math.round(v * 30);
+      const t = env.a + env.d + env.r + .6, X = (v: number) => 2 + Math.round(v / t * 122), Y = (v: number) => 43 - Math.round(v * 30);
       const pts: [number, number][] = [[X(0), Y(0)], [X(env.a), Y(1)], [X(env.a + env.d), Y(env.s)], [X(env.a + env.d + .6), Y(env.s)], [X(t), Y(0)]];
-      for (let x = 14; x < 128; x += 4) p.dot(x, 44);
+      for (let x = 2; x < 126; x += 4) p.dot(x, 44);
       pts.slice(1, 4).forEach(([x]) => p.line(x, 12, x, 43, true));
       for (let i = 0; i < 4; i++) p.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
       pts.slice(1, 4).forEach(([x, y]) => p.rect(x - 1, y - 1, 3, 3));
@@ -68,7 +68,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.box(2, 11, 21, 7); if (sm.grain) p.invert(3, 12, 19, 5); p.text("GRN", 6, 12, !sm.grain);
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
-      const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 15 + Math.round(sm.start * 111);
+      const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
       p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 127 - Math.max(3, gx - sp)), 24, true);
     }
     knobs.forEach((k, i) => { p.knob(KX[i], 52, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 59); });
