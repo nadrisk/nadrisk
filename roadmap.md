@@ -29,3 +29,4 @@
 - [x] Post-master M/S/I LUFS and 20–120 Hz sub meter with reactive pixel-screen, visualizer and rename-dialog themes
 - [x] Poly control layout, centered filter response, independent synth AMP/PIT/FLT envelopes, draggable ADSR graphs, and additive draw gesture
 - [x] Live pre/post signal meters for compressor, sidechain, gate, drum bus and OTT effects
+- [x] Elektron-style drum machines (kick/snare/hat/clap) with full pitch envelopes
