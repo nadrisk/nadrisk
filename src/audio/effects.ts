@@ -142,7 +142,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   inputMeter.fftSize = outputMeter.fftSize = 256;
   inputMeter.smoothingTimeConstant = outputMeter.smoothingTimeConstant = .65;
   input.connect(inputMeter); output.connect(outputMeter);
-  const inputData = new Float32Array(inputMeter.fftSize), outputData = new Float32Array(outputMeter.fftSize);
+  const inputData = new Float32Array(new ArrayBuffer(inputMeter.fftSize * Float32Array.BYTES_PER_ELEMENT));
+  const outputData = new Float32Array(new ArrayBuffer(outputMeter.fftSize * Float32Array.BYTES_PER_ELEMENT));
   const nodes: AudioNode[] = [input, output, dry, wet, inputMeter, outputMeter], oscs: OscillatorNode[] = [];
   let automationTime = ctx.currentTime;
   const set = (p: AudioParam | undefined, v: number) => { if (p && Number.isFinite(v)) p.setTargetAtTime(v, automationTime, 0.005); };
