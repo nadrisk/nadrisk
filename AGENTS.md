@@ -23,6 +23,7 @@
 - Drum voices are per-kind machines in src/audio/voices.ts with optional fields filled by drumDefaults(), so older sets load without migration.
 - Pad holds (phrase, repeat, chord arp) are pumped from Tone's worker clock tick with a 150 ms horizon, and every voice booked ahead is tracked per pad so release, transport stop and set load cancel future notes; the grid uses a 100 ms look-ahead, so scheduling survives main-thread stalls without notes after release.
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
-- Mixer channel meters read a silent post-pan AnalyserNode per slot and write to the DOM each frame, so live metering never re-renders the mixer.
+- Mixer meters read a silent post-pan AnalyserNode per slot, written to the DOM per frame, so metering never re-renders the mixer.
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
-- Pad hits must not do buffer or curve building: reversed/stretched/warped sample buffers are pre-baked at idle after changes, drive curves are cached, and each pad keeps at most 4 ringing voices, so every instrument triggers as fast as the synth.
+- Pad hits never build buffers or curves (sample variants pre-baked at idle, drive curves cached; max 4 ringing voices per pad), so every instrument triggers instantly.
+- Pads use touch-action:none plus non-passive touch preventDefault and release on the last lifted pointer, so iOS never swallows fast taps.
