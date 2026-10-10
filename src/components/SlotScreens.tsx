@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Tap, Zone } from "@/pixel/PixelScreen";
+import { Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
