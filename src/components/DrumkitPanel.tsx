@@ -38,8 +38,8 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
       // Pitch-envelope arrow graph: start pitch falls to base pitch.
       KINDS.forEach((k, i) => { const x = 2 + i * 24; p.box(x, 11, 22, 7); if (k === d.kind) p.invert(x + 1, 12, 20, 5); p.text(k.slice(0, 3).toUpperCase(), x + 3, 12, k !== d.kind); });
       p.box(2, 20, 124, 25);
-      const y0 = 23, y1 = 41, x0 = 5, x1 = 122;
-      const dec = Math.max(2, Math.round(d.pitchDecay / .5 * 90));
+      const y0 = 23, y1 = 41, x0 = 4, x1 = 124;
+      const dec = Math.max(2, Math.round(d.pitchDecay / .5 * 110));
       p.line(x0, y0, x0 + dec, y1); p.line(x0 + dec, y1, x1, y1);
       p.rect(x0 - 1, y0 - 1, 3, 3); p.rect(x0 + dec - 1, y1 - 1, 3, 3);
       p.text(d.kind.toUpperCase().slice(0, 3), 110, 12);
