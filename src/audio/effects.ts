@@ -18,7 +18,7 @@ export const FX_DEFS = {
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
   metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01] } },
-  spectral: { label: "spectral.gate~", params: { threshold: [-35, -70, 0, 1], release: [0.08, 0.005, 1, 0.005], floor: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  spectral: { label: "spectral~", params: { freq: [1200, 80, 8000, 10], res: [6, 0.5, 24, 0.1], spread: [1, 0.25, 3, 0.01], peak: [14, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
   reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
