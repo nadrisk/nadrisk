@@ -34,17 +34,17 @@ function Sub808Panel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slo
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     p.box(2, 11, 124, 34);
     if (page === "PTCH") {
-      const dec = Math.max(2, Math.round(b.pitchDecay / .4 * 100)), drop = Math.round(b.pitchEnv / 48 * 24);
-      p.line(4, 14, 4 + dec, 14 + drop); p.line(4 + dec, 14 + drop, 124, 14 + drop);
+      const dec = Math.max(2, Math.round(b.pitchDecay / .4 * 88)), drop = Math.round(b.pitchEnv / 48 * 24);
+      p.line(4, 14, 4 + dec, 14 + drop); p.line(4 + dec, 14 + drop, 96, 14 + drop);
       p.rect(3, 13, 3, 3); p.rect(3 + dec, 13 + drop, 3, 3);
-      p.text(`+${Math.round(b.pitchEnv)}ST`, 100, 36);
+      const value = `+${Math.round(b.pitchEnv)}ST`; p.text(value, 124 - value.length * 4, 36);
     } else if (page === "AMP") {
       // Release tail graph.
-      const rel = Math.max(2, Math.round(b.decay / 4 * 110));
-      p.line(4, 14, 4, 14); p.line(4, 14, 4 + rel, 41); p.line(4 + rel, 41, 124, 41);
+      const rel = Math.max(2, Math.round(b.decay / 4 * 88));
+      p.line(4, 14, 4, 14); p.line(4, 14, 4 + rel, 41); p.line(4 + rel, 41, 96, 41);
       const clk = Math.round(b.click * 4);
       for (let i = 0; i < clk; i++) p.dot(6 + i * 2, 16);
-      p.text(ms(b.decay), 100, 36);
+      const value = ms(b.decay); p.text(value, 124 - value.length * 4, 36);
     } else {
       // Weight: drive/harmonics/tone bars.
       const bars: [string, number][] = [["TUB", b.tube], ["HRM", b.harmonics], ["TON", b.tone / 16000]];

@@ -14,8 +14,8 @@ if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?:
 }
 export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
 /** Channel-rack EQ in dB (mid frequency in Hz). */
-export type ChannelEQ = { low: number; mid: number; midFreq: number; high: number };
-export const defaultEQ = (): ChannelEQ => ({ low: 0, mid: 0, midFreq: 1000, high: 0 });
+export type ChannelEQ = { low: number; mid: number; midFreq: number; q: number; high: number };
+export const defaultEQ = (): ChannelEQ => ({ low: 0, mid: 0, midFreq: 1000, q: 1, high: 0 });
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[] };
@@ -304,7 +304,7 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = s.eq ?? defaultEQ(), [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
