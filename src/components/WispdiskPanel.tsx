@@ -52,7 +52,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     PAGES.forEach((pg, i) => { const x = 81 + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
     // Left: level fader.
     if (page === "SMP") {
-      p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 3, 5); p.text("REV", 4, 12, !sm.reverse);
+      p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
       p.box(44, 11, 21, 7, true); p.text(`${sm.pitch > 0 ? "+" : ""}${sm.pitch}`, 47, 12);
       p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 9), 68, 12);
@@ -69,7 +69,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
       const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
-      p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 127 - Math.max(3, gx - sp)), 24, true);
+      p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 125 - Math.max(3, gx - sp)), 24, true);
     }
     knobs.forEach((k, i) => { p.knob(KX[i], 52, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 59); });
   };
