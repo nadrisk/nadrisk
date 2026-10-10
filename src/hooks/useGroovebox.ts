@@ -89,7 +89,7 @@ const DEFAULT_ROWS = [
 ];
 const defaultPattern = () => DEFAULT_ROWS.map(R);
 const defaultBank = (): Bank => {
-  const b = defaultBank();
+  const b = makeBank(defaultPattern());
   DEFAULT_ROWS.forEach((row, i) => Array.from(row).forEach((c, k) => { if (c === "o") { b.vel[i][k] = .45; b.chance[i][k] = .6; } if (c === "r") b.ratchet![i][k] = k % 4 === 0 ? 3 : 2; }));
   b.chance[3] = b.chance[3].map(() => .75); b.chance[4] = b.chance[4].map(() => .7); b.vel[2] = b.vel[2].map((v, k) => (k % 2 ? .6 : v));
   return b;
