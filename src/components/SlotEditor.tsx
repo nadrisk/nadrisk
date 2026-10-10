@@ -47,6 +47,11 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <button className={`gb-mute ${slot.mute ? "selected" : ""}`} onClick={() => onChange({ mute: !slot.mute })}>{slot.mute ? "MUTED" : "MUTE"}</button>
     </div>
     <Seg label="Instrument" options={["drum", "synth", "sampler", "poly", "808", "siren"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
+    {slot.engine !== "sampler" && <div className="gb-cols2">
+      <P label="Volume" value={slot.level} min={0} max={100} fmt={v => `${v}%`} onChange={level => onChange({ level })} />
+      <P label="Pan" value={slot.pan} min={-1} max={1} step={0.01} fmt={v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} onChange={pan => onChange({ pan })} />
+    </div>}
+
 
     <label className="arp-field">Choke group<select aria-label="Choke group" value={slot.choke} onChange={e => onChange({ choke: +e.target.value })}>{[0,1,2,3,4].map(n => <option key={n} value={n}>{n ? `Group ${n}` : "Off"}</option>)}</select></label>
     {(slot.engine === "sampler" || slot.engine === "poly") && <fieldset className="gb-group"><legend>chord pad</legend>
