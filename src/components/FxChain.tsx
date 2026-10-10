@@ -9,7 +9,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   k === "sync" ? SYNC_DIVS[Math.round(v)][0] : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
   : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
-  : k === "tone" || k === "damp" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
+  : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 const nm = (t: FxType) => FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
 const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
@@ -66,6 +66,17 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     const inDb = levels?.input ?? -60, o = levels?.output ?? -60, gr = Math.max(0, inDb - o);
     const bar = (x: number, lbl: string, f: number, down = false) => { d.box(x, 22, 9, 16); const h = Math.round(Math.max(0, Math.min(1, f)) * 14); if (down) d.rect(x + 1, 23, 7, h); else d.rect(x + 1, 37 - h, 7, h); d.textC(lbl, x + 5, 39); };
     bar(78, "IN", (inDb + 60) / 60); bar(96, "GR", gr / 30, true); bar(114, "OUT", (o + 60) / 60);
+  } else if (type === "spectral") {
+    // Resonant band-bank curve: 8 log-spaced resonances around FREQ, shaped by PEAK/SPREAD/RES.
+    const N = 8, cf = Math.min(16000, Math.max(40, pv(p, "freq", 1200))), res = pv(p, "res", 6), spread = pv(p, "spread", 1), peak = pv(p, "peak", 14);
+    const fx = (x: number) => 40 * Math.pow(400, (x - 3) / 121);
+    d.line(3, 33, 124, 33, true); let py = 33;
+    for (let x = 3; x < 125; x++) {
+      const fr = fx(x); let db = 0;
+      for (let i = 0; i < N; i++) { const d0 = (i - (N - 1) / 2) / (N / 2), bf = cf * 2 ** (d0 * spread * 2), oc = Math.log2(fr / bf); db += peak * Math.exp(-d0 * d0 * 2.2) / (1 + oc * oc * res * res * .4); }
+      const y = Math.max(22, Math.min(44, Math.round(33 - db * .55))); d.line(x - 1, py, x, y); py = y;
+    }
+    const mx = 3 + Math.round(Math.log(cf / 40) / Math.log(400) * 121); d.line(mx, 42, mx, 44);
   } else {
     const amount = pv(p, "depth", pv(p, "mix", .7)), threshold = pv(p, "threshold", -24); const split = 3 + Math.round((threshold + 60) / 60 * 120);
     d.line(3, 42, split, 42 - Math.round((split - 3) * .15)); d.line(split, 42 - Math.round((split - 3) * .15), 124, 42 - Math.round((split - 3) * .15) - Math.round((124 - split) * .15 * (1 - amount * .8)));

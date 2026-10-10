@@ -13,13 +13,13 @@ if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?:
   const c = new Tone.Context({ latencyHint: "interactive", lookAhead: 0.1 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
 }
 export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
-/** Channel-rack EQ in dB (mid frequency in Hz). */
-export type ChannelEQ = { low: number; mid: number; midFreq: number; q: number; high: number };
-export const defaultEQ = (): ChannelEQ => ({ low: 0, mid: 0, midFreq: 1000, q: 1, high: 0 });
+/** Channel-rack EQ in dB (frequencies in Hz). */
+export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: number; q: number; high: number; highFreq: number };
+export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: 1, high: 0, highFreq: 9000 });
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -161,7 +161,7 @@ export function useGroovebox() {
   const cancelBooked = useCallback((i: number) => {
     const e = engine.current; if (!e) return; const now = e.ctx.currentTime;
     booked.current[i].forEach(b => { if (b.at > now) b.stop(b.at); }); booked.current[i] = [];
-    e.mono[i]?.stop(now);
+    e.mono[i]?.stop(now); e.ring[i].forEach(r => r.stop(now)); e.ring[i] = [];
   }, []);
   /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length, `noteIdx` plays one chord note (arpeggio step). */
   const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
@@ -183,9 +183,9 @@ export function useGroovebox() {
     const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     const run = (t: number, gate: number, idx?: number) => {
-      // Chord voices are grouped under one stop handle; drums remain bounded to one hit per pad.
-      e.mono[i]?.stop(t);
-      if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.mono[j]?.stop(t); e.mono[j] = null; } });
+      // Retriggers let the previous voice ring out per its release (like the 808); choke groups cut
+      // every ringing voice in the same group immediately, and never touch other groups.
+      if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       const ns = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const voices = ns.map((offset, k) => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
@@ -196,6 +196,10 @@ export function useGroovebox() {
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
+      // Ring list: every live voice per pad, pruned when silent and capped so rapid rolls stay bounded.
+      const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0));
+      rl.push({ stop: e.mono[i]!.stop, until: Math.max(now0, t) + gate + 8 });
+      if (rl.length > 8) rl.splice(0, rl.length - 8).forEach(r => r.stop(t));
       // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
       const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
     };
@@ -359,7 +363,7 @@ export function useGroovebox() {
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
-    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null) };
+    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -367,7 +371,7 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); lo.frequency.setTargetAtTime(q.lowFreq, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); hi.frequency.setTargetAtTime(q.highFreq, e.ctx.currentTime, .02); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
@@ -379,7 +383,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
@@ -399,6 +403,8 @@ export function useGroovebox() {
     const index = s.fx.filter(f => f.on).findIndex(f => f.id === id);
     return index < 0 ? null : e.outs[slot].chain[index]?.levels() ?? null;
   }, []);
+  /** Live master dynamics: true gain reduction (dB) from glue+limiter and post-chain output level. */
+  const getMasterDyn = useCallback((): { gr: number; out: number } | null => engine.current?.performance.dyn() ?? null, []);
 
   const hit = useCallback(async (i: number) => {
     // Fast path: audio already running, so play synchronously with no await.
@@ -488,7 +494,7 @@ export function useGroovebox() {
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([makeBank(defaultPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
 
-  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

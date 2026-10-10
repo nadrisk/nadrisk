@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
@@ -10,10 +11,19 @@ const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w,
 const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
-export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter }: {
+export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
   playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; volume: number; setVolume: (v: number) => void;
   eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
+  getMasterDyn?: () => { gr: number; out: number } | null;
 }) {
+  // Live dynamics readout: true gain reduction from the glue/limiter nodes and post-chain output level.
+  const [dyn, setDyn] = useState({ gr: 0, out: -60 });
+  useEffect(() => {
+    if (!getMasterDyn) return;
+    let raf = 0; const smooth = { gr: 0, out: -60 };
+    const poll = () => { const d = getMasterDyn(); if (d) { smooth.gr = d.gr > smooth.gr ? d.gr : smooth.gr * .9 + d.gr * .1; smooth.out = d.out > smooth.out ? d.out : smooth.out * .85 + d.out * .15; setDyn({ ...smooth }); } raf = requestAnimationFrame(poll); };
+    raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
+  }, [getMasterDyn]);
   const keys = (page: string): K[] => page === "OUT" ? [
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
     { s: "ECO", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
@@ -32,7 +42,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "12K", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
-  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter)]} knobs={knobs}
+  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
@@ -50,12 +60,12 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
           if (pf.clipOn) v = Math.tanh(v * 1.5) / Math.tanh(1.5);
           v = Math.min(v, ceil); const x = 3 + i, yy = 45 - Math.round(v * 19); p.line(px, py, x, yy); px = x; py = yy; }
         if (pf.limitOn) p.line(3, 45 - Math.round(ceil * 19), 45, 45 - Math.round(ceil * 19), true);
-        // GR + OUT meters.
-        const gr = (pf.glueOn ? Math.max(0, 1 - 1 / rat) * (1 - thr) : 0) + (pf.limitOn ? 1 - ceil : 0) + (pf.clipOn ? pf.clipDrive / 36 : 0);
+        // GR + OUT meters: live readings from the real dynamics nodes and post-chain signal.
+        const gr = Math.min(1, dyn.gr / 18), out = Math.max(0, Math.min(1, (dyn.out + 50) / 50));
         p.text("GR", 52, 28); p.text("OUT", 52, 38);
         for (let i = 0; i < 16; i++) { const x = 66 + i * 4;
-          if (i < Math.round(Math.min(1, gr) * 16)) p.rect(x, 28, 3, 5); else p.box(x, 28, 3, 5, true);
-          if (i < Math.round(ceil * (volume / 100) * 16)) p.rect(x, 38, 3, 5); else p.box(x, 38, 3, 5, true); }
+          if (i < Math.round(gr * 16)) p.rect(x, 28, 3, 5); else p.box(x, 28, 3, 5, true);
+          if (i < Math.round(out * 16)) p.rect(x, 38, 3, 5); else p.box(x, 38, 3, 5, true); }
       } else if (page === "EQ") {
         const g = [pf.mLow ?? 0, pf.mMud ?? 0, pf.mPresence ?? 0, pf.mAir ?? 0], xs = [36, 58, 86, 112];
         let px = 14, py = 28;

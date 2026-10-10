@@ -7,8 +7,9 @@ export type DrumKind = "kick" | "snare" | "hat" | "clap";
 export type DrumMachine = { pAtk?: number; pCurve?: number; pEnd?: number; fmDecay?: number; transient?: number; bodyDecay?: number; noiseDecay?: number; noiseTone?: number; tone2?: number; spread?: number; bursts?: number; burstGap?: number; tail?: number; drive?: number; fltBase?: number; fltWidth?: number };
 export type DrumParams = DrumMachine & { kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
-export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
+/** partials2 gives oscillator 2 its own additive shape; older sets without it fall back to partials. */
+export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -59,6 +60,19 @@ function filterWithEnv(ctx: BaseAudioContext, t: number, kind: FilterKind, cutof
   f.frequency.setValueAtTime(clampF(cutoff * 2 ** envOct), t);
   f.frequency.exponentialRampToValueAtTime(clampF(cutoff), t + decay + 0.001);
   return f;
+}
+
+/** Full ADSR on a filter's frequency: attack sweeps to cutoff*2^envOct, decays toward the sustain
+ *  octave point, releases back to cutoff. Scheduled directly on frequency (not detune) so every
+ *  fresh voice retriggers cleanly, including rapid repeated and overlapping notes. */
+function filterEnvAdsr(f: AudioParam, t: number, e: ADSR | undefined, gate: number, cutoff: number, envOct: number) {
+  e ??= { a: .001, d: .2, s: 0, r: .02 };
+  const base = clampF(cutoff), peak = clampF(cutoff * 2 ** envOct), sus = clampF(cutoff * 2 ** (envOct * e.s));
+  f.setValueAtTime(base, t);
+  f.linearRampToValueAtTime(peak, t + Math.max(.001, e.a));
+  f.setTargetAtTime(sus, t + Math.max(.001, e.a), e.d / 3 + .001);
+  const rel = t + Math.max(gate, e.a);
+  f.setTargetAtTime(base, rel, e.r / 3 + .001);
 }
 
 export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ pAtk: 0, pCurve: .7, pEnd: 0, fmDecay: .08, transient: k === "kick" ? .4 : .2, bodyDecay: k === "snare" ? .12 : .3, noiseDecay: k === "snare" ? .18 : .1, noiseTone: k === "clap" ? 1200 : 2500, tone2: k === "clap" ? 2.5 : 1.58, spread: 1, bursts: 4, burstGap: .009, tail: .6, drive: 0, fltBase: 20, fltWidth: 10 });
@@ -140,19 +154,18 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   const trem = ctx.createGain(); trem.connect(amp);
   const mix = ctx.createGain();
-  const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay);
-  filt.frequency.cancelScheduledValues(t); filt.frequency.value = p.cutoff;
-  modAdsr(filt.detune, t, p.filterEnvShape, gate, 0, p.filterEnv * 1200);
+  const filt = ctx.createBiquadFilter(); filt.type = p.filter; filt.Q.value = p.res;
+  filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, p.filterEnv);
   const wet = ctx.createGain(); wet.gain.value = p.wet; const dry = ctx.createGain(); dry.gain.value = 1 - p.wet;
   mix.connect(filt).connect(wet).connect(trem); mix.connect(dry).connect(trem);
-  const makeOsc = (o: OscParams) => {
+  const makeOsc = (o: OscParams, partials: number[]) => {
     const osc = at(ctx.createOscillator(), t);
-    if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, p.partials)); else osc.type = o.wave;
+    if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, partials)); else osc.type = o.wave;
     osc.frequency.value = base * 2 ** (o.coarse / 12);
     modAdsr(osc.detune, t, p.pitchEnvShape, gate, o.fine, p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
   };
-  const o1 = makeOsc(p.osc1), o2 = makeOsc(p.osc2);
+  const o1 = makeOsc(p.osc1, p.partials), o2 = makeOsc(p.osc2, p.partials2 ?? p.partials);
   const g1 = ctx.createGain(); g1.gain.value = p.osc1.gain; o1.connect(g1).connect(mix);
   const g2 = ctx.createGain();
   if (p.osc2.mode === "fm") { g2.gain.value = p.osc2.fmAmount * base * p.osc2.gain; o2.connect(g2).connect(o1.frequency); }
@@ -174,14 +187,41 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   return v;
 }
 
+// Crossfaded loop buffers are baked per sample/region so the seam is click-free; cached by parameters.
+const loopCache = new WeakMap<AudioBuffer, Map<string, AudioBuffer>>();
+function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, end: number, xf: number) {
+  const key = `${start.toFixed(3)}:${end.toFixed(3)}:${xf.toFixed(3)}`;
+  let m = loopCache.get(buf); if (!m) { m = new Map(); loopCache.set(buf, m); }
+  const hit = m.get(key); if (hit) return hit;
+  const sr = buf.sampleRate, s0 = Math.floor(start * sr), s1 = Math.floor(end * sr), x = Math.floor(xf * sr);
+  const len = s1 - s0 - x;
+  if (len < 256) return null;
+  const out = ctx.createBuffer(buf.numberOfChannels, len, sr);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const sd = buf.getChannelData(c), dst = out.getChannelData(c);
+    for (let i = 0; i < len; i++) dst[i] = sd[s0 + i];
+    // Equal-power blend of the approaching loop end with the loop start across the last x samples.
+    for (let i = 0; i < x; i++) { const g = i / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[s0 + i] * Math.sin(g * Math.PI / 2); }
+  }
+  m.set(key, out); return out;
+}
+
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   const src = ctx.createBufferSource(); src.buffer = buf;
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
-  const offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
-  if (p.loop) { src.loop = true; src.loopStart = offset; src.loopEnd = buf.duration; }
+  let offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
+  if (p.loop) {
+    const endSec = Math.max(offset + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
+    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - offset) / 2 - 0.005));
+    const baked = xf > 0.004 ? loopBufferOf(ctx, buf, offset, endSec, xf) : null;
+    if (baked) { src.buffer = baked; src.loop = true; src.loopStart = 0; src.loopEnd = baked.duration; offset = 0; }
+    else { src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
+  }
   src.connect(amp);
-  const g = p.loop ? gate : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
+  // A tapped loop sustains through the envelope (attack+decay plus a musical hold) instead of
+  // stopping at the short one-shot gate, so the loop is actually heard; held pads still hold it.
+  const g = p.loop ? Math.max(gate, p.env.a + p.env.d + 1.5) : Math.max(p.env.a, (buf.duration - offset) / rate - p.env.r);
   const end = adsr(amp.gain, t, p.env, g, vel);
   src.start(t, offset); src.stop(end);
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
