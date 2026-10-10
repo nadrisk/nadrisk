@@ -27,16 +27,26 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "VOX") {
       p.box(2, 11, 124, 34);
-      const spread = 2 + Math.round(y.detune / 30 * 10), chorus = Math.round(y.chorus * 5), pulse = Math.round(y.pulse * 10), sub = Math.round(y.sub * 8);
-      for (let i = 0; i < 3; i++) p.box(31 + i * spread - chorus, 27 - i * spread, 34 + (i === 1 ? pulse : 0), 13 + (i === 2 ? sub : 0));
-      p.textC("SUB/PULSE  DETUNE/CHORUS", 64, 13);
+      // One visual meaning: the three voices separate only as detune increases.
+      const spread = 1 + Math.round(y.detune / 30 * 5);
+      for (let i = 0; i < 3; i++) p.box(5 + i * spread, 25 - i * spread, 24, 16);
+      const bars: [string, number][] = [["SUB", y.sub], ["PLS", y.pulse], ["DET", y.detune / 30], ["CHR", y.chorus]];
+      bars.forEach(([label, value], i) => {
+        const x = 47 + i * 20, h = Math.round(Math.max(0, Math.min(1, value)) * 22);
+        p.textC(label, x + 5, 12); p.box(x, 18, 10, 25, true); p.rect(x + 1, 42 - h, 8, h);
+      });
     } else if (page === "FLT") {
       drawFilterCurve(p, "lowpass", y.cutoff, y.res, 2, 11, 124, 32);
     } else {
       drawEnvGraph(p, y.env);
     }
   };
-  const extra = (page: string) => page === "FLT"
+  const extra = (page: string) => page === "VOX" ? <>
+    <Zone x={44} y={11} w={16} h={34} label="Poly sub fader" value={y.sub} min={0} max={1} step={.01} onChange={sub => Y({ sub })} />
+    <Zone x={64} y={11} w={16} h={34} label="Poly pulse fader" value={y.pulse} min={0} max={1} step={.01} onChange={pulse => Y({ pulse })} />
+    <Zone x={84} y={11} w={16} h={34} label="Poly detune fader" value={y.detune} min={0} max={30} step={.1} onChange={detune => Y({ detune })} />
+    <Zone x={104} y={11} w={16} h={34} label="Poly chorus fader" value={y.chorus} min={0} max={1} step={.01} onChange={chorus => Y({ chorus })} />
+  </> : page === "FLT"
     ? <Zone x={2} y={11} w={124} h={32} horizontal label="Poly filter cutoff" value={y.cutoff} min={40} max={16000} step={10} onChange={cutoff => Y({ cutoff })} />
     : page === "ENV" ? <EnvZones env={y.env} set={env => Y({ env })} /> : null;
 
