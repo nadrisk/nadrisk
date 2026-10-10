@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
+import { textWidth } from "@/pixel/font";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 
