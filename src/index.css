@@ -671,3 +671,10 @@ button.px-zone { cursor: pointer; }
 .px-zone:focus-visible { outline: 1px dotted hsl(var(--foreground)); }
 .px-panel { display: flex; flex-direction: column; gap: 6px; }
 .instrument-workspace .px-screen .px-zone, .instrument-workspace .px-screen .px-zone[aria-pressed="true"] { background: transparent !important; border: 0 !important; color: transparent !important; outline-offset: 0; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; }
+
+/* Module chassis: every section is a flat hardware module, no window chrome. */
+.instrument-workspace .patch-node { border: 1px solid hsl(var(--foreground)) !important; outline: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: hsl(var(--background)) !important; }
+.instrument-workspace .node-heading { border-radius: 0 !important; padding: 2px 6px !important; font-family: 'Silkscreen', monospace !important; font-size: 8px !important; letter-spacing: .1em; }
+.instrument-workspace .node-heading .node-tag { border: 0 !important; padding: 0 !important; font-size: 8px !important; }
+.instrument-workspace .node-ports { display: none !important; }
+.instrument-workspace .gb-editor-body { display: flex; flex-direction: column; gap: 4px; padding: 4px !important; }

@@ -12,6 +12,7 @@ import DrumkitPanel from "@/components/DrumkitPanel";
 import Sub808Panel from "@/components/Sub808Panel";
 import SirenPanel from "@/components/SirenPanel";
 import EnsemblePanel from "@/components/EnsemblePanel";
+import { SlotScreen, ChordScreen } from "@/components/SlotScreens";
 
 function P(props: { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void }) {
   return <HwKnob {...props} />;
