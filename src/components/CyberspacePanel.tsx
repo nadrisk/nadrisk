@@ -1,6 +1,6 @@
-import { memo } from "react";
-import { Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, envKnobs, f01, hz, ms, pct, st, type Knob } from "./pixelScreens";
+import { memo, useState } from "react";
+import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
+import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import type { Wave } from "@/audio/voices";
 
@@ -10,6 +10,9 @@ const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
 function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const s = slot.synth;
   const S = (p: Partial<typeof s>) => onChange({ synth: { ...s, ...p } });
+  const [envPage, setEnvPage] = useState<"AMP" | "PIT" | "FLT">("AMP");
+  const selectedEnv = envPage === "AMP" ? s.env : envPage === "PIT" ? s.pitchEnvShape : s.filterEnvShape;
+  const setSelectedEnv = (env: typeof s.env) => envPage === "AMP" ? S({ env }) : envPage === "PIT" ? S({ pitchEnvShape: env }) : S({ filterEnvShape: env });
 
   const knobs = (page: string): Knob[] => {
     if (page === "O1" || page === "O2") {
@@ -34,9 +37,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       { label: "LFO rate", short: "RATE", value: s.lfo.rate, min: .05, max: 20, step: .05, fmt: v => `${v.toFixed(1)}HZ`, set: rate => S({ lfo: { ...s.lfo, rate } }) },
       { label: "LFO depth", short: "DPTH", value: s.lfo.depth, min: 0, max: 1, step: .01, fmt: pct, set: depth => S({ lfo: { ...s.lfo, depth } }) },
       { label: "Dry / wet", short: "WET", value: s.wet, min: 0, max: 1, step: .01, fmt: pct, set: wet => S({ wet }) },
-      { label: "Pitch env", short: "PENV", value: s.pitchEnv, min: -24, max: 24, step: 1, fmt: st, set: pitchEnv => S({ pitchEnv }) },
     ];
-    return envKnobs(s.env, env => S({ env }));
+    return envKnobs(selectedEnv, setSelectedEnv);
   };
 
   // Oscilloscope trace computed from the current settings so it reacts as the sound is shaped.
@@ -96,7 +98,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.text(`${s.lfo.wave.slice(0, 3).toUpperCase()} ${s.lfo.target.toUpperCase().slice(0, 4)}`, 28, 15);
       scope(p, page);
     } else {
-      drawEnvGraph(p, s.env, 2, 11, 124, 32);
+      drawEnvGraph(p, selectedEnv, 2, 16, 124, 27);
+      (["AMP", "PIT", "FLT"] as const).forEach((k, i) => { const x = 35 + i * 21; p.box(x, 11, 20, 5); if (k === envPage) p.invert(x + 1, 12, 18, 3); p.text(k, x + 4, 11, k !== envPage); });
     }
   };
 
@@ -108,14 +111,18 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return <>
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
-        {o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
-          <Zone key={i} x={3 + i * 7.6} y={26} w={7} h={17} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
-            onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
-        ))}
+        {o.wave === "additive" && <>
+          <BarDraw x={3} y={26} w={122} h={17} values={s.partials.slice(0, 16)} onChange={partials => S({ partials })} />
+          {s.partials.slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />)}
+        </>}
       </>;
     }
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
     if (page === "LFO") return <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />;
+    if (page === "ENV") return <>
+      {(["AMP", "PIT", "FLT"] as const).map((k, i) => <Tap key={k} x={35 + i * 21} y={10} w={20} h={7} label={`${k} envelope`} pressed={envPage === k} onClick={() => setEnvPage(k)} />)}
+      <EnvZones env={selectedEnv} set={setSelectedEnv} y0={16} h={27} />
+    </>;
     return null;
   };
 
