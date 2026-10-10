@@ -51,7 +51,9 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
   const act = useCallback((label: string, kind: "cc" | "on" | "off", v: number, key: string) => {
     const el = root.current?.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`); if (!el) return;
     const f = v / 127;
-    if (isSlider(el)) {
+    if (el.hasAttribute("data-midi-value")) {
+      if (kind !== "off") el.dispatchEvent(new CustomEvent("midivalue", { detail: f }));
+    } else if (isSlider(el)) {
       if (kind === "off") return;
       const r = el.getBoundingClientRect(), vert = el.getAttribute("data-orientation") === "vertical";
       fire(el, "pointerdown", vert ? r.left + r.width / 2 : r.left + f * r.width, vert ? r.bottom - f * r.height : r.top + r.height / 2); fire(el, "pointerup", 0, 0);

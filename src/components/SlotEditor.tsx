@@ -4,16 +4,15 @@ import { LIBRARY, listCached, type SampleRef } from "@/audio/sampleStore";
 import { Button } from "@/components/ui/button";
 import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
 import { RATES, type RateName } from "@/audio/arp";
-import { Slider } from "@/components/ui/slider";
+import HwKnob, { AdsrView } from "@/components/HwKnob";
 import { defaultSiren, type ADSR, type FilterKind, type Wave } from "@/audio/voices";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const noteName = (m: number) => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 
-function P({ label, value, min, max, step = 1, fmt, onChange }: { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void }) {
-  return <div className="gb-param"><div className="parameter-label">{label}<span>{fmt ? fmt(value) : value}</span></div>
-    <Slider aria-label={label} min={min} max={max} step={step} value={[value]} onValueChange={([v]) => onChange(v)} className="patch-slider" /></div>;
+function P(props: { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void }) {
+  return <HwKnob {...props} />;
 }
 function Seg<T extends string>({ options, value, onChange, label }: { options: readonly T[]; value: T; onChange: (v: T) => void; label: string }) {
   return <div className="gb-kinds" role="group" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>{options.map(o => <button key={o} aria-pressed={o === value} className={o === value ? "selected" : ""} onClick={() => onChange(o)}>{o}</button>)}</div>;
@@ -22,12 +21,12 @@ const Group = ({ title, children }: { title: string; children: ReactNode }) => <
 const ms = (v: number) => `${Math.round(v * 1000)} ms`, pct = (v: number) => `${Math.round(v * 100)}%`, hz = (v: number) => `${Math.round(v).toLocaleString()} Hz`;
 
 function Env({ env, onChange }: { env: ADSR; onChange: (e: ADSR) => void }) {
-  return <div className="gb-cols4">
+  return <div className="hw-env"><AdsrView {...env} /><div className="gb-cols4">
     <P label="A" value={env.a} min={0.001} max={2} step={0.001} fmt={ms} onChange={a => onChange({ ...env, a })} />
     <P label="D" value={env.d} min={0.01} max={2} step={0.01} fmt={ms} onChange={d => onChange({ ...env, d })} />
     <P label="S" value={env.s} min={0} max={1} step={0.01} fmt={pct} onChange={s => onChange({ ...env, s })} />
     <P label="R" value={env.r} min={0.01} max={3} step={0.01} fmt={ms} onChange={r => onChange({ ...env, r })} />
-  </div>;
+  </div></div>;
 }
 
 function Partials({ values, onChange }: { values: number[]; onChange: (v: number[]) => void }) {

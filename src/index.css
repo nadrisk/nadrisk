@@ -541,3 +541,24 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-step { position: relative; }
 .gb-step-roll { position: absolute; inset: 0; display: grid; place-items: center; font: 700 9px 'JetBrains Mono', monospace; color: hsl(var(--accent-foreground)); pointer-events: none; }
 .gb-step:not(.on) .gb-step-roll { color: hsl(var(--foreground)); }
+
+/* 1-bit hardware widgets */
+.gb-editor-body .gb-cols2, .gb-editor-body .gb-cols3, .gb-editor-body .gb-cols4 { align-items: start; }
+.hw-knob { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 2px 0; cursor: ns-resize; touch-action: none; user-select: none; outline: none; }
+.hw-knob svg { width: 34px; height: 34px; }
+.hw-knob:focus-visible svg { outline: 1px dashed hsl(var(--accent)); }
+.hw-track { fill: none; stroke: hsl(var(--border)); stroke-width: 2; }
+.hw-fill { fill: none; stroke: hsl(var(--accent)); stroke-width: 2; }
+.hw-cap { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 1; }
+.hw-needle { stroke: hsl(var(--foreground)); stroke-width: 1.6; stroke-linecap: square; }
+.hw-name { font-size: 7px; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--muted-foreground)); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw-val { font-size: 8px; padding: 0 3px; background: hsl(var(--foreground)); color: hsl(var(--background)); white-space: nowrap; }
+.hw-knob[data-midi-target] .hw-val { background: hsl(var(--accent)); }
+.hw-env { display: flex; flex-direction: column; gap: 6px; }
+.hw-adsr { width: 100%; height: 48px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.hw-line { fill: none; stroke: hsl(var(--foreground)); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.hw-dash { stroke: hsl(var(--border)); stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.hw-node { fill: hsl(var(--background)); stroke: hsl(var(--accent)); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gb-group { border: 1px solid hsl(var(--border)); border-radius: 0; }
+.gb-group > legend { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 6px; font-size: 8px; text-transform: uppercase; }
+.gb-sample { border: 1px solid hsl(var(--border)); border-radius: 0; }
