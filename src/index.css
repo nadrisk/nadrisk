@@ -661,3 +661,12 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-pad-index { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 2px; font-size: 7px; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-pad.hit .gb-pad-index { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) .gb-pad-name { font-weight: 700; font-size: 9px; }
+
+/* ===== PIXEL SCREEN (fixed 128x64, integer scaled) ===== */
+.px-wrap { width: 100%; display: flex; justify-content: center; }
+.px-screen { position: relative; border: 1px solid hsl(var(--foreground)); box-sizing: content-box; background: hsl(var(--background)); }
+.px-screen canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.px-zone { position: absolute; background: transparent; border: 0; padding: 0; margin: 0; cursor: ns-resize; touch-action: none; -webkit-tap-highlight-color: transparent; }
+button.px-zone { cursor: pointer; }
+.px-zone:focus-visible { outline: 1px dotted hsl(var(--foreground)); }
+.px-panel { display: flex; flex-direction: column; gap: 6px; }
