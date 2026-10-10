@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Zone } from "@/pixel/PixelScreen";
+import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, envKnobs, f01, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import type { Wave } from "@/audio/voices";
@@ -79,8 +79,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       drawWaveIcon(p, o.wave, 2, 11, 22, 12);
-      p.text(o.wave.slice(0, 5).toUpperCase(), 28, 15);
-      if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode.toUpperCase(), 77, 13, s.osc2.mode !== "fm"); }
+      p.text(`${o.wave.slice(0, 5).toUpperCase()} >`, 28, 15);
+      if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
       if (k === "osc1" && o.wave === "additive") {
         // A bounded 16-partial display leaves a clean row for the four knobs below.
         p.box(2, 25, 124, 19, true);
@@ -106,8 +106,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const waves: (Wave | "additive")[] = k === "osc1" ? ["sine", "triangle", "sawtooth", "square", "additive"] : ["sine", "triangle", "sawtooth", "square"];
       const idx = Math.max(0, waves.indexOf(o.wave as Wave));
       return <>
-        <Zone x={2} y={11} w={22} h={12} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
-        {k === "osc2" && <Zone x={74} y={12} w={25} h={7} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
+        <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
+        {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {k === "osc1" && o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
           <Zone key={i} x={3 + i * 7.6} y={26} w={7} h={17} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
             onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
@@ -115,7 +115,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       </>;
     }
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
-    if (page === "LFO") return <Zone x={2} y={11} w={22} h={12} label="LFO waveform" value={["sine", "triangle", "sawtooth", "square"].indexOf(s.lfo.wave)} min={0} max={3} step={1} onChange={v => S({ lfo: { ...s.lfo, wave: (["sine", "triangle", "sawtooth", "square"] as Wave[])[Math.round(v)] } })} />;
+    if (page === "LFO") return <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />;
     return null;
   };
 
