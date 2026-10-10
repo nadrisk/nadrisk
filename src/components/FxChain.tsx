@@ -44,7 +44,7 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
           if (f.type === "gate") for (let n = 0; n < gsteps; n++) { const x = 31 + n * 6, on = !!(mask & (1 << n)); if (on) p.rect(x, 22, 5, 8); else p.box(x, 22, 5, 8); }
           else p.text(f.on ? "ACTIVE" : "BYPASSED", 31, 24);
         } else {
-          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); drawFxIcon(p, t, x + 2, y + 2, .4); p.text(nm(t).slice(0, 5), x + 10, y + 2); });
+          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
         }
       }}
       extra={page => page === "LST" ? <>
