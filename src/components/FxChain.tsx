@@ -1,9 +1,9 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { FX_DEFS, FX_TYPES, SYNC_DIVS, makeFx, type FxType, type FxUnit } from "@/audio/effects";
+import { FX_DEFS, FX_TYPES, SYNC_DIVS, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   k === "sync" ? SYNC_DIVS[Math.round(v)][0] : (k === "rate" || k === "time") && p.sync ? "SYNC"
@@ -17,7 +17,7 @@ const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
 
-function drawFxVisual(d: Px, f: FxUnit) {
+function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   const p = f.params, type = f.type;
   if (type === "gate") {
     const steps = Math.max(1, Math.min(16, Math.round(p.steps ?? 16))), mask = Math.round(p.mask ?? 21845);
@@ -54,7 +54,7 @@ function drawFxVisual(d: Px, f: FxUnit) {
     if (!w) d.textC("FLAT", 64, 25);
     else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
   } else if (["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(type)) {
-    // Transfer curve left, IN / GR / OUT meters right for a nominal -12dB input.
+    // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
     const thr = pv(p, "threshold", type === "ott" ? -30 : type === "drumbus" ? -18 : -24);
     const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : type === "drumbus" ? 1 + pv(p, "drive", 3) / 4 : type === "noisegate" ? 1 : pv(p, "ratio", 4);
     const makeup = pv(p, "makeup", 0), depth = type === "sidechain" ? pv(p, "depth", 1) : 1;
@@ -63,7 +63,7 @@ function drawFxVisual(d: Px, f: FxUnit) {
     d.line(3, 43, 69, 22, true); let py = toY(out(-60));
     for (let x = 3; x <= 69; x++) { const y = toY(out((x - 3) / 66 * 60 - 60) + makeup); d.line(x - 1, py, x, y); py = y; }
     d.line(toX(thr), 22, toX(thr), 43, true);
-    const inDb = -12, gr = Math.max(0, (inDb - out(inDb)) * depth), o = inDb - gr + makeup;
+    const inDb = levels?.input ?? -60, o = levels?.output ?? -60, gr = Math.max(0, inDb - o);
     const bar = (x: number, lbl: string, f: number, down = false) => { d.box(x, 22, 9, 16); const h = Math.round(Math.max(0, Math.min(1, f)) * 14); if (down) d.rect(x + 1, 23, 7, h); else d.rect(x + 1, 37 - h, 7, h); d.textC(lbl, x + 5, 39); };
     bar(78, "IN", (inDb + 60) / 60); bar(96, "GR", gr / 30, true); bar(114, "OUT", (o + 60) / 60);
   } else {
@@ -73,15 +73,35 @@ function drawFxVisual(d: Px, f: FxUnit) {
   }
 }
 
-function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void }) {
+function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels }: { slotIndex: number; slots: string[]; slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void; getLevels: (slot: number, id: number) => FxLevels | null }) {
   const [sel, setSel] = useState(0);
   const [pg, setPg] = useState(0);
+  const [levels, setLevels] = useState<FxLevels | null>(null);
   const i = Math.min(sel, Math.max(0, fx.length - 1)), f = fx[i];
   const set = (p: Partial<FxUnit>) => onChange(fx.map((u, j) => (j === i ? { ...u, ...p } : u)));
   const move = (d: number) => { const j = i + d; if (!f || j < 0 || j >= fx.length) return; const n = [...fx]; [n[i], n[j]] = [n[j], n[i]]; onChange(n); setSel(j); };
   const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask") as [string, number[]][] : [];
   const pages = Math.max(1, Math.ceil(params.length / 4)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
+  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(f.type);
+  useEffect(() => {
+    if (!f || !liveMeter || !f.on) { setLevels(null); return; }
+    let frame = 0, last = 0, smooth: FxLevels = { input: -60, output: -60 };
+    const poll = (now: number) => {
+      if (now - last >= 50) {
+        const next = getLevels(slotIndex, f.id);
+        if (next) {
+          const follow = (old: number, value: number) => value > old ? value : old * .78 + value * .22;
+          smooth = { input: follow(smooth.input, next.input), output: follow(smooth.output, next.output) };
+          setLevels(smooth);
+        }
+        last = now;
+      }
+      frame = requestAnimationFrame(poll);
+    };
+    frame = requestAnimationFrame(poll);
+    return () => cancelAnimationFrame(frame);
+  }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * 4, pi * 4 + 4).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k), value: f.params[k] ?? r[0], min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
     fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v } }),
@@ -89,7 +109,7 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, levels?.input ?? -60, levels?.output ?? -60]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
@@ -99,7 +119,7 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
-          drawFxVisual(p, f);
+          drawFxVisual(p, f, levels);
         } else {
           FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
         }
