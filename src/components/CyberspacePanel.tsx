@@ -107,6 +107,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     } else if (page === "LFO") {
       drawWaveIcon(p, s.lfo.wave, 2, 11, 22, 12);
       p.text(s.lfo.wave.slice(0, 3).toUpperCase(), 28, 15);
+      { const tr = !!s.lfo.retrig; p.box(46, 10, 28, 8); if (tr) p.invert(47, 11, 26, 6); p.textC(tr ? "TRIG" : "FREE", 60, 11, tr); }
       (["SHP", "DST"] as const).forEach((k, i) => { const x = 76 + i * 25; p.box(x, 10, 24, 8); if (k === lfoPage) p.invert(x + 1, 11, 22, 6); p.textC(k, x + 12, 11, k !== lfoPage); });
       scope(p, page);
     } else {
@@ -135,7 +136,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     }
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
     if (page === "LFO") return <>
-      <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />
+      <Tap x={2} y={11} w={42} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />
+      <Tap x={46} y={10} w={28} h={8} label="LFO free or retrigger" pressed={!!s.lfo.retrig} onClick={() => S({ lfo: { ...s.lfo, retrig: !s.lfo.retrig } })} />
       {(["SHP", "DST"] as const).map((k, i) => <Tap key={k} x={76 + i * 25} y={10} w={24} h={8} label={k === "SHP" ? "LFO shape page" : "LFO destinations page"} pressed={lfoPage === k} onClick={() => setLfoPage(k)} />)}
     </>;
     if (page === "ENV") return <>

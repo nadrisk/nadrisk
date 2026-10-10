@@ -6,3 +6,6 @@
 - Drum voices are per-kind machines in src/audio/voices.ts with optional fields filled by drumDefaults(), so older sets load without migration.
 - Pad hits never build buffers or curves (sample variants pre-baked at idle, drive curves cached; max 6 ringing voices per pad), so every instrument triggers instantly.
 - Voices expose stop() (instant cut for chokes, cap, transport) and release(at, r) (fade from the current level that only ever shortens a tail); retriggers and live release edits re-time a pad's ringing tails with its current release, so release changes are heard immediately.
+- Synth and siren LFOs run from one free-running oscillator per slot in the engine (TRIG mode builds a per-note one), so modulation phase continues across notes.
+- Effect additions are limited by FX_COST against MAX_FX_LOAD across all slots, so the groovebox can't be overloaded; loaded sets over budget still play.
+- The channel insert EQ is configured by configureEq() for both audio and screen (screen reads getFrequencyResponse from an offline mirror), so the drawn curve is the real response.

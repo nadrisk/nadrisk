@@ -17,7 +17,7 @@ export const FX_DEFS = {
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
-  metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01] } },
+  metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01], modRate: [4, 0.1, 30, 0.1], modSync: [0, 0, 10, 1], modTime: [0, 0, 1, 0.01], modTone: [0, 0, 1, 0.01], modFb: [0, 0, 1, 0.01] } },
   spectral: { label: "spectral~", params: { freq: [1200, 80, 8000, 10], res: [6, 0.5, 24, 0.1], spread: [1, 0.25, 3, 0.01], peak: [14, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
@@ -25,7 +25,7 @@ export const FX_DEFS = {
   acid: { label: "acid.drive~", params: { drive: [10, 1, 40, 0.1], bias: [0.35, 0, 0.9, 0.01], bite: [1800, 300, 6000, 10], tone: [7000, 800, 16000, 10], mix: [1, 0, 1, 0.01] } },
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
-  drumbus: { label: "drum.bus~", params: { attack: [0.3, -1, 1, 0.01], sustain: [0, -1, 1, 0.01], drive: [3, 1, 20, 0.1], boom: [3, 0, 12, 0.5], boomFreq: [60, 30, 150, 1], color: [10000, 1500, 16000, 10], mix: [1, 0, 1, 0.01] } },
+  drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -91,6 +91,44 @@ class Transient extends AudioWorkletProcessor {
     return true;
   }
 }
+class MetalEnv extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'decay', defaultValue: .35 }]; }
+  constructor() { super(); this.e = 0; }
+  process(ins, outs, p) {
+    const x = ins[0], y = outs[0][0], kr = Math.exp(-1 / (sampleRate * Math.max(.005, p.decay[0]) / 3));
+    for (let n = 0; n < y.length; n++) { const v = Math.min(1, Math.max(Math.abs(x?.[0]?.[n] || 0), Math.abs(x?.[1]?.[n] || 0)) * 6); this.e = v > this.e ? this.e + (v - this.e) * .2 : this.e * kr; y[n] = this.e; }
+    return true;
+  }
+}
+class SampleHold extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'rate', defaultValue: 4 }]; }
+  constructor() { super(); this.ph = 1; this.v = [0, 0, 0]; }
+  process(ins, outs, p) {
+    const y = outs[0], inc = Math.max(.01, p.rate[0]) / sampleRate;
+    for (let n = 0; n < y[0].length; n++) { this.ph += inc; if (this.ph >= 1) { this.ph -= 1; this.v = [Math.random(), Math.random(), Math.random()]; } for (let c = 0; c < y.length; c++) y[c][n] = this.v[c] ?? 0; }
+    return true;
+  }
+}
+class Smash extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'amount', defaultValue: .3 }]; }
+  constructor() { super(); this.e = 0; this.g = 1; this.r = 0; }
+  process(ins, outs, p) {
+    // FET "all buttons in": near-instant attack, very high ratio, program-dependent release, driven input stage.
+    const x = ins[0], y = outs[0]; if (!x || !x.length) return true; const a = p.amount[0];
+    if (a < .001) { for (let c = 0; c < y.length; c++) y[c].set(x[c] || x[0]); return true; }
+    const th = Math.pow(10, (-6 - a * 30) / 20), ratio = 4 + a * 26, pre = 1 + a * 3, mk = Math.pow(10, a * 30 / 20), ka = 1 - Math.exp(-1 / (sampleRate * .0002));
+    for (let n = 0; n < y[0].length; n++) {
+      const v = Math.max(Math.abs((x[0][n] || 0) * pre), Math.abs(((x[1] || x[0])[n] || 0) * pre));
+      this.r = this.r * .9995 + (v > th ? .0005 : 0);
+      const kr = 1 - Math.exp(-1 / (sampleRate * (.05 + this.r * .4)));
+      this.e += (v - this.e) * (v > this.e ? ka : kr);
+      const gr = this.e > th ? Math.pow(th / this.e, 1 - 1 / ratio) : 1;
+      for (let c = 0; c < y.length; c++) { const s = ((x[c] || x[0])[n] || 0) * pre * gr * mk; y[c][n] = Math.tanh(s * (1 + a)) / (1 + a * .6); }
+    }
+    return true;
+  }
+}
+registerProcessor('nad-metalenv', MetalEnv); registerProcessor('nad-sh', SampleHold); registerProcessor('nad-smash', Smash);
 registerProcessor('nad-ngate', NGate); registerProcessor('nad-transient', Transient);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
@@ -166,9 +204,22 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { const k = `${p.drive}:${p.bias}`; if (k !== key) { key = k; sh.curve = acidCurve(p.drive, p.bias); }
       set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, 1 / (1 + p.drive * .02)); };
   } else if (type === "metal") {
-    const d = ctx.createDelay(.05), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), clip = ctx.createWaveShaper();
-    clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, clip); input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(clip).connect(d);
-    apply = p => { set(d.delayTime, p.time); set(lp.frequency, p.tone); set(fb.gain, Math.min(.96, p.feedback)); };
+    // Envelope-gated comb: feedback = FDBK x input envelope (DCY sets how long it stays open), so the loop can only
+    // ring while sound comes in and always dies away. A tanh clip and a 0.9 ceiling keep it from screaming.
+    const d = ctx.createDelay(.1), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), fbMod = ctx.createGain(), clip = ctx.createWaveShaper(), env = worklet("nad-metalenv"), fbAmt = ctx.createGain();
+    const sh = Tone.getContext().createAudioWorkletNode("nad-sh", { numberOfInputs: 1, outputChannelCount: [3] }) as unknown as AudioWorkletNode, split = ctx.createChannelSplitter(3), mT = ctx.createGain(), mF = ctx.createGain(), mB = ctx.createGain();
+    nodes.push(sh, split, mT, mF, mB); sh.connect(split); split.connect(mT, 0); split.connect(mF, 1); split.connect(mB, 2);
+    clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, fbMod, clip, fbAmt);
+    fb.gain.value = 0;
+    input.connect(env); env.connect(fbAmt).connect(fb.gain);
+    input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(fbMod).connect(clip).connect(d);
+    mT.connect(d.delayTime); mF.connect(lp.detune); mB.connect(fbMod.gain);
+    apply = p => {
+      const b = SYNC_DIVS[Math.round(p.modSync ?? 0)]?.[1] ?? 0, rate = b ? fxBpm / 60 / b : p.modRate ?? 4, mt = p.modTime ?? 0, mb = p.modFb ?? 0;
+      set(d.delayTime, p.time * (1 - mt * .4)); set(lp.frequency, p.tone); set(fbAmt.gain, Math.min(.9, p.feedback));
+      set(env.parameters.get("decay"), p.decay ?? .35); set(sh.parameters.get("rate"), rate);
+      set(mT.gain, p.time * mt * .8); set(mF.gain, (p.modTone ?? 0) * 2400); set(fbMod.gain, 1 - mb * .5); set(mB.gain, mb * .5);
+    };
   } else if (type === "djfilter") {
     const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
     apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
@@ -237,11 +288,18 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const n = worklet("nad-ngate"); input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "attack", "hold", "release", "range"]);
   } else if (type === "drumbus") {
-    // Transient shaper -> soft drive -> low "boom" shelf -> colour low-pass: an all-in-one drum channel.
-    const n = worklet("nad-transient"), pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain(), boom = ctx.createBiquadFilter(), col = ctx.createBiquadFilter();
-    boom.type = "lowshelf"; sh.oversample = eco ? "none" : "2x"; nodes.push(pre, sh, post, boom, col);
-    input.connect(n).connect(pre).connect(sh).connect(post).connect(boom).connect(col).connect(wet); let k = 0;
-    apply = p => { wp(n, p, ["attack", "sustain"]); if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(post.gain, 1 / (1 + (p.drive - 1) * .04)); set(boom.gain, p.boom); set(boom.frequency, p.boomFreq); set(col.frequency, p.color); };
+    // TRANS (tight <-> open) -> SMASH (1176 all-buttons FET) -> TONE tilt -> CLIP (tape-style: lows hit the clipper first).
+    const n = worklet("nad-transient"), sm = worklet("nad-smash"), tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), emph = ctx.createBiquadFilter(), drive = ctx.createGain(), sh = ctx.createWaveShaper(), de = ctx.createBiquadFilter(), roll = ctx.createBiquadFilter(), post = ctx.createGain();
+    tl.type = "lowshelf"; th.type = "highshelf"; tl.frequency.value = th.frequency.value = 800; emph.type = de.type = "lowshelf"; emph.frequency.value = de.frequency.value = 160; roll.type = "lowpass"; roll.Q.value = .5;
+    sh.oversample = eco ? "none" : "2x"; nodes.push(tl, th, emph, drive, sh, de, roll, post);
+    input.connect(n).connect(sm).connect(tl).connect(th).connect(emph).connect(drive).connect(sh).connect(de).connect(roll).connect(post).connect(wet); let k = -1;
+    apply = p => {
+      const t = p.trans ?? Math.max(-1, Math.min(1, (p.sustain ?? 0) - (p.attack ?? 0) * .5)), c = p.clip ?? 0, tone = p.tone ?? 0;
+      wp(n, { attack: t < 0 ? -t * .6 : 0, sustain: t }, ["attack", "sustain"]); set(sm.parameters.get("amount"), p.smash ?? 0);
+      set(tl.gain, -tone * 8); set(th.gain, tone * 8);
+      const e = c * 10; set(emph.gain, e); set(de.gain, -e); set(drive.gain, 1 + c * 2.5); set(roll.frequency, 20000 - c * 11000); set(post.gain, 1 / (1 + c * .6));
+      const q = Math.round(c * 20); if (q !== k) { k = q; sh.curve = Float32Array.from({ length: 2048 }, (_, i) => { const x = i / 1023.5 - 1; return Math.tanh(x * (1 + q * .15)) / Math.tanh(1 + q * .15) * .98; }); }
+    };
   } else if (type === "ott") {
     // 3-band split; each band squashed hard with big makeup so quiet detail is pulled up and peaks pushed down.
     const mk = ctx.createGain(); nodes.push(mk); mk.connect(wet);
@@ -262,6 +320,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData) }), keyInput, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
 
+/** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5 } as Record<FxType, number>;
+export const MAX_FX_LOAD = 90;
+export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
 export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "time", "feedback"], eq: ["low", "mid", "high"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];

@@ -5,6 +5,7 @@ import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, t
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
+import { configureEq, makeEqNodes } from "@/audio/eqResponse";
 import { CHORDS, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
@@ -15,11 +16,11 @@ if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?:
 export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
 /** Channel-rack EQ in dB (frequencies in Hz). */
 export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: number; q: number; high: number; highFreq: number };
-export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: 1, high: 0, highFreq: 9000 });
+export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
 export const STEPS = 16;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -34,7 +35,7 @@ const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, 
 const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: [defaultMod(), defaultMod()], bass: default808(), eq: defaultEQ(), siren: defaultSiren(), ...extra });
 // Default kit: modern IDM palette — clicky drums, FM metal, glitch chops, rubbery bass, glassy chords and textures.
 const defaultSlots = (): Slot[] => [
-  base("KICK", "drum", 48, { fx: [makeFx("drumbus", { drive: 4, boom: 4, attack: .5 })], drum: drum({ pitch: 52, pitchEnv: 40, pitchDecay: .025, transient: .8, drive: .3, env: { a: .001, d: .26, s: 0, r: .06 }, noise: .01 }) }),
+  base("KICK", "drum", 48, { fx: [makeFx("drumbus", { trans: -.2, smash: .45, clip: .4 })], drum: drum({ pitch: 52, pitchEnv: 40, pitchDecay: .025, transient: .8, drive: .3, env: { a: .001, d: .26, s: 0, r: .06 }, noise: .01 }) }),
   base("SNR GRN", "drum", 48, { fx: [makeFx("bitcrush", { bits: 7, reduce: 6, mix: .6 }), makeFx("reverb", { mix: .18, size: 1.2, damp: 7000 })], drum: drum({ kind: "snare", pitch: 230, pitchEnv: 18, pitchDecay: .02, noise: .7, fm: 2, fmRatio: 3.3, drive: .4, env: { a: .001, d: .16, s: 0, r: .05 }, cutoff: 9000 }) }),
   base("HAT FM", "drum", 48, { level: 50, choke: 1, drum: drum({ kind: "hat", pitch: 520, pitchEnv: 5, pitchDecay: .01, noise: .25, fm: 5, fmRatio: 1.41, ring: .7, ringFreq: 3100, filter: "highpass", cutoff: 8000, env: { a: .001, d: .035, s: 0, r: .02 } }) }),
   base("CLICK", "drum", 48, { level: 55, fx: [makeFx("delay", { time: .09, feedback: .3, mix: .2, tone: 6000 })], drum: drum({ kind: "hat", pitch: 1800, pitchEnv: 24, pitchDecay: .004, noise: .05, fm: 8, fmRatio: 2.7, filter: "bandpass", cutoff: 5000, res: 3, env: { a: .001, d: .012, s: 0, r: .01 } }) }),
@@ -219,8 +220,8 @@ export function useGroovebox() {
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
         : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length))
         : s.engine === "poly" ? null
-        : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel)
-        : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
+        : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel, e.lfos[i])
+        : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel, e.lfos[i]));
       if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), release: rel, glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)) };
@@ -355,7 +356,7 @@ export function useGroovebox() {
     const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); master.connect(perf.input); perf.update(performanceRef.current, bpmRef.current);
     perf.meter.port.onmessage = (ev: MessageEvent<{ m: number; s: number; i: number; sub: number; peak: number }>) => { const v = ev.data; meterPeak.current = Math.max(v.peak, meterPeak.current - .6); setMeter({ m: v.m, s: v.s, i: v.i, sub: v.sub, subPeak: meterPeak.current }); };
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
-    const outs = slotsRef.current.map(s => { const eq = (["lowshelf", "peaking", "highshelf"] as const).map((type, k) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = [100, 1000, 9000][k]; b.Q.value = k === 1 ? 1 : .707; return b; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; gain.connect(eq[0]).connect(eq[1]).connect(eq[2]).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
+    const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
@@ -394,7 +395,8 @@ export function useGroovebox() {
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
-    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
+    const lfos = slotsRef.current.map(() => { const o = ctx.createOscillator(); o.start(); return o; });
+    engine.current = { ctx, master, performance: perf, analyser, outs, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,7 +404,8 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); lo.frequency.setTargetAtTime(q.lowFreq, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); hi.frequency.setTargetAtTime(q.highFreq, e.ctx.currentTime, .02); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); { const o = e.lfos[i], sir = s.engine === "siren", w = (sir ? s.siren?.lfoWave : s.synth.lfo.wave) ?? "sine", r = (sir ? s.siren?.rate : s.synth.lfo.rate) ?? 1; if (o.type !== w && w !== ("additive" as string)) o.type = w as OscillatorType; o.frequency.setTargetAtTime(r, e.ctx.currentTime, .02); }
+      configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02)); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
@@ -414,7 +417,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);

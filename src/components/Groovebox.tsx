@@ -1,3 +1,4 @@
+import { fxLoad } from "@/audio/effects";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
@@ -185,7 +186,7 @@ export default function Groovebox() {
   useEffect(() => { try { localStorage.setItem("nadrisk.utility.v1", utility); } catch { /* private mode */ } }, [utility]);
 
   const utilityPanels: Record<Utility, JSX.Element> = {
-    fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} />,
+    fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} load={fxLoad(g.slots.map(x => x.fx))} />,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />,
     seq: <><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></>,
     mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
