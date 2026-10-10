@@ -64,6 +64,8 @@ const ones = () => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(1)
 const makeBank = (pattern: StepVal[][]): Bank => ({ pattern, lengths: Array(16).fill(STEPS), vel: ones(), chance: ones(), ratchet: ones() });
 const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => r.map(v => (v === 3 ? 2 : v) as StepVal)), lengths: b.lengths ?? Array(16).fill(STEPS), vel: b.vel ?? ones(), chance: b.chance ?? ones(), ratchet: b.ratchet ?? ones() });
 /** Engines whose pad taps sustain until the finger lifts. */
+export const MAX_SAMPLE_SEC = 30;
+const isWavMp3 = (f: File) => /\.(wav|wave|mp3)$/i.test(f.name) || /^audio\/(wav|wave|x-wav|vnd\.wave|mpeg|mp3)$/i.test(f.type);
 const heldEngine = (s: Slot) => s.engine === "poly" || s.engine === "siren" || s.engine === "sampler";
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
 const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? s.poly.env.r : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? s.siren?.release ?? .4 : s.synth.env.r;
@@ -468,16 +470,21 @@ export function useGroovebox() {
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
-    const buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
+    let buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
+    // Samples are capped at 30 s: longer files keep their first 30 seconds.
+    const cut = buf.duration > MAX_SAMPLE_SEC;
+    if (cut) { const n = Math.floor(MAX_SAMPLE_SEC * buf.sampleRate), b = ctxOf().createBuffer(buf.numberOfChannels, n, buf.sampleRate); for (let c = 0; c < buf.numberOfChannels; c++) b.copyToChannel(buf.getChannelData(c).subarray(0, n), c); buf = b; }
     buffers.current[i] = buf;
     setPeaks(p => p.map((x, j) => (j === i ? peaksOf(buf) : x)));
     setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: name, sampleId } } : x)));
+    return cut;
   }, []);
   const loadSample = useCallback(async (i: number, file: File) => {
     try {
+      if (!isWavMp3(file)) { setError(`"${file.name}" isn't a WAV or MP3 file.`); return; }
       let id: string | undefined; try { id = await cacheFile(file); } catch { id = undefined; }
-      await setBuffer(i, file, file.name, id);
-      setError(id ? "" : `"${file.name}" plays, but couldn't be saved on this device (storage full or blocked).`);
+      const cut = await setBuffer(i, file, file.name, id);
+      setError(!id ? `"${file.name}" plays, but couldn't be saved on this device (storage full or blocked).` : cut ? `"${file.name}" was cut to 30 s (samples are capped at 30 seconds).` : "");
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
   }, [setBuffer]);
   const loadById = useCallback(async (i: number, id: string, name: string) => {
@@ -487,7 +494,7 @@ export function useGroovebox() {
   const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
   // Folder load: cache everything; files whose name contains a pad name go onto that pad.
   const loadFolder = useCallback(async (files: File[]) => {
-    const audio = files.filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|ogg|flac|m4a|aiff?)$/i.test(f.name));
+    const audio = files.filter(isWavMp3);
     let matched = 0, unsaved = 0;
     const names = slotsRef.current.map(x => x.name.toLowerCase().replace(/\s+/g, ""));
     const used = new Set<number>();
