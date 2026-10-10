@@ -118,6 +118,8 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
+.native-groovebox-shell { min-height: 100dvh; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); background: hsl(var(--background)); overflow-x: hidden; }
+.native-groovebox-shell .instrument-workspace { margin: 0; border-left: 0; border-right: 0; min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
 .site-nav, .eyebrow, .masthead-note, .instrument-workspace, .latest-date, .archive-link, .about-object, .site-footer, .news-subheading, .news-entry-index, .news-entry > div > span { font-family: var(--font-mono); }
 .site-nav { height: 63px; padding: 0 4%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid hsl(var(--border)); font-size: 11px; }
 .nav-document { display: flex; align-items: center; gap: 10px; }

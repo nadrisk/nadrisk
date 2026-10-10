@@ -1,4 +1,5 @@
 # Architecture
+- Keep the native Capacitor shell on the shared Groovebox component and select it through Capacitor runtime detection, so iOS behavior stays aligned with the website instrument without including site content.
 - Keep the site on React and Vite with shared patcher styling across home and news so navigation remains consistent.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.

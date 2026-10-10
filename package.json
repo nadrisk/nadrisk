@@ -9,6 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:ios": "cap run ios",
     "test": "vitest run",
     "test:watch": "vitest"
   },
