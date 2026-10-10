@@ -45,12 +45,12 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
     p.text("MEMORY", 2, 2, false);
     p.text(msg.slice(0, 12).toUpperCase(), 40, 2, false);
     for (let i = 0; i < N; i++) {
-      const y = 11 + i * 5, st = sets[i];
-      if (i === sel) p.invert(0, y - 1, 128, 6);
+      const col = i % 2, row = Math.floor(i / 2), x = 1 + col * 64, y = 11 + row * 10, st = sets[i];
+      if (i === sel) p.invert(x, y - 1, 63, 9);
       const on = i !== sel;
-      p.text(String(i + 1).padStart(2, "0"), 2, y, on);
-      p.text((st?.name ?? "EMPTY").slice(0, 14).toUpperCase(), 12, y, on);
-      if (st) p.text(`${st.bpm}`, 116, y, on);
+      p.text(String(i + 1).padStart(2, "0"), x + 2, y, on);
+      p.text((st?.name ?? "EMPTY").slice(0, 8).toUpperCase(), x + 12, y, on);
+      if (st) p.text(`${st.bpm}`, x + 12, y + 4, on);
     }
     BTNS.forEach((b, i) => { const x = 1 + i * 21, w = b === "EXP+" ? 22 : 20; p.box(x, 53, w, 9); p.text(b, x + 2, 55); });
   };
