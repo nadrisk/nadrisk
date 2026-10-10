@@ -670,3 +670,4 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 button.px-zone { cursor: pointer; }
 .px-zone:focus-visible { outline: 1px dotted hsl(var(--foreground)); }
 .px-panel { display: flex; flex-direction: column; gap: 6px; }
+.instrument-workspace .px-screen .px-zone, .instrument-workspace .px-screen .px-zone[aria-pressed="true"] { background: transparent !important; border: 0 !important; color: transparent !important; outline-offset: 0; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; }
