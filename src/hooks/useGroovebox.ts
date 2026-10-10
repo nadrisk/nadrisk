@@ -258,7 +258,7 @@ export function useGroovebox() {
     });
   }, [trigger, phraseStep, recordHit, stepHit]);
   // The hold pump runs from Tone's worker-driven clock tick, which background tabs throttle far less than page timers.
-  const idle = () => { if (!holds.current.size && timer.current) { Tone.getContext().off("tick", pumpRef.current); timer.current = false; } };
+  const idle = () => { if (!holds.current.size && timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; } };
   const pumpRef = useRef(() => {}); pumpRef.current = pump;
   const tickPump = useRef(() => pumpRef.current()).current;
   const startHold = useCallback((i: number, kind: Hold["kind"]) => {
