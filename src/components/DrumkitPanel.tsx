@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, drawEnvGraph, drawFilterCurve, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
+import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 
 const PAGES = ["DRM", "TN", "FLT", "ENV"] as const;
@@ -62,6 +62,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
       <Zone x={2} y={20} w={124} h={25} horizontal label="Pitch env decay" value={d.pitchDecay} min={.005} max={.5} step={.005} onChange={pitchDecay => D({ pitchDecay })} />
     </>;
     if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff" value={d.cutoff} min={40} max={16000} step={10} onChange={cutoff => D({ cutoff })} />;
+    if (page === "ENV") return <EnvZones env={d.env} set={env => D({ env })} />;
     return null;
   };
 
