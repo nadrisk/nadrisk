@@ -82,7 +82,7 @@ export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: 
     { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 6000, step: 10, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, fmt: v => v.toFixed(1), set: q => set({ q }) },
   ];
-  return <Panel name="INSERT" label="Channel EQ insert" pages={["GAIN", "MID"]} deps={[eq.low, eq.mid, eq.midFreq, eq.q, eq.high]} knobs={page => page === "GAIN" ? gainKnobs : midKnobs}
+  return <Panel name="INSERT" label="Channel EQ insert" pages={["LVL", "MID"]} deps={[eq.low, eq.mid, eq.midFreq, eq.q, eq.high]} knobs={page => page === "LVL" ? gainKnobs : midKnobs}
     body={p => {
       const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120;
       const midX = xOf(eq.midFreq), sigma = Math.max(2.5, 18 / Math.sqrt(eq.q)); let px = 4, py = 30;
@@ -93,6 +93,6 @@ export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: 
         const y = Math.max(17, Math.min(43, Math.round(30 - (lo + mid + hi) * .72)));
         p.line(px, py, x, y); px = x; py = y;
       }
-      p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${eq.midFreq >= 1000 ? `${(eq.midFreq / 1000).toFixed(1)}K` : Math.round(eq.midFreq)}`, Math.max(45, Math.min(98, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
+      p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${eq.midFreq >= 1000 ? `${(eq.midFreq / 1000).toFixed(1)}K` : Math.round(eq.midFreq)}`, Math.max(45, Math.min(94, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
     }} />;
 }
