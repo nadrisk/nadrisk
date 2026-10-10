@@ -30,3 +30,5 @@
 - [x] Poly control layout, centered filter response, independent synth AMP/PIT/FLT envelopes, draggable ADSR graphs, and additive draw gesture
 - [x] Live pre/post signal meters for compressor, sidechain, gate, drum bus and OTT effects
 - [x] Elektron-style drum machines (kick/snare/hat/clap) with full pitch envelopes
+- [x] Phrase STEP mode, phrase loops, chords follow phrase (SCL/FIX), lighter granular
+- [ ] Round 2: sampler reverse waveform, AKAI-style stretch, breakbeat warp + slices

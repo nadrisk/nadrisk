@@ -1,11 +1,11 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
-import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName } from "@/audio/arp";
+import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
-import { arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
+import { CHORDS, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
 // Ask the browser for its smallest audio buffer so taps reach the speaker as fast as the device allows.
@@ -162,7 +162,15 @@ export function useGroovebox() {
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     const t0 = time ?? e.ctx.currentTime, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2);
-    const notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
+    let notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
+    // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
+    if (notes.length > 1 && s.arp.on && (s.chord.fit ?? "scale") === "scale") {
+      const sc = SCALES[s.arp.scale], n = sc.length; let d = 0; while (d < n * 3 && degreeToSemi(s.arp.scale, d) < semi) d++;
+      const base = degreeToSemi(s.arp.scale, d), size = CHORDS[s.chord.type].length;
+      let ns = Array.from({ length: size }, (_, k) => degreeToSemi(s.arp.scale, d + k * 2) - base);
+      for (let k = 0; k < Math.min(s.chord.inversion, size - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
+      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns;
+    }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
@@ -200,6 +208,15 @@ export function useGroovebox() {
     trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t)); return true;
   }, [trigger]);
 
+  // STEP mode: each hit advances one place through the (loop-expanded) phrase and wraps around.
+  const cursor = useRef<number[]>(Array(16).fill(0));
+  const stepHit = useCallback((i: number, t: number | undefined, velMul: number, gate?: number, semiAdd = 0) => {
+    const a = slotsRef.current[i].arp, order = phraseOrder(a), k = order[cursor.current[i] % order.length];
+    cursor.current[i] = (cursor.current[i] + 1) % order.length;
+    const c = a.cells[k]; if (!c?.on) return false;
+    trigger(i, t, c.vel * velMul, degreeToSemi(a.scale, c.deg) + semiAdd, gate); return true;
+  }, [trigger]);
+
   const recordHit = useCallback((i: number, at: number, v: number) => {
     const lt = lastTick.current; if (!recRef.current || !lt || Tone.getTransport().state !== "started") return;
     const six = 60 / bpmRef.current / 4, q = lt.tick + Math.round((at - lt.time) / six), qq = ((q % 55440) + 55440) % 55440;
@@ -223,14 +240,14 @@ export function useGroovebox() {
       const dur = h.kind === "repeat" ? (repeatRef.current.roll ? Math.max(rb / 4, rb * .93 ** h.count) : rb) : h.kind === "chord" ? 60 / bpmNow * RATES[s.chord.rate ?? "1/16"] : stepSeconds(a, bpmNow);
       while (h.next < horizon) {
         let fired = true;
-        if (h.kind === "repeat") { const v = padVel.current[i]; trigger(i, h.next, v, 0, Math.min(dur * .95, 60 / bpmNow / 4)); recordHit(i, h.next, v); }
+        if (h.kind === "repeat") { const v = padVel.current[i], g = Math.min(dur * .95, 60 / bpmNow / 4); if (a.on && a.mode === "step") fired = stepHit(i, h.next, v, g); else trigger(i, h.next, v, 0, g); recordHit(i, h.next, v); }
         else if (h.kind === "chord") trigger(i, h.next, 1, 0, dur * .9, h.idx);
-        else fired = phraseStep(i, a, h.idx, h.next, dur, Infinity, 1, h.count === 0);
+        else { const ord = phraseOrder(a); fired = phraseStep(i, a, ord[h.idx % ord.length], h.next, dur, Infinity, 1, h.count === 0); }
         if (fired) { const ft = h.next; Tone.getDraw().schedule(() => flash(i), ft); }
-        h.next += dur; h.idx = h.kind === "phrase" ? (h.idx + 1) % a.steps : h.idx + 1; h.count++;
+        h.next += dur; h.idx = h.kind === "phrase" ? (h.idx + 1) % phraseOrder(a).length : h.idx + 1; h.count++;
       }
     });
-  }, [trigger, phraseStep, recordHit]);
+  }, [trigger, phraseStep, recordHit, stepHit]);
   const idle = () => { if (!holds.current.size && timer.current != null) { clearInterval(timer.current); timer.current = null; } };
   const startHold = useCallback((i: number, kind: Hold["kind"]) => {
     const e = engine.current; if (!e || holds.current.has(i) || !pressed.current.has(i)) return;
@@ -250,10 +267,11 @@ export function useGroovebox() {
     const slot = slotsRef.current[i], e = engine.current;
     if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
     if (e) recordHit(i, e.ctx.currentTime, 1);
-    if (slot.arp.on) startHold(i, "phrase");
+    if (slot.arp.on && slot.arp.mode === "step") { const lg = slot.engine === "poly" || slot.engine === "siren" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined; if (stepHit(i, undefined, 1, lg)) flash(i); }
+    else if (slot.arp.on) startHold(i, "phrase");
     else if (isChordArp(slot)) startHold(i, "chord");
     else { trigger(i, undefined, 1, 0, slot.engine === "poly" || slot.engine === "siren" || (slot.engine === "sampler" && (slot.chord.on || slot.sampler.grain)) ? 60 : undefined); flash(i); }
-  }, [startHold, stopHold, trigger, recordHit]);
+  }, [startHold, stopHold, trigger, recordHit, stepHit]);
   const setRepeat = useCallback((r: RepeatParams) => { if (!r.on || !r.latch) [...holds.current].forEach(([i, h]) => { if (h.kind === "repeat" && (!r.on || !pressed.current.has(i))) stopHold(i); }); setRepeatState(r); }, [stopHold]);
   const setPadVel = useCallback((i: number, v: number) => { padVel.current[i] = v; }, []);
 
@@ -295,9 +313,10 @@ export function useGroovebox() {
         const rn = Math.round(cb.ratchet?.[i]?.[st] ?? 1);
         if (!a.on && rn > 1) { const sub = sixteenth / rn; for (let k = 0; k < rn; k++) { const tt = time + k * sub; trigger(i, tt, velo * (1 - k * .04), semiAt, sub * .9); Tone.getDraw().schedule(() => flash(i), tt); } return; }
         if (!a.on) { trigger(i, time, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
+        if (a.mode === "step") { if (stepHit(i, time, velo, dur * .98, semiAt)) Tone.getDraw().schedule(() => flash(i), time); return; }
         // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts.
-        const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002;
-        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, k, t, sd, end, velo, k === 0)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
+        const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002, ord = phraseOrder(a);
+        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, ord[k % ord.length], t, sd, end, velo, k === 0)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
@@ -306,7 +325,7 @@ export function useGroovebox() {
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger, phraseStep]);
+  }, [trigger, phraseStep, stepHit]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -330,7 +349,7 @@ export function useGroovebox() {
   const togglePlay = useCallback(async () => {
     try {
       await ensure(); const t = Tone.getTransport();
-      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; t.position = 0; t.start("+0.05"); setPlaying(true); }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
@@ -352,8 +371,9 @@ export function useGroovebox() {
   }, [ensure, play]);
 
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))), []);
-  const updateSelected = useCallback((patch: Partial<Slot>) => setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))), []);
+  const resetCursor = (i: number, patch: Partial<Slot>) => { if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0; };
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
     const buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());

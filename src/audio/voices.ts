@@ -190,25 +190,29 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } }, glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
-/** Simple granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
+// Granular budget: one shared Hann window, at most 12 grains sounding at once across all pads, at most ~25 grains/s per voice.
+const HANN = (() => { const c = new Float32Array(new ArrayBuffer(64 * 4)); for (let i = 0; i < 64; i++) c[i] = .7 * Math.sin(Math.PI * i / 63) ** 2; return c; })();
+let liveGrains = 0;
+/** Light granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
 export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
   let stopAt = adsr(amp.gain, t, p.env, gate, vel);
-  const size = Math.max(.01, p.grainSize ?? .08), hop = size / 2, rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
+  const size = Math.max(.03, p.grainSize ?? .08), hop = Math.max(.04, size / 2), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
   let next = t, pos = p.start * buf.duration;
   const pump = () => {
     const horizon = ctx.currentTime + .12;
     while (next < horizon && next < stopAt) {
+      if (liveGrains >= 12) { next += hop; continue; }
       const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = buf; src.playbackRate.value = rate;
-      g.gain.setValueAtTime(0, next); g.gain.linearRampToValueAtTime(.7, next + size / 2); g.gain.linearRampToValueAtTime(0, next + size);
+      g.gain.value = 0; g.gain.setValueCurveAtTime(HANN, next, size); liveGrains++;
       src.connect(g).connect(amp);
       const off = Math.max(0, Math.min(buf.duration - .01, pos + (Math.random() * 2 - 1) * spray * Math.min(1, buf.duration) * .5));
-      src.start(next, off); src.stop(next + size + .01); src.onended = () => { src.disconnect(); g.disconnect(); };
+      src.start(next, off); src.stop(next + size + .01); src.onended = () => { liveGrains--; src.disconnect(); g.disconnect(); };
       next += hop; if (!p.freeze) { pos += hop * .5; if (pos > buf.duration - size) pos = p.start * buf.duration; }
     }
     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => amp.disconnect(), Math.max(0, (stopAt - ctx.currentTime) * 1000) + 300); }
   };
-  const iv = window.setInterval(pump, 25); pump();
+  const iv = window.setInterval(pump, 40); pump();
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, Math.max(.004, p.env.r / 4)); stopAt = Math.min(stopAt, s + Math.max(.05, p.env.r)); } };
 }
 
