@@ -207,7 +207,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Envelope-gated comb: feedback = FDBK x input envelope (DCY sets how long it stays open), so the loop can only
     // ring while sound comes in and always dies away. A tanh clip and a 0.9 ceiling keep it from screaming.
     const d = ctx.createDelay(.1), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), fbMod = ctx.createGain(), clip = ctx.createWaveShaper(), env = worklet("nad-metalenv"), fbAmt = ctx.createGain();
-    const sh = Tone.getContext().createAudioWorkletNode("nad-sh", { numberOfInputs: 0, outputChannelCount: [3] }) as unknown as AudioWorkletNode, split = ctx.createChannelSplitter(3), mT = ctx.createGain(), mF = ctx.createGain(), mB = ctx.createGain();
+    const sh = Tone.getContext().createAudioWorkletNode("nad-sh", { numberOfInputs: 1, outputChannelCount: [3] }) as unknown as AudioWorkletNode, split = ctx.createChannelSplitter(3), mT = ctx.createGain(), mF = ctx.createGain(), mB = ctx.createGain();
     nodes.push(sh, split, mT, mF, mB); sh.connect(split); split.connect(mT, 0); split.connect(mF, 1); split.connect(mB, 2);
     clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, fbMod, clip, fbAmt);
     fb.gain.value = 0; env.channelCountMode = "explicit"; env.channelCount = 2;
