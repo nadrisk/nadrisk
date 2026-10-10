@@ -289,6 +289,7 @@ export function useGroovebox() {
   // Audio interruptions (phone call, Siri, locked screen, OS suspends): silence booked notes and pause the
   // transport in place, then resume on the next return/tap so playback continues without a burst of late notes.
   const interrupted = useRef(false);
+  const runRef = useRef(false); // the user's intended transport state, independent of Tone's clock
   useEffect(() => {
     const raw = ctxOf() as AudioContext;
     const onState = () => {
@@ -322,8 +323,8 @@ export function useGroovebox() {
     const outs = slotsRef.current.map(s => { const eq = (["lowshelf", "peaking", "highshelf"] as const).map((type, k) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = [100, 1000, 9000][k]; b.Q.value = k === 1 ? 1 : .707; return b; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; gain.connect(eq[0]).connect(eq[1]).connect(eq[2]).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); return { gain, eq, filter, tap, pan, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0;
     const loop = Tone.getTransport().scheduleRepeat(time => {
-      // Guard: after an audio interruption Tone's clock can replay ticks for a transport that is already stopped.
-      if ((Tone.getTransport() as unknown as { _clock: { getStateAtTime: (t: number) => string } })._clock.getStateAtTime(time) !== "started") return;
+      // Guard: after an audio interruption Tone's clock can still replay ticks once STOP has been pressed.
+      if (!runRef.current) return;
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
@@ -387,9 +388,9 @@ export function useGroovebox() {
 
   const togglePlay = useCallback(async () => {
     try {
-      if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
+      if (playing) { interrupted.current = false; runRef.current = false; } // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
-      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); runRef.current = true; t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
