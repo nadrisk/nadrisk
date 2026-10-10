@@ -9,7 +9,7 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
   const [scale, setScale] = useState(3);
   useLayoutEffect(() => {
     const el = wrap.current; if (!el) return;
-    const ro = new ResizeObserver(() => setScale(Math.max(2, Math.min(6, Math.floor(el.clientWidth / W)))));
+    const ro = new ResizeObserver(() => setScale(Math.max(2, Math.min(4, Math.floor(el.clientWidth / W)))));
     ro.observe(el); return () => ro.disconnect();
   }, []);
   useEffect(() => {
