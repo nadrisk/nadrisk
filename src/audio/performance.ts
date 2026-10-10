@@ -41,6 +41,13 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   shaper.curve = clipCurve; shaper.oversample = "2x"; clipIn.gain.value = 0; limBy.gain.value = 0;
   mastered.connect(clipIn).connect(pre).connect(shaper).connect(post).connect(limIn); mastered.connect(clipBy).connect(limIn);
   limIn.connect(limiter).connect(limOn).connect(final); limIn.connect(limBy).connect(final); final.connect(dest);
+  // Parallel, non-audible standards meter taps: K-weighted full band and 20-120 Hz sub band.
+  const kShelf = ctx.createBiquadFilter(), kHp = ctx.createBiquadFilter(), subHp = ctx.createBiquadFilter(), subLp = ctx.createBiquadFilter();
+  kShelf.type = "highshelf"; kShelf.frequency.value = 1682; kShelf.gain.value = 4; kShelf.Q.value = .707;
+  kHp.type = "highpass"; kHp.frequency.value = 38; kHp.Q.value = .5;
+  subHp.type = "highpass"; subHp.frequency.value = 20; subHp.Q.value = .707; subLp.type = "lowpass"; subLp.frequency.value = 120; subLp.Q.value = .707;
+  const meter = Tone.getContext().createAudioWorkletNode("nad-meter", { numberOfInputs: 2, numberOfOutputs: 0, channelCount: 2 }) as unknown as AudioWorkletNode;
+  final.connect(kShelf).connect(kHp).connect(meter, 0, 0); final.connect(subHp).connect(subLp).connect(meter, 0, 1);
   const set = (p: AudioParam | undefined, v: number) => p?.setTargetAtTime(v, ctx.currentTime, .02);
   const db = (v: number) => 10 ** (v / 20);
   const update = (p: PerformanceParams, bpm: number) => {
@@ -60,5 +67,5 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const gl = p.glueOn ?? false; set(glue.threshold, gl ? p.glueThresh ?? -12 : 0); set(glue.ratio, gl ? p.glueRatio ?? 2 : 1); set(glueMk.gain, gl ? db(p.glueMakeup ?? 2) : 1);
     set(limiter.threshold, p.ceiling ?? -1); set(limOn.gain, lim ? 1 : 0); set(limBy.gain, lim ? 0 : 1);
   };
-  return { input, output: final, update, dispose: () => { noise.stop(); [input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, update, dispose: () => { noise.stop(); [input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter].forEach(n => n.disconnect()); } };
 }

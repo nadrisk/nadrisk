@@ -25,14 +25,14 @@ function useTaps(master: GainNode | null) {
 
 const hex = (n: number) => n.toString(16).padStart(2, "0").toUpperCase();
 
-function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boolean }) {
+function Vis({ type, taps, eco, theme }: { type: VisType; taps: Taps | null; eco: boolean; theme: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const el = ref.current, c = el?.getContext("2d");
     if (!el || !c) return;
     const css = getComputedStyle(el);
-    const A = css.getPropertyValue("--scope-line").trim() || "#5ee0b0", G = css.getPropertyValue("--scope-grid").trim() || "#222";
-    const P = "hsl(275 70% 65%)", Y = "hsl(48 95% 60%)", R = "hsl(350 85% 60%)";
+    const A = css.getPropertyValue("--scope-line").trim(), G = css.getPropertyValue("--scope-grid").trim();
+    const P = css.getPropertyValue("--scope-secondary").trim(), Y = css.getPropertyValue("--scope-warning").trim(), R = css.getPropertyValue("--scope-danger").trim();
     let raf = 0, last = 0, pkL = 0, pkR = 0;
     const draw = (now = 0) => {
       raf = requestAnimationFrame(draw);
@@ -71,7 +71,7 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
       } else if (type === "waterfall") {
         c.drawImage(el, 0, 0, el.width, el.height, 0, 1, w, h); // scroll down 1px
         for (let x = 0; x < w; x++) { const i = Math.floor(Math.pow(1024, x / w)); const v = F ? F[Math.min(1023, i)] / 255 : 0;
-          c.fillStyle = `hsl(${275 - v * 160} 80% ${v * 60}%)`; c.fillRect(x, 0, 1, 1); }
+          c.fillStyle = v > .8 ? R : v > .45 ? P : A; c.globalAlpha = Math.max(.08, v); c.fillRect(x, 0, 1, 1); c.globalAlpha = 1; }
       } else if (type === "glitch") {
         const cols = Math.max(4, Math.floor(w / 18)), rows = Math.floor(h / 11);
         for (let r = 0; r < rows; r++) { c.fillStyle = G; c.fillText(hex(r * cols), 0, 9 + r * 11);
@@ -84,11 +84,11 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
       }
     };
     draw(); return () => cancelAnimationFrame(raf);
-  }, [type, taps, eco]);
+  }, [type, taps, eco, theme]);
   return <canvas ref={ref} className="scope-canvas" role="img" aria-label={VIS[type]} />;
 }
 
-function VisualizerRack({ master, eco }: { master: GainNode | null; eco: boolean }) {
+function VisualizerRack({ master, eco, theme }: { master: GainNode | null; eco: boolean; theme: string }) {
   const taps = useTaps(master);
   const [st, setSt] = useState<{ list: VisType[]; grid: boolean }>(() => {
     try { const s = JSON.parse(localStorage.getItem(KEY) || ""); if (Array.isArray(s.list)) return s; } catch { /* default */ }
@@ -112,7 +112,7 @@ function VisualizerRack({ master, eco }: { master: GainNode | null; eco: boolean
           <button aria-label="Move later" disabled={i === st.list.length - 1} onClick={() => move(i, 1)}>›</button>
           <button aria-label="Remove visualizer" onClick={() => setList(st.list.filter((_, j) => j !== i))}>×</button>
         </span></header>
-        <div className="gb-vis-screen"><Vis type={t} taps={taps} eco={eco} /></div>
+        <div className="gb-vis-screen"><Vis type={t} taps={taps} eco={eco} theme={theme} /></div>
       </section>)}
     </div>
   </div>;

@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Px } from "./draw";
 
 export const W = 128, H = 64;
+export const DisplayThemeContext = createContext("oled");
 
 // Fixed 128x64 display scaled by a whole number (nearest neighbour), so every pixel is identical on any device.
 export default function PixelScreen({ draw, deps, children, label }: { draw: (p: Px) => void; deps: unknown[]; children?: ReactNode; label: string }) {
   const wrap = useRef<HTMLDivElement>(null), cv = useRef<HTMLCanvasElement>(null);
+  const theme = useContext(DisplayThemeContext);
   const [scale, setScale] = useState(3);
   useLayoutEffect(() => {
     const el = wrap.current; if (!el) return;
@@ -19,7 +21,7 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     draw(new Px(ctx, fg, bg));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [theme, ...deps]);
   return <div ref={wrap} className="px-wrap">
     <div className="px-screen" style={{ width: W * scale, height: H * scale }}>
       <canvas ref={cv} width={W} height={H} role="img" aria-label={label} style={{ width: W * scale, height: H * scale }} />

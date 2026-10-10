@@ -47,6 +47,11 @@
     --patch-yellow: 62 58% 66%;
     --scope-line: hsl(160 68% 61%);
     --scope-grid: hsl(180 4% 19%);
+    --scope-secondary: hsl(268 82% 69%);
+    --scope-warning: hsl(62 58% 66%);
+    --scope-danger: hsl(0 84% 60%);
+    --chassis: 180 4% 9%;
+    --chassis-edge: 180 4% 16%;
 
     --glow-primary: 0 0 40px hsl(270 50% 35% / 0.4);
     --glow-accent: 0 0 60px hsl(165 70% 42% / 0.25);
@@ -528,6 +533,11 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   --patch-yellow: var(--lcd-h) var(--lcd-s) 75%;
   --scope-line: hsl(var(--lcd-h) var(--lcd-s) 62%);
   --scope-grid: hsl(var(--lcd-h) 30% 13%);
+  --scope-secondary: hsl(var(--lcd-h) var(--lcd-s) 48%);
+  --scope-warning: hsl(var(--lcd-h) var(--lcd-s) 72%);
+  --scope-danger: hsl(var(--lcd-h) var(--lcd-s) 88%);
+  --chassis: var(--lcd-h) 20% 9%;
+  --chassis-edge: var(--lcd-h) 20% 16%;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
@@ -612,12 +622,13 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   background-image: none !important; transition: none !important; animation: none !important;
   letter-spacing: 0 !important;
 }
-.instrument-workspace:not([data-lcd="studio"]) { background: hsl(0 0% 9%); border: 2px solid hsl(0 0% 16%); font-size: 8px; }
-.instrument-workspace:not([data-lcd="studio"]) .patch-canvas { background: hsl(0 0% 9%) !important; padding: 10px; gap: 10px; column-gap: 10px; row-gap: 10px; }
+.instrument-workspace:not([data-lcd="studio"]) { background: hsl(var(--chassis)); border: 2px solid hsl(var(--chassis-edge)); font-size: 8px; }
+.instrument-workspace:not([data-lcd="studio"]) .patch-canvas { background: hsl(var(--chassis)) !important; padding: 10px; gap: 10px; column-gap: 10px; row-gap: 10px; }
 .instrument-workspace:not([data-lcd="studio"]) .patch-cables, .instrument-workspace:not([data-lcd="studio"]) .node-ports { display: none; }
 .instrument-workspace:not([data-lcd="studio"]) canvas, .instrument-workspace:not([data-lcd="studio"]) svg { image-rendering: pixelated; shape-rendering: crispEdges; }
 /* every panel = a sunken LCD module */
-.instrument-workspace:not([data-lcd="studio"]) .patch-node { background: hsl(var(--background)) !important; color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); outline: 3px solid hsl(0 0% 5%); outline-offset: 0; }
+.instrument-workspace:not([data-lcd="studio"]) .patch-node { background: hsl(var(--background)) !important; color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); outline: 3px solid hsl(var(--chassis-edge)); outline-offset: 0; }
+.gb-rename-portal { margin: 0 !important; width: 100%; max-width: none; }
 .instrument-workspace:not([data-lcd="studio"]) .node-heading,
 .instrument-workspace:not([data-lcd="studio"]) .workspace-heading { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; padding: 2px 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; border: 0; }
 .instrument-workspace:not([data-lcd="studio"]) .node-tag { color: hsl(var(--background)); border: 1px solid hsl(var(--background)); padding: 0 3px; font-size: 7px; }
