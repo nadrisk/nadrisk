@@ -713,3 +713,6 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .gb-cycle { font-family: 'Silkscreen', monospace; font-size: 8px; text-transform: uppercase; background: hsl(var(--background)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--foreground)); border-radius: 0; padding: 1px 4px; min-width: 22px; cursor: pointer; }
 .instrument-workspace .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .instrument-workspace .workspace-heading, .instrument-workspace .workspace-footer { font-family: 'Silkscreen', monospace; text-transform: uppercase; }
+section.instrument-workspace .gb-grid .patch-node > .node-heading { background: transparent !important; border: 0 !important; min-height: 0; }
+section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl(var(--foreground) / .7) !important; background: transparent !important; }
+section.instrument-workspace .gb-grid .px-screen, section.instrument-workspace .gb-grid canvas.px-canvas { max-width: 512px; }
