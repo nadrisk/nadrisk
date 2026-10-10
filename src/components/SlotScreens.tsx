@@ -1,3 +1,4 @@
+import { eqCurve, EQ_KILL } from "@/audio/eqResponse";
 import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
 import { DisplayThemeContext, Tap } from "@/pixel/PixelScreen";
@@ -99,12 +100,13 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
     </>} />;
 }
 
+const EQ_FREQS = Float32Array.from({ length: 121 }, (_, i) => 20 * 1000 ** (i / 120));
 export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
-  const eq = { lowFreq: 100, highFreq: 9000, q: 1, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
+  const eq = { lowFreq: 100, highFreq: 9000, q: .7, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
   const gainKnobs: Knob[] = [
-    { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: low => set({ low }) },
+    { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
     { label: "Mid EQ", short: "MID", value: eq.mid, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: mid => set({ mid }) },
-    { label: "High shelf EQ", short: "HIGH", value: eq.high, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: high => set({ high }) },
+    { label: "High shelf EQ", short: "HIGH", value: eq.high, min: -24, max: 12, step: .5, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: high => set({ high }) },
   ];
   const freqKnobs: Knob[] = [
     { label: "Low shelf frequency", short: "LO-F", value: eq.lowFreq, min: 40, max: 500, step: 5, fmt: v => `${Math.round(v)}HZ`, set: lowFreq => set({ lowFreq }) },
@@ -114,15 +116,10 @@ export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: 
   ];
   return <Panel name="INSERT" label="Channel EQ insert" pages={["LVL", "FRQ"]} deps={[eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : freqKnobs}
     body={p => {
-      const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120;
-      const midX = xOf(eq.midFreq), sigma = Math.max(2.5, 18 / Math.sqrt(eq.q)); let px = 4, py = 30;
-      for (let x = 4; x <= 124; x++) {
-        const lo = eq.low / (1 + Math.exp((x - xOf(eq.lowFreq)) / 5));
-        const hi = eq.high / (1 + Math.exp((xOf(eq.highFreq) - x) / 5));
-        const mid = eq.mid * Math.exp(-.5 * ((x - midX) / sigma) ** 2);
-        const y = Math.max(17, Math.min(43, Math.round(30 - (lo + mid + hi) * .72)));
-        p.line(px, py, x, y); px = x; py = y;
-      }
+      // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
+      const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq);
+      const db = eqCurve(eq, EQ_FREQS); let px = 4, py = 30;
+      for (let x = 4; x <= 124; x++) { const y = Math.max(17, Math.min(43, Math.round(30 - db[x - 4] * .55))); p.line(px, py, x, y); px = x; py = y; }
       p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${eq.midFreq >= 1000 ? `${(eq.midFreq / 1000).toFixed(1)}K` : Math.round(eq.midFreq)}`, Math.max(45, Math.min(94, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
     }} />;
 }
