@@ -17,6 +17,7 @@ Each machine has eight controls on its main page, which is the Elektron style. E
 4. **CLAP (new):** a burst generator with a separate room tail. Controls: TONE (band-pass), WIDTH, BURSTS (1–6), SPREAD (time between bursts), TAIL, TAIL TONE, DECAY, DRIVE.
 
 Every machine also gets:
+- **Its own full pitch envelope on a dedicated PITCH page.** A draggable graph controls amount (up or down, in semitones), attack, decay, curve (from snappy to linear) and end pitch. It works on every machine, the clap included, and moves every oscillator in that machine, so the sweep is always clearly audible. The quick SWEEP/CONTOUR knobs on the main page control this same envelope.
 - **A clean sound by default**, with a track overdrive for the modern punch.
 - **A base-width filter:** high-pass and low-pass together, set by a base and a width, instead of a single filter type.
 - **Velocity that changes the sound, not just the level:** harder hits get more sweep and more transient. This also makes note-repeat rolls feel alive.
