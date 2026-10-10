@@ -23,23 +23,22 @@ export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Parti
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
   ];
-  return <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan, cur]} knobs={() => knobs}
+  return <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan]} knobs={() => knobs}
     body={p => {
       ENG.forEach(([e, s], i) => key(p, s, 1 + i * 21, 11, 21, slot.engine === e));
-      [...name].forEach((c, i) => { const x = 2 + i * 6; if (i === cur) { p.rect(x - 1, 22, 6, 9); p.text(c, x, 24, false); } else p.text(c, x, 24); });
-      key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 30, slot.mute);
+      p.box(1, 22, 62, 9);
+      p.text(name.trimEnd() || "—", 4, 24);
+      key(p, "EDIT", 64, 22, 30, false);
       key(p, slot.choke ? `CHK${slot.choke}` : "CHK-", 96, 22, 31, slot.choke > 0);
-      key(p, "<", 2, 34, 14, false); key(p, name[cur] === " " ? "SPC" : name[cur], 18, 34, 26, true); key(p, ">", 46, 34, 14, false);
-      p.text(`CHAR ${cur + 1}/10`, 66, 36);
+      key(p, slot.mute ? "MUTED" : "MUTE", 64, 34, 30, slot.mute);
+      p.text("TAP NAME TO RENAME", 2, 36);
       if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 50);
     }}
     extra={() => <>
       {ENG.map(([e], i) => <Tap key={e} x={1 + i * 21} y={11} w={21} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e })} />)}
-      {[...name].map((_, i) => <Tap key={i} x={1 + i * 6} y={22} w={6} h={9} label={`Name character ${i + 1}`} pressed={i === cur} onClick={() => setCur(i)} />)}
-      <Tap x={2} y={34} w={14} h={9} label="Previous name letter" onClick={() => setChar(ci - 1)} />
-      <Zone x={18} y={34} w={26} h={9} label="Name letter" value={ci} min={0} max={CH.length - 1} step={1} horizontal onChange={setChar} />
-      <Tap x={46} y={34} w={14} h={9} label="Next name letter" onClick={() => setChar(ci + 1)} />
-      <Tap x={64} y={22} w={30} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
+      <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={rename} />
+      <Tap x={64} y={22} w={30} h={9} label="Edit slot name" onClick={rename} />
+      <Tap x={64} y={34} w={30} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
     </>} />;
 }
