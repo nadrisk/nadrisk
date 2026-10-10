@@ -75,3 +75,5 @@ export function scaleChordOffsets(scale: ScaleName, semi: number, size: number):
   const base = degreeToSemi(scale, d);
   return Array.from({ length: size }, (_, k) => degreeToSemi(scale, d + k * 2) - base);
 }
+/** True when every interval of `shape`, built on `semi`, lands on a note of the scale. */
+export const shapeInScale = (scale: ScaleName, semi: number, shape: readonly number[]) => shape.every(o => degreeOf(scale, semi + o) !== null);

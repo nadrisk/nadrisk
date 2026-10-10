@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
-import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets} from "@/audio/arp";
+import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
@@ -173,7 +173,8 @@ export function useGroovebox() {
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     if (notes.length > 1 && s.arp.on && (s.chord.fit ?? "scale") === "scale") {
       // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
-      const fit = scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
+      // The selected chord is kept (with its voicing) when it already fits the scale; otherwise in-key thirds replace it.
+      const fit = shapeInScale(s.arp.scale, semi, CHORDS[s.chord.type]) ? null : scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
       if (fit) { let ns = fit;
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
       ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns; }
@@ -422,27 +423,28 @@ export function useGroovebox() {
   const loadSample = useCallback(async (i: number, file: File) => {
     try {
       let id: string | undefined; try { id = await cacheFile(file); } catch { id = undefined; }
-      await setBuffer(i, file, file.name, id); setError("");
+      await setBuffer(i, file, file.name, id);
+      setError(id ? "" : `"${file.name}" plays, but couldn't be saved on this device (storage full or blocked).`);
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
   }, [setBuffer]);
   const loadById = useCallback(async (i: number, id: string, name: string) => {
-    try { const b = await getSampleBlob(id); if (!b) throw 0; await setBuffer(i, b, name, id); setError(""); }
-    catch { setError(`Sample "${name}" not found on this device.`); }
+    try { const b = await getSampleBlob(id); if (!b) throw 0; await setBuffer(i, b, name, id); setError(""); return true; }
+    catch { setError(`Sample "${name}" not found on this device.`); return false; }
   }, [setBuffer]);
   const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
   // Folder load: cache everything; files whose name contains a pad name go onto that pad.
   const loadFolder = useCallback(async (files: File[]) => {
     const audio = files.filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|ogg|flac|m4a|aiff?)$/i.test(f.name));
-    let matched = 0;
+    let matched = 0, unsaved = 0;
     const names = slotsRef.current.map(x => x.name.toLowerCase().replace(/\s+/g, ""));
     const used = new Set<number>();
     for (const f of audio) {
-      try { await cacheFile(f); } catch { /* storage full */ }
+      let saved = true; try { await cacheFile(f); } catch { saved = false; unsaved++; }
       const fn = f.name.toLowerCase().replace(/[\s_-]+/g, "");
       const i = names.findIndex((n, k) => !used.has(k) && n && fn.includes(n));
-      if (i >= 0) { used.add(i); try { await setBuffer(i, f, f.name, cacheId(f)); matched++; } catch { /* skip */ } }
+      if (i >= 0) { used.add(i); try { await setBuffer(i, f, f.name, saved ? cacheId(f) : undefined); matched++; } catch { /* skip */ } }
     }
-    setError(audio.length ? "" : "No audio files in that folder.");
+    setError(!audio.length ? "No audio files in that folder." : unsaved ? `${unsaved} of ${audio.length} files couldn't be saved on this device (storage full or blocked).` : "");
     return { total: audio.length, matched };
   }, [setBuffer]);
   const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
@@ -478,7 +480,9 @@ export function useGroovebox() {
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
     setBpm(st.bpm ?? 124); setTune(st.tune ?? 0); setVolume(st.volume ?? 60);
     buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
-    st.slots?.forEach((o, i) => { if (o?.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName); });
+    // Restore every sample, then report all the missing ones together instead of only the last.
+    const jobs = (st.slots ?? []).map((o, i) => (o?.sampler?.sampleId ? loadById(i, o.sampler.sampleId, o.sampler.sampleName).then(ok => (ok ? null : o.sampler.sampleName)) : Promise.resolve(null)));
+    void Promise.all(jobs).then(r => { const miss = r.filter((x): x is string => !!x); if (miss.length > 1) setError(`${miss.length} samples not found on this device: ${miss.slice(0, 3).join(", ")}${miss.length > 3 ? "…" : ""}`); });
   }, [loadById]);
   const clearPattern = () => setPattern(emptyPattern());
   const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
