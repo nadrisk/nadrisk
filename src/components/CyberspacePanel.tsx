@@ -99,7 +99,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       scope(p, page);
     } else {
       drawEnvGraph(p, selectedEnv, 2, 16, 124, 27);
-      (["AMP", "PIT", "FLT"] as const).forEach((k, i) => { const x = 35 + i * 21; p.box(x, 11, 20, 5); if (k === envPage) p.invert(x + 1, 12, 18, 3); p.text(k, x + 4, 11, k !== envPage); });
+      const amount = envPage === "PIT" ? s.pitchEnv : envPage === "FLT" ? s.filterEnv : 0;
+      p.text(envPage === "AMP" ? "LEVEL" : `${amount >= 0 ? "+" : ""}${amount.toFixed(1)}`, 3, 11);
+      (["AMP", "PIT", "FLT"] as const).forEach((k, i) => { const x = 61 + i * 21; p.box(x, 11, 20, 5); if (k === envPage) p.invert(x + 1, 12, 18, 3); p.text(k, x + 4, 11, k !== envPage); });
     }
   };
 
@@ -120,7 +122,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
     if (page === "LFO") return <Tap x={2} y={11} w={60} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />;
     if (page === "ENV") return <>
-      {(["AMP", "PIT", "FLT"] as const).map((k, i) => <Tap key={k} x={35 + i * 21} y={10} w={20} h={7} label={`${k} envelope`} pressed={envPage === k} onClick={() => setEnvPage(k)} />)}
+      {envPage === "PIT" && <Zone x={2} y={10} w={55} h={7} label="Pitch envelope amount" value={s.pitchEnv} min={-24} max={24} step={1} onChange={pitchEnv => S({ pitchEnv })} />}
+      {envPage === "FLT" && <Zone x={2} y={10} w={55} h={7} label="Filter envelope amount" value={s.filterEnv} min={-4} max={4} step={.1} onChange={filterEnv => S({ filterEnv })} />}
+      {(["AMP", "PIT", "FLT"] as const).map((k, i) => <Tap key={k} x={61 + i * 21} y={10} w={20} h={7} label={`${k} envelope`} pressed={envPage === k} onClick={() => setEnvPage(k)} />)}
       <EnvZones env={selectedEnv} set={setSelectedEnv} y0={16} h={27} />
     </>;
     return null;
