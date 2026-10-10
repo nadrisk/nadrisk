@@ -16,7 +16,7 @@ export default function Waveform({ analyser, playing, eco = false }: { analyser:
       if (eco && now - last < 66) { frame = requestAnimationFrame(draw); return; }
       last = now;
       const width = element.clientWidth, height = element.clientHeight;
-      const ratio = window.devicePixelRatio || 1;
+      const ratio = 1 / 3;
       if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio; }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
