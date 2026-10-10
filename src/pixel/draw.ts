@@ -23,9 +23,9 @@ export class Px {
     let x = r, y = 0, e = 1 - r;
     while (x >= y) { for (const [a, b] of [[x, y], [y, x], [-y, x], [-x, y], [-x, -y], [-y, -x], [y, -x], [x, -y]]) this.dot(cx + a, cy + b); y++; if (e < 0) e += 2 * y + 1; else { x--; e += 2 * (y - x) + 1; } }
   }
-  knob(cx: number, cy: number, f: number) {
-    this.circle(cx, cy, 6); const a = (-135 + f * 270) * Math.PI / 180;
-    this.line(cx, cy, cx + 5 * Math.sin(a), cy - 5 * Math.cos(a));
+  knob(cx: number, cy: number, f: number, r = 6) {
+    this.circle(cx, cy, r); const a = (-135 + f * 270) * Math.PI / 180;
+    this.line(cx, cy, cx + (r - 1) * Math.sin(a), cy - (r - 1) * Math.cos(a));
   }
   fader(x: number, y: number, w: number, h: number, f: number) {
     this.box(x, y, w, h); const segs = Math.floor((h - 2) / 2), lit = Math.round(f * segs);

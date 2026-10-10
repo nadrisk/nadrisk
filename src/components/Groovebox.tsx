@@ -51,11 +51,8 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; offset: number; loop: number; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
   const drag = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onValue(view, r, c, Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
-  const [trackPage, setTrackPage] = useState(0);
-  const pageStart = trackPage * 4;
   return <div className="gb-seq-workspace">
-    <div className="gb-track-pages"><button aria-label="Tracks 1 to 4" aria-pressed={trackPage === 0} onClick={() => setTrackPage(0)}>01–04</button><button aria-label="Tracks 5 to 8" aria-pressed={trackPage === 1} onClick={() => setTrackPage(1)}>05–08</button><button aria-label="Tracks 9 to 12" aria-pressed={trackPage === 2} onClick={() => setTrackPage(2)}>09–12</button><button aria-label="Tracks 13 to 16" aria-pressed={trackPage === 3} onClick={() => setTrackPage(3)}>13–16</button></div>
-    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.slice(pageStart, pageStart + 4).map((row, rr) => { const r = pageStart + rr, len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>

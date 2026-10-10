@@ -663,7 +663,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-pad-name { font-weight: 700; font-size: 9px; }
 
 /* ===== PIXEL SCREEN (fixed 128x64, integer scaled) ===== */
-.px-wrap { width: 100%; display: flex; justify-content: center; }
+.px-wrap { width: 100%; display: flex; justify-content: flex-start; }
 .px-screen { position: relative; border: 1px solid hsl(var(--foreground)); box-sizing: content-box; background: hsl(var(--background)); }
 .px-screen canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 .px-zone { position: absolute; background: transparent; border: 0; padding: 0; margin: 0; cursor: ns-resize; touch-action: none; -webkit-tap-highlight-color: transparent; }
@@ -677,11 +677,11 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .node-heading { border-radius: 0 !important; padding: 2px 6px !important; font-family: 'Silkscreen', monospace !important; font-size: 8px !important; letter-spacing: .1em; }
 .instrument-workspace .node-heading .node-tag { border: 0 !important; padding: 0 !important; font-size: 8px !important; }
 .instrument-workspace .node-ports { display: none !important; }
-.instrument-workspace .gb-editor-body { display: flex; flex-direction: column; gap: 4px; padding: 4px !important; }
+.instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); gap: 4px; padding: 4px !important; align-items: start; }
 
 /* Hardware pass: every remaining DOM control is a square 1-bit key. */
 .instrument-workspace .px-strip .px-wrap { max-width: 640px; }
-.instrument-workspace canvas.scope-canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+.instrument-workspace canvas.scope-canvas { image-rendering: auto; }
 .instrument-workspace button:not(.px-zone), .instrument-workspace select, .instrument-workspace input:not([type=file]) {
   border-radius: 0 !important; box-shadow: none !important; background-image: none !important; transition: none !important;
   font-family: 'Silkscreen', monospace !important; text-transform: uppercase; letter-spacing: .04em;
@@ -750,17 +750,15 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-vslider { height: 86px; }
 .instrument-workspace .gb-strip-name { width: 100%; min-height: 22px; font-size: 6px !important; padding: 1px !important; }
 
-/* Four-track sequencer pages keep all sixteen steps readable and touchable. */
-.instrument-workspace .gb-seq-workspace { min-width: 0; }
-.instrument-workspace .gb-track-pages { display: grid; grid-template-columns: repeat(4, 1fr); padding: 3px 6px 0; }
-.instrument-workspace .gb-track-pages button { height: 21px; font-size: 7px !important; }
-.instrument-workspace .gb-track-pages button + button { border-left: 0 !important; }
-.instrument-workspace .gb-seq-grid { padding: 5px 6px; overflow-x: auto; gap: 3px; }
-.instrument-workspace .gb-row { grid-template-columns: 54px 25px 48px repeat(16, minmax(15px, 1fr)); min-width: 410px; gap: 2px; }
-.instrument-workspace .gb-row-label { width: 54px; font-size: 7px; }
-.instrument-workspace .gb-row .gb-cycle { overflow: hidden; font-size: 6px; padding: 0 1px; }
-.instrument-workspace .gb-step { height: 22px; }
-.instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 30px; }
+/* Full 16-track sequencer grid: compact rows, all tracks visible at once. */
+.instrument-workspace .gb-seq-workspace { min-width: 0; display: flex; flex-direction: column; }
+.instrument-workspace .utility-seq .px-strip .px-wrap { max-width: 400px; }
+.instrument-workspace .gb-seq-grid { padding: 4px; overflow-x: auto; gap: 2px; }
+.instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, minmax(14px, 1fr)); min-width: 380px; gap: 1px; }
+.instrument-workspace .gb-row-label { width: 46px; font-size: 6px; }
+.instrument-workspace .gb-row .gb-cycle { overflow: hidden; font-size: 6px; padding: 0 1px; min-width: 0; }
+.instrument-workspace .gb-step { height: 17px; }
+.instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 24px; }
 
 @media (max-width: 900px) {
   .instrument-workspace .gb-workspaces { grid-template-columns: 1fr; }

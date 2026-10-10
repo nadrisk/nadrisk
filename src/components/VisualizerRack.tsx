@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Columns3, Grid2x2, Plus, X } from "lucide-react";
+import { Columns3, Grid2x2, Plus } from "lucide-react";
 
 // Audio-reactive monitors tapped off the master bus with native stereo analysers.
 const VIS = {
@@ -37,16 +37,16 @@ function Vis({ type, taps, eco }: { type: VisType; taps: Taps | null; eco: boole
     const draw = (now = 0) => {
       raf = requestAnimationFrame(draw);
       if (now - last < (eco ? 66 : 16)) return; last = now;
-      const w = el.clientWidth, h = el.clientHeight, dpr = 1 / 3; // coarse pixel grid, scaled up nearest-neighbour
+      const w = el.clientWidth, h = el.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1); // native resolution, crisp lines
       if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = taps;
       if (t) { t.l.getFloatTimeDomainData(t.td as Float32Array<ArrayBuffer>); t.r.getFloatTimeDomainData(t.td2 as Float32Array<ArrayBuffer>); t.l.getByteFrequencyData(t.fd as Uint8Array<ArrayBuffer>); }
       const L = t?.td, Rr = t?.td2, F = t?.fd;
-      if (type !== "waterfall") { c.clearRect(0, 0, w, h); c.strokeStyle = G; c.lineWidth = 3; for (let x = 0; x <= w; x += w / 8) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } for (let y = 0; y <= h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
+      if (type !== "waterfall") { c.clearRect(0, 0, w, h); c.strokeStyle = G; c.lineWidth = 1; for (let x = 0; x <= w; x += w / 8) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } for (let y = 0; y <= h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
       c.font = "9px 'JetBrains Mono', monospace";
       if (type === "scope") {
-        [[L, A], [Rr, P]].forEach(([d, col]) => { c.strokeStyle = col as string; c.lineWidth = 3; c.beginPath();
+        [[L, A], [Rr, P]].forEach(([d, col]) => { c.strokeStyle = col as string; c.lineWidth = 1.5; c.beginPath();
           for (let x = 0; x < w; x++) { const v = d ? (d as Float32Array)[Math.floor((x / w) * 1024)] : 0; const y = h / 2 - v * h * 0.9; x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); });
       } else if (type === "spectrum") {
         const bars = Math.max(16, Math.floor(w / 5));
@@ -108,9 +108,9 @@ function VisualizerRack({ master, eco }: { master: GainNode | null; eco: boolean
     <div className={st.grid ? "gb-vis grid" : "gb-vis row"}>
       {st.list.map((t, i) => <section key={`${t}-${i}`} className="gb-fx-unit gb-vis-unit" aria-label={VIS[t]}>
         <header><span>{VIS[t]}</span><span className="gb-fx-actions">
-          <button aria-label="Move earlier" disabled={i === 0} onClick={() => move(i, -1)}><ChevronLeft size={12} /></button>
-          <button aria-label="Move later" disabled={i === st.list.length - 1} onClick={() => move(i, 1)}><ChevronRight size={12} /></button>
-          <button aria-label="Remove visualizer" onClick={() => setList(st.list.filter((_, j) => j !== i))}><X size={12} /></button>
+          <button aria-label="Move earlier" disabled={i === 0} onClick={() => move(i, -1)}>‹</button>
+          <button aria-label="Move later" disabled={i === st.list.length - 1} onClick={() => move(i, 1)}>›</button>
+          <button aria-label="Remove visualizer" onClick={() => setList(st.list.filter((_, j) => j !== i))}>×</button>
         </span></header>
         <div className="gb-vis-screen"><Vis type={t} taps={taps} eco={eco} /></div>
       </section>)}

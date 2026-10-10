@@ -3,7 +3,7 @@ import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 
-export const KX = [30, 58, 86, 114];
+export const KX = [22, 50, 78, 106];
 export const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 export const ms = (v: number) => `${Math.round(v * 1000)}MS`;
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -27,11 +27,11 @@ export function tabZones(pages: readonly string[], page: string, setPage: (p: st
 }
 
 export function drawKnobs(p: Px, knobs: Knob[]) {
-  knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max)); p.textC(k.short, KX[i], 59); });
+  knobs.forEach((k, i) => { p.knob(KX[i], 52, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 59); });
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 13} y={44} w={26} h={20} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 11} y={45} w={22} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
