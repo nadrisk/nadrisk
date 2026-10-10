@@ -179,10 +179,24 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const n = worklet("nad-duck", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "ratio", "depth", "attack", "release"]);
   } else if (type === "spectral") {
-    const bands = [[20, 120], [120, 400], [400, 1200], [1200, 3500], [3500, 8000], [8000, 20000]].map(([lo, hi]) => {
-      const hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), n = worklet("nad-bandgate"); hp.type = "highpass"; hp.frequency.value = lo; lp.frequency.value = hi; hp.Q.value = lp.Q.value = .707; nodes.push(hp, lp); input.connect(hp).connect(lp).connect(n).connect(wet); return n;
-    });
-    apply = p => bands.forEach(n => wp(n, p, ["threshold", "release", "floor"]));
+    // Resonant spectral band-bank: 8 log-spaced bandpasses around a center frequency. PEAK sets how
+    // hard the center bands are emphasized, SPREAD the octave spacing, RES the sharpness — sweeping
+    // FREQ moves the whole spectral focus, giving the resonant, harmonic-reshaping character.
+    const N = 8, bps: BiquadFilterNode[] = [], gains: GainNode[] = [];
+    const sum = ctx.createGain(); sum.gain.value = .5; nodes.push(sum);
+    const cf = (f: number) => Math.min(16000, Math.max(40, f));
+    for (let i = 0; i < N; i++) {
+      const b = ctx.createBiquadFilter(); b.type = "bandpass"; const g = ctx.createGain();
+      nodes.push(b, g); input.connect(b).connect(g).connect(sum); bps.push(b); gains.push(g);
+    }
+    sum.connect(wet);
+    apply = p => {
+      for (let i = 0; i < N; i++) {
+        const d = (i - (N - 1) / 2) / (N / 2);
+        set(bps[i].frequency, cf(p.freq * 2 ** (d * p.spread * 2))); set(bps[i].Q, p.res);
+        set(gains[i].gain, 2 * 10 ** (p.peak * Math.exp(-d * d * 2.2) / 20) / N);
+      }
+    };
   } else if (type === "gate") {
     const n = worklet("nad-gate"); input.connect(n).connect(wet);
     apply = p => wp(n, { ...p, rate: rateOf(p), mask: p.mask ?? 21845, steps: p.steps ?? 16 }, ["rate", "mask", "steps", "depth", "smooth"]);
