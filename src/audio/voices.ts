@@ -91,7 +91,7 @@ function pitchEnvelope(f: AudioParam, base: number, t: number, amt: number, atk:
   f.setValueCurveAtTime(c, t + atk + .0001, d);
 }
 // Drive curves are cached per 0.05 step so a drum hit never rebuilds a 1024-point table on the pad's critical path.
-const driveCache = new Map<number, Float32Array>();
+const driveCache = new Map<number, Float32Array<ArrayBuffer>>();
 const driveCurve = (drive: number) => { const q = Math.round(drive * 20) / 20; let c = driveCache.get(q); if (c) return c; const k = 1 + q * 14; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } driveCache.set(q, c); return c; };
 const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createWaveShaper(); w.curve = driveCurve(drive); w.oversample = "2x"; return w; };
 
