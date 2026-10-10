@@ -170,8 +170,6 @@ export function useGroovebox() {
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
-    const late = time === undefined ? 0 : time - e.ctx.currentTime;
-    padStats.late = Math.round(late * 1000); padStats.audio = (e.ctx as AudioContext).state;
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2);
     let notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
