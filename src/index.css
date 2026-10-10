@@ -703,3 +703,13 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace [role="slider"]:not(.px-zone) { border-radius: 0 !important; box-shadow: none !important; }
 .instrument-workspace span[data-orientation] , .instrument-workspace .patch-slider * { border-radius: 0 !important; }
 .instrument-workspace .patch-small, .instrument-workspace .parameter-label { font-family: 'Silkscreen', monospace !important; font-size: 7px !important; text-transform: uppercase; }
+
+/* Seamless surface: no module boxes, sections edge to edge separated by one hairline. */
+.instrument-workspace .gb-grid { gap: 0 !important; padding: 0 !important; border-top: 1px solid hsl(var(--foreground) / .5); }
+.instrument-workspace .patch-node { border: 0 !important; outline: 0 !important; box-shadow: inset -1px -1px 0 hsl(var(--foreground) / .5) !important; background: hsl(var(--background)) !important; padding-top: 2px; }
+.instrument-workspace .node-heading { background: transparent !important; padding: 3px 8px 0 !important; justify-content: flex-start; gap: 8px; }
+.instrument-workspace .node-heading, .instrument-workspace .node-heading * { color: hsl(var(--foreground) / .7) !important; font-size: 7px !important; }
+.instrument-workspace .node-heading .node-tag { color: hsl(var(--foreground) / .4) !important; }
+.instrument-workspace .gb-cycle { font-family: 'Silkscreen', monospace; font-size: 8px; text-transform: uppercase; background: hsl(var(--background)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--foreground)); border-radius: 0; padding: 1px 4px; min-width: 22px; cursor: pointer; }
+.instrument-workspace .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.instrument-workspace .workspace-heading, .instrument-workspace .workspace-footer { font-family: 'Silkscreen', monospace; text-transform: uppercase; }
