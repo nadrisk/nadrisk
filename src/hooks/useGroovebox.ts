@@ -27,6 +27,8 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   partials: [1, 0.6, 0.5, 0.3, 0.3, 0.15, 0.2, 0.08, 0.1, 0, 0.05, 0, 0, 0, 0, 0], noise: 0,
   env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, pitchEnvShape: { a: .001, d: .05, s: 0, r: .02 }, filterEnvShape: { a: .001, d: .2, s: 0, r: .02 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
+/** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
+export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
 const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: [defaultMod(), defaultMod()], bass: default808(), eq: defaultEQ(), siren: defaultSiren(), ...extra });
@@ -182,6 +184,15 @@ export function useGroovebox() {
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = (s.arp.on ? midiOf(s.arp, 0) + semi : s.note + semi) + (s.engine === "drum" ? 0 : tuneRef.current);
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
+    // Breakbeats: WARP fits the loop to the tempo without changing pitch; SLICES plays one slice per note
+    // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
+    const samplerRun = (sm: SamplerParams, dur: number, semi: number, offset: number, factor: number): SamplerParams => {
+      const base = { ...sm, env: scaledEnv(sm.env, factor), pitch: sm.pitch + semi + offset };
+      if (sm.warp) { const beats = sm.beats || guessBeats(dur, bpmRef.current); Object.assign(base, { stretch: true, stretchAmt: Math.max(.25, Math.min(4, beats * 60 / bpmRef.current / dur)) }); }
+      const n = Math.round(sm.slices ?? 0);
+      if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sm.pitch + offset }); }
+      return base;
+    };
     const run = (t: number, gate: number, idx?: number) => {
       // Retriggers let the previous voice ring out per its release (like the 808); choke groups cut
       // every ringing voice in the same group immediately, and never touch other groups.
@@ -190,7 +201,7 @@ export function useGroovebox() {
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const voices = ns.map((offset, k) => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
-        : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buf, at(k), gk(k), vel / Math.sqrt(ns.length))
+        : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length))
         : s.engine === "poly" ? null
         : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel)
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel));
