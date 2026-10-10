@@ -363,7 +363,7 @@ export function useGroovebox() {
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
-    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null) };
+    engine.current = { ctx, master, performance: perf, analyser, outs, loop, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -371,7 +371,7 @@ export function useGroovebox() {
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); syncChain(e, i, s); });
+    slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); const q = { ...defaultEQ(), ...s.eq }, [lo, mi, hi] = e.outs[i].eq; lo.gain.setTargetAtTime(q.low, e.ctx.currentTime, .02); lo.frequency.setTargetAtTime(q.lowFreq, e.ctx.currentTime, .02); mi.gain.setTargetAtTime(q.mid, e.ctx.currentTime, .02); mi.frequency.setTargetAtTime(q.midFreq, e.ctx.currentTime, .02); mi.Q.setTargetAtTime(q.q, e.ctx.currentTime, .02); hi.gain.setTargetAtTime(q.high, e.ctx.currentTime, .02); hi.frequency.setTargetAtTime(q.highFreq, e.ctx.currentTime, .02); syncChain(e, i, s); });
   }, [slots, playing]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
@@ -383,7 +383,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
@@ -403,6 +403,8 @@ export function useGroovebox() {
     const index = s.fx.filter(f => f.on).findIndex(f => f.id === id);
     return index < 0 ? null : e.outs[slot].chain[index]?.levels() ?? null;
   }, []);
+  /** Live master dynamics: true gain reduction (dB) from glue+limiter and post-chain output level. */
+  const getMasterDyn = useCallback((): { gr: number; out: number } | null => engine.current?.performance.dyn() ?? null, []);
 
   const hit = useCallback(async (i: number) => {
     // Fast path: audio already running, so play synchronously with no await.
