@@ -779,3 +779,25 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 /* Utility screens fill the selector width: centered bezel, largest whole-number scale. */
 .instrument-workspace .gb-utility-body .px-wrap { justify-content: center; border: 1px solid hsl(var(--foreground)); padding: 4px 0; }
 .px-screen .px-zone::before, .px-screen .px-zone::after { content: none !important; display: none !important; }
+
+/* ===== Sequencer: unified step size, visible fills, iPad-first touch ===== */
+.instrument-workspace .gb-seq-grid { overflow-x: auto; }
+.instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, 24px); min-width: 0; gap: 2px; width: max-content; }
+.instrument-workspace .gb-step, .instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 26px !important; width: 24px; padding: 0; }
+.instrument-workspace .gb-step.mod { touch-action: none !important; cursor: ns-resize; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.mod { background: hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-seq-grid.view-chance .gb-step-fill { background: repeating-linear-gradient(0deg, hsl(var(--foreground)) 0 2px, transparent 2px 4px) !important; }
+.gb-seq-grid.view-mod .gb-step.mod::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dotted hsl(var(--foreground)); pointer-events: none; z-index: 1; }
+.gb-step-val, .gb-step-roll { position: absolute; top: 1px; left: 0; right: 0; text-align: center; font: 8px 'VT323', monospace !important; line-height: 1; color: hsl(var(--foreground)) !important; mix-blend-mode: difference; pointer-events: none; z-index: 2; display: block; inset: auto 0 auto 0; }
+.gb-step-dot { background: hsl(var(--background)) !important; outline: 1px solid hsl(var(--foreground)); }
+.gb-step-readout { position: fixed; transform: translate(-50%, -64px); z-index: 50; padding: 4px 8px; font: 18px 'VT323', monospace; background: hsl(var(--foreground)); color: hsl(var(--background)); pointer-events: none; white-space: nowrap; }
+/* iPad / tablet: big fingertip steps, sequencer gets full width */
+@media (min-width: 700px) and (max-width: 1366px) and (pointer: coarse), (min-width: 768px) and (max-width: 1366px) {
+  .gb-workspaces.seq-wide { display: flex !important; flex-direction: column; }
+  .gb-workspaces.seq-wide > * { width: 100% !important; max-width: none !important; }
+  .instrument-workspace .gb-row { grid-template-columns: 72px 34px 64px repeat(16, minmax(40px, 1fr)); width: auto; gap: 3px; }
+  .instrument-workspace .gb-step, .instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 48px !important; width: auto; }
+  .instrument-workspace .gb-row-label, .instrument-workspace .gb-row .gb-cycle { font-size: 8px; }
+  .gb-step-val, .gb-step-roll { font-size: 12px !important; }
+}
+@media (min-width: 1367px) { .instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, minmax(24px, 1fr)); width: auto; } .instrument-workspace .gb-step { width: auto; } }
