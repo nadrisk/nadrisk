@@ -206,7 +206,7 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   }
   nodes.push(g1, g2, mix, filt, wet, dry, trem, amp);
   const end = adsr(amp.gain, t, p.env, gate, vel * 0.5);
-  const v = finish(srcs, nodes, end, amp);
+  const v = finish(srcs, nodes, end, amp, () => unhook?.());
   // Glide moves both oscillators from their current pitch, so slides start wherever the last one ended.
   v.glide = (delta, at, time) => glideParams([o1.frequency, o2.frequency], delta, at, time);
   return v;
@@ -388,15 +388,18 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
 export type SirenParams = { wave: Wave; lfoWave: Wave; rate: number; depth: number; sweep: number; sweepTime: number; release: number; tone: number };
 export const defaultSiren = (): SirenParams => ({ wave: "square", lfoWave: "square", rate: 4, depth: 7, sweep: 12, sweepTime: 1.5, release: .4, tone: 3500 });
 /** Dub siren: one oscillator wobbled by an LFO (semitones) plus a long pitch rise/fall; sustains while the pad is held. */
-export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams, midi: number, t: number, gate: number, vel = 1): Voice {
+export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
   const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(), lp = ctx.createBiquadFilter(); amp.gain.value = 0; lp.frequency.value = p.tone; lp.Q.value = 2; lp.connect(amp).connect(dest);
-  const osc = at(ctx.createOscillator(), t), lfo = at(ctx.createOscillator(), t), lg = ctx.createGain();
-  osc.type = p.wave; lfo.type = p.lfoWave; lfo.frequency.value = p.rate; lg.gain.value = p.depth * 100;
+  const osc = at(ctx.createOscillator(), t), lg = ctx.createGain(); lg.gain.value = p.depth * 100; osc.type = p.wave;
+  // The wobble comes from the pad's free-running LFO when given, so it continues across hits.
+  let lfo: AudioNode, unhook: (() => void) | undefined;
+  if (freeLfo) { lfo = freeLfo; unhook = () => { try { freeLfo.disconnect(lg); } catch { /* gone */ } }; }
+  else { const o = at(ctx.createOscillator(), t); o.type = p.lfoWave; o.frequency.value = p.rate; srcs.push(o); nodes.push(o); lfo = o; }
   osc.frequency.setValueAtTime(f, t); osc.detune.setValueAtTime(0, t); osc.detune.linearRampToValueAtTime(p.sweep * 100, t + Math.max(.01, p.sweepTime));
-  lfo.connect(lg).connect(osc.detune); osc.connect(lp); srcs.push(osc, lfo); nodes.push(osc, lfo, lg, lp, amp);
+  lfo.connect(lg).connect(osc.detune); osc.connect(lp); srcs.unshift(osc); nodes.push(osc, lg, lp, amp);
   const peak = vel * (p.wave === "sine" ? .5 : .28), hold = Math.max(gate, .02);
   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .005); amp.gain.setTargetAtTime(0, t + hold, p.release / 3 + .005);
-  const v = finish(srcs, nodes, t + hold + p.release * 2 + .1, amp);
+  const v = finish(srcs, nodes, t + hold + p.release * 2 + .1, amp, () => unhook?.());
   return v;
 }
