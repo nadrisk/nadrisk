@@ -28,21 +28,21 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
     { s: "ECO", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
   ] : page === "DYN" ? [
-    { s: "CLIP", label: "Master clipper", x: 2, y: 14, w: 40, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
-    { s: "LIMIT", label: "Master limiter", x: 44, y: 14, w: 40, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
-    { s: "GLUE", label: "Glue compressor", x: 86, y: 14, w: 40, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
+    { s: "GLUE", label: "Glue compressor", x: 2, y: 14, w: 40, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
+    { s: "CLIP", label: "Master clipper", x: 44, y: 14, w: 40, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
+    { s: "LIMIT", label: "Master limiter", x: 86, y: 14, w: 40, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
   ] : page === "EQ" ? [{ s: "EQ", label: "Mastering EQ", x: 1, y: 11, w: 22, on: !!pf.mEqOn, fn: () => setPf({ mEqOn: !pf.mEqOn }) }] : page === "MTR" ? [{ s: "RESET", label: "Reset integrated loudness", x: 100, y: 11, w: 27, on: false, fn: resetMeter }] : [];
   const knobs = (page: string): Knob[] => page === "OUT" ? [
     kn("Tempo", "BPM", bpm, 60, 180, 1, "", setBpm), kn("Master volume", "VOL", volume, 0, 100, 1, "%", setVolume),
   ] : page === "DYN" ? [
-    kn("Clip drive", "DRV", pf.clipDrive, 0, 18, .5, "DB", clipDrive => setPf({ clipDrive })), kn("Limiter ceiling", "CEIL", pf.ceiling, -12, 0, .5, "DB", ceiling => setPf({ ceiling })),
     kn("Glue thresh", "THR", pf.glueThresh ?? -12, -30, 0, .5, "DB", glueThresh => setPf({ glueThresh })), kn("Ratio", "RAT", pf.glueRatio ?? 2, 1, 4, .1, ":1", glueRatio => setPf({ glueRatio })),
+    kn("Clip drive", "DRV", pf.clipDrive, 0, 18, .5, "DB", clipDrive => setPf({ clipDrive })), kn("Limiter ceiling", "CEIL", pf.ceiling, -12, 0, .5, "DB", ceiling => setPf({ ceiling })),
   ] : page === "EQ" ? [
     kn("Master Low 90Hz", "90", pf.mLow ?? 0, -6, 6, .5, "DB", mLow => setPf({ mLow })), kn("Master Mud 300Hz", "300", pf.mMud ?? 0, -6, 6, .5, "DB", mMud => setPf({ mMud })),
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "12K", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
-  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
+  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
@@ -51,12 +51,13 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
         p.text(`LU ${fmt(meter.m)}`, 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(Math.max(0, (db(meter.m) + 36) / 36) * 12)) p.rect(x, 40, 3, 5); else p.box(x, 40, 3, 5, true); }
       } else if (page === "DYN") {
-        // Transfer curve: drive pushes the input, clipper squares the knee, limiter caps at ceiling, glue bends above threshold.
+        // Transfer curve in audio order: glue bends above threshold, clip drive pushes into the clipper, limiter caps at ceiling.
         p.box(2, 25, 44, 22, true);
         const ceil = pf.limitOn ? 1 - (-pf.ceiling) / 12 * .5 : 1, thr = 1 + (pf.glueThresh ?? -12) / 30, rat = pf.glueRatio ?? 2;
         let px = 3, py = 45;
-        for (let i = 0; i <= 42; i++) { let v = i / 42 * (pf.clipOn ? 1 + pf.clipDrive / 9 : 1);
+        for (let i = 0; i <= 42; i++) { let v = i / 42;
           if (pf.glueOn && v > thr) v = thr + (v - thr) / rat;
+          if (pf.clipOn) v *= 1 + pf.clipDrive / 9;
           if (pf.clipOn) v = Math.tanh(v * 1.5) / Math.tanh(1.5);
           v = Math.min(v, ceil); const x = 3 + i, yy = 45 - Math.round(v * 19); p.line(px, py, x, yy); px = x; py = yy; }
         if (pf.limitOn) p.line(3, 45 - Math.round(ceil * 19), 45, 45 - Math.round(ceil * 19), true);
