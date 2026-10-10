@@ -11,10 +11,14 @@ const ENG: [EngineKind, string][] = [["drum", "DRM"], ["synth", "SYN"], ["sample
 const CH = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
 
 export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
-  const [cur, setCur] = useState(0);
   const name = slot.name.padEnd(10, " ").slice(0, 10);
-  const ci = Math.max(0, CH.indexOf(name[cur]));
-  const setChar = (next: number) => { const a = [...name]; a[cur] = CH[(next + CH.length) % CH.length]; onChange({ name: a.join("").trimEnd() }); };
+  const rename = () => {
+    const next = window.prompt("Rename slot", slot.name);
+    if (next !== null) {
+      const clean = next.toUpperCase().replace(/[^A-Z0-9 \-]/g, "").slice(0, 10).trimEnd();
+      if (clean) onChange({ name: clean });
+    }
+  };
   const knobs: Knob[] = slot.engine === "sampler" ? [] : [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
