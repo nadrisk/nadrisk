@@ -35,5 +35,5 @@
 
 ## Stabilization log
 - [x] Phase 1 timing (D1/D2): src/hooks/useGroovebox.ts. Late notes under 120 ms load 57 → 38 (worst 85 → 30 ms); 300 ms load worst 252 → 162 ms; held phrase/repeat 0 late incl. under load; 0 notes after release/stop. Open: stalls longer than 100 ms still delay grid notes; real iPad/background tab untested.
-- [ ] Phase 2 audio interruption recovery (S1) — awaiting approval
+- [x] Phase 2 interruption recovery (S1): src/hooks/useGroovebox.ts. Simulated suspend/resume x5 during playback: 0 notes while suspended (rarely 10-14 booked-then-cancelled), transport resumes in place, 0 late after resume; STOP during interruption stays stopped. Phase 1 lateness under >~50 ms stalls accepted. Open: real iOS interruption (call, lock screen, Siri) untested.
 - [ ] Phase 3 musical correctness (D3, D4, D5)
