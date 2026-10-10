@@ -1,40 +1,97 @@
-# Groovebox QA audit: first findings and the full audit plan
+# Groovebox QA audit: Phase 2 report and fix plan
 
-This is audit only. Nothing gets changed or fixed until you approve.
+Audit only. I haven't changed any code, and none of the fixes below will be made until you approve them.
 
-## What I actually tested so far
-- **Automated tests:** 2 test files, 4 tests, all pass. They only cover the phrase loop order and one earlier helper, so almost nothing else has automated coverage.
-- **Code check:** clean, with no type errors.
-- **Browser play-through:** desktop size, about 12 seconds. Pressed PLAY, tapped KICK, SNARE, 808 and LEAD while it was playing, pressed STOP, cycled the theme 3 times. The app didn't crash and showed no errors from the groovebox itself. Memory stayed around 45 MB.
-- **Not tested yet:** how anything sounds (my test browser has no speakers), real MIDI devices, real touchscreens, and long playback sessions.
+**Test setup:** headless Chromium on a Linux sandbox, with no speakers, no MIDI devices and no real touchscreen. Every result marked TESTED came from the running app. Results marked CODE come from reading the code only. Anything that needs ears or hardware is marked UNTESTED.
 
-## Confirmed issues
-| # | Severity | Area | What happens | Likely cause | Fix |
-|---|---|---|---|---|---|
-| C1 | Low | App shell | On every page load, a "Function components cannot be given refs" warning appears twice in the console | One of the shared wrappers at the top of the app passes a ref to a plain component | Find the component and wrap it so it accepts refs. Low risk |
-| C2 | Low | App shell | Two page-navigation warnings about a future library version | Two future settings not switched on | Switch them on. Low risk |
-| C3 | Medium | Tests | Main flows have no automated tests: playback, sequencer timing, set save/load, STEP mode, chords | Features were added without tests | Add focused tests (see Phase 2) |
+## 1. Results summary
+| Area | Result |
+|---|---|
+| Timing, normal load (10 s playback) | TESTED, pass. 454 notes, none late |
+| Timing under CPU load | TESTED, fail. See D1 |
+| Held phrase timing | TESTED, partial fail. See D2 |
+| Background-tab timing | UNTESTED. Headless Chromium doesn't slow background tabs the way real browsers do. Needs a real browser with the tab hidden |
+| Audio suspend/resume (app) | UNTESTED at runtime. CODE: nothing watches for an interrupted audio context. See S1 |
+| Grain engine | TESTED, pass. S2 from Phase 1 not reproduced |
+| Sustained playback, 3 min | TESTED, pass. Memory 13 to 17 MB and flat, page elements constant at 535, no leak |
+| STEP mode | TESTED, pass. 10 taps walked the phrase in order and wrapped back to the start. Rests swallow hits, see Q1 |
+| RUN mode | TESTED, pass. A 1 s hold started 18 voices |
+| Chord SCL fit | TESTED with maths only. Two defects, see D3 and D4 |
+| Phrase loop order | TESTED, pass. Includes loop length longer than the phrase, and 0 steps |
+| Set save/load | TESTED, pass. TUNE +2 saved, changed, reloaded and came back as +2 |
+| Older set (new fields removed) | TESTED, pass. Loaded with TUNE 0, no errors, pads played |
+| All 10 utility panels at desktop, tablet and phone | TESTED, pass. Each opens, no sideways scrolling, no errors |
+| Switching instruments during playback | TESTED, pass. KICK, SNARE, 808, LEAD and CLAP tapped at all 3 sizes |
+| Console | TESTED. Only the known ref warning (C1) and the router notices (C2) |
+| How each instrument and effect sounds | UNTESTED. Needs listening |
+| MIDI learn and MIDI pads | UNTESTED. Needs a MIDI device |
+| Touch feel, iPad latency, velocity slide | UNTESTED. Needs a real device |
+| Effects, drum machines, 9 themes, each control's visual | UNTESTED in this pass. Panels open fine, but individual controls weren't exercised |
 
-## Suspected issues (read in the code, not reproduced yet)
-| # | Severity | Area | Suspicion | Why | How I'll check |
-|---|---|---|---|---|---|
-| S1 | High | Held phrases, note repeat, chord arps | They stutter or drift when the tab is in the background or the device is busy | The look-ahead runs on a 20 ms page timer and only books 80 ms ahead. Browsers slow page timers down in background tabs | Background the tab during a long run and measure note timing |
-| S2 | Medium | Granular | Grains could stop for good after the audio is suspended or interrupted | The new 12-grain limit relies on each grain's "ended" signal arriving | Suspend and resume audio while grains play, then check the count |
-| S3 | Medium | Chord SCL fit + modulation | With pitch modulation on, chords may snap to an unexpected in-key chord | Off-scale pitches are rounded up to the next scale note | Unit test plus listening |
-| S4 | Medium | Chord screen on mono synth pads | Turning chords on may do nothing on synth, 808 or siren pads | Chords are only applied to poly and sampler pads | Check each pad type |
-| S5 | Medium | MIDI pads | Playing pads from MIDI now changes which slot is shown | Changed on purpose earlier, but you haven't confirmed you want it | Your decision |
-| S6 | Low | Sets | Sets saved before STEP mode, loops and chord fit should load with these off | Loading fills in missing values, but it hasn't been tested | Save/load round-trip test |
-| S7 | Low | Error handling | 8 places silently ignore errors | "Catch and ignore" blocks | Review each one: harmless clean-up vs a hidden failure |
+## 2. Confirmed defects (prioritized)
 
-## Product-vision notes (not defects)
-- The phrase sequencer now has four pages (SEQ, LOOP, KEY, TIM). Worth checking whether the controls are easy to find.
-- The step grid, the phrase STEP mode and note repeat all advance the same phrase position. This is intended, but it needs explaining in the interface or a manual.
+**D1 — High — sequencer timing under load.**
+- *Steps:* play, then load the main thread with 120 ms tasks.
+- *Expected:* notes stay on the grid.
+- *Actual:* 57 of 362 notes were late, the worst by 85 ms. With 300 ms tasks, 88 of 223 were late, the worst by 252 ms.
+- *Cause:* the audio look-ahead is 30 ms (useGroovebox.ts:13). ECO mode switches it to 100 ms.
+- *Fix:* raise the default look-ahead to about 80–100 ms, or adjust it automatically when lateness is detected. Keep the pads feeling immediate, since they use direct triggers, not the look-ahead.
+- *Risk:* the playhead display shows steps a little later. Sequencer modulation timing needs a recheck.
 
-## Phase 2: the full audit (after you approve)
-1. **Feature checklist run** in the browser at desktop, tablet and phone sizes, for every instrument (drum ×4, synth, poly, sampler, 808, siren), every effect, master pages, performance rack, mixer, sets, tape, visualizers and all nine themes. Each item gets marked pass, fail or untested, with a screenshot.
-2. **Stress tests:** 5 minutes of playback while measuring memory and the number of running audio pieces, fast pad tapping, switching slots and instruments during playback, and switching themes while playing.
-3. **Timing test:** log when each scheduled note is booked compared with the beat grid, in normal and background tab states (S1).
-4. **New automated tests** for the sequencer step order, set save/load round-trip (S6), chord building (S3) and the grain limit (S2).
-5. **Final report:** prioritized table (severity, steps to reproduce, expected vs actual, cause with code location, fix, regression risk), the full checklist, and a list of what you need to test by hand: listening quality, real MIDI devices, real iPad touch and latency.
+**D2 — High — held phrases, note repeat and chord arps.**
+- *Actual:* 3 late notes during a plain 3 s hold, worst 9 ms. With load, 33 late, worst 91 ms.
+- *Cause:* a 20 ms page timer that books only 80 ms ahead (useGroovebox.ts pump/horizon).
+- *Fix:* book further ahead, about 150 ms, and set the timer interval from the audio clock.
+- *Risk:* letting go of a pad could cut off up to one booked-ahead note late. This needs stop logic for notes already booked.
 
-Fixes come after the report, only for the items you pick.
+**D3 — Medium — chords in SCL fit with pitch modulation or off-scale pitches.**
+- *Actual:* an off-scale pitch builds the chord from the next scale note, then plays it from the off-scale root. In minor, +1 gives an out-of-key [0,3,6,10]. −2 reuses the root chord a tone lower. Pitches more than 3 octaves up use the wrong degree.
+- *Cause:* the degree search in trigger().
+- *Fix:* snap the root to the nearest scale degree, allow negative degrees, and remove the 3-octave limit.
+- *Risk:* changes the sound only in these edge cases.
+
+**D4 — Medium — SCL fit with the chromatic scale.**
+- *Actual:* chords become clusters like [0,2,4,6].
+- *Fix:* in chromatic, SCL falls back to the chord's own shape (same as FIX).
+- *Risk:* none.
+
+**D5 — Medium — pitch modulation on phrase pads.**
+- *CODE, confirmed by reading:* in RUN mode the sequencer's pitch modulation lane is ignored (phraseStep doesn't receive it). STEP mode and plain pads do apply it.
+- *Fix:* pass it through.
+- *Risk:* phrases with an active pitch lane will start following that lane.
+
+**D6 — Medium — sample storage failures are silent.**
+- When device storage is full or a folder file fails to load, nothing tells you (useGroovebox.ts:402, 405). Your samples then won't come back when a set is recalled.
+- *Fix:* show a notice in the MEM or sampler screen.
+- *Risk:* low.
+
+**C1 — Low:** the ref warning on page load, from the shared top-level wrappers (App.tsx). **C2 — Low:** the router future-flag notices.
+
+## 3. Code-based suspicions (not reproduced)
+- **S1 — High on iPad/iPhone:** if a phone call, another app or Siri interrupts the audio, nothing restarts it. The app has no handler for this, so playback may stay silent until reload. *Needs:* a real iOS device.
+- **S3:** loading a set clears the held-pad list but leaves the background timer running until the next idle check. That's harmless, but untidy.
+- **Remaining silent error handlers:** 8 others, all harmless clean-up or private-mode storage.
+
+## 4. Design questions (your call, not bugs)
+- **Q1:** in STEP mode, a rest swallows a hit, so the tap is silent. Alternative: skip rests so every hit sounds.
+- **Q2:** SCL fit uses only the chord's note count. Picking MAJOR in a minor key still gives in-key minor chords. Should SCL keep the chosen type where it fits?
+- **Q3:** the chord screen appears only on poly and sampler pads. This is consistent, but synth, 808 and siren pads have no chord option. Do you want one?
+- **Q4:** MIDI pads switch the visible slot (still open from earlier).
+- **Q5:** the phrase sequencer now has 4 pages, and the STEP/RUN mode sits on LOOP. Consider showing the mode on SEQ too.
+
+## 5. What you need to test by hand
+1. Listen to every drum machine, synth, poly, 808, siren, sampler and grain sound, and every effect.
+2. Real background-tab playback (switch tabs for 30 s).
+3. On iPad: touch velocity slides, note repeat and audio interruptions (lock the screen, take a call).
+4. MIDI learn, MIDI pads, CC feel.
+5. Visual check of all 9 themes on every instrument.
+
+## 6. Proposed fix order (after approval)
+1. D1 and D2, timing. Re-run this audit's timing script and aim for 0 late notes with 120 ms load.
+2. S1, recovering after an audio interruption. Verify with a simulated suspend, then you verify on iOS.
+3. D3, D4 and D5, musical fixes, with unit tests on chord building.
+4. D6, storage notices.
+5. C1 and C2, console clean-up.
+6. Your answers to Q1–Q5.
+
+After each step, I re-run the matching audit check before moving on.
