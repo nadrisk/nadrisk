@@ -15,9 +15,10 @@ export type Knob = { label: string; short: string; value: number; min: number; m
 // Inverted title bar with machine name, live readout and page tabs.
 export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string) {
   p.invert(0, 0, 128, 9);
-  p.text(name.slice(0, 8), 2, 2, false);
-  p.text(readout.slice(0, 8), 38, 2, false);
   const tw = pages.length * 15;
+  p.text(name.slice(0, 8), 2, 2, false);
+  const maxReadout = Math.max(0, Math.floor((129 - tw - 40) / 4));
+  p.text(readout.slice(0, maxReadout), 38, 2, false);
   pages.forEach((pg, i) => { const x = 129 - tw + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
 }
 
