@@ -26,3 +26,4 @@
 - Mixer channel meters read a silent post-pan AnalyserNode per slot and write to the DOM each frame, so live metering never re-renders the mixer.
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
 - Pad hits must not do buffer or curve building: reversed/stretched/warped sample buffers are pre-baked at idle after changes, drive curves are cached, and each pad keeps at most 4 ringing voices, so every instrument triggers as fast as the synth.
+- Pads use touch-action:none plus non-passive touch preventDefault on the pad grid, and release only when a pad's last pointer lifts, so iOS gesture detection never swallows fast taps.
