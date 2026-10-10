@@ -812,3 +812,4 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .gb-step-val, .gb-step-roll { font-size: 12px !important; }
 }
 @media (min-width: 1367px) { .instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, minmax(24px, 1fr)); width: auto; } .instrument-workspace .gb-step { width: auto; } }
+.gb-pads.vel-mode .gb-pad { touch-action: none; }
