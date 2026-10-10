@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, pct, st, type Knob } from "./pixelScreens";
+import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import type { Wave } from "@/audio/voices";
 
