@@ -3,16 +3,18 @@ import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { FX_DEFS, FX_TYPES, SYNC_DIVS, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
-  k === "sync" ? SYNC_DIVS[Math.round(v)][0] : (k === "rate" || k === "time") && p.sync ? "SYNC"
+  k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
+  : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
+  : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
   : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 const nm = (t: FxType) => FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", modRate: "RATE", modSync: "SYNC", modTime: "M-TM", modTone: "M-TN", modFb: "M-FB", smash: "SMSH" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -84,7 +86,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   }
 }
 
-function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels }: { slotIndex: number; slots: string[]; slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void; getLevels: (slot: number, id: number) => FxLevels | null }) {
+function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: { load: number; slotIndex: number; slots: string[]; slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void; getLevels: (slot: number, id: number) => FxLevels | null }) {
   const [sel, setSel] = useState(0);
   const [pg, setPg] = useState(0);
   const [levels, setLevels] = useState<FxLevels | null>(null);
@@ -120,7 +122,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels }: { slot
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, levels?.input ?? -60, levels?.output ?? -60]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
@@ -132,7 +134,9 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels }: { slot
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
           drawFxVisual(p, f, levels);
         } else {
-          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
+          // Effects that would overheat the groovebox are drawn dotted and can't be added.
+          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 31, 9, !ok); p.textC(nm(t).slice(0, 5), x + 16, y + 2); });
+          const lw = Math.round(Math.min(1, load / MAX_FX_LOAD) * 90); p.text(load > MAX_FX_LOAD ? "OVER" : load + 1 > MAX_FX_LOAD ? "FULL" : "LOAD", 1, 57); p.box(30, 56, 92, 7); p.rect(31, 57, lw, 5);
         }
       }}
       extra={page => page === "LST" ? <>
@@ -142,7 +146,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels }: { slot
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>
-        {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 4) * 32} y={10 + Math.floor(k / 4) * 9} w={31} h={9} label={`Add ${FX_DEFS[t].label}`} onClick={() => { onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
+        {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 4) * 32} y={10 + Math.floor(k / 4) * 9} w={31} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
       </>} />
   </div>;
 }
