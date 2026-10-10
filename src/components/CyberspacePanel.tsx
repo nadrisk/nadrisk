@@ -39,11 +39,11 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "LFO") return lfoPage === "SHP" ? [
       { label: "LFO rate", short: "RATE", value: s.lfo.rate, min: .05, max: 20, step: .05, fmt: v => `${v.toFixed(1)}HZ`, set: rate => S({ lfo: { ...s.lfo, rate } }) },
       { label: "LFO attack", short: "ATK", value: s.lfo.attack ?? 0, min: 0, max: 4, step: .01, fmt: ms, set: attack => S({ lfo: { ...s.lfo, attack } }) },
+      { label: "LFO to volume", short: "VOL", value: ld.amp, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("amp", v) },
       { label: "Dry / wet", short: "WET", value: s.wet, min: 0, max: 1, step: .01, fmt: pct, set: wet => S({ wet }) },
     ] : [
       { label: "LFO to pitch", short: "PIT", value: ld.pitch, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("pitch", v) },
       { label: "LFO to cutoff", short: "CUT", value: ld.cutoff, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("cutoff", v) },
-      { label: "LFO to volume", short: "VOL", value: ld.amp, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("amp", v) },
       { label: "LFO to osc 1 level", short: "O1", value: ld.osc1, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("osc1", v) },
       { label: "LFO to osc 2 level", short: "O2", value: ld.osc2, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("osc2", v) },
     ];
