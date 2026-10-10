@@ -759,7 +759,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Full 16-track sequencer grid: compact rows, all tracks visible at once. */
 .instrument-workspace .gb-seq-workspace { min-width: 0; display: flex; flex-direction: column; }
-.instrument-workspace .utility-seq .px-strip .px-wrap { max-width: 520px; }
+.instrument-workspace .utility-seq .px-strip .px-wrap { max-width: none; width: 100%; }
 .instrument-workspace .gb-seq-grid { padding: 4px; overflow-x: auto; gap: 2px; }
 .instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, minmax(14px, 1fr)); min-width: 380px; gap: 1px; }
 .instrument-workspace .gb-row-label { width: 46px; font-size: 6px; }

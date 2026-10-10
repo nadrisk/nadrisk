@@ -37,6 +37,24 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         p.text(`${bpm}`, 62, 11, true, 2); p.text("BPM", 90, 16);
         for (let i = 0; i < 16; i++) { const x = 2 + i * 8, cur = step >= 0 && step % 16 === i; if (cur) p.rect(x, 23, 6, 5); else p.box(x, 23, 6, 5); }
         p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
+        // Output level ladder follows master volume.
+        p.text("OUT", 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(volume / 100 * 12)) p.rect(x, 32, 3, 5); else p.box(x, 32, 3, 5, true); }
+      } else if (page === "DYN") {
+        // Transfer curve: drive pushes the input, clipper squares the knee, limiter caps at ceiling, glue bends above threshold.
+        p.box(2, 25, 44, 22, true);
+        const ceil = pf.limitOn ? 1 - (-pf.ceiling) / 12 * .5 : 1, thr = 1 + (pf.glueThresh ?? -12) / 30, rat = pf.glueRatio ?? 2;
+        let px = 3, py = 45;
+        for (let i = 0; i <= 42; i++) { let v = i / 42 * (pf.clipOn ? 1 + pf.clipDrive / 9 : 1);
+          if (pf.glueOn && v > thr) v = thr + (v - thr) / rat;
+          if (pf.clipOn) v = Math.tanh(v * 1.5) / Math.tanh(1.5);
+          v = Math.min(v, ceil); const x = 3 + i, yy = 45 - Math.round(v * 19); p.line(px, py, x, yy); px = x; py = yy; }
+        if (pf.limitOn) p.line(3, 45 - Math.round(ceil * 19), 45, 45 - Math.round(ceil * 19), true);
+        // GR + OUT meters.
+        const gr = (pf.glueOn ? Math.max(0, 1 - 1 / rat) * (1 - thr) : 0) + (pf.limitOn ? 1 - ceil : 0) + (pf.clipOn ? pf.clipDrive / 36 : 0);
+        p.text("GR", 52, 28); p.text("OUT", 52, 38);
+        for (let i = 0; i < 16; i++) { const x = 66 + i * 4;
+          if (i < Math.round(Math.min(1, gr) * 16)) p.rect(x, 28, 3, 5); else p.box(x, 28, 3, 5, true);
+          if (i < Math.round(ceil * (volume / 100) * 16)) p.rect(x, 38, 3, 5); else p.box(x, 38, 3, 5, true); }
       } else if (page === "EQ") {
         const g = [pf.mLow ?? 0, pf.mMud ?? 0, pf.mPresence ?? 0, pf.mAir ?? 0], xs = [36, 58, 86, 112];
         let px = 14, py = 28;

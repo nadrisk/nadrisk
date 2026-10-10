@@ -150,7 +150,7 @@ export default function Groovebox() {
   };
 
   return <section ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
-    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label="Display theme" onClick={() => setTheme(cyc(THEMES.map(t => t[0]), theme))}>DISP: {THEMES.find(t => t[0] === theme)?.[1] ?? theme}</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
+    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label={g.playing ? "Pause transport" : "Play transport"} aria-pressed={g.playing} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button><span className="gb-cycle" aria-hidden>{g.bpm} BPM</span><button className="gb-cycle" aria-label="Display theme" onClick={() => setTheme(cyc(THEMES.map(t => t[0]), theme))}>DISP: {THEMES.find(t => t[0] === theme)?.[1] ?? theme}</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
       <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} />
