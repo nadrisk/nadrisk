@@ -663,7 +663,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-pad-name { font-weight: 700; font-size: 9px; }
 
 /* ===== PIXEL SCREEN (fixed 128x64, integer scaled) ===== */
-.px-wrap { width: 100%; display: flex; justify-content: flex-start; }
+.px-wrap { width: 100%; display: flex; justify-content: center; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); padding: 3px 0; box-sizing: border-box; }
 .px-screen { position: relative; border: 1px solid hsl(var(--foreground)); box-sizing: content-box; background: hsl(var(--background)); }
 .px-screen canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 .px-zone { position: absolute; background: transparent; border: 0; padding: 0; margin: 0; cursor: ns-resize; touch-action: none; -webkit-tap-highlight-color: transparent; }
@@ -677,7 +677,11 @@ button.px-zone { cursor: pointer; }
 .instrument-workspace .node-heading { border-radius: 0 !important; padding: 2px 6px !important; font-family: 'Silkscreen', monospace !important; font-size: 8px !important; letter-spacing: .1em; }
 .instrument-workspace .node-heading .node-tag { border: 0 !important; padding: 0 !important; font-size: 8px !important; }
 .instrument-workspace .node-ports { display: none !important; }
-.instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); gap: 4px; padding: 4px !important; align-items: start; }
+.instrument-workspace .gb-editor-body { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px !important; align-items: stretch; }
+.instrument-workspace .gb-ed-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.instrument-workspace .gb-ed-col > * { flex: 1 0 auto; display: flex; flex-direction: column; }
+.instrument-workspace .gb-ed-col .px-wrap { flex: 1 0 auto; align-items: center; }
+@media (max-width: 700px) { .instrument-workspace .gb-editor-body { grid-template-columns: 1fr; } }
 
 /* Hardware pass: every remaining DOM control is a square 1-bit key. */
 
