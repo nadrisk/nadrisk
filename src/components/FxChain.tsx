@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
+import { drawFxIcon } from "@/pixel/fxIcons";
 import { pkey } from "@/components/HwScreens";
 import { FX_DEFS, FX_TYPES, SYNC_DIVS, makeFx, type FxType, type FxUnit } from "@/audio/effects";
 
@@ -34,16 +35,16 @@ function FxChain({ slotName, slots, fx, onChange }: { slots: string[]; slotName:
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
-          fx.slice(top, top + ROWS).forEach((u, k) => { const idx = top + k, y = 11 + k * 9, on = idx === i; if (on) p.rect(0, y, 128, 9); p.text(`${idx + 1} ${nm(u.type)}`.slice(0, 24), 2, y + 2, !on); p.text(u.on ? "ON" : "--", 118, y + 2, !on); });
+          fx.slice(top, top + ROWS).forEach((u, k) => { const idx = top + k, y = 11 + k * 9, on = idx === i; if (on) p.rect(0, y, 128, 9); if (!on) drawFxIcon(p, u.type, 2, y + 1, .45); p.text(`${idx + 1} ${nm(u.type)}`.slice(0, 22), 12, y + 2, !on); p.text(u.on ? "ON" : "--", 118, y + 2, !on); });
           acts.forEach(([s, , x, , en]) => { p.box(x, 54, 30, 9, !en); p.textC(s, x + 15, 56); });
         } else if (page === "EDT") {
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
-          p.text(`${i + 1} ${nm(f.type)}`.slice(0, 20), 2, 12);
+          drawFxIcon(p, f.type, 2, 11, 1.5); p.box(0, 9, 28, 21); p.text(`${i + 1} ${nm(f.type)}`.slice(0, 16), 31, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
-          if (f.type === "gate") for (let n = 0; n < gsteps; n++) { const x = 2 + n * 8, on = !!(mask & (1 << n)); if (on) p.rect(x, 22, 6, 8); else p.box(x, 22, 6, 8); }
-          else p.text(f.on ? "ACTIVE" : "BYPASSED", 2, 24);
+          if (f.type === "gate") for (let n = 0; n < gsteps; n++) { const x = 31 + n * 6, on = !!(mask & (1 << n)); if (on) p.rect(x, 22, 5, 8); else p.box(x, 22, 5, 8); }
+          else p.text(f.on ? "ACTIVE" : "BYPASSED", 31, 24);
         } else {
-          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); p.textC(nm(t).slice(0, 7), x + 15, y + 2); });
+          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 4) * 32, y = 10 + Math.floor(k / 4) * 9; p.box(x, y, 31, 9); drawFxIcon(p, t, x + 2, y + 2, .4); p.text(nm(t).slice(0, 5), x + 10, y + 2); });
         }
       }}
       extra={page => page === "LST" ? <>

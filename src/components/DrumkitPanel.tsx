@@ -36,21 +36,21 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "DRM") {
       // Pitch-envelope arrow graph: start pitch falls to base pitch.
-      p.box(14, 11, 114, 34);
-      const y0 = 14, y1 = 41, x0 = 17, x1 = 124;
+      KINDS.forEach((k, i) => { const x = 2 + i * 24; p.box(x, 11, 22, 7); if (k === d.kind) p.invert(x + 1, 12, 20, 5); p.text(k.slice(0, 3).toUpperCase(), x + 3, 12, k !== d.kind); });
+      p.box(2, 20, 124, 25);
+      const y0 = 23, y1 = 41, x0 = 5, x1 = 122;
       const dec = Math.max(2, Math.round(d.pitchDecay / .5 * 90));
       p.line(x0, y0, x0 + dec, y1); p.line(x0 + dec, y1, x1, y1);
       p.rect(x0 - 1, y0 - 1, 3, 3); p.rect(x0 + dec - 1, y1 - 1, 3, 3);
-      p.text(d.kind.toUpperCase().slice(0, 3), 100, 14);
-      KINDS.forEach((k, i) => { const x = 17 + i * 22; p.box(x, 36, 20, 7); if (k === d.kind) p.invert(x + 1, 37, 18, 5); p.text(k.slice(0, 3).toUpperCase(), x + 2, 37, k !== d.kind); });
+      p.text(d.kind.toUpperCase().slice(0, 3), 110, 12);
     } else if (page === "TN") {
       // FM/ring amount meters.
-      p.box(14, 11, 114, 34);
+      p.box(2, 11, 124, 34);
       const bars: [string, number][] = [["FM", d.fm / 10], ["RAT", d.fmRatio / 8], ["RNG", d.ring], ["FRQ", d.ringFreq / 5000]];
-      bars.forEach(([lb, v], i) => { const x = 20 + i * 28, bh = Math.round(v * 26); p.rect(x, 41 - bh, 12, bh); p.textC(lb, x + 6, 14); });
+      bars.forEach(([lb, v], i) => { const x = 10 + i * 32, bh = Math.round(v * 26); p.rect(x, 41 - bh, 12, bh); p.textC(lb, x + 6, 14); });
     } else if (page === "FLT") {
       drawFilterCurve(p, d.filter, d.cutoff, d.res);
-      p.text(d.filter.slice(0, 2).toUpperCase(), 16, 13);
+      p.text(d.filter.slice(0, 2).toUpperCase(), 4, 13);
     } else {
       drawEnvGraph(p, d.env);
     }
@@ -58,10 +58,10 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
 
   const extra = (page: string) => {
     if (page === "DRM") return <>
-      {KINDS.map((k, i) => <Tap key={k} x={17 + i * 22} y={35} w={20} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => D({ kind: k })} />)}
-      <Zone x={14} y={10} w={80} h={25} horizontal label="Pitch env decay" value={d.pitchDecay} min={.005} max={.5} step={.005} onChange={pitchDecay => D({ pitchDecay })} />
+      {KINDS.map((k, i) => <Tap key={k} x={2 + i * 24} y={10} w={22} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => D({ kind: k })} />)}
+      <Zone x={2} y={20} w={124} h={25} horizontal label="Pitch env decay" value={d.pitchDecay} min={.005} max={.5} step={.005} onChange={pitchDecay => D({ pitchDecay })} />
     </>;
-    if (page === "FLT") return <Zone x={14} y={10} w={114} h={35} horizontal label="Cutoff" value={d.cutoff} min={40} max={16000} step={10} onChange={cutoff => D({ cutoff })} />;
+    if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff" value={d.cutoff} min={40} max={16000} step={10} onChange={cutoff => D({ cutoff })} />;
     return null;
   };
 

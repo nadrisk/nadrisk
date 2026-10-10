@@ -32,7 +32,7 @@ function Sub808Panel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slo
   };
 
   const body = (p: import("@/pixel/draw").Px, page: string) => {
-    p.box(14, 11, 114, 34);
+    p.box(2, 11, 124, 34);
     if (page === "PTCH") {
       const dec = Math.max(2, Math.round(b.pitchDecay / .4 * 90)), drop = Math.round(b.pitchEnv / 48 * 24);
       p.line(17, 14, 17 + dec, 14 + drop); p.line(17 + dec, 14 + drop, 124, 14 + drop);

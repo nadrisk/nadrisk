@@ -37,7 +37,7 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
     if (page === "OSC") {
       drawWaveIcon(p, z.wave, 14, 12, 24, 14);
       p.text(z.wave.slice(0, 5).toUpperCase(), 42, 14);
-      p.box(14, 28, 114, 17);
+      p.box(2, 28, 124, 17);
       for (let i = 0; i < 112; i++) { const t = i / 112; let dy = 0;
         if (z.wave === "sine") dy = Math.sin(t * Math.PI * 6);
         else if (z.wave === "triangle") dy = Math.abs((t * 3 % 1) * 4 - 2) - 1;
@@ -47,12 +47,12 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
     } else if (page === "LFO") {
       drawWaveIcon(p, z.lfoWave, 14, 12, 24, 14);
       p.text(`${z.rate.toFixed(1)}HZ`, 42, 14);
-      p.box(14, 28, 114, 17);
+      p.box(2, 28, 124, 17);
       const amp = Math.max(1, Math.round(z.depth / 24 * 6));
       for (let i = 0; i < 112; i++) { const t = i / 112; p.dot(15 + i, 36 - Math.round(Math.sin(t * Math.PI * 2 * Math.min(4, z.rate / 2)) * amp)); }
     } else {
       // Sweep arrow graph: pitch rises or falls over sweep time.
-      p.box(14, 11, 114, 34);
+      p.box(2, 11, 124, 34);
       const up = z.sweep >= 0, len = Math.max(4, Math.round(z.sweepTime / 6 * 100)), mag = Math.round(Math.abs(z.sweep) / 24 * 24);
       const y0 = up ? 41 : 17, y1 = up ? 41 - mag : 17 + mag;
       p.line(17, y0, 17 + len, y1); p.line(17 + len, y1, 124, y1);

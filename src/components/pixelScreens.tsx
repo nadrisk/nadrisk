@@ -3,7 +3,7 @@ import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 
-export const KX = [22, 50, 78, 106];
+export const KX = [16, 48, 80, 112];
 export const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 export const ms = (v: number) => `${Math.round(v * 1000)}MS`;
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -31,11 +31,11 @@ export function drawKnobs(p: Px, knobs: Knob[]) {
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 11} y={45} w={22} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
-export function drawEnvGraph(p: Px, env: ADSR, x0 = 14, y0 = 11, w = 114, h = 34) {
+export function drawEnvGraph(p: Px, env: ADSR, x0 = 2, y0 = 11, w = 124, h = 34) {
   const t = env.a + env.d + env.r + .6, X = (v: number) => x0 + Math.round(v / t * (w - 2)), Y = (v: number) => y0 + h - 1 - Math.round(v * (h - 4));
   const pts: [number, number][] = [[X(0), Y(0)], [X(env.a), Y(1)], [X(env.a + env.d), Y(env.s)], [X(env.a + env.d + .6), Y(env.s)], [X(t), Y(0)]];
   for (let x = x0; x < x0 + w; x += 4) p.dot(x, y0 + h);
@@ -51,7 +51,7 @@ export const envKnobs = (env: ADSR, set: (e: ADSR) => void): Knob[] => (["a", "d
 }));
 
 // Stepped filter-magnitude curve.
-export function drawFilterCurve(p: Px, kind: FilterKind, cutoff: number, res: number, x0 = 14, y0 = 11, w = 114, h = 34) {
+export function drawFilterCurve(p: Px, kind: FilterKind, cutoff: number, res: number, x0 = 2, y0 = 11, w = 124, h = 34) {
   const cx = x0 + Math.round(f01(Math.log(cutoff / 40), 0, Math.log(400)) * (w - 2));
   const top = y0 + 2, bot = y0 + h - 2, bump = Math.min(6, Math.round(res / 3));
   let prev = -1;
