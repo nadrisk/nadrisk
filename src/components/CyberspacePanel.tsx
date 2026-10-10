@@ -106,16 +106,16 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const waves: (Wave | "additive")[] = k === "osc1" ? ["sine", "triangle", "sawtooth", "square", "additive"] : ["sine", "triangle", "sawtooth", "square"];
       const idx = Math.max(0, waves.indexOf(o.wave as Wave));
       return <>
-        <Zone x={14} y={11} w={24} h={15} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
-        {k === "osc2" && <Zone x={42} y={21} w={25} h={9} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
+        <Zone x={2} y={11} w={22} h={12} label={`${k} waveform`} value={idx} min={0} max={waves.length - 1} step={1} onChange={v => { const set = { [k]: { ...o, wave: waves[Math.round(v)] } } as Partial<typeof s>; S(set); }} />
+        {k === "osc2" && <Zone x={74} y={12} w={25} h={7} label="Osc 2 mode" value={s.osc2.mode === "fm" ? 1 : 0} min={0} max={1} step={1} onChange={v => S({ osc2: { ...s.osc2, mode: v >= .5 ? "fm" : "mix" } })} />}
         {k === "osc1" && o.wave === "additive" && s.partials.slice(0, 16).map((v, i) => (
-          <Zone key={i} x={14 + i * 7} y={18} w={6} h={23} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
+          <Zone key={i} x={3 + i * 7.6} y={26} w={7} h={17} label={`Harmonic ${i + 1}`} value={v} min={0} max={1} step={.01}
             onChange={nv => { const partials = s.partials.slice(); partials[i] = nv; S({ partials }); }} />
         ))}
       </>;
     }
-    if (page === "FLT") return <Zone x={14} y={10} w={114} h={35} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
-    if (page === "LFO") return <Zone x={14} y={11} w={24} h={15} label="LFO waveform" value={["sine", "triangle", "sawtooth", "square"].indexOf(s.lfo.wave)} min={0} max={3} step={1} onChange={v => S({ lfo: { ...s.lfo, wave: (["sine", "triangle", "sawtooth", "square"] as Wave[])[Math.round(v)] } })} />;
+    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
+    if (page === "LFO") return <Zone x={2} y={11} w={22} h={12} label="LFO waveform" value={["sine", "triangle", "sawtooth", "square"].indexOf(s.lfo.wave)} min={0} max={3} step={1} onChange={v => S({ lfo: { ...s.lfo, wave: (["sine", "triangle", "sawtooth", "square"] as Wave[])[Math.round(v)] } })} />;
     return null;
   };
 
