@@ -5,7 +5,7 @@ import { AudioLines } from "lucide-react";
 import { Slider, ResetScope } from "@/components/ui/slider";
 import TapeDeck from "./TapeDeck";
 import { RATES, type RateName } from "@/audio/arp";
-import { useGroovebox, stepAt, padStats, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
+import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
 import { MasterScreen, MidiScreen, SeqScreen } from "@/components/HwScreens";
 import PatchNode from "./PatchNode";
@@ -23,7 +23,6 @@ import { DisplayThemeContext } from "@/pixel/PixelScreen";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
-const PADTEST = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("padtest");
 const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel }: {
   slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
 }) {
