@@ -1,4 +1,5 @@
 # Groovebox roadmap
+- [x] Native Capacitor shell: iOS launches directly into the shared groovebox with safe-area handling while the website remains unchanged
 - [x] NAD branding: remove visible Max associations
 - [x] Metallic feedback, spectral gate, sidechain, DJ filter and reverse delay
 - [x] Choke groups, chord pads and lush poly synth
