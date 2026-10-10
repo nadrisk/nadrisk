@@ -165,7 +165,7 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
     modAdsr(osc.detune, t, p.pitchEnvShape, gate, o.fine, p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
   };
-  const o1 = makeOsc(p.osc1), o2 = makeOsc(p.osc2);
+  const o1 = makeOsc(p.osc1, p.partials), o2 = makeOsc(p.osc2, p.partials2 ?? p.partials);
   const g1 = ctx.createGain(); g1.gain.value = p.osc1.gain; o1.connect(g1).connect(mix);
   const g2 = ctx.createGain();
   if (p.osc2.mode === "fm") { g2.gain.value = p.osc2.fmAmount * base * p.osc2.gain; o2.connect(g2).connect(o1.frequency); }
