@@ -113,7 +113,7 @@ const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ?
 export type FxLevels = { input: number; output: number };
 export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; dispose: () => void };
 
-const meterDb = (analyser: AnalyserNode, data: Float32Array) => {
+const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
   analyser.getFloatTimeDomainData(data);
   let sum = 0, peak = 0;
   for (let i = 0; i < data.length; i++) { const v = data[i]; sum += v * v; peak = Math.max(peak, Math.abs(v)); }
