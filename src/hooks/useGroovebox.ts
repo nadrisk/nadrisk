@@ -228,9 +228,11 @@ export function useGroovebox() {
       // Ring list: every live voice per pad, pruned when silent and capped at 6 so rapid rolls never overload the audio thread.
       // Earlier tails fade with the pad's current release, so a shortened release is heard on the very next hit.
       const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0)), curR = relOf(s);
-      if (idx === undefined || idx === 0) rl.forEach(r => r.release(t, curR));
+      // Poly chords are heavy (many oscillators each), so their old tails fade quickly and fewer may ring, keeping every new hit audible.
+      const isPoly = s.engine === "poly", cap = isPoly ? 3 : 6;
+      if (idx === undefined || idx === 0) rl.forEach(r => r.release(t, isPoly ? Math.min(curR, .25) : curR));
       rl.push({ stop: e.mono[i]!.stop, release: rel, until: Math.max(now0, t) + gate + 8 });
-      if (rl.length > 6) rl.splice(0, rl.length - 6).forEach(r => r.stop(t));
+      if (rl.length > cap) rl.splice(0, rl.length - cap).forEach(r => r.stop(t));
       // Every booked voice is remembered until it has started, so a release can cancel notes scheduled ahead.
       const now = e.ctx.currentTime, list = booked.current[i].filter(b => b.at > now); if (t > now) list.push({ at: t, stop: e.mono[i]!.stop }); booked.current[i] = list;
     };
