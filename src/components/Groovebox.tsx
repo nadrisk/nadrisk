@@ -5,7 +5,7 @@ import { AudioLines } from "lucide-react";
 import { Slider, ResetScope } from "@/components/ui/slider";
 import TapeDeck from "./TapeDeck";
 import { RATES, type RateName } from "@/audio/arp";
-import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
+import { useGroovebox, stepAt, padStats, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
 import { MasterScreen, MidiScreen, SeqScreen } from "@/components/HwScreens";
 import PatchNode from "./PatchNode";
