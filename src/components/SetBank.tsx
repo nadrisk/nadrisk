@@ -58,7 +58,7 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
   return <div className="node-body">
     <div className="px-panel">
       <PixelScreen label="Memory set bank screen" draw={draw} deps={[sets, sel, msg]}>
-        {sets.map((st, i) => <Tap key={i} x={0} y={10 + i * 5} w={128} h={6} label={`Set slot ${i + 1}${st ? ` ${st.name}` : " empty"}`} pressed={i === sel}
+        {sets.map((st, i) => <Tap key={i} x={1 + (i % 2) * 64} y={9 + Math.floor(i / 2) * 10} w={63} h={10} label={`Set slot ${i + 1}${st ? ` ${st.name}` : " empty"}`} pressed={i === sel}
           onClick={() => pick(i)} />)}
         {BTNS.map((b, i) => <Tap key={b} x={1 + i * 21} y={52} w={b === "EXP+" ? 22 : 20} h={11} label={b === "DEL" ? "Clear slot" : b === "EXP" ? "Export set" : b === "EXP+" ? "Export set with samples" : b === "IMP" ? "Import set" : b === "SAVE" ? "Save set" : "Load set"}
           disabled={(b === "LOAD" || b === "DEL") && !sets[sel]} onClick={() => act(b)} />)}
