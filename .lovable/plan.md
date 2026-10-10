@@ -32,6 +32,11 @@
 - A wide RESET bar sits under the PERFORM screen and shows on every page (FX, ECO, SEQ, HLD). One tap snaps tension, time, the DJ filter, echo send, loop, offset and held modes back to neutral, ready for the drop.
 - It lives only in the PERFORM panel. It can be assigned through MIDI learn.
 
+## 7. WAV and MP3 import, 30-second limit
+- The sample picker clearly accepts WAV and MP3 files, both single files and folder loads. On iPhone the picker opens Files with audio files selectable.
+- A sample longer than 30 seconds keeps only its first 30 seconds, and the screen briefly shows "CUT TO 30S". A file that isn't WAV or MP3, or that won't open, shows a short message, and the pad keeps its current sample.
+- Folder loads skip anything that isn't WAV or MP3.
+
 ## Not changed
 Sequencing, timing, touch handling, layout outside the PERFORM panel, themes, saved-set format (older sets still load).
 
