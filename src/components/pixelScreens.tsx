@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
+import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
 
@@ -45,6 +45,17 @@ export function drawEnvGraph(p: Px, env: ADSR, x0 = 2, y0 = 11, w = 124, h = 34)
   pts.slice(1, 4).forEach(([x, y]) => p.rect(x - 1, y - 1, 3, 3));
 }
 
+export function EnvZones({ env, set, x0 = 2, y0 = 11, w = 124, h = 34 }: { env: ADSR; set: (env: ADSR) => void; x0?: number; y0?: number; w?: number; h?: number }) {
+  const t = env.a + env.d + env.r + .6, X = (v: number) => x0 + Math.round(v / t * (w - 2)), Y = (v: number) => y0 + h - 1 - Math.round(v * (h - 4));
+  const nodes = [[X(env.a), Y(1)], [X(env.a + env.d), Y(env.s)], [X(env.a + env.d + .6), Y(env.s)]];
+  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+  return <>
+    <XYZone x={nodes[0][0] - 6} y={nodes[0][1] - 6} w={12} h={14} label="Drag envelope attack" onDrag={(dx) => set({ ...env, a: clamp(env.a + dx * 2, .001, 2) })} />
+    <XYZone x={nodes[1][0] - 6} y={nodes[1][1] - 7} w={12} h={14} label="Drag envelope decay and sustain" onDrag={(dx, dy) => set({ ...env, d: clamp(env.d + dx * 2, .01, 2), s: clamp(env.s - dy, 0, 1) })} />
+    <XYZone x={nodes[2][0] - 6} y={nodes[2][1] - 7} w={12} h={14} label="Drag envelope release" onDrag={(dx) => set({ ...env, r: clamp(env.r + dx * 3, .01, 3) })} />
+  </>;
+}
+
 export const envKnobs = (env: ADSR, set: (e: ADSR) => void): Knob[] => (["a", "d", "s", "r"] as const).map(k => ({
   label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k],
   min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
@@ -54,7 +65,7 @@ export const envKnobs = (env: ADSR, set: (e: ADSR) => void): Knob[] => (["a", "d
 // Stepped filter-magnitude curve.
 export function drawFilterCurve(p: Px, kind: FilterKind, cutoff: number, res: number, x0 = 2, y0 = 11, w = 124, h = 34) {
   const cx = x0 + Math.round(f01(Math.log(cutoff / 40), 0, Math.log(400)) * (w - 2));
-  const top = y0 + 2, bot = y0 + h - 2, bump = Math.min(6, Math.round(res / 3));
+  const top = y0 + Math.floor(h * .46), bot = y0 + h - 2, bump = Math.min(Math.floor(h * .4), Math.round(res / 1.8));
   let prev = -1;
   for (let x = x0; x < x0 + w; x++) {
     let y: number;

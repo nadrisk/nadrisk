@@ -17,3 +17,4 @@
 - The groovebox keeps pads fixed above two workspaces: the selected instrument stays left and one persisted utility panel stays right, stacking on narrow screens to avoid a long module list.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
 - Hardware-style instrument screens render on a fixed 128x64 canvas with a bitmap font (src/pixel), integer-scaled, with invisible aria-labelled hit-zones on top, so pixels stay crisp on every device and MIDI learn still works.
+- Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.

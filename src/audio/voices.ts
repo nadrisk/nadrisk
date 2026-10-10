@@ -4,7 +4,7 @@ export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch";
 export type ADSR = { a: number; d: number; s: number; r: number };
 export type DrumParams = { kind: "kick" | "snare" | "hat"; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
-export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
+export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp" } };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; glide?: (delta: number, at: number, time: number) => void };
@@ -32,6 +32,12 @@ function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
   const rel = t + Math.max(gate, e.a);
   p.setTargetAtTime(0, rel, e.r / 3 + 0.001);
   return rel + e.r * 1.5 + 0.05;
+}
+
+function modAdsr(p: AudioParam, t: number, e: ADSR, gate: number, base: number, amount: number) {
+  p.setValueAtTime(base, t); p.linearRampToValueAtTime(base + amount, t + e.a);
+  p.setTargetAtTime(base + amount * e.s, t + e.a, e.d / 3 + .001);
+  const rel = t + Math.max(gate, e.a); p.setTargetAtTime(base, rel, e.r / 3 + .001);
 }
 
 function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode): Voice {
@@ -91,14 +97,15 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   const trem = ctx.createGain(); trem.connect(amp);
   const mix = ctx.createGain();
   const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay);
+  filt.frequency.cancelScheduledValues(t); filt.frequency.value = p.cutoff;
+  modAdsr(filt.detune, t, p.filterEnvShape, gate, 0, p.filterEnv * 1200);
   const wet = ctx.createGain(); wet.gain.value = p.wet; const dry = ctx.createGain(); dry.gain.value = 1 - p.wet;
   mix.connect(filt).connect(wet).connect(trem); mix.connect(dry).connect(trem);
   const makeOsc = (o: OscParams) => {
     const osc = at(ctx.createOscillator(), t);
     if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, p.partials)); else osc.type = o.wave;
     osc.frequency.value = base * 2 ** (o.coarse / 12);
-    osc.detune.setValueAtTime(o.fine + p.pitchEnv * 100, t);
-    osc.detune.linearRampToValueAtTime(o.fine, t + p.pitchDecay + 0.001);
+    modAdsr(osc.detune, t, p.pitchEnvShape, gate, o.fine, p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
   };
   const o1 = makeOsc(p.osc1), o2 = makeOsc(p.osc2);

@@ -25,7 +25,7 @@ const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 50,
 const synth = (o: Partial<SynthParams>): SynthParams => ({
   osc1: { wave: "sawtooth", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 0, coarse: 12, fine: 7, mode: "mix", fmAmount: 1 },
   partials: [1, 0.6, 0.5, 0.3, 0.3, 0.15, 0.2, 0.08, 0.1, 0, 0.05, 0, 0, 0, 0, 0], noise: 0,
-  env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
+  env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, pitchEnvShape: { a: .001, d: .05, s: 0, r: .02 }, filterEnvShape: { a: .001, d: .2, s: 0, r: .02 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
 
@@ -407,7 +407,7 @@ export function useGroovebox() {
     engine.current?.mono.forEach(v => v?.stop(ctxOf().currentTime)); holds.current.clear();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     const d = defaultSlots();
-    setSlots(d.map((x, i) => { const o = st.slots?.[i]; return o ? { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...o.synth }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: o.mods ?? x.mods, fx: o.fx ?? x.fx } : x; }));
+    setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: o.mods ?? x.mods, fx: o.fx ?? x.fx }; }));
     if (st.banks?.length === 2) setBanks(st.banks.map(fixBank));
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
     setBpm(st.bpm ?? 124); setVolume(st.volume ?? 60);

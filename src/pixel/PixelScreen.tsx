@@ -32,6 +32,30 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
 
 const pos = (x: number, y: number, w: number, h: number) => ({ left: `${x / W * 100}%`, top: `${y / H * 100}%`, width: `${w / W * 100}%`, height: `${h / H * 100}%` });
 
+export function XYZone({ x, y, w, h, label, onDrag }: { x: number; y: number; w: number; h: number; label: string; onDrag: (dx: number, dy: number) => void }) {
+  const start = useRef({ x: 0, y: 0 });
+  return <div className="px-zone" style={pos(x, y, w, h)} role="slider" tabIndex={0} aria-label={label}
+    onPointerDown={e => { if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); start.current = { x: e.clientX, y: e.clientY }; }}
+    onPointerMove={e => { if (!e.buttons || !e.isTrusted) return; const r = e.currentTarget.getBoundingClientRect(); onDrag((e.clientX - start.current.x) / r.width, (e.clientY - start.current.y) / r.height); start.current = { x: e.clientX, y: e.clientY }; }} />;
+}
+
+export function BarDraw({ x, y, w, h, values, onChange }: { x: number; y: number; w: number; h: number; values: number[]; onChange: (values: number[]) => void }) {
+  const last = useRef<number | null>(null);
+  const paint = (el: HTMLElement, clientX: number, clientY: number) => {
+    const r = el.getBoundingClientRect(), raw = (clientX - r.left) / r.width;
+    const index = Math.max(0, Math.min(values.length - 1, Math.floor(raw * values.length)));
+    const value = Math.max(0, Math.min(1, 1 - (clientY - r.top) / r.height));
+    const next = [...values], from = last.current ?? index, lo = Math.min(from, index), hi = Math.max(from, index);
+    const startValue = next[from] ?? value;
+    for (let i = lo; i <= hi; i++) { const t = hi === lo ? 1 : Math.abs(i - from) / Math.abs(index - from); next[i] = +(startValue + (value - startValue) * t).toFixed(3); }
+    last.current = index; onChange(next);
+  };
+  return <div className="px-zone" style={pos(x, y, w, h)} role="slider" tabIndex={0} aria-label="Draw additive harmonics" aria-valuemin={0} aria-valuemax={1}
+    onPointerDown={e => { if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); last.current = null; paint(e.currentTarget, e.clientX, e.clientY); }}
+    onPointerMove={e => { if (!e.buttons || !e.isTrusted) return; paint(e.currentTarget, e.clientX, e.clientY); }}
+    onPointerUp={() => { last.current = null; }} />;
+}
+
 // Invisible knob/fader hit-zone. Keeps the aria-label so MIDI learn, keys and double-click reset still work.
 export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
