@@ -33,38 +33,47 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
     ];
   };
 
+  // Oscilloscope trace computed from the current settings so it reacts as the sound is shaped.
+  const scope = (p: import("@/pixel/draw").Px, lfo: boolean) => {
+    const X0 = 3, W = 122, Y0 = 26, H = 15, mid = Y0 + 7;
+    p.box(2, Y0 - 1, 124, H + 2);
+    for (let x = X0; x < X0 + W; x += 4) p.dot(x, mid);
+    const shape = (w: Wave, ph: number) => { const t = ((ph % 1) + 1) % 1;
+      if (w === "sine") return Math.sin(t * Math.PI * 2);
+      if (w === "triangle") return 1 - Math.abs(t * 4 - 2);
+      if (w === "sawtooth") return t * 2 - 1;
+      return t < .5 ? 1 : -1; };
+    const cycles = 2 + (slot.note - 36) / 60 * 4, smooth = 1 - Math.min(.92, Math.log(z.tone / 300) / Math.log(40));
+    let y = 0, ph = 0, prev: [number, number] | null = null;
+    for (let i = 0; i < W; i++) { const t = i / W; let v: number;
+      if (lfo) v = shape(z.lfoWave, t * Math.min(6, Math.max(.5, z.rate / 2))) * Math.max(.15, z.depth / 24);
+      else { const fm = 1 + shape(z.lfoWave, t * Math.min(6, z.rate / 2)) * z.depth / 48; ph += cycles / W * fm; v = shape(z.wave, ph) * (slot.level / 100 * .6 + .4); }
+      y += (v - y) * (lfo ? 1 : 1 - smooth * .85);
+      const pt: [number, number] = [X0 + i, mid - Math.round(Math.max(-1, Math.min(1, y)) * 6)];
+      if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
+  };
+
   const body = (p: import("@/pixel/draw").Px, page: string) => {
-    if (page === "OSC") {
-      drawWaveIcon(p, z.wave, 14, 12, 24, 14);
-      p.text(z.wave.slice(0, 5).toUpperCase(), 42, 14);
-      p.box(2, 28, 124, 17);
-      for (let i = 0; i < 112; i++) { const t = i / 112; let dy = 0;
-        if (z.wave === "sine") dy = Math.sin(t * Math.PI * 6);
-        else if (z.wave === "triangle") dy = Math.abs((t * 3 % 1) * 4 - 2) - 1;
-        else if (z.wave === "sawtooth") dy = (t * 3 % 1) * 2 - 1;
-        else dy = (t * 3 % 1) < .5 ? -1 : 1;
-        p.dot(15 + i, 36 - Math.round(dy * 6)); }
-    } else if (page === "LFO") {
-      drawWaveIcon(p, z.lfoWave, 14, 12, 24, 14);
-      p.text(`${z.rate.toFixed(1)}HZ`, 42, 14);
-      p.box(2, 28, 124, 17);
-      const amp = Math.max(1, Math.round(z.depth / 24 * 6));
-      for (let i = 0; i < 112; i++) { const t = i / 112; p.dot(15 + i, 36 - Math.round(Math.sin(t * Math.PI * 2 * Math.min(4, z.rate / 2)) * amp)); }
+    if (page === "OSC" || page === "LFO") {
+      const w = page === "OSC" ? z.wave : z.lfoWave;
+      drawWaveIcon(p, w, 2, 11, 22, 12);
+      p.text(page === "OSC" ? w.slice(0, 5).toUpperCase() : `${w.slice(0, 3).toUpperCase()} ${z.rate.toFixed(1)}HZ`, 28, 15);
+      scope(p, page === "LFO");
     } else {
-      // Sweep arrow graph: pitch rises or falls over sweep time.
-      p.box(2, 11, 124, 34);
-      const up = z.sweep >= 0, len = Math.max(4, Math.round(z.sweepTime / 6 * 100)), mag = Math.round(Math.abs(z.sweep) / 24 * 24);
-      const y0 = up ? 41 : 17, y1 = up ? 41 - mag : 17 + mag;
-      p.line(17, y0, 17 + len, y1); p.line(17 + len, y1, 124, y1);
-      p.rect(16, y0 - 1, 3, 3); p.rect(16 + len, y1 - 1, 3, 3);
-      p.text(`${z.sweep > 0 ? "+" : ""}${Math.round(z.sweep)}ST`, 100, 36);
+      // Sweep arrow graph: pitch rises or falls over sweep time, edge to edge.
+      p.box(2, 11, 124, 31);
+      const up = z.sweep >= 0, len = Math.max(4, Math.round(z.sweepTime / 6 * 110)), mag = Math.round(Math.abs(z.sweep) / 24 * 24);
+      const y0 = up ? 39 : 14, y1 = up ? 39 - mag : 14 + mag;
+      p.line(3, y0, 3 + len, y1); p.line(3 + len, y1, 124, y1);
+      p.rect(3, y0 - 1, 3, 3); p.rect(2 + len, y1 - 1, 3, 3);
+      p.text(`${z.sweep > 0 ? "+" : ""}${Math.round(z.sweep)}ST`, 98, up ? 34 : 14);
     }
   };
 
   const extra = (page: string) => {
-    if (page === "OSC") return <Zone x={14} y={11} w={24} h={15} label="Siren wave" value={WAVES.indexOf(z.wave)} min={0} max={3} step={1} onChange={v => Z({ wave: WAVES[Math.round(v)] })} />;
-    if (page === "LFO") return <Zone x={14} y={11} w={24} h={15} label="Siren LFO wave" value={WAVES.indexOf(z.lfoWave)} min={0} max={3} step={1} onChange={v => Z({ lfoWave: WAVES[Math.round(v)] })} />;
-    if (page === "SWP") return <Zone x={14} y={10} w={114} h={35} horizontal label="Sweep time" value={z.sweepTime} min={.05} max={6} step={.05} onChange={sweepTime => Z({ sweepTime })} />;
+    if (page === "OSC") return <Zone x={2} y={11} w={22} h={12} label="Siren wave" value={WAVES.indexOf(z.wave)} min={0} max={3} step={1} onChange={v => Z({ wave: WAVES[Math.round(v)] })} />;
+    if (page === "LFO") return <Zone x={2} y={11} w={22} h={12} label="Siren LFO wave" value={WAVES.indexOf(z.lfoWave)} min={0} max={3} step={1} onChange={v => Z({ lfoWave: WAVES[Math.round(v)] })} />;
+    if (page === "SWP") return <Zone x={2} y={11} w={124} h={31} horizontal label="Sweep time" value={z.sweepTime} min={.05} max={6} step={.05} onChange={sweepTime => Z({ sweepTime })} />;
     return null;
   };
 
