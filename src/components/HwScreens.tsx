@@ -17,9 +17,9 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
     { s: "ECO", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
   ] : page === "DYN" ? [
-    { s: "CLIP", label: "Master clipper", x: 1, y: 11, w: 30, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
-    { s: "LIMIT", label: "Master limiter", x: 33, y: 11, w: 30, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
-    { s: "GLUE", label: "Glue compressor", x: 65, y: 11, w: 30, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
+    { s: "CLIP", label: "Master clipper", x: 2, y: 14, w: 40, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
+    { s: "LIMIT", label: "Master limiter", x: 44, y: 14, w: 40, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
+    { s: "GLUE", label: "Glue compressor", x: 86, y: 14, w: 40, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
   ] : page === "EQ" ? [{ s: "EQ", label: "Mastering EQ", x: 1, y: 11, w: 22, on: !!pf.mEqOn, fn: () => setPf({ mEqOn: !pf.mEqOn }) }] : [];
   const knobs = (page: string): Knob[] => page === "OUT" ? [
     kn("Tempo", "BPM", bpm, 60, 180, 1, "", setBpm), kn("Master volume", "VOL", volume, 0, 100, 1, "%", setVolume),
@@ -29,10 +29,8 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
   ] : page === "EQ" ? [
     kn("Master Low 90Hz", "90", pf.mLow ?? 0, -6, 6, .5, "DB", mLow => setPf({ mLow })), kn("Master Mud 300Hz", "300", pf.mMud ?? 0, -6, 6, .5, "DB", mMud => setPf({ mMud })),
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "12K", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
-  ] : [
-    kn("Master Sub cut", "SUB", pf.mHpf ?? 25, 10, 60, 1, "HZ", mHpf => setPf({ mHpf })), kn("Makeup", "MKUP", pf.glueMakeup ?? 2, 0, 12, .5, "DB", glueMakeup => setPf({ glueMakeup })),
-  ];
-  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ", "AUX"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf)]} knobs={knobs}
+  ] : [];
+  return <Panel name="MASTER" label="Master" pages={["OUT", "DYN", "EQ"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf)]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
@@ -44,9 +42,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         let px = 14, py = 28;
         for (let x = 14; x < 126; x++) { let y = 28; xs.forEach((c, i) => { y -= g[i] * Math.max(0, 1 - Math.abs(x - c) / 14) * 1.4; }); if (x < 14 + (pf.mHpf ?? 25) / 4) y = 36; p.line(px, py, x, Math.round(y)); px = x; py = Math.round(y); }
         p.text(pf.mEqOn ? "ON" : "BYP", 26, 13);
-      } else if (page === "DYN") {
-        p.text(`${pf.clipOn ? "CLIP" : "----"} ${pf.limitOn ? "LIM" : "---"} ${pf.glueOn ? "GLUE" : "----"}`, 2, 26);
-      } else p.text("SUB CUT  GLUE MAKEUP", 2, 20);
+      }
     }}
     extra={page => keyZones(keys(page))} />;
 }
