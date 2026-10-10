@@ -39,7 +39,7 @@ export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { val
         <Tap x={43} y={42} w={42} h={11} label="Load folder" onClick={() => folder.current?.click()} />
         <Tap x={85} y={42} w={42} h={11} label="Import sample" onClick={() => file.current?.click()} />
       </>} />
-    <input ref={folder} type="file" multiple className="sr-only" {...{ webkitdirectory: "", directory: "" }} onChange={async e => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (!f.length) return; const r = await onFolder(f); refresh(); setMsg(`${r.total} SAVED ${r.matched} MATCHED`); }} />
+    <input ref={folder} type="file" multiple className="sr-only" {...{ webkitdirectory: "", directory: "" }} onChange={async e => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (!f.length) return; const r = await onFolder(f); refresh(); setMsg(`${r.saved ?? r.total} SAVED ${r.matched} MATCHED`); }} />
     <input ref={file} type="file" accept="audio/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) onLoad(f); e.target.value = ""; }} />
   </>;
 }

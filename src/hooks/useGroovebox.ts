@@ -445,7 +445,7 @@ export function useGroovebox() {
       if (i >= 0) { used.add(i); try { await setBuffer(i, f, f.name, saved ? cacheId(f) : undefined); matched++; } catch { /* skip */ } }
     }
     setError(!audio.length ? "No audio files in that folder." : unsaved ? `${unsaved} of ${audio.length} files couldn't be saved on this device (storage full or blocked).` : "");
-    return { total: audio.length, matched };
+    return { total: audio.length, matched, saved: audio.length - unsaved };
   }, [setBuffer]);
   const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
   // Cycle off -> hit -> tie -> off. A tie needs a hit or tie before it, otherwise it goes straight to off.

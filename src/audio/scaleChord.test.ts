@@ -38,7 +38,8 @@ describe("selected chord kept when it fits", () => {
   it("detects fitting and non-fitting shapes", () => {
     expect(shapeInScale("minor", 0, CHORDS.min7)).toBe(true);
     expect(shapeInScale("minor", 0, CHORDS.major)).toBe(false);
-    expect(shapeInScale("minor", 0, CHORDS["house m9"])).toBe(false);
+    expect(shapeInScale("minor", 0, CHORDS["house m9"])).toBe(true);
+    expect(shapeInScale("major", 0, CHORDS["house m9"])).toBe(false);
     expect(shapeInScale("minor", 3, CHORDS.maj7)).toBe(true);
     expect(shapeInScale("minor", -2, CHORDS.major)).toBe(true);
     expect(shapeInScale("chromatic", 4, CHORDS.dom7)).toBe(true);
