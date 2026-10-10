@@ -159,6 +159,12 @@ export default function Groovebox() {
         <Slider aria-label="Clip drive" resetValue={[6]} disabled={!pf.clipOn} min={0} max={18} step={0.5} value={[pf.clipDrive]} onValueChange={([clipDrive]) => setPf({ clipDrive })} className="patch-slider" />
         <div className="parameter-label">Limiter ceiling <span>{pf.ceiling} dB</span></div>
         <Slider aria-label="Limiter ceiling" resetValue={[-1]} disabled={!pf.limitOn} min={-12} max={0} step={0.5} value={[pf.ceiling]} onValueChange={([ceiling]) => setPf({ ceiling })} className="patch-slider" />
+        <div className="gb-cols2">
+          <Button variant="ghost" size="sm" className={`gb-eco ${pf.mEqOn ? "on" : ""}`} aria-label="Mastering EQ" aria-pressed={!!pf.mEqOn} onClick={() => setPf({ mEqOn: !pf.mEqOn })}>master eq {pf.mEqOn ? "on" : "off"}</Button>
+          <Button variant="ghost" size="sm" className={`gb-eco ${pf.glueOn ? "on" : ""}`} aria-label="Glue compressor" aria-pressed={!!pf.glueOn} onClick={() => setPf({ glueOn: !pf.glueOn })}>glue {pf.glueOn ? "on" : "off"}</Button>
+        </div>
+        {pf.mEqOn && <div className="gb-cols2">{([["mHpf", "Sub cut", 10, 60, 1, " Hz", 25], ["mLow", "Low 90Hz", -6, 6, .5, " dB", 0], ["mMud", "Mud 300Hz", -6, 6, .5, " dB", 0], ["mPresence", "Presence 3k", -6, 6, .5, " dB", 0], ["mAir", "Air 12k", -6, 6, .5, " dB", 0]] as const).map(([k, l, mn, mx, st, u, d]) => <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{pf[k] ?? d}{u}</span></div><Slider aria-label={`Master ${l}`} resetValue={[d]} min={mn} max={mx} step={st} value={[pf[k] ?? d]} onValueChange={([v]) => setPf({ [k]: v })} className="patch-slider" /></div>)}</div>}
+        {pf.glueOn && <div className="gb-cols3">{([["glueThresh", "Glue thresh", -30, 0, .5, " dB", -12], ["glueRatio", "Ratio", 1, 4, .1, ":1", 2], ["glueMakeup", "Makeup", 0, 12, .5, " dB", 2]] as const).map(([k, l, mn, mx, st, u, d]) => <div key={k} className="gb-param"><div className="parameter-label">{l}<span>{pf[k] ?? d}{u}</span></div><Slider aria-label={l} resetValue={[d]} min={mn} max={mx} step={st} value={[pf[k] ?? d]} onValueChange={([v]) => setPf({ [k]: v })} className="patch-slider" /></div>)}</div>}
         <span className="patch-small">device audio delay {g.latency == null ? "--" : `${g.latency} ms`}</span>
         <div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} /></div>
       </div>
@@ -206,7 +212,7 @@ export default function Groovebox() {
         <Button variant="ghost" size="sm" onClick={g.resetAll}><RotateCcw size={12} /> reset</Button>
       </div>
       <span className="patch-small gb-seq-hint">{view === "mod" ? "pick a target per row · drag lit steps up / down to set the amount" : view === "vel" ? "drag lit steps up / down to set how hard each hit plays" : view === "chance" ? "drag lit steps up / down to set how likely each hit plays" : "tap: hit → tie → off · a dot means the step has velocity or chance set"}</span>
-      <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
+      <StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} />
     </PatchNode>,
   };
 

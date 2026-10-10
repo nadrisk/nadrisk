@@ -503,7 +503,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-tapenode { grid-column: auto; }
 @keyframes gb-blink { 50% { opacity: .35; } }
 
-/* ---------- Monochrome LCD display themes (one hue, pixel grid, glow) ---------- */
+/* ---------- Monochrome LCD display themes (flat, one hue, no glow) ---------- */
 .instrument-workspace[data-lcd="nadrisk"] { --lcd-h: 160; --lcd-s: 68%; --primary: 268 60% 55%; }
 .instrument-workspace[data-lcd="teal"] { --lcd-h: 178; --lcd-s: 80%; }
 .instrument-workspace[data-lcd="amber"] { --lcd-h: 38; --lcd-s: 100%; }
@@ -532,13 +532,12 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   color: hsl(var(--foreground));
 }
 .instrument-workspace:not([data-lcd="studio"]):not([data-lcd="nadrisk"]) { --primary: var(--lcd-h) var(--lcd-s) 38%; --destructive: var(--lcd-h) var(--lcd-s) 70%; }
-.instrument-workspace:not([data-lcd="studio"]) .patch-node {
-  background-color: hsl(var(--patch-surface));
-  background-image: radial-gradient(hsl(var(--accent) / .07) 1px, transparent 1.2px), linear-gradient(hsl(var(--accent) / .025), transparent 40%);
-  background-size: 3px 3px, 100% 100%;
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / .06), inset 0 0 24px hsl(var(--background) / .9);
-}
-.instrument-workspace:not([data-lcd="studio"]) .node-heading { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--foreground)); text-shadow: 0 0 6px hsl(var(--accent) / .55); }
-.instrument-workspace:not([data-lcd="studio"]) .gb-step.on, .instrument-workspace:not([data-lcd="studio"]) .gb-pad.selected { box-shadow: 0 0 6px hsl(var(--accent) / .45); }
-.instrument-workspace:not([data-lcd="studio"]) .parameter-label span, .instrument-workspace:not([data-lcd="studio"]) .tape-counter, .instrument-workspace:not([data-lcd="studio"]) .gb-pad-kind { text-shadow: 0 0 5px hsl(var(--accent) / .6); }
-.instrument-workspace:not([data-lcd="studio"]) .gb-grid { background-image: repeating-linear-gradient(0deg, hsl(var(--accent) / .018) 0 1px, transparent 1px 3px); }
+.instrument-workspace:not([data-lcd="studio"]) .patch-node { background: hsl(var(--patch-surface)); box-shadow: none; }
+.instrument-workspace:not([data-lcd="studio"]) .node-heading { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--foreground)); }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.on { background: hsl(var(--accent)); }
+/* Flat hardware-display look: no glows, grain or blur anywhere in the instrument. */
+.instrument-workspace *, .instrument-workspace *::before, .instrument-workspace *::after { text-shadow: none !important; }
+.instrument-workspace .gb-cable, .instrument-workspace .tape-lamp.on { box-shadow: none; }
+.gb-step { position: relative; }
+.gb-step-roll { position: absolute; inset: 0; display: grid; place-items: center; font: 700 9px 'JetBrains Mono', monospace; color: hsl(var(--accent-foreground)); pointer-events: none; }
+.gb-step:not(.on) .gb-step-roll { color: hsl(var(--foreground)); }

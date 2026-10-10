@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
 import { RATES, type RateName } from "@/audio/arp";
 import { Slider } from "@/components/ui/slider";
-import type { ADSR, FilterKind, Wave } from "@/audio/voices";
+import { defaultSiren, type ADSR, type FilterKind, type Wave } from "@/audio/voices";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -85,7 +85,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       <label className="parameter-label gb-inline">Name<input className="gb-input" value={slot.name} maxLength={10} onChange={e => onChange({ name: e.target.value.toUpperCase() })} /></label>
       <button className={`gb-mute ${slot.mute ? "selected" : ""}`} onClick={() => onChange({ mute: !slot.mute })}>{slot.mute ? "MUTED" : "MUTE"}</button>
     </div>
-    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly", "808"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
+    <Seg label="Instrument" options={["drum", "synth", "sampler", "poly", "808", "siren"] as const} value={slot.engine} onChange={(v: EngineKind) => onChange({ engine: v })} />
     <div className="gb-cols2">
       <P label="Volume" value={slot.level} min={0} max={100} fmt={v => `${v}%`} onChange={level => onChange({ level })} />
       <P label="Pan" value={slot.pan} min={-1} max={1} step={0.01} fmt={v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} onChange={pan => onChange({ pan })} />
@@ -124,6 +124,17 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
         <P label="Harmonics" value={b.harmonics} min={0} max={1} step={0.01} fmt={pct} onChange={harmonics => B({ harmonics })} />
         <P label="Tone" value={b.tone} min={200} max={16000} step={10} fmt={hz} onChange={tone => B({ tone })} />
       </div></Group>
+    </>; })()}
+    {slot.engine === "siren" && (() => { const z = { ...defaultSiren(), ...slot.siren }, Z = (p: Partial<typeof z>) => onChange({ siren: { ...z, ...p } }); return <>
+      <P label="Note" value={slot.note} min={36} max={96} fmt={noteName} onChange={note => onChange({ note })} />
+      <Group title="nad.siren · oscillator"><Seg label="Siren wave" options={["square", "sawtooth", "triangle", "sine"] as const} value={z.wave} onChange={(wave: Wave) => Z({ wave })} />
+        <P label="Tone" value={z.tone} min={300} max={12000} step={10} fmt={hz} onChange={tone => Z({ tone })} /></Group>
+      <Group title="wobble lfo"><Seg label="Siren LFO wave" options={["square", "sawtooth", "triangle", "sine"] as const} value={z.lfoWave} onChange={(lfoWave: Wave) => Z({ lfoWave })} />
+        <div className="gb-cols2"><P label="LFO rate" value={z.rate} min={.1} max={20} step={.1} fmt={v => `${v} Hz`} onChange={rate => Z({ rate })} />
+        <P label="LFO depth" value={z.depth} min={0} max={24} step={.5} fmt={v => `${v} st`} onChange={depth => Z({ depth })} /></div></Group>
+      <Group title="sweep · release"><div className="gb-cols3"><P label="Sweep" value={z.sweep} min={-24} max={24} step={1} fmt={v => `${v > 0 ? "+" : ""}${v} st`} onChange={sweep => Z({ sweep })} />
+        <P label="Sweep time" value={z.sweepTime} min={.05} max={6} step={.05} fmt={v => `${v.toFixed(2)} s`} onChange={sweepTime => Z({ sweepTime })} />
+        <P label="Siren release" value={z.release} min={.02} max={3} step={.01} fmt={ms} onChange={release => Z({ release })} /></div></Group>
     </>; })()}
     {slot.engine === "drum" && <>
       <Seg label="Drum type" options={["kick", "snare", "hat"] as const} value={d.kind} onChange={kind => D({ kind })} />
