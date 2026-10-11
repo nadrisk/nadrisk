@@ -47,7 +47,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const SHP = ["sin", "tri", "sqr", "rnd"] as const;
   const show = (s: string) => setReadout(s);
   const noteK = useNoteKnob(slot, onChange), sk = sm.sampleKey ?? 0;
-  const fineK = { label: "Sample fine tune", short: "FINE", value: sm.fine ?? 0, min: -100, max: 100, step: 1, fmt: (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}CT`, set: (fine: number) => M({ fine }) };
+  const fineK = { label: "Sample fine tune", short: "FINE", value: Math.max(-50, Math.min(50, sm.fine ?? 0)), min: -50, max: 50, step: 1, bare: true, fmt: (v: number) => `F${fineSt(v)}`, set: (fine: number) => M({ fine }) };
 
   type K = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
   const knobs: K[] = page === "SMP" ? (sm.loop ? [

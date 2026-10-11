@@ -9,9 +9,10 @@ export const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 export const ms = (v: number) => `${Math.round(v * 1000)}MS`;
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 export const hz = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}`);
+export const fineSt = (cents: number) => { const v = Math.round(cents) / 100; return `${v > 0 ? "+" : v < 0 ? "-" : ""}${Math.abs(v).toFixed(2)}`; };
 export const st = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}ST`;
 
-export type Knob = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void; log?: boolean };
+export type Knob = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void; log?: boolean; bare?: boolean };
 
 // Measured tab layout: each tab is as wide as its word plus padding, right-aligned with 1px gaps.
 export function tabLayout(pages: readonly string[]) {
@@ -40,7 +41,7 @@ export function drawKnobs(p: Px, knobs: Knob[]) {
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} onChange={v => { k.set(v); show(k.short === "NOTE" ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
@@ -57,10 +58,12 @@ export function EnvZones({ env, set, x0 = 2, y0 = 11, w = 124, h = 34 }: { env: 
   const t = env.a + env.d + env.r + .6, X = (v: number) => x0 + Math.round(v / t * (w - 2)), Y = (v: number) => y0 + h - 1 - Math.round(v * (h - 4));
   const nodes = [[X(env.a), Y(1)], [X(env.a + env.d), Y(env.s)], [X(env.a + env.d + .6), Y(env.s)]];
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+  // Curved, slowed drags: times scale relative to their current value so short times stay fine-grained.
+  const tm = (v: number, dx: number, min: number, max: number) => clamp((v + .01) * 2 ** (dx * 1.2) - .01, min, max);
   return <>
-    <XYZone x={nodes[0][0] - 6} y={nodes[0][1] - 6} w={12} h={14} label="Drag envelope attack" onDrag={(dx) => set({ ...env, a: clamp(env.a + dx * 2, .001, 2) })} />
-    <XYZone x={nodes[1][0] - 6} y={nodes[1][1] - 7} w={12} h={14} label="Drag envelope decay and sustain" onDrag={(dx, dy) => set({ ...env, d: clamp(env.d + dx * 2, .01, 2), s: clamp(env.s - dy, 0, 1) })} />
-    <XYZone x={nodes[2][0] - 6} y={nodes[2][1] - 7} w={12} h={14} label="Drag envelope release" onDrag={(dx) => set({ ...env, r: clamp(env.r + dx * 3, .01, 3) })} />
+    <XYZone x={nodes[0][0] - 6} y={nodes[0][1] - 6} w={12} h={14} label="Drag envelope attack" onDrag={(dx) => set({ ...env, a: tm(env.a, dx, .001, 2) })} />
+    <XYZone x={nodes[1][0] - 6} y={nodes[1][1] - 7} w={12} h={14} label="Drag envelope decay and sustain" onDrag={(dx, dy) => set({ ...env, d: tm(env.d, dx, .01, 2), s: clamp(env.s - dy / 3, 0, 1) })} />
+    <XYZone x={nodes[2][0] - 6} y={nodes[2][1] - 7} w={12} h={14} label="Drag envelope release" onDrag={(dx) => set({ ...env, r: tm(env.r, dx, .01, 3) })} />
   </>;
 }
 
