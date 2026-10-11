@@ -842,7 +842,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Desktop hardware rack: full-width pads with compact, aligned device rows below. */
 @media (min-width: 1024px) and (pointer: fine) {
-  .instrument-workspace { --device-scale: 3; --device-border: 3px; --device-inset: 3px; --device-row: 232px; width: min(1236px, calc(100vw - 24px)); max-width: 1236px; margin: 8px auto 0; overflow: visible; }
+  .instrument-workspace { --device-scale: 3; --device-border: 3px; --device-inset: 3px; --device-row: 254px; width: min(1236px, calc(100vw - 24px)); max-width: 1236px; margin: 8px auto 0; overflow: visible; }
   .instrument-workspace .gb-fixed-layout {
     display: flex;
     flex-direction: column;
@@ -943,7 +943,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 }
 
 @media (min-width: 1024px) and (max-width: 1259px) and (pointer: fine) {
-  .instrument-workspace { --device-scale: 2; --device-row: 168px; }
+  .instrument-workspace { --device-scale: 2; --device-row: 190px; }
 }
 
 @media (max-width: 1023px), (pointer: coarse) {
