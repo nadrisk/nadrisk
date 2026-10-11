@@ -5,7 +5,7 @@
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Preserve the original news data as an unused archive even though updates are no longer publicly routed. Pad phrase sequencers store scale degrees and run on an audio-clock scheduler.
+- Keep the unrouted news data as an archive. Pad phrase sequencers store scale degrees and run on an audio-clock scheduler.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
