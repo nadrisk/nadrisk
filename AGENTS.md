@@ -14,7 +14,7 @@
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
-- Desktop uses joined slot and two-view device surfaces; phones keep the stacked utility selector.
+- Desktop uses equal framed two-view surfaces; phones keep the stacked selector; VIS stays unmounted.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
 - Hardware-style instrument screens render on a fixed 128x64 canvas with a bitmap font (src/pixel), integer-scaled, with invisible aria-labelled hit-zones on top, so pixels stay crisp on every device and MIDI learn still works.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
