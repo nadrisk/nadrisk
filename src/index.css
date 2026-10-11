@@ -880,9 +880,14 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   }
   .instrument-workspace .gb-editor-body > .device-panel { border-top: var(--device-border) solid hsl(var(--foreground)); }
   .instrument-workspace .device-panel-content {
-    height: 100%; min-width: 0; min-height: 0;
+    position: relative; height: 100%; min-width: 0; min-height: 0;
     border: 1px solid hsl(var(--foreground)); background: hsl(var(--background));
     box-sizing: border-box; overflow: auto; scrollbar-width: thin;
+  }
+  .instrument-workspace .device-panel-content::before {
+    content: ""; position: absolute; inset: 0 0 auto;
+    height: calc(9px * var(--device-scale)); background: hsl(var(--foreground));
+    pointer-events: none;
   }
   .instrument-workspace .device-panel-content > *,
   .instrument-workspace .device-panel .node-body,
@@ -891,7 +896,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     border: 0; background: hsl(var(--background));
   }
   .instrument-workspace .device-panel .px-wrap {
-    width: 100%; max-width: none; margin: 0 !important; border: 0 !important;
+    position: relative; width: 100%; max-width: none; margin: 0 !important; border: 0 !important;
     padding: 0; overflow: visible; contain: layout;
   }
   .instrument-workspace .device-panel .px-screen {
