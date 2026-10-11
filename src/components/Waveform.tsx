@@ -18,7 +18,7 @@ export default function Waveform({ analyser, playing, eco = false, theme }: { an
       last = now;
       const width = element.clientWidth, height = element.clientHeight;
       const ratio = Math.min(2, window.devicePixelRatio || 1);
-      if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio; }
+      if (element.width !== Math.round(width * ratio) || element.height !== Math.round(height * ratio)) { element.width = Math.round(width * ratio); element.height = Math.round(height * ratio); }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
       context.strokeStyle = grid; context.lineWidth = 1;

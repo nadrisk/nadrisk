@@ -13,11 +13,18 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
     const el = wrap.current; if (!el) return;
     // On laptop/desktop windows a screen filling its panel becomes huge and clunky;
     // cap the whole-number scale there so modules stay hardware-sized. Phones keep the full range.
-    const ro = new ResizeObserver(() => {
-      const cap = window.innerWidth >= 1024 ? 3 : 8;
-      setScale(Math.max(2, Math.min(cap, Math.floor(el.clientWidth / W))));
-    });
-    ro.observe(el); return () => ro.disconnect();
+    // Desktop locks to a fixed scale; phones measure only on window resize/rotation.
+    // No ResizeObserver: the screen's own size feeds its parent's width, which looped WebKit reflows.
+    const measure = () => {
+      const next = window.innerWidth >= 1024 && window.matchMedia("(pointer: fine)").matches ? 3
+        : Math.max(2, Math.min(8, Math.floor(el.clientWidth / W)));
+      setScale(s => s === next ? s : next);
+    };
+    measure();
+    let t: ReturnType<typeof setTimeout> | 0 = 0;
+    const onResize = () => { if (t) clearTimeout(t); t = setTimeout(measure, 120); };
+    window.addEventListener("resize", onResize);
+    return () => { if (t) clearTimeout(t); window.removeEventListener("resize", onResize); };
   }, []);
   useEffect(() => {
     const c = cv.current, ctx = c?.getContext("2d"); if (!c || !ctx) return;

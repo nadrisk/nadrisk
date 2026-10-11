@@ -38,7 +38,7 @@ function Vis({ type, taps, eco, theme }: { type: VisType; taps: Taps | null; eco
     const draw = (now = 0) => {
       if (now - last < (eco ? 66 : 16)) return; last = now;
       const w = el.clientWidth, h = el.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1); // native resolution, crisp lines
-      if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
+      if (el.width !== Math.round(w * dpr) || el.height !== Math.round(h * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = taps;
       if (t) { t.l.getFloatTimeDomainData(t.td as Float32Array<ArrayBuffer>); t.r.getFloatTimeDomainData(t.td2 as Float32Array<ArrayBuffer>); t.l.getByteFrequencyData(t.fd as Uint8Array<ArrayBuffer>); }
