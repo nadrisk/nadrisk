@@ -8,15 +8,8 @@ export const DISPLAY_THEMES = [
 
 export type DisplayTheme = typeof DISPLAY_THEMES[number][0];
 
-const legacyTheme: Record<string, DisplayTheme> = {
-  oled: "oled", zoom: "blue", ice: "blue", teal: "blue", nadrisk: "pink",
-  studio: "oled", matrix: "green", acid: "green", amber: "amber",
-};
-
-export const readDisplayTheme = (): DisplayTheme => {
-  try { return legacyTheme[localStorage.getItem("nadrisk.lcd.v1") ?? ""] ?? "oled"; }
-  catch { return "oled"; }
-};
+// The site always boots on the 1-bit OLED display; DISP only changes it for the current visit.
+export const DEFAULT_DISPLAY_THEME: DisplayTheme = "oled";
 
 export const nextDisplayTheme = (theme: DisplayTheme): DisplayTheme => {
   const themes = DISPLAY_THEMES.map(([value]) => value);

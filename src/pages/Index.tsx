@@ -2,12 +2,11 @@ import Navbar from "@/components/Navbar";
 import Groovebox from "@/components/Groovebox";
 import AboutSection from "@/components/AboutSection";
 import Footer from "@/components/Footer";
-import { useEffect, useState } from "react";
-import { readDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
+import { useState } from "react";
+import { DEFAULT_DISPLAY_THEME, type DisplayTheme } from "@/lib/displayTheme";
 
 const Index = () => {
-  const [theme, setTheme] = useState<DisplayTheme>(readDisplayTheme);
-  useEffect(() => { try { localStorage.setItem("nadrisk.lcd.v1", theme); } catch { /* private mode */ } }, [theme]);
+  const [theme, setTheme] = useState<DisplayTheme>(DEFAULT_DISPLAY_THEME);
 
   return (
     <div className="site-shell min-h-screen bg-background" data-lcd={theme}>
