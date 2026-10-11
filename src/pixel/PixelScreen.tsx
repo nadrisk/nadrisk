@@ -11,7 +11,12 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
   const [scale, setScale] = useState(3);
   useLayoutEffect(() => {
     const el = wrap.current; if (!el) return;
-    const ro = new ResizeObserver(() => setScale(Math.max(2, Math.min(8, Math.floor(el.clientWidth / W)))));
+    // On laptop/desktop windows a screen filling its panel becomes huge and clunky;
+    // cap the whole-number scale there so modules stay hardware-sized. Phones keep the full range.
+    const ro = new ResizeObserver(() => {
+      const cap = window.innerWidth >= 1024 ? 5 : 8;
+      setScale(Math.max(2, Math.min(cap, Math.floor(el.clientWidth / W))));
+    });
     ro.observe(el); return () => ro.disconnect();
   }, []);
   useEffect(() => {

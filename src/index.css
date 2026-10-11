@@ -139,6 +139,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .eyebrow { display: inline-block; font-size: 10px; color: hsl(var(--muted-foreground)); line-height: 1.6; }
 .status-dot { display: inline-block; width: 5px; height: 5px; border-radius: 0; background: hsl(var(--foreground)); }
 .instrument-workspace { margin: 8px 4% 0; border: 1px solid hsl(var(--border)); border-radius: 0; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; scroll-margin-top: 68px; }
+@media (min-width: 1280px) { .instrument-workspace { max-width: 1150px; margin: 8px auto 0; } }
 .instrument-workspace input, .instrument-workspace textarea, .instrument-workspace [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .workspace-heading { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 9px; color: hsl(var(--muted-foreground)); background: hsl(var(--patch-header)); border-bottom: 1px solid hsl(var(--border)); }
 .workspace-heading > span:first-child { color: hsl(var(--foreground)); display: flex; align-items: center; gap: 9px; }
@@ -837,3 +838,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .about-dialog { position: relative; width: min(720px, 100%); max-height: 100%; overflow: auto; background: hsl(var(--background)); user-select: text; -webkit-user-select: text; }
 .about-dialog .about-section { margin: 0; }
 .about-close { position: absolute; top: 6px; right: 6px; }
+
+/* Desktop tidy-up: pads stay hardware-sized instead of growing into tall tiles. */
+@media (min-width: 1024px) { .instrument-workspace .gb-pad { aspect-ratio: 2.1; } }
