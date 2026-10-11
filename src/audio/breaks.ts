@@ -1,5 +1,6 @@
 import SignalsmithStretch, { type StretchNode } from "signalsmith-stretch";
-import stretchModuleUrl from "signalsmith-stretch?url";
+// Patched copy: tolerates a node with no input bus, so Safari's silent input channel can't flip it into live mode.
+import stretchModuleUrl from "./vendor/signalsmith-stretch.mjs?url";
 import type { SamplerParams, Voice } from "./voices";
 
 // Use the unmodified self-contained WASM module, not a bundler-rewritten function.toString().
@@ -13,9 +14,8 @@ function poolOf(ctx: BaseAudioContext, buf: AudioBuffer) {
   return pool;
 }
 async function createEntry(ctx: BaseAudioContext, buf: AudioBuffer): Promise<Entry> {
-  // Leave the input unconnected: Signalsmith distinguishes buffer mode from live mode
-  // through an empty input channel list (not a missing input bus).
-  const node = await SignalsmithStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [buf.numberOfChannels] });
+  // No input bus: buffer playback mode is chosen when the processor sees no input channels.
+  const node = await SignalsmithStretch(ctx, { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [buf.numberOfChannels] });
   await node.configure({ blockMs: 40, intervalMs: 10, splitComputation: true });
   await node.addBuffers(Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c)));
   return { node, busy: false };
@@ -77,9 +77,25 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
      void ready.node.schedule({ output: at, active: true, input: timing.start, rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
     scheduleRelease();
   };
+  // Fallback when the stretch engine can't load: plain looped playback at the tempo rate (pitch follows speed).
+  const fallback = () => {
+    if (cancelled || ctx.currentTime >= endAt) { cleanup(); return; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    src.loopStart = timing.start; src.loopEnd = timing.end; src.playbackRate.value = timing.rate;
+    src.connect(amp); const at = Math.max(t, ctx.currentTime + .005);
+    amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
+    amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
+    src.start(at, timing.start);
+    const poll = () => {
+      if (ctx.currentTime < endAt) { window.setTimeout(poll, 50); return; }
+      try { src.stop(); } catch { /* already stopped */ } src.disconnect(); cleanup();
+    };
+    fade.gain.setTargetAtTime(0, Math.max(ctx.currentTime, releaseAt), Math.max(.001, releaseR) / 3 + .001);
+    poll();
+  };
   const available = pool.entries.find(e => !e.busy);
   if (available) launch(available);
-  else void createEntry(ctx, buf).then(e => { pool.entries.push(e); launch(e); }).catch(error => { cleanup(); console.error("Break playback unavailable", error); });
+  else void createEntry(ctx, buf).then(e => { pool.entries.push(e); launch(e); }).catch(error => { console.error("Break playback unavailable", error); fallback(); });
   return {
     stop: at => { cancelled = true; releaseAt = at; releaseR = .005; endAt = at + .04; scheduleRelease(); },
     release: (at, r) => { const end = at + Math.max(.001, r) * 1.5 + .06; if (end >= endAt) return; releaseAt = at; releaseR = r; endAt = end; scheduleRelease(); },
