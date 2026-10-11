@@ -2,6 +2,7 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { ECHO_DIVS, type PerformanceParams } from "@/audio/performance";
+import { useEffect, useState } from "react";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) p.rect(x, y, w, 9); else p.box(x, y, w, 9); p.textC(s, x + w / 2, y + 2, !on); };
 const pos = (x: number, y: number, w: number, h: number) => ({ left: `${x / 128 * 100}%`, top: `${y / 64 * 100}%`, width: `${w / 128 * 100}%`, height: `${h / 64 * 100}%` });
@@ -13,6 +14,10 @@ const LOOPS = [0, 1, 2, 4, 8];
 export default function PerformanceRack({ value, onChange }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
+  // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
+  const [flash, setFlash] = useState(0);
+  useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
+  const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
   // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
   const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0 });
   const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
@@ -32,7 +37,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
     { label: "Sequencer offset", short: "OFFS", value: v.offset, min: -8, max: 8, step: 1, fmt: x => `${x > 0 ? "+" : ""}${x}`, set: offset => set({ offset }) },
   ] : [];
   return <div className="gb-perf">
-  <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v)]} knobs={knobs}
+  <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v), flash > 0]} knobs={knobs}
     body={(p, page) => {
       if (page === "FX") {
         // Framed DJ filter response: LP slopes down right of cutoff, HP left of it, resonance bump at cutoff.
@@ -51,7 +56,9 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
-        p.box(104, 28, 20, 9); p.text("SET", 107, 30);
+        // SET key draws filled while a home is stored, and flashes on every tap so each press gives feedback.
+        if (v.timeHome || flash > 0) { p.rect(104, 28, 20, 9); p.text("SET", 107, 30, false); }
+        else { p.box(104, 28, 20, 9); p.text("SET", 107, 30); }
         p.rect(3, 38, Math.round(v.tension * 121), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
@@ -90,7 +97,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         else p.textC("HOLD A KEY", 64, 54);
       }
     }}
-    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={28} w={20} h={9} label="Set time home" pressed={!!v.timeHome} onClick={() => set({ timeHome: v.time })} /></>
+    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={28} w={20} h={9} label="Set time home" pressed={!!v.timeHome || flash > 0} onClick={tapSet} /></>
     : page === "ECO" ? <Zone x={2} y={11} w={124} h={30} horizontal label="Echo time pad" value={v.echoDiv ?? 3} min={0} max={ECHO_DIVS.length - 1} step={1} onChange={echoDiv => set({ echoDiv })} />
     : page === "SEQ" ? <>
       {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}
