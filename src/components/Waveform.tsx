@@ -17,8 +17,9 @@ export default function Waveform({ analyser, playing, eco = false, theme }: { an
       if (now - last < (eco ? 66 : 16)) return;
       last = now;
       const width = element.clientWidth, height = element.clientHeight;
+      if (width < 2 || height < 2) return; // hidden: zero-size grid steps would never advance
       const ratio = Math.min(2, window.devicePixelRatio || 1);
-      if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio; }
+      if (element.width !== Math.round(width * ratio) || element.height !== Math.round(height * ratio)) { element.width = Math.round(width * ratio); element.height = Math.round(height * ratio); }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
       context.strokeStyle = grid; context.lineWidth = 1;
