@@ -1,4 +1,7 @@
-import { memo, useState } from "react";
+import { memo, useContext, useState } from "react";
+import { createPortal } from "react-dom";
+import { DisplayThemeContext } from "@/pixel/PixelScreen";
+import { breakEngine } from "@/audio/breaks";
 import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
 import { EnvZones } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
@@ -10,6 +13,27 @@ const KX = [16, 48, 80, 112];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 const ms = (v: number) => `${Math.round(v * 1000)}MS`, pct = (v: number) => `${Math.round(v * 100)}%`;
 
+function BpmDialog({ value, onClose, onSave }: { value: number; onClose: () => void; onSave: (v: number) => void }) {
+  const theme = useContext(DisplayThemeContext);
+  const [v, setV] = useState(value ? String(value) : "");
+  const submit = () => { const n = parseFloat(v); onSave(Number.isFinite(n) && n >= 40 ? Math.min(300, Math.round(n * 10) / 10) : 0); onClose(); };
+  return createPortal(
+    <div data-lcd={theme} className="instrument-workspace gb-rename-portal fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <form onSubmit={e => { e.preventDefault(); submit(); }} className="w-full max-w-sm border-4 border-foreground bg-background text-foreground" style={{ fontFamily: "Silkscreen, monospace" }}>
+        <div className="bg-foreground px-3 py-1 text-background text-sm uppercase tracking-widest">Sample BPM · blank = auto</div>
+        <div className="p-4 space-y-4">
+          <input autoFocus inputMode="decimal" value={v} aria-label="Sample BPM value" onChange={e => setV(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5))}
+            onKeyDown={e => { if (e.key === "Escape") onClose(); }} onFocus={e => e.currentTarget.select()}
+            className="w-full border-2 border-foreground bg-background px-3 py-2 text-2xl tracking-[0.2em] text-foreground outline-none" style={{ fontFamily: "Silkscreen, monospace", borderRadius: 0 }} />
+          <div className="grid grid-cols-2 gap-3 text-sm uppercase tracking-widest">
+            <button type="button" onClick={onClose} className="border-2 border-foreground py-2">Cancel</button>
+            <button type="submit" className="border-2 border-foreground bg-foreground py-2 text-background">OK</button>
+          </div>
+        </div>
+      </form>
+    </div>, document.body);
+}
+
 // WISPDISK: the sampler editor as a 128x64 1-bit hardware screen.
 function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void }) {
   const sm = slot.sampler, env = sm.env;
@@ -17,6 +41,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const [page, setPage] = useState<Page>("SMP");
   const [readout, setReadout] = useState("");
   const [lfoView, setLfoView] = useState(false);
+  const [bpmEdit, setBpmEdit] = useState(false);
   const SHP = ["sin", "tri", "sqr", "rnd"] as const;
   const show = (s: string) => setReadout(s);
 
@@ -34,7 +59,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   ]) : page === "BRK" ? (sm.warp ? [
     { label: "Break length in beats", short: "BEAT", value: sm.beats ?? 0, min: 0, max: 64, step: 1, fmt: v => v ? `${v * (sm.breakDouble ? 2 : 1)}B` : "AUTO", set: beats => M({ beats }) },
     { label: "Break pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
-    { label: "Break start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start, end: Math.max(start + .02, sm.end ?? 1) }) },
+    { label: "Sample BPM", short: "S-BPM", value: sm.sampleBpm ?? 0, min: 59, max: 200, step: .1, fmt: v => v >= 60 ? v.toFixed(1) : "AUTO", set: v => M({ sampleBpm: v >= 60 ? v : 0 }) },
     { label: "Break end", short: "END", value: sm.end ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: end => M({ end: Math.max(end, sm.start + .02) }) },
   ] : [
     { label: "Stretch time", short: "TIME", value: sm.stretchAmt ?? 1, min: .25, max: 4, step: .01, fmt: v => `X${v.toFixed(2)}`, set: stretchAmt => M({ stretchAmt }) },
@@ -100,7 +125,8 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.box(2, 11, 21, 7); if (sm.stretch) p.invert(3, 12, 19, 5); p.text("VNT", 6, 12, !sm.stretch);
       p.box(25, 11, 21, 7); if (sm.warp) p.invert(26, 12, 19, 5); p.text("BRK", 29, 12, !sm.warp);
       if (sm.warp) { p.box(49, 11, 17, 7); if (sm.breakDouble) p.invert(50, 12, 15, 5); p.text("X2", 52, 12, !sm.breakDouble); }
-      p.text(sm.warp ? `${sm.beats ? sm.beats * (sm.breakDouble ? 2 : 1) + "B" : "AUTO"}` : `X${amt.toFixed(2)}`, 70, 12);
+      p.text(sm.warp ? `${sm.sampleBpm ? sm.sampleBpm.toFixed(1) : "A"}BPM` : `X${amt.toFixed(2)}`, 70, 12);
+      if (sm.warp && breakEngine) p.text(breakEngine, 112, 12);
       p.box(2, 19, 124, 26);
       // WARP / slicing view the whole loop; vintage stretch shows its new length (full width = x4).
       const w = sm.warp || n > 1 ? 122 : Math.max(8, Math.round(122 * (sm.stretch ? amt : 1) / 4)); wave(p, 3, 20, w, 24);
@@ -142,7 +168,9 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       {page !== "ENV" && page !== "BRK" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
       {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />)}
+      {page === "BRK" && sm.warp && <Tap x={68} y={10} w={42} h={9} label="Type sample BPM" onClick={() => setBpmEdit(true)} />}
     </PixelScreen>
+    {bpmEdit && <BpmDialog value={sm.sampleBpm ?? 0} onClose={() => setBpmEdit(false)} onSave={sampleBpm => { M({ sampleBpm }); show(sampleBpm ? `${sampleBpm}BPM` : "AUTO"); }} />}
   </div>;
 }
 export default memo(WispdiskPanel);
