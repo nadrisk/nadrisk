@@ -99,14 +99,14 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
 }
 
 export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset }: {
-  bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: () => void; clear: () => void; reset: () => void;
+  bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: () => void; reset: () => void;
 }) {
   const views = ["note", "vel", "chance", "roll", "mod"];
   const ks: K[] = [
     ...["A", "B"].map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 13, y: 11, w: 12, on: bank === b, fn: () => selectBank(b) })),
     ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 28 + i * 20, y: 11, w: 19, on: view === v, fn: () => setView(v) })),
     { s: `CPY>${bank ? "A" : "B"}`, label: "Copy pattern", x: 1, y: 22, w: 31, on: false, fn: copy },
-    { s: "RAND", label: "Random pattern", x: 33, y: 22, w: 31, on: false, fn: random },
+    { s: "RAND", label: "Random pattern", x: 33, y: 22, w: 31, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 65, y: 22, w: 31, on: false, fn: clear },
     { s: "RST", label: "Reset all", x: 97, y: 22, w: 30, on: false, fn: reset },
   ];

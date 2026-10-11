@@ -561,7 +561,15 @@ export function useGroovebox() {
     void Promise.all(jobs).then(r => { const miss = r.filter((x): x is string => !!x); if (miss.length > 1) setError(`${miss.length} samples not found on this device: ${miss.slice(0, 3).join(", ")}${miss.length > 3 ? "…" : ""}`); });
   }, [loadById]);
   const clearPattern = () => setPattern(emptyPattern());
-  const randomizePattern = () => setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal)));
+  // RAND acts on the page in view: NOTE writes hits; VEL/CHNC/ROLL/MOD only reshape existing hits in the current bank.
+  const randomizePattern = (view = "note") => {
+    if (view === "note") { setPattern(emptyPattern().map((r, i) => r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal))); return; }
+    const pat = banksRef.current[bankRef.current].pattern;
+    if (view === "mod") { setSlots(sl => sl.map((x, r) => { const l = x.mods[bankRef.current]; if (!l?.on) return x; return { ...x, mods: x.mods.map((m, b) => (b === bankRef.current ? { ...m, values: m.values.map((v, c) => (pat[r]?.[c] ? Math.round(Math.random() * 100) / 100 : v)) } : m)) }; })); return; }
+    const kind = view === "roll" ? "ratchet" : view === "vel" ? "vel" : "chance";
+    const gen = () => kind === "vel" ? Math.round((.35 + Math.random() * .65) * 100) / 100 : kind === "chance" ? (Math.random() < .55 ? 1 : Math.round((.4 + Math.random() * .55) * 100) / 100) : (Math.random() < .25 ? ROLLS[1 + Math.floor(Math.random() * 3)] : 1);
+    editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 ? gen() : v))) }));
+  };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
   const loadKitSamples = useCallback(() => { defaultSlots().forEach((x, i) => { if (x.engine === "sampler" && x.sampler.sampleId) void loadById(i, x.sampler.sampleId, x.sampler.sampleName); }); }, [loadById]);
   useEffect(() => { loadKitSamples(); }, [loadKitSamples]);
