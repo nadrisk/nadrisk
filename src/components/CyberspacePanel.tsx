@@ -10,9 +10,11 @@ const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
 // Classic harmonic recipes (bar = perceived level): saw = all harmonics 1/n, square = odd 1/n, organ drawbars, bell-ish.
 const H = (f: (n: number) => number) => Array.from({ length: 16 }, (_, i) => Math.min(1, Math.sqrt(Math.max(0, f(i + 1)))));
 const PRESETS: [string, number[]][] = [
-  ["SAW", H(n => 1 / n)], ["SQR", H(n => (n % 2 ? 1 / n : 0))], ["ORG", H(n => ([1, 2, 3, 4, 6, 8].includes(n) ? .6 : 0))],
-  ["HOLW", H(n => (n % 2 ? 1 / (n * n) : 0) * 3)], ["BELL", H(n => ([1, 3, 5, 9, 12].includes(n) ? .5 / Math.sqrt(n) : 0))], ["SINE", H(n => (n === 1 ? 1 : 0))],
+  ["SINE", H(n => (n === 1 ? 1 : 0))], ["TRI", H(n => (n % 2 ? 1 / (n * n) : 0) * 1.4)], ["SAW", H(n => 1 / n)], ["SQR", H(n => (n % 2 ? 1 / n : 0))], ["ORG", H(n => ([1, 2, 3, 4, 6, 8].includes(n) ? .6 : 0))],
+  ["HOLW", H(n => (n % 2 ? 1 / (n * n) : 0) * 3)], ["BELL", H(n => ([1, 3, 5, 9, 12].includes(n) ? .5 / Math.sqrt(n) : 0))],
 ];
+// Old sets may still use the native waves; they are shown (and step on) as the matching recipe.
+const NATIVE: Record<string, string> = { sine: "SINE", triangle: "TRI", sawtooth: "SAW", square: "SQR" };
 const addLabel = (pl: number[]) => PRESETS.find(([, v]) => v.every((x, i) => Math.abs(x - (pl[i] ?? 0)) < .02))?.[0] ?? "USR";
 
 // CYBERSPACE: the synth editor as a 128x64 1-bit hardware screen.
@@ -34,10 +36,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const base: Knob[] = [
         { label: `${k} gain`, short: "GAIN", value: o.gain, min: 0, max: 1, step: .01, fmt: pct, set: gain => set({ gain }) },
         // O1 carries the pad's root NOTE; O2 keeps its PTCH as the interval to osc 1.
-        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, bare: true, fmt: v => `P${st(v)}`, set: coarse => set({ coarse }) },
-        { label: `${k} fine`, short: "FINE", value: Math.max(-50, Math.min(50, o.fine)), min: -50, max: 50, step: 1, bare: true, fmt: v => `F${fineSt(v)}`, set: fine => set({ fine }) },
+        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, bare: true, reset: 0, fmt: v => `P${st(v)}`, set: coarse => set({ coarse }) },
+        { label: `${k} fine`, short: "FINE", value: Math.max(-50, Math.min(50, o.fine)), min: -50, max: 50, step: 1, bare: true, reset: 0, fmt: v => `F${fineSt(v)}`, set: fine => set({ fine }) },
       ];
-      if (k === "osc2") base.push({ label: "FM amount", short: "FM", value: s.osc2.fmAmount, min: 0, max: 10, step: .05, fmt: v => v.toFixed(1), set: fmAmount => S({ osc2: { ...s.osc2, fmAmount } }) });
+      if (k === "osc2") base.push({ label: "FM amount", short: "FM", value: s.osc2.fmAmount, min: 0, max: 10, step: .05, reset: 0, fmt: v => `${v.toFixed(1)}${s.fenvFm ? "E" : ""}`, set: fmAmount => S({ osc2: { ...s.osc2, fmAmount } }) });
       else base.push({ label: "Noise", short: "NOIZ", value: s.noise, min: 0, max: 1, step: .01, fmt: pct, set: noise => S({ noise }) });
       return base;
     }
@@ -101,8 +103,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      drawWaveIcon(p, o.wave, 2, 11, 22, 12);
-      p.text(`${o.wave.slice(0, 5).toUpperCase()} >`, 28, 15);
+      const pl0 = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials, wname = o.wave === "additive" ? addLabel(pl0) : NATIVE[o.wave];
+      drawWaveIcon(p, o.wave === "additive" ? "additive" : o.wave, 2, 11, 22, 12);
+      p.text(`${wname} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
       if (o.wave === "additive") {
         // A bounded 16-partial display leaves a clean row for the four knobs below.
@@ -111,7 +114,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         for (let i = 0; i < 16; i++) { const v = pl[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
         // Octave markers (harmonics 1, 2, 4, 8, 16) show which bars sit on the root's octaves.
         [0, 1, 3, 7, 15].forEach(i => p.line(5 + i * 7.6, 26, 6 + i * 7.6, 26));
-        p.box(101, 12, 25, 7); p.textC(addLabel(pl), 114, 13);
       } else {
         scope(p, page);
       }
@@ -127,7 +129,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     } else {
       drawEnvGraph(p, selectedEnv, 2, 16, 124, 27);
       const amount = envPage === "PIT" ? s.pitchEnv : envPage === "FLT" ? s.filterEnv : 0;
-      p.text(envPage === "AMP" ? "LEVEL" : `${amount >= 0 ? "+" : ""}${amount.toFixed(1)}`, 3, 11);
+      if (envPage === "FLT") { p.text(`C${Math.round(Math.max(0, s.filterEnv) / 4 * 100)}`, 3, 11); p.text(`FM${Math.round((s.fenvFm ?? 0) * 100)}`, 30, 11); }
+      else p.text(envPage === "AMP" ? "LEVEL" : `${amount >= 0 ? "+" : ""}${amount.toFixed(1)}`, 3, 11);
       (["AMP", "PIT", "FLT"] as const).forEach((k, i) => { const x = 61 + i * 21; p.box(x, 11, 20, 5); if (k === envPage) p.invert(x + 1, 12, 18, 3); p.text(k, x + 4, 11, k !== envPage); });
     }
   };
@@ -135,13 +138,12 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const extra = (page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      const waves: (Wave | "additive")[] = ["sine", "triangle", "sawtooth", "square", "additive"];
-      const idx = Math.max(0, waves.indexOf(o.wave));
+      const pl = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials, name = o.wave === "additive" ? addLabel(pl) : NATIVE[o.wave];
+      const nextWave = () => { const cur = PRESETS.findIndex(([n]) => n === name), nx = PRESETS[(cur + 1) % PRESETS.length][1]; S({ [k]: { ...o, wave: "additive" }, ...(k === "osc2" ? { partials2: nx } : { partials: nx }) } as Partial<typeof s>); };
       return <>
-        <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
+        <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${name}, tap for next`} onClick={nextWave} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {o.wave === "additive" && <>
-          <Tap x={100} y={10} w={27} h={11} label={`${k} partial preset, tap for next`} onClick={() => { const cur = PRESETS.findIndex(([n]) => n === addLabel(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials)); const nx = PRESETS[(cur + 1) % PRESETS.length][1]; S(k === "osc2" ? { partials2: nx } : { partials: nx }); }} />
           {/* Each oscillator owns its partial set: osc2 edits partials2 (seeded from partials once). */}
           <BarDraw x={3} y={26} w={122} h={17} values={(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16)}
             onChange={partials => S(k === "osc2" ? { partials2: partials } : { partials })} />
@@ -157,7 +159,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     </>;
     if (page === "ENV") return <>
       {envPage === "PIT" && <Zone x={2} y={10} w={55} h={7} label="Pitch envelope amount" value={s.pitchEnv} min={-24} max={24} step={1} onChange={pitchEnv => S({ pitchEnv })} />}
-      {envPage === "FLT" && <Zone x={2} y={10} w={55} h={7} label="Filter envelope amount" value={Math.max(0, s.filterEnv)} min={0} max={4} step={.04} onChange={filterEnv => S({ filterEnv })} />}
+      {envPage === "FLT" && <><Zone x={2} y={10} w={27} h={7} label="Filter envelope amount" value={Math.max(0, s.filterEnv)} min={0} max={4} step={.04} reset={0} onChange={filterEnv => S({ filterEnv })} />
+        <Zone x={29} y={10} w={30} h={7} label="Filter envelope to FM" value={s.fenvFm ?? 0} min={0} max={1} step={.01} reset={0} onChange={fenvFm => S({ fenvFm })} /></>}
       {(["AMP", "PIT", "FLT"] as const).map((k, i) => <Tap key={k} x={61 + i * 21} y={10} w={20} h={7} label={`${k} envelope`} pressed={envPage === k} onClick={() => setEnvPage(k)} />)}
       <EnvZones env={selectedEnv} set={setSelectedEnv} y0={16} h={27} />
     </>;

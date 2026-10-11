@@ -57,10 +57,10 @@ export function BarDraw({ x, y, w, h, values, onChange }: { x: number; y: number
 }
 
 // Invisible knob/fader hit-zone. Keeps the aria-label so MIDI learn, keys and double-click reset still work.
-export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal, log }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean; log?: boolean }) {
+export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal, log, reset }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean; log?: boolean; reset?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const st = useRef({ value, onChange, def: value, p: 0, u: 0, fine: 1, hold: 0 as ReturnType<typeof setTimeout> | 0 });
-  st.current.value = value; st.current.onChange = onChange;
+  const st = useRef({ value, onChange, def: reset ?? value, p: 0, u: 0, fine: 1, hold: 0 as ReturnType<typeof setTimeout> | 0 });
+  st.current.value = value; st.current.onChange = onChange; if (reset !== undefined) st.current.def = reset;
   // Log zones (filter cutoff) work in the same musical scale the curve is drawn in.
   const toU = (v: number) => log ? Math.log(Math.max(min, v) / min) / Math.log(max / min) : (v - min) / (max - min || 1);
   const fromU = (u: number) => { const c = Math.min(1, Math.max(0, u)); return log ? min * (max / min) ** c : min + c * (max - min); };
