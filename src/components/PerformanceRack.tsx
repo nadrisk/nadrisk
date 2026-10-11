@@ -14,7 +14,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
-  const reset = () => set({ time: 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0 });
+  const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0 });
   const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
     onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); set({ mode }); }} onPointerUp={() => set({ mode: 0 })} onPointerCancel={() => set({ mode: 0 })} onLostPointerCapture={() => set({ mode: 0 })}
     onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); set({ mode }); } }} onKeyUp={() => set({ mode: 0 })} onBlur={() => set({ mode: 0 })} />;
@@ -50,7 +50,8 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         }
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
-        p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}`, 104, 20);
+        p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
+        p.box(104, 28, 20, 9); p.text("SET", 107, 30);
         p.rect(3, 38, Math.round(v.tension * 121), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
@@ -89,7 +90,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         else p.textC("HOLD A KEY", 64, 54);
       }
     }}
-    extra={page => page === "FX" ? <Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} />
+    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={28} w={20} h={9} label="Set time home" pressed={!!v.timeHome} onClick={() => set({ timeHome: v.time })} /></>
     : page === "ECO" ? <Zone x={2} y={11} w={124} h={30} horizontal label="Echo time pad" value={v.echoDiv ?? 3} min={0} max={ECHO_DIVS.length - 1} step={1} onChange={echoDiv => set({ echoDiv })} />
     : page === "SEQ" ? <>
       {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}

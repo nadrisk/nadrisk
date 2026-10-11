@@ -65,11 +65,11 @@ function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatPara
   const [sure, setSure] = useState(false);
   useEffect(() => { if (!sure) return; const id = window.setTimeout(() => setSure(false), 3000); return () => window.clearTimeout(id); }, [sure]);
   return <div className="gb-seq-tools gb-repeat">
+    <button className={`gb-mute ${sure ? "selected" : ""}`} aria-label="New blank kit" onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</button>
     <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
     <div className="gb-banks"><button className={`gb-bank ${repeat.on && !repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && !repeat.latch} aria-label="Repeat momentary" onClick={() => onRepeat({ ...repeat, on: true, latch: false })}>MOMENT</button><button className={`gb-bank ${repeat.on && repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, on: true, latch: true })}>LATCH</button><button className={`gb-bank ${repeat.roll ? "active" : ""}`} aria-pressed={!!repeat.roll} aria-label="Repeat roll" onClick={() => onRepeat({ ...repeat, roll: !repeat.roll })}>ROLL</button></div>
     <button className="gb-cycle" aria-label="Repeat rate" onClick={() => onRepeat({ ...repeat, rate: cyc(Object.keys(RATES), repeat.rate) as RateName })}>{repeat.rate}</button>
     <button className={`gb-mute gb-rec ${rec ? "selected" : ""}`} aria-pressed={rec} aria-label="Record into sequencer" onClick={() => onRec(!rec)}>● REC</button>
-    <button className={`gb-mute ${sure ? "selected" : ""}`} aria-label="New blank kit" onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</button>
   </div>;
 }
 

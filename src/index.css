@@ -602,12 +602,12 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace .gb-pad-vel { background: repeating-linear-gradient(0deg, hsl(var(--foreground) / .35) 0 2px, transparent 2px 4px); border-top: 1px solid hsl(var(--foreground)); }
 
 /* repeat bar: fixed-pitch toggles */
-.instrument-workspace .gb-repeat { display: grid; grid-template-columns: 110px auto 72px 64px; gap: 4px; align-items: stretch; padding: 6px 10px; }
+.instrument-workspace .gb-repeat { display: grid; grid-template-columns: 1fr 1.4fr 3fr 1fr 1fr; gap: 4px; align-items: stretch; padding: 6px 10px; }
 .instrument-workspace .gb-repeat > *, .instrument-workspace .gb-repeat .gb-bank { height: 26px; font-size: 9px; letter-spacing: .04em; white-space: nowrap; }
-.instrument-workspace .gb-repeat .gb-banks { display: grid; grid-template-columns: repeat(3, 52px); gap: 0; }
+.instrument-workspace .gb-repeat .gb-banks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
 .instrument-workspace .gb-repeat .gb-banks .gb-bank + .gb-bank { border-left: 0; }
 .instrument-workspace .gb-repeat .selected, .instrument-workspace .gb-repeat .active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-@media (max-width: 520px) { .instrument-workspace .gb-repeat { grid-template-columns: 1fr 1fr; } .instrument-workspace .gb-repeat .gb-banks { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 520px) { .instrument-workspace .gb-repeat { grid-template-columns: 1fr 1.4fr 1fr 1fr; } .instrument-workspace .gb-repeat .gb-banks { grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(3, 1fr); } }
 .instrument-workspace .selected, .instrument-workspace [aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .instrument-workspace .node-heading, .instrument-workspace .node-heading * { color: hsl(var(--background)) !important; }
 .instrument-workspace .gb-repeat .gb-bank { padding: 0 2px !important; font-size: 9px !important; min-width: 0; width: 100%; overflow: hidden; font-family: 'JetBrains Mono', monospace; }

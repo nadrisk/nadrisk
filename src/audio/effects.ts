@@ -26,7 +26,7 @@ export const FX_DEFS = {
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
   drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
-  gain: { label: "gain~", params: { gain: [0, 0, 24, 0.1] } },
+  gain: { label: "gain~", params: { level: [GAIN_ZERO, 0, 1, 0.001] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -34,6 +34,10 @@ export const FX_TYPES = Object.keys(FX_DEFS) as FxType[];
 export type FxUnit = { id: number; type: FxType; on: boolean; params: Record<string, number> };
 
 let nextId = 1;
+/** Mixing-desk fader taper: bottom = -INF, -60..-12 dB fast, -12..+12 dB over most of the travel, +12..+24 at the top. */
+export const GAIN_ZERO = .55;
+export const gainPosToDb = (p: number) => p <= .02 ? -Infinity : p < .25 ? -60 + (p - .02) / .23 * 48 : p < .85 ? -12 + (p - .25) / .6 * 24 : 12 + (p - .85) / .15 * 12;
+export const gainDbToPos = (db: number) => db <= -60 ? .02 : db < -12 ? .02 + (db + 60) / 48 * .23 : db < 12 ? .25 + (db + 12) / 24 * .6 : Math.min(1, .85 + (db - 12) / 12 * .15);
 export const makeFx = (type: FxType, over: Record<string, number> = {}): FxUnit => ({ id: nextId++, type, on: true, params: { ...Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, (r as Range)[0]])), ...over } });
 
 const WORKLETS = `
@@ -265,7 +269,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "gain") {
     // Clean gain (after Airwindows PurestGain): a single smoothed multiply, no colour.
     const g = ctx.createGain(); nodes.push(g); input.connect(g).connect(wet);
-    apply = p => g.gain.setTargetAtTime(10 ** ((p.gain ?? 0) / 20), ctx.currentTime, .006);
+    apply = p => { const db = p.level !== undefined ? gainPosToDb(p.level) : p.gain ?? 0; g.gain.setTargetAtTime(db === -Infinity ? 0 : 10 ** (db / 20), ctx.currentTime, .006); };
   } else if (type === "djfilter") {
     const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
     apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
