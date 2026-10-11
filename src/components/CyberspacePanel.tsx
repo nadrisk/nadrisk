@@ -16,6 +16,7 @@ const PRESETS: [string, number[]][] = [
 // Old sets may still use the native waves; they are shown (and step on) as the matching recipe.
 const NATIVE: Record<string, string> = { sine: "SINE", triangle: "TRI", sawtooth: "SAW", square: "SQR" };
 const addLabel = (pl: number[]) => PRESETS.find(([, v]) => v.every((x, i) => Math.abs(x - (pl[i] ?? 0)) < .02))?.[0] ?? "USR";
+const presetPartials = (name: string) => PRESETS.find(([n]) => n === name)?.[1] ?? PRESETS[0][1];
 
 // CYBERSPACE: the synth editor as a 128x64 1-bit hardware screen.
 function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
@@ -85,7 +86,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return;
     }
     const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-    if (o.wave === "additive") return; // additive shows the partial bars instead
     // Two detuned cycles of the oscillator, FM-wobbled by the LFO, smoothed by the filter, plus noise.
     const cycles = 2 + Math.max(0, o.coarse + 24) / 48 * 3, det = 1 + o.fine / 400;
     const smooth = 1 - Math.min(.92, Math.log(s.cutoff / 40) / Math.log(400));
@@ -103,20 +103,18 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      const pl0 = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials, wname = o.wave === "additive" ? addLabel(pl0) : NATIVE[o.wave];
+      const stored = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
+      const wname = o.wave === "additive" ? addLabel(stored) : NATIVE[o.wave];
+      const pl = o.wave === "additive" ? stored : presetPartials(wname);
       drawWaveIcon(p, o.wave === "additive" ? "additive" : o.wave, 2, 11, 22, 12);
       p.text(`${wname} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
-      if (o.wave === "additive") {
-        // A bounded 16-partial display leaves a clean row for the four knobs below.
-        const pl = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
-        p.box(2, 25, 124, 19, true);
-        for (let i = 0; i < 16; i++) { const v = pl[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
-        // Octave markers (harmonics 1, 2, 4, 8, 16) show which bars sit on the root's octaves.
-        [0, 1, 3, 7, 15].forEach(i => p.line(5 + i * 7.6, 26, 6 + i * 7.6, 26));
-      } else {
-        scope(p, page);
-      }
+      // Native waves from older sets are represented by their matching harmonic recipe immediately,
+      // so every oscillator page keeps the same additive editor before and after the first wave change.
+      p.box(2, 25, 124, 19, true);
+      for (let i = 0; i < 16; i++) { const v = pl[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
+      // Octave markers (harmonics 1, 2, 4, 8, 16) show which bars sit on the root's octaves.
+      [0, 1, 3, 7, 15].forEach(i => p.line(5 + i * 7.6, 26, 6 + i * 7.6, 26));
     } else if (page === "FLT") {
       drawFilterCurve(p, s.filter, s.cutoff, s.res, 2, 11, 124, 32);
       p.text(s.filter.slice(0, 2).toUpperCase(), 4, 13);
@@ -138,17 +136,17 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const extra = (page: string) => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
-      const pl = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials, name = o.wave === "additive" ? addLabel(pl) : NATIVE[o.wave];
+      const stored = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
+      const name = o.wave === "additive" ? addLabel(stored) : NATIVE[o.wave];
+      const pl = o.wave === "additive" ? stored : presetPartials(name);
+      const setPartials = (partials: number[]) => S({ [k]: { ...o, wave: "additive" }, ...(k === "osc2" ? { partials2: partials } : { partials }) } as Partial<typeof s>);
       const nextWave = () => { const cur = PRESETS.findIndex(([n]) => n === name), nx = PRESETS[(cur + 1) % PRESETS.length][1]; S({ [k]: { ...o, wave: "additive" }, ...(k === "osc2" ? { partials2: nx } : { partials: nx }) } as Partial<typeof s>); };
       return <>
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${name}, tap for next`} onClick={nextWave} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
-        {o.wave === "additive" && <>
-          {/* Each oscillator owns its partial set: osc2 edits partials2 (seeded from partials once). */}
-          <BarDraw x={3} y={26} w={122} h={17} values={(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16)}
-            onChange={partials => S(k === "osc2" ? { partials2: partials } : { partials })} />
-          {(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`${k} harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = (k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(); partials[i] = nv; S(k === "osc2" ? { partials2: partials } : { partials }); }} />)}
-        </>}
+        {/* Each oscillator owns its partial set; editing a legacy native wave converts that matching recipe to additive. */}
+        <BarDraw x={3} y={26} w={122} h={17} values={pl.slice(0, 16)} onChange={setPartials} />
+        {pl.slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`${k} harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = pl.slice(); partials[i] = nv; setPartials(partials); }} />)}
       </>;
     }
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={1} log onChange={cutoff => S({ cutoff })} />;
