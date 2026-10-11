@@ -831,3 +831,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-perf { display: flex; flex-direction: column; gap: 6px; }
 .instrument-workspace .gb-perf-reset { font-family: 'Silkscreen', monospace; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; width: 100%; min-height: 48px; background: hsl(var(--background)); color: hsl(var(--foreground)); border: 2px solid hsl(var(--foreground)); border-radius: 0; cursor: pointer; touch-action: manipulation; }
 .instrument-workspace .gb-perf-reset:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+
+/* Bar-quarter separators: a gap before steps 5, 9 and 13 so grooves read in groups of four. */
+.gb-step.group { margin-left: 4px; }
