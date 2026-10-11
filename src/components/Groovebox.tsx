@@ -24,6 +24,7 @@ import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
 import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
+import { DISPLAY_THEMES, nextDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
@@ -186,10 +187,9 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
 const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "vis", "sets", "midi"] as const;
 type Utility = typeof UTILITIES[number];
 const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", vis: "VIS", sets: "MEM", midi: "MIDI" };
-const THEMES = [["oled", "1-bit oled"], ["zoom", "blue-grey lcd"], ["nadrisk", "nadrisk lcd"], ["teal", "teal lcd"], ["amber", "amber"], ["matrix", "matrix green"], ["ice", "ice blue"], ["acid", "acid"], ["studio", "studio (no lcd)"]] as const;
 function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
-export default function Groovebox() {
+export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
   const g = useGroovebox();
   const rootRef = useRef<HTMLElement>(null);
   const midi = useMidi(rootRef, g.hit, g.release);
@@ -201,9 +201,7 @@ export default function Groovebox() {
   const onRow = useCallback((v: View, r: number, x: number) => { if (v === "roll") g.setRowValue("ratchet", r, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setRowValue(v, r, Math.round(x * 100) / 100); }, [g.setRowValue]);
   const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "roll") g.setStepValue("ratchet", r, c, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
   const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: e.performance.output }; }, [g.ensure]);
-  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("nadrisk.lcd.v1") || "oled"; } catch { return "oled"; } });
   const [utility, setUtility] = useState<Utility>(() => { try { const v = localStorage.getItem("nadrisk.utility.v1") as Utility | null; return v && UTILITIES.includes(v) ? v : "fx"; } catch { return "fx"; } });
-  useEffect(() => { try { localStorage.setItem("nadrisk.lcd.v1", theme); } catch { /* private mode */ } }, [theme]);
   useEffect(() => { try { localStorage.setItem("nadrisk.utility.v1", utility); } catch { /* private mode */ } }, [utility]);
 
   const utilityPanels: Record<Utility, JSX.Element> = {
@@ -220,7 +218,7 @@ export default function Groovebox() {
   };
 
   return <HarmonyContext.Provider value={g.harmony}><DisplayThemeContext.Provider value={theme}><section id="groovebox" ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">
-    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label={g.playing ? "Pause transport" : "Play transport"} aria-pressed={g.playing} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button><span className="gb-cycle" aria-hidden>{g.bpm} BPM</span><button className="gb-cycle" aria-label="Global tune down" onClick={() => g.setTune(Math.max(-12, g.tune - 1))}>−</button><button className="gb-cycle" aria-label="Global tune reset" title="Double-tap to reset" onDoubleClick={() => g.setTune(0)}>TUNE {g.tune > 0 ? "+" : ""}{g.tune}</button><button className="gb-cycle" aria-label="Global tune up" onClick={() => g.setTune(Math.min(12, g.tune + 1))}>+</button><button className="gb-cycle" aria-label="Global key" title="Tap: next key · moves every pitched pad" onClick={() => g.setHarmony({ ...g.harmony, key: (g.harmony.key + 1) % 12 })}>KEY {NOTE_NAMES[g.harmony.key]}</button><button className="gb-cycle" aria-label="Global scale" aria-pressed={g.harmony.scale !== "off"} onClick={() => g.setHarmony({ ...g.harmony, scale: HARMONY_SCALES[(HARMONY_SCALES.indexOf(g.harmony.scale) + 1) % HARMONY_SCALES.length] })}>SCL {g.harmony.scale.toUpperCase()}</button><button className="gb-cycle" aria-label="Display theme" onClick={() => setTheme(cyc(THEMES.map(t => t[0]), theme))}>DISP: {THEMES.find(t => t[0] === theme)?.[1] ?? theme}</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
+    <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label={g.playing ? "Pause transport" : "Play transport"} aria-pressed={g.playing} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button><span className="gb-cycle" aria-hidden>{g.bpm} BPM</span><button className="gb-cycle" aria-label="Global tune down" onClick={() => g.setTune(Math.max(-12, g.tune - 1))}>−</button><button className="gb-cycle" aria-label="Global tune reset" title="Double-tap to reset" onDoubleClick={() => g.setTune(0)}>TUNE {g.tune > 0 ? "+" : ""}{g.tune}</button><button className="gb-cycle" aria-label="Global tune up" onClick={() => g.setTune(Math.min(12, g.tune + 1))}>+</button><button className="gb-cycle" aria-label="Global key" title="Tap: next key · moves every pitched pad" onClick={() => g.setHarmony({ ...g.harmony, key: (g.harmony.key + 1) % 12 })}>KEY {NOTE_NAMES[g.harmony.key]}</button><button className="gb-cycle" aria-label="Global scale" aria-pressed={g.harmony.scale !== "off"} onClick={() => g.setHarmony({ ...g.harmony, scale: HARMONY_SCALES[(HARMONY_SCALES.indexOf(g.harmony.scale) + 1) % HARMONY_SCALES.length] })}>SCL {g.harmony.scale.toUpperCase()}</button><button className="gb-cycle" aria-label="Display theme" onClick={() => onThemeChange(nextDisplayTheme(theme))}>DISP: {DISPLAY_THEMES.find(([value]) => value === theme)?.[1]}</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
       <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
