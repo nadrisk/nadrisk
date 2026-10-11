@@ -5,6 +5,16 @@ import { METER_WORKLET } from "./meterWorklet";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
+// Equal-RMS make-up gain for a waveshaper curve, measured on a sine at a typical -9 dBFS programme level,
+// so DRIVE changes character while loudness stays roughly constant.
+const compCache = new WeakMap<Float32Array, number>();
+function curveComp(curve: Float32Array | null): number {
+  if (!curve) return 1; const hit = compCache.get(curve); if (hit) return hit;
+  const n = curve.length, A = .35; let si = 0, so = 0;
+  for (let k = 0; k < 256; k++) { const x = A * Math.sin(2 * Math.PI * k / 256), f = (x + 1) / 2 * (n - 1), j = Math.floor(f), y = curve[j] + (curve[Math.min(n - 1, j + 1)] - curve[j]) * (f - j); si += x * x; so += y * y; }
+  const g = Math.min(4, Math.max(.1, Math.sqrt(si / Math.max(1e-9, so)))); compCache.set(curve, g); return g;
+}
+
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
@@ -238,7 +248,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     peak.type = "peaking"; peak.Q.value = 1.4; peak.gain.value = 7; sh.oversample = eco ? "none" : "4x"; nodes.push(pre, sh, peak, lp, comp);
     input.connect(pre).connect(sh).connect(peak).connect(lp).connect(comp).connect(wet); let key = "";
     apply = p => { const k = `${p.drive}:${p.bias}`; if (k !== key) { key = k; sh.curve = acidCurve(p.drive, p.bias); }
-      set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, 1 / (1 + p.drive * .02)); };
+      set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, curveComp(sh.curve)); };
   } else if (type === "metal") {
     // Roar-style tuned feedback: a stereo pair of combs pitched by NOTE (+FINE, optionally tracking the played note),
     // allpass dispersion (METL) for inharmonic clang, TONE lowpass and DRIVE saturation inside the loop.
@@ -293,7 +303,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "saturation") {
     const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = eco ? "none" : "4x"; nodes.push(sh, lp);
     input.connect(sh).connect(lp).connect(wet); let k = 0;
-    apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(lp.frequency, p.tone); };
+    const out = ctx.createGain(); nodes.push(out); lp.disconnect(); lp.connect(out).connect(wet);
+    apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(out.gain, curveComp(sh.curve)); set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
     // SP mode, modelled on what makes these machines recognisable:

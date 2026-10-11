@@ -160,10 +160,14 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
 
 export function partialWave(ctx: BaseAudioContext, partials: number[]) {
   const real = new Float32Array(17), imag = new Float32Array(17);
-  // One sequential row like a classic FM operator: index 0 = harmonic 1 (fundamental), index 15 = harmonic 16.
-  partials.slice(0, 16).forEach((v, i) => { imag[i + 1] = v; });
+  // Harmonic additive: index i = harmonic i+1 at (i+1) x the root. Bars are perceptual (squared to amplitude) and the
+  // wave is normalised to a fixed peak budget ourselves, so raising one partial adds that tone instead of just
+  // turning every other partial down (the default PeriodicWave normalisation hides single-partial edits).
+  partials.slice(0, 16).forEach((v, i) => { imag[i + 1] = v * v; });
   if (!imag.some(v => v > 0)) imag[1] = 1;
-  return ctx.createPeriodicWave(real, imag);
+  const sum = imag.reduce((a, b) => a + b, 0), g = 1 / Math.max(1, sum);
+  for (let i = 1; i < 17; i++) imag[i] *= g;
+  return ctx.createPeriodicWave(real, imag, { disableNormalization: true });
 }
 
 export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
