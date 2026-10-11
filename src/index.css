@@ -842,7 +842,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Desktop hardware rack: full-width pads with compact, aligned device rows below. */
 @media (min-width: 1024px) and (pointer: fine) {
-  .instrument-workspace { width: min(1180px, calc(100vw - 24px)); max-width: 1180px; margin: 8px auto 0; overflow: visible; }
+  .instrument-workspace { --device-scale: 3; --device-border: 3px; --device-inset: 3px; --device-row: 232px; width: min(1236px, calc(100vw - 24px)); max-width: 1236px; margin: 8px auto 0; overflow: visible; }
   .instrument-workspace .gb-fixed-layout {
     display: flex;
     flex-direction: column;
@@ -860,7 +860,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     box-shadow: inset 0 -1px 0 hsl(var(--foreground) / .5) !important;
   }
   .instrument-workspace .gb-editor > .node-heading { display: none; }
-  .instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 202px; align-items: start; padding: 0; }
+  .instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: var(--device-row); align-items: stretch; padding: 0; }
   .instrument-workspace .gb-ed-slot,
   .instrument-workspace .gb-ed-main,
   .instrument-workspace .gb-ed-insert,
@@ -871,18 +871,37 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-ed-insert { grid-column: 3; grid-row: 1; }
   .instrument-workspace .gb-ed-chord { grid-column: 1; grid-row: 2; }
   .instrument-workspace .gb-ed-library { grid-column: 2; grid-row: 2; }
-  .instrument-workspace .gb-editor-body > * {
-    height: 202px;
-    padding: 0;
-    overflow: visible;
-    position: relative;
-    outline: 1px solid hsl(var(--foreground));
-    outline-offset: -1px;
-    background: hsl(var(--background));
-    box-sizing: border-box;
+  /* One chassis owner: legacy node-body/px-wrap padding must never stack here. */
+  .instrument-workspace .device-panel {
+    min-width: 0; min-height: 0; width: 100%; height: 100%;
+    box-sizing: border-box; border: var(--device-border) solid hsl(var(--foreground));
+    padding: var(--device-inset); background: hsl(var(--foreground));
+    outline: none; contain: size layout;
   }
-  .instrument-workspace .gb-editor-body > * > * { background: hsl(var(--background)); height: 100%; overflow: visible; }
-  .instrument-workspace .gb-editor-body .px-wrap { width: 100%; max-width: none; margin: 0; border: 0; padding: 4px 0; }
+  .instrument-workspace .gb-editor-body > .device-panel { border-top: var(--device-border) solid hsl(var(--foreground)); }
+  .instrument-workspace .device-panel-content {
+    height: 100%; min-width: 0; min-height: 0;
+    border: 1px solid hsl(var(--foreground)); background: hsl(var(--background));
+    box-sizing: border-box; overflow: auto; scrollbar-width: thin;
+  }
+  .instrument-workspace .device-panel-content > *,
+  .instrument-workspace .device-panel .node-body,
+  .instrument-workspace .device-panel .px-panel {
+    min-width: 0; height: auto; margin: 0; padding: 0; gap: 0;
+    border: 0; background: hsl(var(--background));
+  }
+  .instrument-workspace .device-panel .px-wrap {
+    width: 100%; max-width: none; margin: 0 !important; border: 0 !important;
+    padding: 0; overflow: visible; contain: layout;
+  }
+  .instrument-workspace .device-panel .px-screen {
+    width: calc(128px * var(--device-scale)) !important;
+    height: calc(64px * var(--device-scale)) !important;
+    border: 0; flex: none;
+  }
+  .instrument-workspace .device-panel .px-screen canvas { width: 100% !important; height: 100% !important; }
+  .instrument-workspace .device-panel .gb-seq-tools { margin: 0; padding: 2px 3px !important; }
+  .instrument-workspace .device-panel .patch-small { display: block; margin: 0; padding: 2px 3px; }
   .instrument-workspace .gb-mobile-utility { display: none; }
   .instrument-workspace .gb-desktop-views { display: block; width: 100%; min-width: 0; }
   .instrument-workspace .gb-view-switch { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
@@ -890,20 +909,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-view-switch button + button { border-left: 0; }
   .instrument-workspace .gb-desktop-view { display: none; }
   .instrument-workspace .gb-desktop-view.active { display: block; }
-  .instrument-workspace .gb-device-surface { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, 202px) auto; width: 100%; align-items: stretch; }
-  .instrument-workspace .gb-device-module {
-    min-width: 0;
-    height: 202px;
-    padding: 0;
-    overflow: visible;
-    position: relative;
-    outline: 1px solid hsl(var(--foreground));
-    outline-offset: -1px;
-    background: hsl(var(--background));
-    box-sizing: border-box;
-  }
-  .instrument-workspace .gb-device-module > * { background: hsl(var(--background)); height: 100%; overflow: visible; }
-  .instrument-workspace .gb-device-module .px-wrap { width: 100%; max-width: none; border: 0; padding: 4px 0; }
+  .instrument-workspace .gb-device-surface { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, var(--device-row)) auto; width: 100%; align-items: stretch; }
   .instrument-workspace .device-master .gb-scope { display: none; }
   .instrument-workspace .gb-device-mixer { grid-column: 1 / -1; min-width: 0; border-top: 5px solid hsl(var(--foreground)); }
   .instrument-workspace .gb-seq-perf {
@@ -934,6 +940,10 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-device-mixer .gb-strip { display: flex; }
   .instrument-workspace .gb-device-mixer .gb-mixer-head button[aria-label] { display: none; }
   .instrument-workspace .gb-mixer-head > span::after { content: " / 16 CH"; }
+}
+
+@media (min-width: 1024px) and (max-width: 1259px) and (pointer: fine) {
+  .instrument-workspace { --device-scale: 2; --device-row: 168px; }
 }
 
 @media (max-width: 1023px), (pointer: coarse) {
