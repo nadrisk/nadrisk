@@ -4,7 +4,7 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 
-const PAGES = ["VOX", "FLT", "ENV"] as const;
+const PAGES = ["VOX", "PIT", "FLT", "ENV"] as const;
 
 // ENSEMBLE: the poly editor as a 128x64 1-bit hardware screen.
 function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
@@ -22,11 +22,11 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
       { label: "Poly detune", short: "DET", value: y.detune, min: 0, max: 30, step: .1, fmt: v => `${v.toFixed(0)}CT`, set: detune => Y({ detune }) },
       { label: "Poly chorus", short: "CHR", value: y.chorus, min: 0, max: 1, step: .01, fmt: pct, set: chorus => Y({ chorus }) },
     ];
+    if (page === "PIT") return [noteK];
     if (page === "FLT") return [
       { label: "Poly cutoff", short: "CUT", value: y.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => Y({ cutoff }) },
       { label: "Poly resonance", short: "RES", value: y.res, min: 0, max: 8, step: .1, fmt: v => v.toFixed(1), set: res => Y({ res }) },
       { label: "Poly filter env amount", short: "ENV", value: y.fenvAmt ?? 0, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}OC`, set: fenvAmt => Y({ fenvAmt }) },
-      noteK,
     ];
     return envKnobs(curEnv, setEnv);
   };
@@ -42,6 +42,9 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
         const x = 47 + i * 20, h = Math.round(Math.max(0, Math.min(1, value)) * 22);
         p.textC(label, x + 5, 12); p.box(x, 18, 10, 25, true); p.rect(x + 1, 42 - h, 8, h);
       });
+    } else if (page === "PIT") {
+      p.box(2, 11, 124, 34); p.textC(noteK.fmt(slot.note), 64, 17);
+      const pc = ((slot.note % 12) + 12) % 12; for (let i = 0; i < 12; i++) { const x = 9 + i * 9; p.box(x, 29, 7, 11); if (i === pc) p.rect(x + 1, 30, 5, 9); }
     } else if (page === "FLT") {
       drawFilterCurve(p, "lowpass", y.cutoff, y.res, 2, 11, 124, 32);
       const amt = y.fenvAmt ?? 0; if (amt) { const xOf = (f: number) => 2 + Math.round(Math.log(Math.min(16000, Math.max(40, f)) / 40) / Math.log(400) * 123); const a = xOf(y.cutoff), b = xOf(y.cutoff * 2 ** amt); p.line(Math.min(a, b), 44, Math.max(a, b), 44); p.line(b, 42, b, 44); }
@@ -55,7 +58,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
     <Zone x={64} y={11} w={16} h={34} label="Poly pulse fader" value={y.pulse} min={0} max={1} step={.01} onChange={pulse => Y({ pulse })} />
     <Zone x={84} y={11} w={16} h={34} label="Poly detune fader" value={y.detune} min={0} max={30} step={.1} onChange={detune => Y({ detune })} />
     <Zone x={104} y={11} w={16} h={34} label="Poly chorus fader" value={y.chorus} min={0} max={1} step={.01} onChange={chorus => Y({ chorus })} />
-  </> : page === "FLT"
+  </> : page === "PIT" ? null : page === "FLT"
     ? <Zone x={2} y={11} w={124} h={32} horizontal label="Poly filter cutoff" value={y.cutoff} min={40} max={16000} step={1} log onChange={cutoff => Y({ cutoff })} />
     : page === "ENV" ? <>
       <EnvZones env={curEnv} set={setEnv} />

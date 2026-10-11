@@ -40,7 +40,7 @@ export function drawKnobs(p: Px, knobs: Knob[]) {
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} onChange={v => { k.set(v); show(k.short === "NOTE" ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
