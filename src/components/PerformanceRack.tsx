@@ -19,7 +19,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
   const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
   // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
-  const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0 });
+  const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 });
   const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
     onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); set({ mode }); }} onPointerUp={() => set({ mode: 0 })} onPointerCancel={() => set({ mode: 0 })} onLostPointerCapture={() => set({ mode: 0 })}
     onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); set({ mode }); } }} onKeyUp={() => set({ mode: 0 })} onBlur={() => set({ mode: 0 })} />;
