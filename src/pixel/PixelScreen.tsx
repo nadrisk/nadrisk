@@ -76,11 +76,13 @@ export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, h
       if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); st.current.u = toU(value); st.current.fine = 1;
       // Relative drag: horizontal strips move at 1/3 of the finger; holding still for 0.5 s drops to 1/4 of that.
       st.current.p = horizontal ? e.clientX : e.clientY; end();
-      if (horizontal) st.current.hold = setTimeout(() => { st.current.fine = .25; }, 500);
+      if (horizontal && !log) { const r = e.currentTarget.getBoundingClientRect(); set(fromU((e.clientX - r.left) / r.width)); }
+      if (horizontal && log) st.current.hold = setTimeout(() => { st.current.fine = .25; }, 500);
     }}
     onPointerMove={e => {
       if (!e.buttons || !e.isTrusted) return;
-      if (horizontal) { const r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - st.current.p; if (Math.abs(dx) > 2) end(); st.current.p = e.clientX; st.current.u += dx / r.width / 3 * st.current.fine; set(fromU(st.current.u)); }
+      if (horizontal && !log) { const r = e.currentTarget.getBoundingClientRect(); set(fromU((e.clientX - r.left) / r.width)); }
+      else if (horizontal) { const r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - st.current.p; if (Math.abs(dx) > 2) end(); st.current.p = e.clientX; st.current.u += dx / r.width / 3 * st.current.fine; set(fromU(st.current.u)); }
       else { st.current.u += (st.current.p - e.clientY) / (e.shiftKey ? 600 : 150); st.current.p = e.clientY; set(fromU(st.current.u)); }
     }}
     onPointerUp={end} onPointerCancel={end}
