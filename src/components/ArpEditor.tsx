@@ -4,11 +4,15 @@ import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, phraseOrder, randomizeArp, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
-type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void };
+type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void; note?: number; onNote?: (n: number) => void; noteOf?: (deg: number) => number };
 const SC: ScaleName[] = ["major", "minor", "pent maj", "pent min", "dorian", "phrygian", "lydian", "mixolydian", "harm min", "chromatic"];
 const RT = Object.keys(RATES) as RateName[];
 
-function ArpEditor({ arp, slotName, onChange }: Props) {
+function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf }: Props) {
+  // The pad NOTE is the phrase root: ROOT/OCT read and write it, so there is one place to set it.
+  const arp = note === undefined ? arp0 : { ...arp0, root: note % 12, octave: Math.floor(note / 12) - 1 };
+  const onChange = (a: ArpParams) => { if (onNote && note !== undefined && (a.root !== arp.root || a.octave !== arp.octave)) onNote((a.octave + 1) * 12 + a.root); onArp({ ...a, root: a.root, octave: a.octave }); };
+  const nm = (deg: number) => noteName(noteOf ? noteOf(deg) : midiOf(arp, deg));
   const [sel, setSel] = useState(0);
   const set = (p: Partial<ArpParams>) => onChange({ ...arp, ...p });
   const span = degreeCount(arp.scale), si = Math.min(sel, arp.steps - 1), cur = arp.cells[si];
@@ -16,7 +20,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
   const W = Math.floor(128 / arp.steps), lp = arp.loop ?? { where: "first" as const, len: 2, times: 1 }, step = arp.mode === "step";
   const looped = (i: number) => lp.times > 1 && (lp.where === "first" ? i < lp.len : i >= arp.steps - lp.len);
   const knobs = (page: string): Knob[] => page === "SEQ" ? [
-    { label: "Step pitch", short: "NOTE", value: Math.min(cur.deg, span - 1), min: 0, max: span - 1, step: 1, fmt: v => noteName(midiOf(arp, v)), set: deg => setCell({ deg, on: true }) },
+    { label: "Step pitch", short: "NOTE", value: Math.min(cur.deg, span - 1), min: 0, max: span - 1, step: 1, fmt: v => nm(v), set: deg => setCell({ deg, on: true }) },
     { label: "Step velocity", short: "VEL", value: cur.vel, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}`, set: vel => setCell({ vel }) },
     { label: "Step gate", short: "GATE", value: cur.gate, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, set: gate => setCell({ gate }) },
   ] : page === "LOOP" ? [
@@ -25,7 +29,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
   ] : page === "KEY" ? [
     { label: "Phrase root", short: "ROOT", value: arp.root, min: 0, max: 11, step: 1, fmt: v => NOTE_NAMES[v], set: root => set({ root }) },
     { label: "Phrase scale", short: "SCL", value: SC.indexOf(arp.scale), min: 0, max: SC.length - 1, step: 1, fmt: v => SC[v].toUpperCase(), set: v => set({ scale: SC[v] }) },
-    { label: "Phrase octave", short: "OCT", value: arp.octave, min: 1, max: 5, step: 1, fmt: String, set: octave => set({ octave }) },
+    { label: "Phrase octave", short: "OCT", value: arp.octave, min: 0, max: 6, step: 1, fmt: String, set: octave => set({ octave }) },
     { label: "Phrase steps", short: "STPS", value: arp.steps, min: 1, max: 16, step: 1, fmt: String, set: steps => set({ steps }) },
   ] : [arp.sync
     ? { label: "Phrase rate", short: "RATE", value: RT.indexOf(arp.rate), min: 0, max: RT.length - 1, step: 1, fmt: v => RT[v], set: v => set({ rate: RT[v] }) }
@@ -53,7 +57,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
             if (looped(i)) p.rect(x + 1, 41, W - 2, 1);
           });
           keysFor(page).forEach(([s, , x, on]) => pkey(p, s, x, 11, 30, on));
-          p.text(cur.on ? noteName(midiOf(arp, Math.min(cur.deg, span - 1))) : "REST", 100, 12);
+          p.text(cur.on ? nm(Math.min(cur.deg, span - 1)) : "REST", 100, 12);
         } else {
           keysFor(page).forEach(([s, , x, on]) => pkey(p, s, x, 11, 30, on));
           if (page === "LOOP") {
@@ -66,7 +70,7 @@ function ArpEditor({ arp, slotName, onChange }: Props) {
         }
       }}
       extra={page => page === "SEQ"
-        ? arp.cells.slice(0, arp.steps).map((c, i) => <Tap key={i} x={i * W} y={21} w={W} h={21} label={`Step ${i + 1} ${c.on ? noteName(midiOf(arp, Math.min(c.deg, span - 1))) : "rest"}`} pressed={i === si} onClick={() => (i === si ? set({ cells: arp.cells.map((x, j) => (j === i ? { ...x, on: !x.on } : x)) }) : setSel(i))} />).concat(keysFor(page).map(([s, l, x, on, fn]) => <Tap key={l} x={x} y={11} w={30} h={9} label={l} pressed={on} onClick={fn} />))
+        ? arp.cells.slice(0, arp.steps).map((c, i) => <Tap key={i} x={i * W} y={21} w={W} h={21} label={`Step ${i + 1} ${c.on ? nm(Math.min(c.deg, span - 1)) : "rest"}`} pressed={i === si} onClick={() => (i === si ? set({ cells: arp.cells.map((x, j) => (j === i ? { ...x, on: !x.on } : x)) }) : setSel(i))} />).concat(keysFor(page).map(([s, l, x, on, fn]) => <Tap key={l} x={x} y={11} w={30} h={9} label={l} pressed={on} onClick={fn} />))
         : keysFor(page).map(([s, l, x, on, fn]) => <Tap key={l} x={x} y={11} w={30} h={9} label={l} pressed={on} onClick={fn} />)} />
   </div>;
 }

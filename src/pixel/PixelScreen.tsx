@@ -57,26 +57,35 @@ export function BarDraw({ x, y, w, h, values, onChange }: { x: number; y: number
 }
 
 // Invisible knob/fader hit-zone. Keeps the aria-label so MIDI learn, keys and double-click reset still work.
-export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean }) {
+export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal, log }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean; log?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  const st = useRef({ value, onChange, def: value, p: 0, v: 0 });
+  const st = useRef({ value, onChange, def: value, p: 0, u: 0, fine: 1, hold: 0 as ReturnType<typeof setTimeout> | 0 });
   st.current.value = value; st.current.onChange = onChange;
+  // Log zones (filter cutoff) work in the same musical scale the curve is drawn in.
+  const toU = (v: number) => log ? Math.log(Math.max(min, v) / min) / Math.log(max / min) : (v - min) / (max - min || 1);
+  const fromU = (u: number) => { const c = Math.min(1, Math.max(0, u)); return log ? min * (max / min) ** c : min + c * (max - min); };
   const set = (v: number) => { const c = Math.min(max, Math.max(min, v)); const n = +(Math.round((c - min) / step) * step + min).toFixed(6); if (n !== st.current.value) st.current.onChange(n); };
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const m = (e: Event) => set(min + (e as CustomEvent<number>).detail * (max - min));
+    const m = (e: Event) => set(fromU((e as CustomEvent<number>).detail));
     el.addEventListener("midivalue", m); return () => el.removeEventListener("midivalue", m);
   });
+  const end = () => { if (st.current.hold) clearTimeout(st.current.hold); st.current.hold = 0; };
   return <div ref={ref} className="px-zone" style={pos(x, y, w, h)} role="slider" tabIndex={0} aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} data-midi-value=""
     onPointerDown={e => {
-      if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); st.current.v = value;
-      if (horizontal) { const r = e.currentTarget.getBoundingClientRect(); set(min + (e.clientX - r.left) / r.width * (max - min)); } else st.current.p = e.clientY;
+      if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); st.current.u = toU(value); st.current.fine = 1;
+      // Relative drag: horizontal strips move at 1/3 of the finger; holding still for 0.5 s drops to 1/4 of that.
+      st.current.p = horizontal ? e.clientX : e.clientY; end();
+      if (horizontal && !log) { const r = e.currentTarget.getBoundingClientRect(); set(fromU((e.clientX - r.left) / r.width)); }
+      if (horizontal && log) st.current.hold = setTimeout(() => { st.current.fine = .25; }, 500);
     }}
     onPointerMove={e => {
       if (!e.buttons || !e.isTrusted) return;
-      if (horizontal) { const r = e.currentTarget.getBoundingClientRect(); set(min + (e.clientX - r.left) / r.width * (max - min)); }
-      else set(st.current.v + (st.current.p - e.clientY) / (e.shiftKey ? 600 : 150) * (max - min));
+      if (horizontal && !log) { const r = e.currentTarget.getBoundingClientRect(); set(fromU((e.clientX - r.left) / r.width)); }
+      else if (horizontal) { const r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - st.current.p; if (Math.abs(dx) > 2) end(); st.current.p = e.clientX; st.current.u += dx / r.width / 3 * st.current.fine; set(fromU(st.current.u)); }
+      else { st.current.u += (st.current.p - e.clientY) / (e.shiftKey ? 600 : 150); st.current.p = e.clientY; set(fromU(st.current.u)); }
     }}
+    onPointerUp={end} onPointerCancel={end}
     onDoubleClick={e => { if (e.isTrusted) set(st.current.def); }}
     onKeyDown={e => { const k = e.key === "ArrowUp" || e.key === "ArrowRight" ? 1 : e.key === "ArrowDown" || e.key === "ArrowLeft" ? -1 : 0; if (k) { e.preventDefault(); set(value + k * step); } }} />;
 }

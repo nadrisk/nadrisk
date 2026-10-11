@@ -1,3 +1,4 @@
+import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
@@ -17,13 +18,15 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const setDest = (k: keyof LfoDests, v: number) => { const dests = { ...ld, [k]: v }; S({ lfo: { ...s.lfo, dests, depth: Math.max(...Object.values(dests)) } }); };
   const setSelectedEnv = (env: typeof s.env) => envPage === "AMP" ? S({ env }) : envPage === "PIT" ? S({ pitchEnvShape: env }) : S({ filterEnvShape: env });
 
+  const noteK = useNoteKnob(slot, onChange);
   const knobs = (page: string): Knob[] => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       const set = (p: Partial<typeof o>) => S({ [k]: { ...o, ...p } } as Partial<typeof s>);
       const base: Knob[] = [
         { label: `${k} gain`, short: "GAIN", value: o.gain, min: 0, max: 1, step: .01, fmt: pct, set: gain => set({ gain }) },
-        { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, fmt: st, set: coarse => set({ coarse }) },
+        // O1 carries the pad's root NOTE; O2 keeps its PTCH as the interval to osc 1.
+        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, fmt: st, set: coarse => set({ coarse }) },
         { label: `${k} fine`, short: "FINE", value: o.fine, min: -50, max: 50, step: 1, fmt: v => `${Math.round(v)}CT`, set: fine => set({ fine }) },
       ];
       if (k === "osc2") base.push({ label: "FM amount", short: "FM", value: s.osc2.fmAmount, min: 0, max: 10, step: .05, fmt: v => v.toFixed(1), set: fmAmount => S({ osc2: { ...s.osc2, fmAmount } }) });
@@ -31,7 +34,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return base;
     }
     if (page === "FLT") return [
-      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 10, fmt: hz, set: cutoff => S({ cutoff }) },
+      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => S({ cutoff }) },
       { label: "Resonance", short: "RES", value: s.res, min: .1, max: 20, step: .1, fmt: v => v.toFixed(1), set: res => S({ res }) },
       { label: "Filter env", short: "FENV", value: s.filterEnv, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}`, set: filterEnv => S({ filterEnv }) },
       { label: "Env decay", short: "FDEC", value: s.filterDecay, min: .005, max: 2, step: .005, fmt: ms, set: filterDecay => S({ filterDecay }) },
@@ -134,7 +137,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         </>}
       </>;
     }
-    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
+    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={1} log onChange={cutoff => S({ cutoff })} />;
     if (page === "LFO") return <>
       <Tap x={2} y={11} w={42} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />
       <Tap x={46} y={10} w={28} h={8} label="LFO free or retrigger" pressed={!!s.lfo.retrig} onClick={() => S({ lfo: { ...s.lfo, retrig: !s.lfo.retrig } })} />
