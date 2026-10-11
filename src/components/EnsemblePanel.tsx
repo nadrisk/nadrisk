@@ -21,7 +21,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
       { label: "Poly chorus", short: "CHR", value: y.chorus, min: 0, max: 1, step: .01, fmt: pct, set: chorus => Y({ chorus }) },
     ];
     if (page === "FLT") return [
-      { label: "Poly cutoff", short: "CUT", value: y.cutoff, min: 40, max: 16000, step: 10, fmt: hz, set: cutoff => Y({ cutoff }) },
+      { label: "Poly cutoff", short: "CUT", value: y.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => Y({ cutoff }) },
       { label: "Poly resonance", short: "RES", value: y.res, min: 0, max: 8, step: .1, fmt: v => v.toFixed(1), set: res => Y({ res }) },
       { label: "Poly filter env amount", short: "ENV", value: y.fenvAmt ?? 0, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}OC`, set: fenvAmt => Y({ fenvAmt }) },
     ];
@@ -53,7 +53,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
     <Zone x={84} y={11} w={16} h={34} label="Poly detune fader" value={y.detune} min={0} max={30} step={.1} onChange={detune => Y({ detune })} />
     <Zone x={104} y={11} w={16} h={34} label="Poly chorus fader" value={y.chorus} min={0} max={1} step={.01} onChange={chorus => Y({ chorus })} />
   </> : page === "FLT"
-    ? <Zone x={2} y={11} w={124} h={32} horizontal label="Poly filter cutoff" value={y.cutoff} min={40} max={16000} step={10} onChange={cutoff => Y({ cutoff })} />
+    ? <Zone x={2} y={11} w={124} h={32} horizontal label="Poly filter cutoff" value={y.cutoff} min={40} max={16000} step={1} log onChange={cutoff => Y({ cutoff })} />
     : page === "ENV" ? <>
       <EnvZones env={curEnv} set={setEnv} />
       <Tap x={92} y={11} w={16} h={8} label="Poly volume envelope" pressed={envSel === "vol"} onClick={() => setEnvSel("vol")} />

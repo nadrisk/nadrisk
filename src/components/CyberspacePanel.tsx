@@ -31,7 +31,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return base;
     }
     if (page === "FLT") return [
-      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 10, fmt: hz, set: cutoff => S({ cutoff }) },
+      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => S({ cutoff }) },
       { label: "Resonance", short: "RES", value: s.res, min: .1, max: 20, step: .1, fmt: v => v.toFixed(1), set: res => S({ res }) },
       { label: "Filter env", short: "FENV", value: s.filterEnv, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}`, set: filterEnv => S({ filterEnv }) },
       { label: "Env decay", short: "FDEC", value: s.filterDecay, min: .005, max: 2, step: .005, fmt: ms, set: filterDecay => S({ filterDecay }) },
@@ -134,7 +134,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         </>}
       </>;
     }
-    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={10} onChange={cutoff => S({ cutoff })} />;
+    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal label="Cutoff" value={s.cutoff} min={40} max={16000} step={1} log onChange={cutoff => S({ cutoff })} />;
     if (page === "LFO") return <>
       <Tap x={2} y={11} w={42} h={12} label="LFO waveform, tap for next" onClick={() => { const W: Wave[] = ["sine", "triangle", "sawtooth", "square"]; S({ lfo: { ...s.lfo, wave: W[(W.indexOf(s.lfo.wave) + 1) % 4] } }); }} />
       <Tap x={46} y={10} w={28} h={8} label="LFO free or retrigger" pressed={!!s.lfo.retrig} onClick={() => S({ lfo: { ...s.lfo, retrig: !s.lfo.retrig } })} />
