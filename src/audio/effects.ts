@@ -26,6 +26,7 @@ export const FX_DEFS = {
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
   drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  gain: { label: "gain~", params: { gain: [0, 0, 24, 0.1] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -261,6 +262,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       set(mF.gain, (p.modTone ?? 0) * 2400); set(mB.gain, mb * .5);
     };
     setPitch = (semi, at) => { semiOff = semi; if (last.track) retune(last, at, .004); };
+  } else if (type === "gain") {
+    // Clean gain (after Airwindows PurestGain): a single smoothed multiply, no colour.
+    const g = ctx.createGain(); nodes.push(g); input.connect(g).connect(wet);
+    apply = p => g.gain.setTargetAtTime(10 ** ((p.gain ?? 0) / 20), ctx.currentTime, .006);
   } else if (type === "djfilter") {
     const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
     apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
@@ -374,7 +379,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
