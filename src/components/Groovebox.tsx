@@ -1,3 +1,4 @@
+import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import { fxLoad } from "@/audio/effects";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -155,7 +156,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   // Live post-fader dB meters: polled each frame and written straight to the DOM so playback never re-renders the mixer.
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let raf = 0; const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
+    const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
     const poll = () => {
       const lv = getLevels(), el = root.current;
       if (lv && el) el.querySelectorAll<HTMLElement>("[data-ch]").forEach(strip => {
@@ -167,9 +168,8 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
         strip.querySelectorAll("i").forEach((c, n) => { c.className = n < on ? (n >= SEGS - 1 ? "on clip" : "on") : n === pk - 1 ? "on" : ""; });
         const t = strip.querySelector<HTMLElement>(".gb-strip-val"); if (t) { const s = Number.isFinite(hold[i]) && hold[i] > FLOOR ? (hold[i] >= 0 ? "CLIP" : hold[i].toFixed(0)) : "-INF"; if (t.textContent !== s) t.textContent = s; }
       });
-      raf = requestAnimationFrame(poll);
     };
-    raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
+    return gatedLoop(root.current, poll);
   }, [getLevels]);
   return <div className={`gb-mixer-workspace mixer-page-${page}`} ref={root}>
     <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>

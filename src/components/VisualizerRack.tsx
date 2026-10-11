@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { gatedLoop } from "@/lib/frameGate";
 import { Columns3, Grid2x2, Plus } from "lucide-react";
 
 // Audio-reactive monitors tapped off the master bus with native stereo analysers.
@@ -33,9 +34,8 @@ function Vis({ type, taps, eco, theme }: { type: VisType; taps: Taps | null; eco
     const css = getComputedStyle(el);
     const A = css.getPropertyValue("--scope-line").trim(), G = css.getPropertyValue("--scope-grid").trim();
     const P = css.getPropertyValue("--scope-secondary").trim(), Y = css.getPropertyValue("--scope-warning").trim(), R = css.getPropertyValue("--scope-danger").trim();
-    let raf = 0, last = 0, pkL = 0, pkR = 0;
+    let last = 0, pkL = 0, pkR = 0;
     const draw = (now = 0) => {
-      raf = requestAnimationFrame(draw);
       if (now - last < (eco ? 66 : 16)) return; last = now;
       const w = el.clientWidth, h = el.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1); // native resolution, crisp lines
       if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
@@ -83,7 +83,7 @@ function Vis({ type, taps, eco, theme }: { type: VisType; taps: Taps | null; eco
         if (Math.random() < 0.06) { const y = Math.random() * h; c.drawImage(el, 0, y * dpr, el.width, 6 * dpr, Math.random() * 12 - 6, y, w, 6); }
       }
     };
-    draw(); return () => cancelAnimationFrame(raf);
+    return gatedLoop(el, draw);
   }, [type, taps, eco, theme]);
   return <canvas ref={ref} className="scope-canvas" role="img" aria-label={VIS[type]} />;
 }
