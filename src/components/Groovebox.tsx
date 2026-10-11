@@ -80,6 +80,8 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
 }) {
   // Relative drag: tap sets the value at tap height, then the whole drag distance refines it (1% per 2px).
   const dragRef = useRef<{ r: number; c: number; y: number; v0: number } | null>(null);
+  // Unlit/NOTE taps toggle on pointer-up within 8px, so iOS scroll-cancelled clicks can't swallow them; one touch toggles once.
+  const tapRef = useRef<{ id: number; x: number; y: number; k: string } | null>(null);
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
   const fmtV = (r: number, v: number) => view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
@@ -106,10 +108,11 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
       const val = view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : view === "vel" ? vel[r]?.[c] ?? 1 : view === "chance" ? chance[r]?.[c] ?? 1 : lane?.values[c] ?? .5;
       const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
       return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? (view === "roll" ? ` roll x${ratchet[r]?.[c] ?? 1}` : ` ${view} ${Math.round(val * 100)}%`) : ""}`}
-        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); down(r, c, ev); } }}
-        onClick={() => { if (!drag2) onToggle(r, c); }}
+        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); down(r, c, ev); } else tapRef.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, k: `${r}:${c}` }; }}
+        onClick={ev => { if (!drag2 && ev.detail === 0) onToggle(r, c); }}
         onPointerMove={ev => { if (drag2) move(ev); }}
-        onPointerUp={up} onPointerCancel={up}
+        onPointerUp={ev => { if (drag2) return up(); const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && t.k === `${r}:${c}` && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) onToggle(r, c); }}
+        onPointerCancel={ev => { if (!drag2) { const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) onToggle(r, c); } else up(); }}
         onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
         className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${drag2 ? "mod" : ""}`}>
         {drag2 && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
