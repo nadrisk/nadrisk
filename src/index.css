@@ -873,13 +873,16 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-ed-library { grid-column: 2; grid-row: 2; }
   .instrument-workspace .gb-editor-body > * {
     height: 202px;
-    padding: 5px;
-    overflow: hidden;
-    background: hsl(var(--foreground));
+    padding: 0;
+    overflow: visible;
+    position: relative;
+    outline: 1px solid hsl(var(--foreground));
+    outline-offset: -1px;
+    background: hsl(var(--background));
     box-sizing: border-box;
   }
-  .instrument-workspace .gb-editor-body > * > * { background: hsl(var(--background)); height: 100%; overflow: hidden; }
-  .instrument-workspace .gb-editor-body .px-wrap { width: 100%; max-width: none; margin: 0; border: 0; padding: 0; }
+  .instrument-workspace .gb-editor-body > * > * { background: hsl(var(--background)); height: 100%; overflow: visible; }
+  .instrument-workspace .gb-editor-body .px-wrap { width: 100%; max-width: none; margin: 0; border: 0; padding: 4px 0; }
   .instrument-workspace .gb-mobile-utility { display: none; }
   .instrument-workspace .gb-desktop-views { display: block; width: 100%; min-width: 0; }
   .instrument-workspace .gb-view-switch { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
@@ -891,13 +894,16 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-device-module {
     min-width: 0;
     height: 202px;
-    padding: 5px;
-    overflow: hidden;
-    background: hsl(var(--foreground));
+    padding: 0;
+    overflow: visible;
+    position: relative;
+    outline: 1px solid hsl(var(--foreground));
+    outline-offset: -1px;
+    background: hsl(var(--background));
     box-sizing: border-box;
   }
-  .instrument-workspace .gb-device-module > * { background: hsl(var(--background)); height: 100%; overflow: hidden; }
-  .instrument-workspace .gb-device-module .px-wrap { width: 100%; max-width: none; border: 0; padding: 0; }
+  .instrument-workspace .gb-device-module > * { background: hsl(var(--background)); height: 100%; overflow: visible; }
+  .instrument-workspace .gb-device-module .px-wrap { width: 100%; max-width: none; border: 0; padding: 4px 0; }
   .instrument-workspace .device-master .gb-scope { display: none; }
   .instrument-workspace .gb-device-mixer { grid-column: 1 / -1; min-width: 0; border-top: 5px solid hsl(var(--foreground)); }
   .instrument-workspace .gb-seq-perf {
