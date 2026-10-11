@@ -14,7 +14,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 const nm = (t: FxType) => FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", modRate: "RATE", modSync: "SYNC", modTime: "M-TM", modTone: "M-TN", modFb: "M-FB", smash: "SMSH", preset: "PATT", tight: "TGHT", lofi: "LOFI", amount: "AMT", sp: "SP" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", modRate: "RATE", modSync: "SYNC", modTime: "M-TM", modTone: "M-TN", modFb: "M-FB", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
