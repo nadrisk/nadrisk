@@ -31,10 +31,20 @@ export async function prepareBreak(ctx: BaseAudioContext, buf: AudioBuffer) {
   })().finally(() => { pool.pending = undefined; });
   return pool.pending;
 }
+/** Guess a break's tempo assuming it holds 1, 2, 4 or 8 bars of 4/4, preferring 85-175 BPM. */
+export function guessSampleBpm(dur: number) {
+  let best = 120, score = Infinity;
+  for (const bars of [1, 2, 4, 8, 16]) { const b = bars * 4 * 60 / Math.max(.01, dur); const d = b < 85 ? 85 - b : b > 175 ? b - 175 : 0; if (d < score) { score = d; best = b; } }
+  return best;
+}
+/** Which engine played the last break: stretch (STR) or backup (BAK). */
+export let breakEngine: "" | "STR" | "BAK" = "";
 export function breakTiming(p: SamplerParams, duration: number, bpm: number) {
   const start = Math.max(0, Math.min(.999, p.start)) * duration;
   const end = Math.min(duration, Math.max(start + .001, (p.end ?? 1) * duration));
-  const beats = p.beats || 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, (end - start) * bpm / 60)))));
+  // Like Ableton warp: the break's own tempo (typed, or guessed from whole bars) sets how many beats it holds.
+  const srcBpm = p.sampleBpm || guessSampleBpm(end - start);
+  const beats = p.beats || Math.max(1, (end - start) * srcBpm / 60);
   const seconds = beats * (p.breakDouble ? 2 : 1) * 60 / Math.max(20, bpm);
   return { start, end, beats, seconds, rate: (end - start) / seconds };
 }
@@ -68,7 +78,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
      }, Math.max(0, (endAt - ctx.currentTime) * 1000) + 80);
   };
   const launch = (ready: Entry) => {
-    entry = ready;
+    entry = ready; breakEngine = "STR";
     if (cancelled || ctx.currentTime >= endAt) { ready.busy = true; cleanup(); return; }
     ready.busy = true; ready.node.connect(amp);
     const at = Math.max(t, ctx.currentTime + .005);
@@ -86,6 +96,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     return out;
   };
   const fallback = () => {
+    breakEngine = "BAK";
     if (cancelled || ctx.currentTime >= endAt) { cleanup(); return; }
     const pitchFactor = 2 ** (p.pitch / 12), regionLen = Math.max(.001, timing.end - timing.start);
     const baked = stretchBuffer(ctx, sliceBuffer(timing.start, timing.end), Math.max(.05, timing.seconds * pitchFactor / regionLen), .05);
