@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import { breakEngine } from "@/audio/breaks";
 import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
-import { EnvZones } from "./pixelScreens";
+import { EnvZones, fineSt } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
 

@@ -173,14 +173,14 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   const trem = ctx.createGain(); trem.connect(amp);
   const mix = ctx.createGain();
   const filt = ctx.createBiquadFilter(); filt.type = p.filter; filt.Q.value = p.res;
-  filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, p.filterEnv);
+  filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, Math.max(0, p.filterEnv));
   const wet = ctx.createGain(); wet.gain.value = p.wet; const dry = ctx.createGain(); dry.gain.value = 1 - p.wet;
   mix.connect(filt).connect(wet).connect(trem); mix.connect(dry).connect(trem);
   const makeOsc = (o: OscParams, partials: number[]) => {
     const osc = at(ctx.createOscillator(), t);
     if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, partials)); else osc.type = o.wave;
     osc.frequency.value = base * 2 ** (o.coarse / 12);
-    modAdsr(osc.detune, t, p.pitchEnvShape, gate, o.fine, p.pitchEnv * 100);
+    modAdsr(osc.detune, t, p.pitchEnvShape, gate, Math.max(-50, Math.min(50, o.fine)), p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
   };
   const o1 = makeOsc(p.osc1, p.partials), o2 = makeOsc(p.osc2, p.partials2 ?? p.partials);
