@@ -98,8 +98,9 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
     extra={() => keyZones(ks)} />;
 }
 
-export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset }: {
+export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay }: {
   bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: () => void; reset: () => void;
+  playing: boolean; onPlay: () => void;
 }) {
   const views = ["note", "vel", "chance", "roll", "mod"];
   const ks: K[] = [
@@ -108,6 +109,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     { s: `CPY>${bank ? "A" : "B"}`, label: "Copy pattern", x: 1, y: 22, w: 31, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 33, y: 22, w: 31, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 65, y: 22, w: 31, on: false, fn: clear },
+    { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 97, y: 22, w: 30, on: playing, fn: onPlay },
   ];
   const hint = view === "mod" ? "DRAG LIT STEPS TO SET AMOUNT" : view === "vel" ? "DRAG LIT STEPS FOR VELOCITY" : view === "chance" ? "DRAG LIT STEPS FOR CHANCE" : view === "roll" ? "DRAG A STEP TO SPLIT IT" : "TAP HIT > TIE > OFF";
   return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[bank ? "B" : "A"]} deps={[bank, queued, view]} knobs={() => []}
