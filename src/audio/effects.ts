@@ -13,9 +13,9 @@ export const FX_DEFS = {
   chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], lofi: [0, 0, 1, 1] } },
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
-  gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 10, 1], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
+  gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
   metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01], modRate: [4, 0.1, 30, 0.1], modSync: [0, 0, 10, 1], modTime: [0, 0, 1, 0.01], modTone: [0, 0, 1, 0.01], modFb: [0, 0, 1, 0.01] } },
   spectral: { label: "spectral~", params: { freq: [1200, 80, 8000, 10], res: [6, 0.5, 24, 0.1], spread: [1, 0.25, 3, 0.01], peak: [14, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
@@ -141,7 +141,9 @@ export const setFxEco = (on: boolean) => { eco = on; };
 export const fxEco = () => eco;
 
 /** Tempo-sync divisions (index 0 = free). Value is length in quarter-note beats. */
-export const SYNC_DIVS: [string, number][] = [["free", 0], ["1/1", 4], ["1/2", 2], ["1/4", 1], ["1/8", 0.5], ["1/16", 0.25], ["1/4T", 2 / 3], ["1/8T", 1 / 3], ["1/16T", 1 / 6], ["1/4.", 1.5], ["1/8.", 0.75]];
+/** Classic trance-gate patterns (16-step masks, bit n = step n). */
+export const GATE_PRESETS: [string, number][] = [["16TH", 65535], ["8TH", 21845], ["OFFB", 43690], ["332", 0b0100100101001001], ["GALOP", 0b1101101101101101], ["STUT", 0b1111000011110111], ["PUMP", 0b1110111011101110], ["BRKN", 0b1011010110110101]];
+export const SYNC_DIVS: [string, number][] = [["free", 0], ["1/1", 4], ["1/2", 2], ["1/4", 1], ["1/8", 0.5], ["1/16", 0.25], ["1/4T", 2 / 3], ["1/8T", 1 / 3], ["1/16T", 1 / 6], ["1/4.", 1.5], ["1/8.", 0.75], ["1/32", 0.125]];
 let fxBpm = 124;
 export const setFxBpm = (b: number) => { fxBpm = b; };
 const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)]?.[1] ?? 0;
@@ -216,7 +218,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     mT.connect(d.delayTime); mF.connect(lp.detune); mB.connect(fbMod.gain);
     apply = p => {
       const b = SYNC_DIVS[Math.round(p.modSync ?? 0)]?.[1] ?? 0, rate = b ? fxBpm / 60 / b : p.modRate ?? 4, mt = p.modTime ?? 0, mb = p.modFb ?? 0;
-      set(d.delayTime, p.time * (1 - mt * .4)); set(lp.frequency, p.tone); set(fbAmt.gain, Math.min(.9, p.feedback));
+      d.delayTime.setTargetAtTime(p.time * (1 - mt * .4), automationTime, .12); // tape-style glide: time changes bend pitch set(lp.frequency, p.tone); set(fbAmt.gain, Math.min(.9, p.feedback));
       set(env.parameters.get("decay"), p.decay ?? .35); set(sh.parameters.get("rate"), rate);
       set(mT.gain, p.time * mt * .8); set(mF.gain, (p.modTone ?? 0) * 2400); set(fbMod.gain, 1 - mb * .5); set(mB.gain, mb * .5);
     };
@@ -250,7 +252,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     };
   } else if (type === "gate") {
     const n = worklet("nad-gate"); input.connect(n).connect(wet);
-    apply = p => wp(n, { ...p, rate: rateOf(p), mask: p.mask ?? 21845, steps: p.steps ?? 16 }, ["rate", "mask", "steps", "depth", "smooth"]);
+    apply = p => wp(n, { ...p, rate: rateOf(p), mask: p.mask ?? 21845, steps: p.steps ?? 16, tight: p.tight ?? 0 }, ["rate", "mask", "steps", "depth", "smooth", "tight"]);
   } else if (type === "saturation") {
     const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = eco ? "none" : "4x"; nodes.push(sh, lp);
     input.connect(sh).connect(lp).connect(wet); let k = 0;
@@ -280,9 +282,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     stages.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
     apply = p => { set(m.o.frequency, rateOf(p)); stages.forEach(a => set(a.frequency, p.manual)); set(m.g.gain, p.depth * p.manual * .9); set(env.gain, p.env * p.manual * 2); set(fb.gain, -p.feedback * .85); };
   } else if (type === "vibrato") {
-    const d = ctx.createDelay(0.05), m = lfo(); nodes.push(d); d.delayTime.value = 0.006;
-    input.connect(d).connect(wet); m.g.connect(d.delayTime);
-    apply = p => { set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * 0.005); };
+    // LOFI = cassette warble (ChowTape-style): slow wow + random flutter on the delay time, tape tone roll-off and soft saturation.
+    const d = ctx.createDelay(0.05), m = lfo(), wow = lfo(), lp = ctx.createBiquadFilter(), sh = ctx.createWaveShaper(); nodes.push(d, lp, sh); d.delayTime.value = 0.012;
+    const flutter = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), fg = ctx.createGain(); fg.gain.value = 0; fl.type = "lowpass"; fl.frequency.value = 9;
+    const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), nd = nb.getChannelData(0); for (let k = 0; k < nd.length; k++) nd[k] = Math.random() * 2 - 1;
+    flutter.buffer = nb; flutter.loop = true; flutter.connect(fl).connect(fg).connect(d.delayTime); flutter.start(); oscs.push(flutter as unknown as OscillatorNode); nodes.push(flutter, fl, fg);
+    sh.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh((i / 511.5 - 1) * 1.6) / Math.tanh(1.6)); lp.type = "lowpass";
+    input.connect(d).connect(lp).connect(sh).connect(wet); m.g.connect(d.delayTime); wow.g.connect(d.delayTime); wow.o.frequency.value = .6;
+    apply = p => { const lo = (p.lofi ?? 0) >= .5; set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * (lo ? 0.0015 : 0.005)); set(wow.g.gain, lo ? p.depth * .004 : 0); set(fg.gain, lo ? p.depth * .02 : 0); set(lp.frequency, lo ? 6500 : 20000); };
   } else if (type === "tremolo") {
     const vca = ctx.createGain(), m = lfo(); nodes.push(vca);
     apply = p => { set(m.o.frequency, rateOf(p)); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };

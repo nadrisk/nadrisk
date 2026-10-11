@@ -1,9 +1,9 @@
 /** Inline stereo DSP shared by slot effects and the master performance recorder. */
 export const ADVANCED_WORKLETS = `
 class NadGate extends AudioWorkletProcessor {
- static get parameterDescriptors() { return [{name:'rate',defaultValue:8},{name:'mask',defaultValue:21845},{name:'steps',defaultValue:16},{name:'depth',defaultValue:1},{name:'smooth',defaultValue:.1}]; }
- constructor(){super();this.g=1;}
- process(ins,outs,p){const x=ins[0],y=outs[0];for(let n=0;n<y[0].length;n++){const step=Math.floor((currentFrame+n)/sampleRate*p.rate[0])%p.steps[0];const target=(p.mask[0]&(1<<step))?1:1-p.depth[0];this.g+=(target-this.g)/(1+p.smooth[0]*sampleRate*.03);for(let c=0;c<y.length;c++)y[c][n]=(x[c]?.[n]||x[0]?.[n]||0)*this.g;}return true;}
+ static get parameterDescriptors() { return [{name:'rate',defaultValue:8},{name:'mask',defaultValue:21845},{name:'steps',defaultValue:16},{name:'depth',defaultValue:1},{name:'smooth',defaultValue:.1},{name:'tight',defaultValue:0}]; }
+ constructor(){super();this.g=1;this.last=-1;this.age=0;}
+ process(ins,outs,p){const x=ins[0],y=outs[0];for(let n=0;n<y[0].length;n++){const step=Math.floor((currentFrame+n)/sampleRate*p.rate[0])%p.steps[0];if(step!==this.last){this.last=step;this.age=0;}else this.age++;const tg=p.tight[0],stepLen=sampleRate/Math.max(.1,p.rate[0]),dec=tg>0?Math.exp(-this.age/(stepLen*(1.05-tg)*.35)):1;const target=(p.mask[0]&(1<<step))?1-p.depth[0]*(1-dec):1-p.depth[0];this.g+=(target-this.g)/(1+p.smooth[0]*sampleRate*.03);for(let c=0;c<y.length;c++)y[c][n]=(x[c]?.[n]||x[0]?.[n]||0)*this.g;}return true;}
 }
 class NadDuck extends AudioWorkletProcessor {
  static get parameterDescriptors(){return [{name:'threshold',defaultValue:-24},{name:'ratio',defaultValue:6},{name:'depth',defaultValue:1},{name:'attack',defaultValue:.005},{name:'release',defaultValue:.2}];}
