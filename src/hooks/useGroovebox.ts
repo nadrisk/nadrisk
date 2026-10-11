@@ -170,7 +170,7 @@ export function useGroovebox() {
   const [latency, setLatency] = useState<number | null>(null);
   const [meter, setMeter] = useState<MasterMeter>({ m: -Infinity, s: -Infinity, i: -Infinity, sub: -Infinity, subPeak: -Infinity });
   const meterPeak = useRef(-Infinity);
-  const slotsRef = useRef(slots); slotsRef.current = slots;
+  const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
   const selectedRef = useRef(selected); selectedRef.current = selected;
   // Pad repeat (momentary or latched) with a per-pad velocity set by finger height on the pad.
@@ -589,7 +589,7 @@ export function useGroovebox() {
     if (Tone.getTransport().state === "started") { queuedRef.current = b; setQueued(b); }
     else { bankRef.current = b; setBank(b); }
   }, []);
-  const copyBank = useCallback(() => setBanks(bs => { const src = bs[bankRef.current]; return bs.map((b, i) => (i === bankRef.current ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]) })); }), []);
+  const copyBank = useCallback(() => { snap(); setBanks(bs => { const src = bs[bankRef.current], dst = (bankRef.current + 1) % bs.length; return bs.map((b, i) => (i !== dst ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]) })); }); }, [snap]);
   const setLevel = useCallback((i: number, level: number) => updateSlot(i, { level }), [updateSlot]);
   const toggleMute = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, mute: !x.mute } : x))), []);
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
@@ -611,7 +611,7 @@ export function useGroovebox() {
     const jobs = (st.slots ?? []).map((o, i) => (o?.sampler?.sampleId ? loadById(i, o.sampler.sampleId, o.sampler.sampleName).then(ok => (ok ? null : o.sampler.sampleName)) : Promise.resolve(null)));
     void Promise.all(jobs).then(r => { const miss = r.filter((x): x is string => !!x); if (miss.length > 1) setError(`${miss.length} samples not found on this device: ${miss.slice(0, 3).join(", ")}${miss.length > 3 ? "…" : ""}`); });
   }, [loadById]);
-  const restore = (from: React.MutableRefObject<Snap[]>, to: React.MutableRefObject<Snap[]>) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
+  const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
   const canUndo = hist >= 0 && undoRef.current.length > 0, canRedo = hist >= 0 && redoRef.current.length > 0;
   const clearPattern = () => setPattern(emptyPattern());

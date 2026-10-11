@@ -98,22 +98,25 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
     extra={() => keyZones(ks)} />;
 }
 
-export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause }: {
+const BANK_NAMES = ["A", "B", "C", "D"];
+export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo }: {
   bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: () => void; reset: () => void;
-  playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void;
+  playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
 }) {
   const views = ["note", "vel", "chance", "roll", "mod"];
   const ks: K[] = [
-    ...["A", "B"].map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 13, y: 11, w: 12, on: bank === b, fn: () => selectBank(b) })),
-    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 28 + i * 20, y: 11, w: 19, on: view === v, fn: () => setView(v) })),
-    { s: `CPY>${bank ? "A" : "B"}`, label: "Copy pattern", x: 1, y: 22, w: 25, on: false, fn: copy },
+    ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 9, y: 11, w: 8, on: bank === b, fn: () => selectBank(b) })),
+    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 38 + i * 18, y: 11, w: 17, on: view === v, fn: () => setView(v) })),
+    { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 22, w: 25, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 27, y: 22, w: 25, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 53, y: 22, w: 24, on: false, fn: clear },
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 78, y: 22, w: 24, on: playing, fn: onPlay },
     { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 103, y: 22, w: 24, on: paused, fn: onPause },
+    { s: canUndo ? "UNDO" : "undo", label: "Undo sequencer edit", x: 78, y: 33, w: 24, on: false, fn: undo },
+    { s: canRedo ? "REDO" : "redo", label: "Redo sequencer edit", x: 103, y: 33, w: 24, on: false, fn: redo },
   ];
-  const hint = view === "mod" ? "DRAG LIT STEPS TO SET AMOUNT" : view === "vel" ? "DRAG LIT STEPS FOR VELOCITY" : view === "chance" ? "DRAG LIT STEPS FOR CHANCE" : view === "roll" ? "DRAG A STEP TO SPLIT IT" : "TAP HIT > TIE > OFF";
-  return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[bank ? "B" : "A"]} deps={[bank, queued, view, playing, paused]} knobs={() => []}
-    body={p => { drawKeys(p, ks); p.text(hint, 2, 36); }}
+  const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : "HIT>TIE>OFF";
+  return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[BANK_NAMES[bank]]} deps={[bank, queued, view, playing, paused, canUndo, canRedo]} knobs={() => []}
+    body={p => { drawKeys(p, ks); p.text(hint, 2, 35); }}
     extra={() => keyZones(ks)} /></div>;
 }
