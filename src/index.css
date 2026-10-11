@@ -670,6 +670,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.on, .instrument-workspace:not([data-lcd="studio"]) .gb-step.active { background: hsl(var(--foreground)) !important; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.tie { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 3px, transparent 3px 6px) !important; border-left-color: transparent !important; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-row.selected .gb-step.tie { background: repeating-linear-gradient(90deg, hsl(var(--background)) 0 3px, transparent 3px 6px) !important; }
+.instrument-workspace[data-lcd="studio"] .gb-row.selected .gb-step.tie { background: repeating-linear-gradient(90deg, hsl(var(--background)) 0 3px, transparent 3px 6px); }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.tie-next::after { background: hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.current { outline: 2px solid hsl(var(--foreground)); outline-offset: -3px; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.out-loop, .instrument-workspace:not([data-lcd="studio"]) .gb-step.disabled { border-style: dotted !important; }
