@@ -7,7 +7,7 @@ import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, makeF
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
-  k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
+  k === "gain" ? `+${v.toFixed(1)}DB` : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
   k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "ON" : "OFF") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
@@ -28,6 +28,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     for (let n = 0; n < steps; n++) { const x = Math.floor((128 - steps * 8) / 2) + n * 8; if (mask & (1 << n)) d.rect(x, 25, 7, 12); else d.box(x, 25, 7, 12); }
     d.line(1, 41, 126, 41, true); return;
   }
+  if (type === "gain") { const g = pv(p, "gain", 0); d.textC(`+${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(g / 24 * 118), 7); return; }
   d.box(1, 21, 126, 24);
   if (["saturation", "acid", "bitcrush"].includes(type)) {
     const drive = pv(p, "drive", type === "bitcrush" ? 6 : 4), bias = pv(p, "bias", 0), bits = pv(p, "bits", 16); let py = 42;
