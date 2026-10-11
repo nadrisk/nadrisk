@@ -5,7 +5,7 @@
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Keep the unrouted news data as an archive. Pad phrase sequencers store scale degrees and run on an audio-clock scheduler.
+- Archive unrouted news. Pad phrases store scale degrees and use audio-clock scheduling.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
@@ -14,7 +14,7 @@
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
-- Desktop uses equal framed two-view surfaces; phones keep the stacked selector; VIS stays unmounted.
+- DevicePanel owns grid-fixed desktop frames/insets; PixelScreen owns headers/controls. Phones stay stacked; VIS stays unmounted.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
 - Hardware-style instrument screens render on a fixed 128x64 canvas with a bitmap font (src/pixel), integer-scaled, with invisible aria-labelled hit-zones on top, so pixels stay crisp on every device and MIDI learn still works.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
