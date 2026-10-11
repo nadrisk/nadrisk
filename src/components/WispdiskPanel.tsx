@@ -25,10 +25,10 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     { label: "Loop crossfade", short: "XFD", value: sm.loopXfade ?? 0, min: 0, max: .5, step: .005, fmt: ms, set: loopXfade => M({ loopXfade }) },
     { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
   ] : [
-    { label: "Start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start }) },
+    { label: "Start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start, end: Math.max(start + .02, sm.end ?? 1) }) },
+    { label: "Sample end", short: "END", value: sm.end ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: end => M({ end: Math.max(end, sm.start + .02) }) },
     { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
-    { label: "R", short: "REL", value: env.r, min: .01, max: 3, step: .01, fmt: ms, set: r => M({ env: { ...env, r } }) },
   ]) : page === "STR" ? [
     { label: "Stretch time", short: "TIME", value: sm.stretchAmt ?? 1, min: .25, max: 4, step: .01, fmt: v => `X${v.toFixed(2)}`, set: stretchAmt => M({ stretchAmt }) },
     { label: "Stretch grain", short: "GRN", value: sm.stretchGrain ?? .05, min: .01, max: .15, step: .001, fmt: ms, set: stretchGrain => M({ stretchGrain }) },
@@ -50,11 +50,13 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       // Reverse mirrors the display so it matches the actual playback direction.
       const idx = sm.reverse ? peaks!.length - 1 - Math.floor(x / w * peaks!.length) : Math.floor(x / w * (peaks?.length ?? 1));
       const v = peaks ? peaks[idx] ?? 0 : 0, a = Math.max(0, Math.round(v * (lane / 2 - 1)));
-      for (let l = 0; l < 2; l++) { const m = y0 + l * lane + Math.floor(lane / 2); p.rect(x0 + x, m - a, 1, a * 2 + 1); }
+      const f = x / w, out = !sm.loop && (f < sm.start || f > (sm.end ?? 1));
+      for (let l = 0; l < 2; l++) { const m = y0 + l * lane + Math.floor(lane / 2); if (out) { if (x % 2 === 0) for (let yy = m - a; yy <= m + a; yy += 2) p.dot(x0 + x, yy); } else p.rect(x0 + x, m - a, 1, a * 2 + 1); }
     }
     const sx = x0 + Math.round(sm.start * (w - 1));
     for (let y = y0; y < y0 + h; y += 2) p.dot(sx, y);
     p.rect(sx, y0, 3, 1);
+    if (!sm.loop && (sm.end ?? 1) < 1) { const ex = x0 + Math.round((sm.end ?? 1) * (w - 1)); for (let y = y0; y < y0 + h; y += 2) p.dot(ex, y); p.rect(ex - 2, y0 + h - 1, 3, 1); }
     if (sm.loop) { const ex = x0 + Math.round((sm.loopEnd ?? 1) * (w - 1)); for (let y = y0; y < y0 + h; y += 2) p.dot(ex, y); p.rect(ex - 2, y0 + h - 1, 3, 1); }
   };
 
@@ -68,7 +70,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     if (page === "SMP") {
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
-      p.box(44, 11, 21, 7, true); p.text(`${sm.pitch > 0 ? "+" : ""}${sm.pitch}`, 47, 12);
+      { const one = sm.mode === "one"; p.box(44, 11, 21, 7); if (one) p.invert(45, 12, 19, 5); p.text(one ? "ONE" : "ADSR", one ? 48 : 46, 12, !one); }
       p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 9), 68, 12);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
     } else if (page === "ENV") {
@@ -104,6 +106,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       {PAGES.map((pg, i) => <Tap key={pg} x={68 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />
+        <Tap x={44} y={10} w={21} h={9} label="Sampler one-shot or ADSR mode" pressed={sm.mode === "one"} onClick={() => M({ mode: sm.mode === "one" ? "adsr" : "one" })} />
         <Tap x={21} y={10} w={21} h={9} label="Loop" pressed={sm.loop} onClick={() => M({ loop: !sm.loop })} />
       </>}
       {page === "STR" && <>
