@@ -22,7 +22,7 @@
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
 - Mixer meters read a silent post-pan AnalyserNode per slot, written to the DOM per frame, so metering never re-renders the mixer.
 - The master chain runs EQ → Glue → Clipper → Limiter, and the MASTER screen tabs, buttons and knobs follow that same order so display matches audio.
-- Pads use touch-action:none plus non-passive touch preventDefault and release on the last lifted pointer, so iOS never swallows fast taps.
+- Pads and live-strip keys (mutes, A–D) read raw touches with preventDefault (keys fire on lift <8px), so iOS never swallows fast taps.
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.

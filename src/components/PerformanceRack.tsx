@@ -2,7 +2,7 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { ECHO_DIVS, type PerformanceParams } from "@/audio/performance";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) p.rect(x, y, w, 9); else p.box(x, y, w, 9); p.textC(s, x + w / 2, y + 2, !on); };
 const pos = (x: number, y: number, w: number, h: number) => ({ left: `${x / 128 * 100}%`, top: `${y / 64 * 100}%`, width: `${w / 128 * 100}%`, height: `${h / 64 * 100}%` });
@@ -19,6 +19,35 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   const [flash, setFlash] = useState(0);
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
   const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
+  // iPhone drops quick taps (double-tap detection, tiny finger slides), so the live strip reads raw touches:
+  // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
+  // mouse, keyboard and MIDI (el.click()) still go through onClick.
+  const liveRef = useRef<HTMLDivElement>(null);
+  const liveAct = useRef({ toggleMute, selectBank });
+  liveAct.current = { toggleMute, selectBank };
+  useEffect(() => {
+    const el = liveRef.current; if (!el) return;
+    const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank]") as HTMLElement | null;
+    const start = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); b.classList.add("touching"); }
+    };
+    const move = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) { const s = touches.get(t.identifier); if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 8) { s.b.classList.remove("touching"); touches.delete(t.identifier); } }
+    };
+    const end = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) {
+        const s = touches.get(t.identifier); if (!s) continue; touches.delete(t.identifier); s.b.classList.remove("touching");
+        if (e.cancelable) e.preventDefault();
+        if (e.type !== "touchend") continue;
+        const { mute, bank: bk } = s.b.dataset;
+        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk));
+      }
+    };
+    el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
+    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
   // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
   const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 });
   const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
@@ -112,15 +141,15 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
     </> : null} />
   <button type="button" className="gb-perf-reset" aria-label="Reset performance" onPointerDown={e => { e.preventDefault(); reset(); }} onClick={reset} onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); reset(); } }}>RESET · DROP</button>
   {/* Live strip: pattern launch (switches on the next bar) and one mute key per pad, same mutes as the mixer. */}
-  <div className="gb-perf-live">
+  <div className="gb-perf-live" ref={liveRef}>
     <div className="gb-perf-banks" role="group" aria-label="Performance pattern">
       {["A", "B", "C", "D"].map((n, b) => {
         const active = bank === b, waiting = queued === b;
-        return <button key={n} type="button" aria-label={`Performance pattern ${n}${waiting ? ", queued for next bar" : active ? ", active" : ""}`} aria-pressed={active} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
+        return <button key={n} type="button" data-bank={b} aria-label={`Performance pattern ${n}`} aria-pressed={active} title={waiting ? "queued for next bar" : active ? "active" : undefined} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
       })}
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
-      {pads.map((pd, i) => <button key={i} type="button" aria-label={`${pd.mute ? "Unmute" : "Mute"} pad ${i + 1}${pd.name ? ` ${pd.name}` : ""}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
     </div>
   </div>
   </div>;
