@@ -17,7 +17,7 @@ export const FX_DEFS = {
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
-  metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01], modRate: [4, 0.1, 30, 0.1], modSync: [0, 0, 10, 1], modTime: [0, 0, 1, 0.01], modTone: [0, 0, 1, 0.01], modFb: [0, 0, 1, 0.01] } },
+  metal: { label: "res.metal~", params: { note: [57, 24, 84, 1], fine: [0, -50, 50, 1], track: [0, 0, 1, 1], feedback: [0.85, 0, 0.97, 0.01], metal: [0.4, 0, 1, 0.01], drive: [0.2, 0, 1, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01], modRate: [4, 0.1, 30, 0.1], modSync: [0, 0, 10, 1], modTime: [0, 0, 1, 0.01], modTone: [0, 0, 1, 0.01], modFb: [0, 0, 1, 0.01] } },
   spectral: { label: "spectral~", params: { amount: [0.5, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
@@ -171,7 +171,7 @@ const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)
 const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
 
 export type FxLevels = { input: number; output: number };
-export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; dispose: () => void };
+export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; setPitch?: (semi: number, at: number) => void; dispose: () => void };
 
 const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
   analyser.getFloatTimeDomainData(data);
@@ -208,6 +208,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   let automationTime = ctx.currentTime;
   const set = (p: AudioParam | undefined, v: number) => { if (p && Number.isFinite(v)) p.setTargetAtTime(v, automationTime, 0.005); };
   let keyInput: AudioNode | undefined;
+  let setPitch: ((semi: number, at: number) => void) | undefined;
   const worklet = (name: string, inputs = 1) => { const n = Tone.getContext().createAudioWorkletNode(name, { numberOfInputs: inputs, outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(n); return n; };
   const wp = (n: AudioWorkletNode, p: Record<string, number>, keys: string[]) => keys.forEach(k => set(n.parameters.get(k), p[k]));
   const lfo = () => { const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0; o.connect(g); o.start(); oscs.push(o); nodes.push(o, g); return { o, g }; };
@@ -226,22 +227,40 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { const k = `${p.drive}:${p.bias}`; if (k !== key) { key = k; sh.curve = acidCurve(p.drive, p.bias); }
       set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, 1 / (1 + p.drive * .02)); };
   } else if (type === "metal") {
-    // Envelope-gated comb: feedback = FDBK x input envelope (DCY sets how long it stays open), so the loop can only
-    // ring while sound comes in and always dies away. A tanh clip and a 0.9 ceiling keep it from screaming.
-    const d = ctx.createDelay(.1), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), fbMod = ctx.createGain(), clip = ctx.createWaveShaper(), env = worklet("nad-metalenv"), fbAmt = ctx.createGain();
+    // Roar-style tuned feedback: a stereo pair of combs pitched by NOTE (+FINE, optionally tracking the played note),
+    // allpass dispersion (METL) for inharmonic clang, TONE lowpass and DRIVE saturation inside the loop.
+    // Feedback = FDBK x input envelope (DCY), with a tanh clip, so it rings after each hit and always dies away.
+    const env = worklet("nad-metalenv"), fbAmt = ctx.createGain(), merge = ctx.createChannelMerger(2), out = ctx.createGain();
     const sh = Tone.getContext().createAudioWorkletNode("nad-sh", { numberOfInputs: 1, outputChannelCount: [3] }) as unknown as AudioWorkletNode, split = ctx.createChannelSplitter(3), mT = ctx.createGain(), mF = ctx.createGain(), mB = ctx.createGain();
-    nodes.push(sh, split, mT, mF, mB); sh.connect(split); split.connect(mT, 0); split.connect(mF, 1); split.connect(mB, 2);
-    clip.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(i / 511.5 - 1)); nodes.push(d, lp, fb, fbMod, clip, fbAmt);
-    fb.gain.value = 0;
-    input.connect(env); env.connect(fbAmt).connect(fb.gain);
-    input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(fbMod).connect(clip).connect(d);
-    mT.connect(d.delayTime); mF.connect(lp.detune); mB.connect(fbMod.gain);
-    apply = p => {
-      const b = SYNC_DIVS[Math.round(p.modSync ?? 0)]?.[1] ?? 0, rate = b ? fxBpm / 60 / b : p.modRate ?? 4, mt = p.modTime ?? 0, mb = p.modFb ?? 0;
-      d.delayTime.setTargetAtTime(p.time * (1 - mt * .4), automationTime, .12); // tape-style glide: time changes bend pitch set(lp.frequency, p.tone); set(fbAmt.gain, Math.min(.9, p.feedback));
-      set(env.parameters.get("decay"), p.decay ?? .35); set(sh.parameters.get("rate"), rate);
-      set(mT.gain, p.time * mt * .8); set(mF.gain, (p.modTone ?? 0) * 2400); set(fbMod.gain, 1 - mb * .5); set(mB.gain, mb * .5);
+    nodes.push(sh, split, mT, mF, mB, fbAmt, merge, out); sh.connect(split); split.connect(mT, 0); split.connect(mF, 1); split.connect(mB, 2);
+    const clipCurve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh((i / 511.5 - 1) * 1.2) / Math.tanh(1.2));
+    input.connect(env); env.connect(fbAmt);
+    const sides = [0, 1].map(ch => {
+      const d = ctx.createDelay(.1), ap1 = ctx.createBiquadFilter(), ap2 = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), drv = ctx.createWaveShaper(), fb = ctx.createGain(), fbMod = ctx.createGain(), clip = ctx.createWaveShaper();
+      ap1.type = ap2.type = "allpass"; lp.type = "lowpass"; lp.Q.value = .5; clip.curve = clipCurve; fb.gain.value = 0;
+      nodes.push(d, ap1, ap2, lp, drv, fb, fbMod, clip);
+      input.connect(d).connect(ap1).connect(ap2).connect(lp).connect(drv); drv.connect(merge, 0, ch);
+      drv.connect(fb).connect(fbMod).connect(clip).connect(d); fbAmt.connect(fb.gain);
+      mT.connect(d.delayTime); mF.connect(lp.detune); mB.connect(fbMod.gain);
+      return { d, ap1, ap2, lp, drv, fbMod };
+    });
+    merge.connect(out).connect(wet); out.gain.value = 1.8;
+    let semiOff = 0, last: Record<string, number> = init, driveKey = -1;
+    const retune = (p: Record<string, number>, at: number, tc: number) => {
+      const hz = 440 * 2 ** (((p.note ?? 57) + (p.track ? semiOff : 0) + (p.fine ?? 0) / 100 - 69) / 12), mt = p.modTime ?? 0;
+      sides.forEach((s, ch) => { const t = Math.min(.09, Math.max(.0004, 1 / (hz * (ch ? 2 ** (7 / 1200) : 1)))); s.d.delayTime.cancelScheduledValues(at); s.d.delayTime.setTargetAtTime(t * (1 - mt * .4), at, tc);
+        const m = p.metal ?? .4; set(s.ap1.frequency, Math.min(18000, hz * (1.7 + m * 4.3))); set(s.ap2.frequency, Math.min(18000, hz * (3.1 + m * 9.2))); set(s.ap1.Q, .2 + m * 3); set(s.ap2.Q, .2 + m * 3); });
+      set(mT.gain, (1 / hz) * mt * .8);
     };
+    apply = p => {
+      last = p; const b = SYNC_DIVS[Math.round(p.modSync ?? 0)]?.[1] ?? 0, rate = b ? fxBpm / 60 / b : p.modRate ?? 4, mb = p.modFb ?? 0;
+      retune(p, automationTime, .12); // tape-style glide: NOTE changes bend the pitch
+      const dk = Math.round((p.drive ?? .2) * 50); if (dk !== driveKey) { driveKey = dk; const c = satCurve(1 + dk / 50 * 9); sides.forEach(s => { s.drv.curve = c; }); }
+      sides.forEach(s => { set(s.lp.frequency, p.tone ?? 6000); set(s.fbMod.gain, 1 - mb * .5); });
+      set(fbAmt.gain, Math.min(.97, p.feedback ?? .85)); set(env.parameters.get("decay"), p.decay ?? .35); set(sh.parameters.get("rate"), rate);
+      set(mF.gain, (p.modTone ?? 0) * 2400); set(mB.gain, mb * .5);
+    };
+    setPitch = (semi, at) => { semiOff = semi; if (last.track) retune(last, at, .004); };
   } else if (type === "djfilter") {
     const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; nodes.push(lp, hp); input.connect(lp).connect(hp).connect(wet);
     apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
