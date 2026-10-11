@@ -838,6 +838,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .about-dialog { position: relative; width: min(720px, 100%); max-height: 100%; overflow: auto; background: hsl(var(--background)); user-select: text; -webkit-user-select: text; }
 .about-dialog .about-section { margin: 0; }
 .about-close { position: absolute; top: 6px; right: 6px; }
+.instrument-workspace .gb-desktop-views { display: none; }
 
 /* Desktop hardware rack: full-width pads with compact, aligned device rows below. */
 @media (min-width: 1024px) and (pointer: fine) {
@@ -858,45 +859,40 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     min-height: 0;
     box-shadow: inset 0 -1px 0 hsl(var(--foreground) / .5) !important;
   }
-  .instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; padding: 4px; }
+  .instrument-workspace .gb-editor > .node-heading { display: none; }
+  .instrument-workspace .gb-editor-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; padding: 0; }
   .instrument-workspace .gb-ed-slot,
   .instrument-workspace .gb-ed-main,
-  .instrument-workspace .gb-ed-sub { min-width: 0; width: 100%; }
-  .instrument-workspace .gb-ed-main,
-  .instrument-workspace .gb-ed-sub { display: flex; flex-direction: column; }
-  .instrument-workspace .gb-editor-body > * + * { border-left: 1px solid hsl(var(--foreground) / .5); }
-  .instrument-workspace .gb-editor-body .px-wrap { width: 100%; max-width: 384px; margin-inline: auto; }
-  .instrument-workspace .gb-utility {
-    width: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .instrument-workspace .gb-utility-nav {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
-    padding: 4px;
-    border-bottom: 1px solid hsl(var(--foreground) / .5);
-  }
-  .instrument-workspace .gb-utility-nav button {
-    width: 100%;
-    height: 28px;
-    border-top: 1px solid hsl(var(--foreground)) !important;
-    border-left: 0 !important;
-  }
-  .instrument-workspace .gb-utility-nav button:first-child,
-  .instrument-workspace .gb-utility-nav button:nth-child(6) { border-left: 1px solid hsl(var(--foreground)) !important; }
-  .instrument-workspace .gb-utility-body {
-    width: 100%;
-    min-height: 0;
-    padding: 4px;
-  }
-  .instrument-workspace .gb-utility-body:not(.utility-seq):not(.utility-perf):not(.utility-mixer) > * { width: 100%; max-width: none; }
-  .instrument-workspace .gb-utility-body:not(.utility-seq):not(.utility-perf):not(.utility-mixer) .px-wrap { width: 100%; max-width: 384px; }
+  .instrument-workspace .gb-ed-insert,
+  .instrument-workspace .gb-ed-chord,
+  .instrument-workspace .gb-ed-library { min-width: 0; width: 100%; }
+  .instrument-workspace .gb-ed-slot { grid-column: 1; grid-row: 1; }
+  .instrument-workspace .gb-ed-main { grid-column: 2; grid-row: 1; }
+  .instrument-workspace .gb-ed-insert { grid-column: 3; grid-row: 1; }
+  .instrument-workspace .gb-ed-chord { grid-column: 1; grid-row: 2; }
+  .instrument-workspace .gb-ed-library { grid-column: 2; grid-row: 2; }
+  .instrument-workspace .gb-editor-body > * { border-right: 1px solid hsl(var(--foreground) / .5); border-bottom: 1px solid hsl(var(--foreground) / .5); }
+  .instrument-workspace .gb-editor-body > :nth-child(3) { border-right: 0; }
+  .instrument-workspace .gb-editor-body .px-wrap { width: 100%; max-width: none; margin: 0; border: 0; padding: 0; }
+  .instrument-workspace .gb-mobile-utility { display: none; }
+  .instrument-workspace .gb-desktop-views { display: block; width: 100%; min-width: 0; }
+  .instrument-workspace .gb-view-switch { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
+  .instrument-workspace .gb-view-switch button { min-height: 34px; border: 1px solid hsl(var(--foreground)); border-radius: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font: 9px 'Silkscreen', monospace; }
+  .instrument-workspace .gb-view-switch button + button { border-left: 0; }
+  .instrument-workspace .gb-desktop-view { display: none; }
+  .instrument-workspace .gb-desktop-view.active { display: block; }
+  .instrument-workspace .gb-device-surface { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; align-items: start; }
+  .instrument-workspace .gb-device-module { min-width: 0; border-right: 1px solid hsl(var(--foreground) / .5); border-bottom: 1px solid hsl(var(--foreground) / .5); overflow: hidden; }
+  .instrument-workspace .gb-device-module:nth-child(3n) { border-right: 0; }
+  .instrument-workspace .gb-device-module .px-wrap { width: 100%; max-width: none; border: 0; padding: 0; }
+  .instrument-workspace .device-master .gb-scope { display: none; }
+  .instrument-workspace .gb-master-vis { border-top: 1px solid hsl(var(--foreground) / .5); }
+  .instrument-workspace .gb-device-mixer { grid-column: 1 / -1; min-width: 0; }
   .instrument-workspace .gb-seq-perf {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-    gap: 4px;
+    gap: 0;
     width: 100%;
   }
   .instrument-workspace .gb-seq-controls { grid-column: 1; }
@@ -904,22 +900,21 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-seq-performance > .gb-perf { display: contents; }
   .instrument-workspace .gb-seq-controls .px-wrap,
   .instrument-workspace .gb-seq-performance .px-wrap { width: 100%; max-width: 568px; }
-  .instrument-workspace .gb-seq-performance .px-wrap { grid-column: 2; grid-row: 1; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 4px; }
-  .instrument-workspace .gb-seq-performance .gb-perf-reset { grid-column: 2; grid-row: 2; margin-left: 4px; width: calc(100% - 4px); }
-  .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid hsl(var(--foreground) / .5); padding-top: 4px; }
+  .instrument-workspace .gb-seq-performance .px-wrap { grid-column: 2; grid-row: 1; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 0; }
+  .instrument-workspace .gb-seq-performance .gb-perf-reset { grid-column: 2; grid-row: 2; margin: 0; width: 100%; }
+  .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid hsl(var(--foreground) / .5); padding: 0; margin: 0; gap: 0; }
+  .instrument-workspace .gb-seq-performance .gb-perf-banks { gap: 0; }
+  .instrument-workspace .gb-seq-performance .gb-perf-mutes { gap: 0; }
+  .instrument-workspace .gb-seq-performance .gb-perf-mute-grid { gap: 0; }
+  .instrument-workspace .gb-seq-performance .gb-perf-live button { border-width: 1px; }
   .instrument-workspace .gb-seq-grid { grid-column: 1 / -1; border-top: 1px solid hsl(var(--foreground) / .5); padding-top: 4px; }
-  .instrument-workspace .gb-compact-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
-  .instrument-workspace .gb-compact-module { width: 100%; min-width: 0; border-right: 1px solid hsl(var(--foreground) / .5); }
-  .instrument-workspace .gb-compact-module:last-child { border-right: 0; }
-  .instrument-workspace .gb-compact-module > header { height: 18px; display: flex; align-items: center; padding: 0 5px; color: hsl(var(--background)); background: hsl(var(--foreground)); font-size: 7px; }
-  .instrument-workspace .gb-compact-module .px-wrap { width: 100%; max-width: 384px; }
-  .instrument-workspace .utility-seq .gb-row {
+  .instrument-workspace .gb-desktop-view .gb-row {
     grid-template-columns: 58px 26px 50px repeat(16, minmax(28px, 1fr));
     width: auto;
   }
-  .instrument-workspace .utility-mixer .gb-mixer { grid-template-columns: repeat(16, minmax(42px, 1fr)); }
-  .instrument-workspace .utility-mixer .gb-strip { display: flex; }
-  .instrument-workspace .utility-mixer .gb-mixer-head button[aria-label] { display: none; }
+  .instrument-workspace .gb-device-mixer .gb-mixer { grid-template-columns: repeat(16, minmax(42px, 1fr)); }
+  .instrument-workspace .gb-device-mixer .gb-strip { display: flex; }
+  .instrument-workspace .gb-device-mixer .gb-mixer-head button[aria-label] { display: none; }
   .instrument-workspace .gb-mixer-head > span::after { content: " / 16 CH"; }
 }
 

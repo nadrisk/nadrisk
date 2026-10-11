@@ -199,6 +199,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
   const [view, setView] = useState<View>("note");
   const [about, setAbout] = useState(false);
+  const [desktopView, setDesktopView] = useState<"devices" | "sequence">("devices");
   useEffect(() => { if (!about) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape") setAbout(false); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [about]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
   const onRow = useCallback((v: View, r: number, x: number) => { if (v === "roll") g.setRowValue("ratchet", r, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setRowValue(v, r, Math.round(x * 100) / 100); }, [g.setRowValue]);
@@ -223,6 +224,15 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const compactUtilities: Utility[] = ["phrase", "master", "tape", "vis", "sets", "midi"];
   const compactAt = compactUtilities.indexOf(utility);
   const utilityContent = compactAt < 0 ? utilityPanels[utility] : <div className="gb-compact-stack">{[0, 1, 2].map(offset => { const key = compactUtilities[(compactAt + offset) % compactUtilities.length]; return <section className="gb-compact-module" key={key}><header>{UTILITY_LABELS[key]}</header>{utilityPanels[key]}</section>; })}</div>;
+  const desktopDevices = <div className="gb-device-surface">
+    <section className="gb-device-module device-fx">{utilityPanels.fx}</section>
+    <section className="gb-device-module device-master"><div>{utilityPanels.master}</div><div className="gb-master-vis">{utilityPanels.vis}</div></section>
+    <section className="gb-device-module device-memory">{utilityPanels.sets}</section>
+    <section className="gb-device-module device-phrase">{utilityPanels.phrase}</section>
+    <section className="gb-device-module device-tape">{utilityPanels.tape}</section>
+    <section className="gb-device-module device-midi">{utilityPanels.midi}</section>
+    <section className="gb-device-mixer">{utilityPanels.mixer}</section>
+  </div>;
 
   return <HarmonyContext.Provider value={g.harmony}><DisplayThemeContext.Provider value={theme}><section id="groovebox" ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""}`} aria-label="Nadrisk groovebox">{about && <div className="about-overlay" role="dialog" aria-modal="true" aria-label="About Nadrisk" onClick={e => { if (e.target === e.currentTarget) setAbout(false); }}><div className="about-dialog"><AboutSection /><button className="gb-cycle about-close" aria-label="Close about" onClick={() => setAbout(false)}>CLOSE</button></div></div>}
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label={g.playing ? "Pause transport" : "Play transport"} aria-pressed={g.playing} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button><span className="gb-cycle" aria-hidden>{g.bpm} BPM</span><button className="gb-cycle" aria-label="Global tune down" onClick={() => g.setTune(Math.max(-12, g.tune - 1))}>−</button><button className="gb-cycle" aria-label="Global tune reset" title="Double-tap to reset" onDoubleClick={() => g.setTune(0)}>TUNE {g.tune > 0 ? "+" : ""}{g.tune}</button><button className="gb-cycle" aria-label="Global tune up" onClick={() => g.setTune(Math.min(12, g.tune + 1))}>+</button><button className="gb-cycle" aria-label="Global key" title="Tap: next key · moves every pitched pad" onClick={() => g.setHarmony({ ...g.harmony, key: (g.harmony.key + 1) % 12 })}>KEY {NOTE_NAMES[g.harmony.key]}</button><button className="gb-cycle" aria-label="Global scale" aria-pressed={g.harmony.scale !== "off"} onClick={() => g.setHarmony({ ...g.harmony, scale: HARMONY_SCALES[(HARMONY_SCALES.indexOf(g.harmony.scale) + 1) % HARMONY_SCALES.length] })}>SCL {g.harmony.scale.toUpperCase()}</button><button className="gb-cycle" aria-label="Display theme" onClick={() => onThemeChange(nextDisplayTheme(theme))}>DISP: {DISPLAY_THEMES.find(([value]) => value === theme)?.[1]}</button><button className="gb-cycle" aria-label="About" aria-pressed={about} onClick={() => setAbout(true)}>ABOUT</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
@@ -236,7 +246,12 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
-        <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel">
+        <div className="gb-desktop-views">
+          <nav className="gb-view-switch" aria-label="Desktop workspace view"><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
+          <div className={desktopView === "devices" ? "gb-desktop-view active" : "gb-desktop-view"}>{desktopDevices}</div>
+          <div className={desktopView === "sequence" ? "gb-desktop-view active" : "gb-desktop-view"}>{seqPerformancePanel}</div>
+        </div>
+        <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel gb-mobile-utility">
           <nav className="gb-utility-nav" aria-label="Utility workspace">{UTILITIES.map(k => <button key={k} aria-pressed={utility === k} onClick={() => setUtility(k)}>{UTILITY_LABELS[k]}</button>)}</nav>
           <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>
         </PatchNode>
