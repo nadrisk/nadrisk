@@ -1,3 +1,4 @@
+import { useNoteKnob } from "@/components/harmonyKnob";
 import { noteName } from "@/audio/arp";
 import { memo } from "react";
 import { Zone } from "@/pixel/PixelScreen";
@@ -15,7 +16,7 @@ function Sub808Panel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slo
     if (page === "PTCH") return [
       { label: "Pitch env", short: "PENV", value: b.pitchEnv, min: 0, max: 48, step: 1, fmt: st, set: pitchEnv => B({ pitchEnv }) },
       { label: "Env decay", short: "PDEC", value: b.pitchDecay, min: .005, max: .4, step: .005, fmt: ms, set: pitchDecay => B({ pitchDecay }) },
-      { label: "Note", short: "NOTE", value: slot.note, min: 20, max: 60, step: 1, fmt: v => noteName(Math.round(v)), set: note => onChange({ note }) },
+      noteK,
       { label: "Click", short: "CLK", value: b.click, min: 0, max: 1, step: .01, fmt: pct, set: click => B({ click }) },
     ];
     if (page === "AMP") return [

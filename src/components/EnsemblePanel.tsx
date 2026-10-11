@@ -1,3 +1,4 @@
+import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
@@ -13,6 +14,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
   const fenv = y.fenv ?? { a: .01, d: .4, s: .3, r: .5 };
   const curEnv = envSel === "vol" ? y.env : fenv, setEnv = (e: typeof fenv) => envSel === "vol" ? Y({ env: e }) : Y({ fenv: e });
 
+  const noteK = useNoteKnob(slot, onChange);
   const knobs = (page: string): Knob[] => {
     if (page === "VOX") return [
       { label: "Poly sub", short: "SUB", value: y.sub, min: 0, max: 1, step: .01, fmt: pct, set: sub => Y({ sub }) },
@@ -24,6 +26,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
       { label: "Poly cutoff", short: "CUT", value: y.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => Y({ cutoff }) },
       { label: "Poly resonance", short: "RES", value: y.res, min: 0, max: 8, step: .1, fmt: v => v.toFixed(1), set: res => Y({ res }) },
       { label: "Poly filter env amount", short: "ENV", value: y.fenvAmt ?? 0, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}OC`, set: fenvAmt => Y({ fenvAmt }) },
+      noteK,
     ];
     return envKnobs(curEnv, setEnv);
   };

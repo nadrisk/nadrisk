@@ -1,3 +1,5 @@
+import { useNoteKnob } from "@/components/harmonyKnob";
+import { NOTE_NAMES } from "@/audio/arp";
 import { memo, useContext, useState } from "react";
 import { createPortal } from "react-dom";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
@@ -44,21 +46,23 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const [bpmEdit, setBpmEdit] = useState(false);
   const SHP = ["sin", "tri", "sqr", "rnd"] as const;
   const show = (s: string) => setReadout(s);
+  const noteK = useNoteKnob(slot, onChange), sk = sm.sampleKey ?? 0;
+  const fineK = { label: "Sample fine tune", short: "FINE", value: sm.fine ?? 0, min: -100, max: 100, step: 1, fmt: (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}CT`, set: (fine: number) => M({ fine }) };
 
   type K = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
   const knobs: K[] = page === "SMP" ? (sm.loop ? [
     { label: "Loop start", short: "L-ST", value: sm.loopStartF ?? sm.start, min: 0, max: .95, step: .005, fmt: pct, set: v => M({ loopStartF: Math.max(v, sm.start), loopEnd: Math.max(sm.loopEnd ?? 1, Math.max(v, sm.start) + .02) }) },
     { label: "Loop end", short: "L-END", value: sm.loopEnd ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: loopEnd => M({ loopEnd: Math.max(loopEnd, (sm.loopStartF ?? sm.start) + .02) }) },
     { label: "Loop crossfade", short: "XFD", value: sm.loopXfade ?? 0, min: 0, max: 1, step: .01, fmt: pct, set: loopXfade => M({ loopXfade }) },
-    { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
+    noteK,
   ] : [
     { label: "Start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start, end: Math.max(start + .02, sm.end ?? 1) }) },
     { label: "Sample end", short: "END", value: sm.end ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: end => M({ end: Math.max(end, sm.start + .02) }) },
-    { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
-    { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
+    noteK,
+    fineK,
   ]) : page === "BRK" ? (sm.warp ? [
     { label: "Break length in beats", short: "BEAT", value: sm.beats ?? 0, min: 0, max: 64, step: 1, fmt: v => v ? `${v * (sm.breakDouble ? 2 : 1)}B` : "AUTO", set: beats => M({ beats }) },
-    { label: "Break pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
+    noteK,
     { label: "Sample BPM", short: "S-BPM", value: sm.sampleBpm ?? 0, min: 59, max: 200, step: .1, fmt: v => v >= 60 ? v.toFixed(1) : "AUTO", set: v => M({ sampleBpm: v >= 60 ? v : 0 }) },
     { label: "Break end", short: "END", value: sm.end ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: end => M({ end: Math.max(end, sm.start + .02) }) },
   ] : [
@@ -111,7 +115,8 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
       { const one = sm.mode === "one"; p.box(44, 11, 21, 7); if (one) p.invert(45, 12, 19, 5); p.text(one ? "ONE" : "ADSR", one ? 48 : 46, 12, !one); }
-      p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 9), 68, 12);
+      p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 5), 68, 12);
+      p.box(96, 11, 30, 7); p.text(`SK ${NOTE_NAMES[sk]}`, 98, 12);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
     } else if (page === "ENV") {
       const t = env.a + env.d + env.r + .6, X = (v: number) => 2 + Math.round(v / t * 122), Y = (v: number) => 43 - Math.round(v * 30);
@@ -153,6 +158,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />
         <Tap x={44} y={10} w={21} h={9} label="Sampler one-shot or ADSR mode" pressed={sm.mode === "one"} onClick={() => M({ mode: sm.mode === "one" ? "adsr" : "one", warp: false, grain: false })} />
+        <Tap x={96} y={10} w={30} h={9} label="Sample key" onClick={() => { const n = (sk + 1) % 12; M({ sampleKey: n }); show(`SK ${NOTE_NAMES[n]}`); }} />
         <Tap x={21} y={10} w={21} h={9} label="Loop" pressed={sm.loop} onClick={() => M({ loop: !sm.loop, warp: false, grain: false })} />
       </>}
       {page === "BRK" && <>

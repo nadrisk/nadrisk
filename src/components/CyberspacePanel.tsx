@@ -1,3 +1,4 @@
+import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
@@ -17,13 +18,15 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const setDest = (k: keyof LfoDests, v: number) => { const dests = { ...ld, [k]: v }; S({ lfo: { ...s.lfo, dests, depth: Math.max(...Object.values(dests)) } }); };
   const setSelectedEnv = (env: typeof s.env) => envPage === "AMP" ? S({ env }) : envPage === "PIT" ? S({ pitchEnvShape: env }) : S({ filterEnvShape: env });
 
+  const noteK = useNoteKnob(slot, onChange);
   const knobs = (page: string): Knob[] => {
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       const set = (p: Partial<typeof o>) => S({ [k]: { ...o, ...p } } as Partial<typeof s>);
       const base: Knob[] = [
         { label: `${k} gain`, short: "GAIN", value: o.gain, min: 0, max: 1, step: .01, fmt: pct, set: gain => set({ gain }) },
-        { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, fmt: st, set: coarse => set({ coarse }) },
+        // O1 carries the pad's root NOTE; O2 keeps its PTCH as the interval to osc 1.
+        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, fmt: st, set: coarse => set({ coarse }) },
         { label: `${k} fine`, short: "FINE", value: o.fine, min: -50, max: 50, step: 1, fmt: v => `${Math.round(v)}CT`, set: fine => set({ fine }) },
       ];
       if (k === "osc2") base.push({ label: "FM amount", short: "FM", value: s.osc2.fmAmount, min: 0, max: 10, step: .05, fmt: v => v.toFixed(1), set: fmAmount => S({ osc2: { ...s.osc2, fmAmount } }) });
