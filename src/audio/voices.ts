@@ -20,8 +20,8 @@ export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: numbe
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
 const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
-export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR };
-export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 } });
+export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
+export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 }, fenv: { a: .01, d: .4, s: .3, r: .5 }, fenvAmt: 0 });
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
 let noiseCache: { ctx: BaseAudioContext; buf: AudioBuffer } | null = null;
@@ -370,6 +370,7 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
   const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; amp.connect(dest); nodes.push(amp, mix);
   const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.frequency.value = f2.frequency.value = p.cutoff; f1.Q.value = p.res; f2.Q.value = .707;
   mix.connect(f1).connect(f2).connect(amp); nodes.push(f1, f2);
+  if (p.fenvAmt) { filterEnvAdsr(f1.frequency, t, p.fenv, gate, p.cutoff, p.fenvAmt); filterEnvAdsr(f2.frequency, t, p.fenv, gate, p.cutoff, p.fenvAmt); }
   const merger = ctx.createChannelMerger(2); merger.connect(amp); nodes.push(merger);
   for (let c = 0; c < 2; c++) { const d = ctx.createDelay(.05), g = ctx.createGain(), lfo = at(ctx.createOscillator(), t), lg = ctx.createGain();
     d.delayTime.value = c ? .017 : .012; g.gain.value = p.chorus * .4; lfo.frequency.value = c ? .7 : .5; lg.gain.value = .003 * p.chorus;
@@ -378,7 +379,7 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
   notes.slice(0, 5).forEach(midi => { const f = 440 * 2 ** ((midi - 69) / 12);
     for (let k = 0; k < 3; k++) { const o = at(ctx.createOscillator(), t), g = ctx.createGain();
       o.type = k === 2 ? "square" : k === 1 ? "square" : "sawtooth"; o.frequency.value = k === 2 ? f / 2 : f; o.detune.value = k === 0 ? -p.detune : k === 1 ? p.detune : 0;
-      g.gain.value = (k === 2 ? p.sub : k === 1 ? p.pulse : .7) / Math.sqrt(notes.length); o.connect(g).connect(mix); srcs.push(o); nodes.push(o, g);
+      g.gain.value = (k === 2 ? p.sub : k === 1 ? p.pulse : .7) / Math.max(1, notes.length ** .85); o.connect(g).connect(mix); srcs.push(o); nodes.push(o, g);
       if (k === 1) { const pwm = at(ctx.createOscillator(), t), pg = ctx.createGain(); pwm.frequency.value = .4; pg.gain.value = p.pulse * 8; pwm.connect(pg).connect(o.detune); srcs.push(pwm); nodes.push(pwm, pg); }
     }
   });
