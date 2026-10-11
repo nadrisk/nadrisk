@@ -912,6 +912,10 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   }
   .instrument-workspace .gb-seq-bay { min-width: 760px; }
   .instrument-workspace .gb-seq-performance { width: 400px; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 4px; }
+  .instrument-workspace .gb-compact-stack { display: flex; flex-direction: column; width: 400px; }
+  .instrument-workspace .gb-compact-module { width: 400px; border-bottom: 1px solid hsl(var(--foreground) / .5); }
+  .instrument-workspace .gb-compact-module > header { height: 18px; display: flex; align-items: center; padding: 0 5px; color: hsl(var(--background)); background: hsl(var(--foreground)); font-size: 7px; }
+  .instrument-workspace .gb-compact-module .px-wrap { width: 390px; }
   .instrument-workspace .utility-seq .gb-row {
     grid-template-columns: 58px 26px 50px repeat(16, minmax(28px, 1fr));
     width: auto;
@@ -930,6 +934,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-mixer-workspace.mixer-page-0 .gb-strip-page-1,
   .instrument-workspace .gb-mixer-workspace.mixer-page-1 .gb-strip-page-0 { display: none; }
   .instrument-workspace .gb-seq-perf { display: flex; flex-direction: column; gap: 4px; }
+  .instrument-workspace .gb-compact-module > header { display: none; }
+  .instrument-workspace .gb-compact-module:not(:first-child) { display: none; }
 }
 
 @media (min-width: 1800px) and (pointer: fine) {
