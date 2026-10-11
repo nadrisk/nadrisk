@@ -1,4 +1,5 @@
 # Architecture
+- Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
 - Keep the native Capacitor shell on the shared Groovebox component and select it through Capacitor runtime detection, so iOS behavior stays aligned with the website instrument without including site content.
 - Keep the site on React and Vite with shared patcher styling across home and news so navigation remains consistent.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
