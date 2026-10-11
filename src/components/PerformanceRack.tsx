@@ -12,7 +12,7 @@ const DIVS: [number, string][] = [[1, "1/4"], [.5, "1/8"], [.25, "1/16"], [.125,
 const LOOPS = [0, 1, 2, 4, 8];
 
 type PadInfo = { name: string; mute: boolean };
-export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void }) {
+export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, unmuteAll }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; unmuteAll: () => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
@@ -23,12 +23,12 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
   // mouse, keyboard and MIDI (el.click()) still go through onClick.
   const liveRef = useRef<HTMLDivElement>(null);
-  const liveAct = useRef({ toggleMute, selectBank });
-  liveAct.current = { toggleMute, selectBank };
+  const liveAct = useRef({ toggleMute, selectBank, unmuteAll });
+  liveAct.current = { toggleMute, selectBank, unmuteAll };
   useEffect(() => {
     const el = liveRef.current; if (!el) return;
     const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
-    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank]") as HTMLElement | null;
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset]") as HTMLElement | null;
     const start = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); b.classList.add("touching"); }
     };
@@ -41,7 +41,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         if (e.cancelable) e.preventDefault();
         if (e.type !== "touchend") continue;
         const { mute, bank: bk } = s.b.dataset;
-        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk));
+        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll();
       }
     };
     el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
@@ -149,7 +149,10 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       })}
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
-      {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      <div className="gb-perf-mute-grid">
+        {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      </div>
+      <button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button>
     </div>
   </div>
   </div>;
