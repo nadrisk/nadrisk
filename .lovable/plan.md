@@ -11,6 +11,14 @@ Build a compact, performance-ready collection around:
 - Short **vocal shouts** with clear CC0 permission.
 - Supporting classic electronic drums, metallic percussion, bass hits and textures from CC0 or redistribution-permitted repositories.
 
+Before choosing the final sounds, survey recurring recommendations across public production communities including r/edmproduction, r/TechnoProduction, r/jungle, r/DnB, r/synthesizers and r/sampling. Prioritize sounds repeatedly described as both iconic and practically useful, rather than one-off suggestions. The research will cover breaks, drums, hoovers/stabs, bass hits, vocal shouts and effects.
+
+Community popularity and redistribution permission will be treated separately:
+
+- Famous copyrighted originals will be used only as sonic references and will not be bundled.
+- Re-creatable sounds will receive clean-room synthesized or newly recorded versions.
+- Existing audio will be bundled only when its individual licence clearly allows redistribution.
+
 Candidate sources already checked:
 
 - Freesound: CC0 Amen recreation by JapanYoshiTheGamer.
@@ -23,6 +31,8 @@ Every chosen file will be checked individually; attribution and licence details 
 
 ## Implementation
 1. **Curate and prepare the audio**
+   - Summarize the strongest recurring Reddit recommendations into a ranked candidate list, with representative discussion links and licensing risk.
+   - Map any famous but copyrighted recommendation to a safe recreation category rather than copying the original recording.
    - Download only verified reusable source files.
    - Trim silence, make sensible start points, remove unintended DC offset, and set consistent headroom without crushing dynamics.
    - Export browser-friendly WAV files and keep loops cut to exact musical boundaries where appropriate.
