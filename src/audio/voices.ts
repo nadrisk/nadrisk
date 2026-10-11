@@ -226,9 +226,10 @@ function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, en
   const out = ctx.createBuffer(buf.numberOfChannels, len, sr);
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const sd = buf.getChannelData(c), dst = out.getChannelData(c);
-    for (let i = 0; i < len; i++) dst[i] = sd[s0 + i];
-    // Equal-power blend of the approaching loop end with the loop start across the last x samples.
-    for (let i = 0; i < x; i++) { const g = i / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[s0 + i] * Math.sin(g * Math.PI / 2); }
+    // The loop body runs from s0+x to s1; its last x samples fade out while the x samples just before the
+    // body (s0..s0+x) fade in, so the end flows straight into dst[0] = sd[s0+x] with no jump at either seam.
+    for (let i = 0; i < len - x; i++) dst[i] = sd[s0 + x + i];
+    for (let i = 0; i < x; i++) { const g = (i + .5) / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[s0 + i] * Math.sin(g * Math.PI / 2); }
   }
   m.set(key, out); return out;
 }
