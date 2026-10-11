@@ -3,6 +3,8 @@ export type PerformanceParams = {
   time: number; tension: number; style: "sweep" | "whiteout" | "cyber"; mode: number; division: number;
   /** Sequencer rotate in steps (+ = later) and loop shortener (0 = full row length). */
   offset: number; loop: number;
+  /** TIME value RESET returns to (0 when unset). */
+  timeHome?: number;
   /** Master stage: soft clipper into a brickwall-style limiter, each switchable. */
   clipOn: boolean; clipDrive: number; limitOn: boolean; ceiling: number;
   /** Performance override for every chord pad: "pad" keeps each pad's own play mode. */
