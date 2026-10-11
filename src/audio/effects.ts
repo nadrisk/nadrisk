@@ -264,13 +264,21 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
-    // SP mode: 1 = SP-1200 (26.04 kHz, 12-bit, no anti-alias, grit + dark output filter), 2 = MPC60 (40 kHz, 12-bit, smoother).
-    const pre = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = .9; nodes.push(pre, lp); let mode = -1;
-    input.connect(pre).connect(cr).connect(lp).connect(wet);
+    // SP mode, modelled on what makes these machines recognisable:
+    // 1 = SP-1200: 26.04 kHz with no anti-alias filter, usually fed pitched-up samples played back down, so aliasing lands
+    //     in the audible band (here an effective ~12 kHz hold); 12-bit linear quantising of quiet, gained-down material
+    //     (grainy tails); dark resonant SSM2044-style output lowpass; hot input grit.
+    // 2 = MPC60: 40 kHz/12-bit but a non-linear DAC and analogue output stage: warm saturation, fat low end, soft top.
+    const id = Float32Array.from({ length: 1024 }, (_, i) => i / 511.5 - 1);
+    const pre = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(), low = ctx.createBiquadFilter(), gIn = ctx.createGain(), gOut = ctx.createGain();
+    lp.type = "lowpass"; low.type = "lowshelf"; low.frequency.value = 110; pre.curve = id; nodes.push(pre, lp, low, gIn, gOut); let mode = -1;
+    input.connect(pre).connect(gIn).connect(cr).connect(gOut).connect(lp).connect(low).connect(wet);
     apply = p => { const sp = Math.round(p.sp ?? 0);
-      if (sp !== mode) { mode = sp; pre.curve = sp ? Float32Array.from({ length: 1024 }, (_, i) => { const v = i / 511.5 - 1, d = sp === 1 ? 2.2 : 1.4; return Math.tanh(v * d) / Math.tanh(d); }) : null; }
-      set(cr.parameters.get("bits"), sp ? 12 : p.bits); set(cr.parameters.get("reduce"), sp ? Math.max(1, ctx.sampleRate / (sp === 1 ? 26040 : 40000)) : p.reduce);
-      set(lp.frequency, sp === 1 ? 11000 : sp === 2 ? 16000 : 20000); };
+      if (sp !== mode) { mode = sp; const d = sp === 1 ? 3 : sp === 2 ? 2.2 : 0; pre.curve = d ? Float32Array.from(id, v => Math.tanh(v * d) / Math.tanh(d)) : id; }
+      // Quantise a gained-down signal so 12-bit grain is audible on tails, then restore level.
+      set(gIn.gain, sp === 1 ? .12 : sp === 2 ? .2 : 1); set(gOut.gain, sp === 1 ? 1 / .12 : sp === 2 ? 1 / .2 : 1);
+      set(cr.parameters.get("bits"), sp ? 12 : p.bits); set(cr.parameters.get("reduce"), sp === 1 ? Math.max(1, ctx.sampleRate / 12000) : sp === 2 ? Math.max(1, ctx.sampleRate / 20000) : p.reduce);
+      set(lp.frequency, sp === 1 ? 7500 : sp === 2 ? 11000 : 20000); set(lp.Q, sp === 1 ? 2.2 : sp === 2 ? 1 : .7); set(low.gain, sp === 1 ? 3 : sp === 2 ? 5 : 0); };
   } else if (type === "delay") {
     const d = ctx.createDelay(2), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), w = lfo(); nodes.push(d, lp, fb);
     w.o.frequency.value = 0.7; w.g.connect(d.delayTime);
