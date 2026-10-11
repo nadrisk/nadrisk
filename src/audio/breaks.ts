@@ -13,7 +13,9 @@ function poolOf(ctx: BaseAudioContext, buf: AudioBuffer) {
   return pool;
 }
 async function createEntry(ctx: BaseAudioContext, buf: AudioBuffer): Promise<Entry> {
-  const node = await SignalsmithStretch(ctx, { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [buf.numberOfChannels] });
+  // Leave the input unconnected: Signalsmith distinguishes buffer mode from live mode
+  // through an empty input channel list (not a missing input bus).
+  const node = await SignalsmithStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [buf.numberOfChannels] });
   await node.configure({ blockMs: 40, intervalMs: 10, splitComputation: true });
   await node.addBuffers(Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c)));
   return { node, busy: false };
