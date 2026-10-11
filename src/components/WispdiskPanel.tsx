@@ -173,7 +173,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       </>}
       {page !== "ENV" && page !== "BRK" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
-      {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(k.short === "NOTE" ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
+      {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(k.short === "NOTE" || (k as { bare?: boolean }).bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
       {page === "BRK" && sm.warp && <Tap x={68} y={10} w={42} h={9} label="Type sample BPM" onClick={() => setBpmEdit(true)} />}
     </PixelScreen>
     {bpmEdit && <BpmDialog value={sm.sampleBpm ?? 0} onClose={() => setBpmEdit(false)} onSave={sampleBpm => { M({ sampleBpm }); show(sampleBpm ? `${sampleBpm}BPM` : "AUTO"); }} />}
