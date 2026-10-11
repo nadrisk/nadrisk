@@ -1,4 +1,5 @@
 # Groovebox roadmap
+- [x] Research Reddit's recurring rave-sample recommendations; add a licensed CC0 Amen recreation, hoovers and vocal shout without replacing old saved-set samples
 - [ ] Stage 4 BRK: tempo-matched looping, independent pitch, reversible x2 length, release and compatibility checks; Stage 5 slicing stays separate.
 - [x] Soften GRAN into a continuous stereo cloud without changing controls: overlapping smooth windows, stereo spread and gentle treble smoothing; browser capture reduced quiet windows from 23 to 1, release reached silence, 10 tests passed. iPhone listening remains user verification.
 - [x] Native Capacitor shell: iOS launches directly into the shared groovebox with safe-area handling while the website remains unchanged
