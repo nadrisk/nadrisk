@@ -13,7 +13,7 @@ export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests; /** true = restart on every note; default free-running per pad. */ retrig?: boolean };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -215,23 +215,22 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
 }
 
 // Crossfaded loop buffers are baked per sample/region so the seam is click-free; cached by parameters.
-const loopCache = new WeakMap<AudioBuffer, Map<string, AudioBuffer>>();
-function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, end: number, xf: number) {
-  const key = `${start.toFixed(3)}:${end.toFixed(3)}:${xf.toFixed(3)}`;
+const loopCache = new WeakMap<AudioBuffer, Map<string, { buf: AudioBuffer; loopStart: number; loopEnd: number }>>();
+/** Baked loop: plays from the sample START into the loop. The buffer runs START..LOOP END; its last x samples fade
+ *  into the audio just before LOOP START+x, so wrapping to LOOP START+x continues with no jump at the seam. */
+function loopBufferOf(ctx: BaseAudioContext, buf: AudioBuffer, start: number, ls: number, end: number, xf: number) {
+  const key = `${start.toFixed(3)}:${ls.toFixed(3)}:${end.toFixed(3)}:${xf.toFixed(3)}`;
   let m = loopCache.get(buf); if (!m) { m = new Map(); loopCache.set(buf, m); }
   const hit = m.get(key); if (hit) return hit;
-  const sr = buf.sampleRate, s0 = Math.floor(start * sr), s1 = Math.floor(end * sr), x = Math.floor(xf * sr);
-  const len = s1 - s0 - x;
-  if (len < 256) return null;
+  const sr = buf.sampleRate, a0 = Math.floor(start * sr), l0 = Math.floor(ls * sr), s1 = Math.floor(end * sr), x = Math.floor(xf * sr);
+  const len = s1 - a0; if (s1 - l0 - x < 256 || l0 < a0) return null;
   const out = ctx.createBuffer(buf.numberOfChannels, len, sr);
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const sd = buf.getChannelData(c), dst = out.getChannelData(c);
-    // The loop body runs from s0+x to s1; its last x samples fade out while the x samples just before the
-    // body (s0..s0+x) fade in, so the end flows straight into dst[0] = sd[s0+x] with no jump at either seam.
-    for (let i = 0; i < len - x; i++) dst[i] = sd[s0 + x + i];
-    for (let i = 0; i < x; i++) { const g = (i + .5) / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[s0 + i] * Math.sin(g * Math.PI / 2); }
+    for (let i = 0; i < len - x; i++) dst[i] = sd[a0 + i];
+    for (let i = 0; i < x; i++) { const g = (i + .5) / x; dst[len - x + i] = sd[s1 - x + i] * Math.cos(g * Math.PI / 2) + sd[l0 + i] * Math.sin(g * Math.PI / 2); }
   }
-  m.set(key, out); return out;
+  const r = { buf: out, loopStart: (l0 + x - a0) / sr, loopEnd: len / sr }; m.set(key, r); return r;
 }
 
 // Vintage (Akai-style) time stretch: fixed-size blocks re-read from the source at the stretched rate with only
@@ -264,12 +263,14 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
   let offset = Math.min(buf.duration - 0.01, p.start * buf.duration);
   if (p.loop) {
-    const endSec = Math.max(offset + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
-    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - offset) / 2 - 0.005));
-    const baked = xf > 0.004 ? loopBufferOf(ctx, buf, offset, endSec, xf) : null;
+    // LOOP: playback starts at START, runs into the loop region (L-ST..L-END) and repeats it while held.
+    const ls = Math.max(offset, Math.min(buf.duration - .03, (p.loopStartF ?? p.start) * buf.duration));
+    const endSec = Math.max(ls + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
+    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - ls) / 2 - 0.005));
+    const baked = xf > 0.002 ? loopBufferOf(ctx, buf, offset, ls, endSec, xf) : null;
     // A source buffer can only be assigned once, so the baked crossfade loop is chosen before assignment.
-    if (baked) { src.buffer = baked; src.loop = true; src.loopStart = 0; src.loopEnd = baked.duration; offset = 0; }
-    else { src.buffer = buf; src.loop = true; src.loopStart = offset; src.loopEnd = endSec; }
+    if (baked) { src.buffer = baked.buf; src.loop = true; src.loopStart = baked.loopStart; src.loopEnd = baked.loopEnd; offset = 0; }
+    else { src.buffer = buf; src.loop = true; src.loopStart = ls; src.loopEnd = endSec; }
   } else src.buffer = buf;
   src.connect(amp);
   // The sampler follows the gate (finger down / step length), then fades by RELEASE. One-shots that end
