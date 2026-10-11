@@ -277,10 +277,12 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "phaser") {
     // Six cascaded allpass stages swept by an LFO (and optional envelope) around MAN, with feedback.
     const stages = Array.from({ length: 6 }, () => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.Q.value = .6; return a; });
-    const fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(...stages, fb);
-    let prev: AudioNode = input; stages.forEach(a => { prev.connect(a); prev = a; }); prev.connect(wet); prev.connect(fb).connect(stages[0]);
+    // Web Audio mutes feedback cycles without a DelayNode, so the loop carries a one-block delay (as in Tone.js / MXR-style designs).
+    // Wet = dry + allpass chain, so the notches appear inside the effect itself, independent of MIX.
+    const fb = ctx.createGain(), fd = ctx.createDelay(.01), sum = ctx.createGain(), m = lfo(), env = follower(); fd.delayTime.value = 128 / ctx.sampleRate; sum.gain.value = .6; nodes.push(...stages, fb, fd, sum);
+    let prev: AudioNode = input; stages.forEach(a => { prev.connect(a); prev = a; }); prev.connect(sum); input.connect(sum); sum.connect(wet); prev.connect(fb).connect(fd).connect(stages[0]);
     stages.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
-    apply = p => { set(m.o.frequency, rateOf(p)); stages.forEach(a => set(a.frequency, p.manual)); set(m.g.gain, p.depth * p.manual * .9); set(env.gain, p.env * p.manual * 2); set(fb.gain, -p.feedback * .85); };
+    apply = p => { set(m.o.frequency, rateOf(p)); stages.forEach((a, k) => set(a.frequency, p.manual * (1 + k * .35))); set(m.g.gain, p.depth * p.manual * .85); set(env.gain, p.env * p.manual * 2); set(fb.gain, -p.feedback * .85); };
   } else if (type === "vibrato") {
     // LOFI = cassette warble (ChowTape-style): slow wow + random flutter on the delay time, tape tone roll-off and soft saturation.
     const d = ctx.createDelay(0.05), m = lfo(), wow = lfo(), lp = ctx.createBiquadFilter(), sh = ctx.createWaveShaper(); nodes.push(d, lp, sh); d.delayTime.value = 0.012;
