@@ -7,7 +7,7 @@ import { METER_WORKLET } from "./meterWorklet";
 type Range = [number, number, number, number];
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
-  bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], mix: [1, 0, 1, 0.01] } },
+  bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
   delay: { label: "tape.delay~", params: { time: [0.375, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
   chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
@@ -18,7 +18,7 @@ export const FX_DEFS = {
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
   metal: { label: "res.metal~", params: { time: [0.008, 0.0015, 0.04, 0.0001], feedback: [0.82, 0, 0.96, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], mix: [0.4, 0, 1, 0.01], modRate: [4, 0.1, 30, 0.1], modSync: [0, 0, 10, 1], modTime: [0, 0, 1, 0.01], modTone: [0, 0, 1, 0.01], modFb: [0, 0, 1, 0.01] } },
-  spectral: { label: "spectral~", params: { freq: [1200, 80, 8000, 10], res: [6, 0.5, 24, 0.1], spread: [1, 0.25, 3, 0.01], peak: [14, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
+  spectral: { label: "spectral~", params: { amount: [0.5, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
   reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
@@ -130,6 +130,26 @@ class Smash extends AudioWorkletProcessor {
 }
 registerProcessor('nad-metalenv', MetalEnv); registerProcessor('nad-sh', SampleHold); registerProcessor('nad-smash', Smash);
 registerProcessor('nad-ngate', NGate); registerProcessor('nad-transient', Transient);
+class SpecGate extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [{ name: 'amount', defaultValue: .5 }]; }
+  constructor() { super(); this.N = 512; this.H = 128; const N = this.N; this.win = new Float32Array(N); for (let i = 0; i < N; i++) this.win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / N);
+    this.ch = [0, 1].map(() => ({ inb: new Float32Array(N), outb: new Float32Array(N + 128), re: new Float32Array(N), im: new Float32Array(N), g: new Float32Array(N / 2 + 1) })); this.mag = new Float32Array(N / 2 + 1); this.srt = new Float32Array(N / 2 + 1); }
+  fft(re, im, inv) { const n = re.length; for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    for (let len = 2; len <= n; len <<= 1) { const a = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a); for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < len / 2; k++) { const u = i + k, v = u + len / 2, tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr; re[v] = re[u] - tr; im[v] = im[u] - ti; re[u] += tr; im[u] += ti; const nc = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nc; } } } }
+  process(ins, outs, p) { const x = ins[0], y = outs[0], N = this.N, H = this.H, amt = p.amount[0];
+    for (let c = 0; c < y.length; c++) { const st = this.ch[c] || this.ch[0], src = x[c] || x[0], o = y[c];
+      st.inb.copyWithin(0, H); for (let i = 0; i < H; i++) st.inb[N - H + i] = src ? src[i] || 0 : 0;
+      for (let i = 0; i < N; i++) { st.re[i] = st.inb[i] * this.win[i]; st.im[i] = 0; } this.fft(st.re, st.im, false);
+      const B = N / 2 + 1; for (let k = 0; k < B; k++) { this.mag[k] = Math.hypot(st.re[k], st.im[k]); this.srt[k] = this.mag[k]; } this.srt.sort();
+      // Keep only bins above the AMOUNT percentile of this frame (spectral gate), smoothed per bin to avoid chirps.
+      const th = this.srt[Math.min(B - 1, Math.floor(amt * .985 * B))] * (amt > 0 ? 1 : 0);
+      for (let k = 0; k < B; k++) { const tg = this.mag[k] >= th ? 1 : 0; st.g[k] += (tg - st.g[k]) * (tg > st.g[k] ? .7 : .25); const gk = st.g[k]; st.re[k] *= gk; st.im[k] *= gk; if (k > 0 && k < N / 2) { st.re[N - k] = st.re[k]; st.im[N - k] = -st.im[k]; } }
+      this.fft(st.re, st.im, true);
+      for (let i = 0; i < N; i++) st.outb[i] += st.re[i] / N * this.win[i] * (2 / 3);
+      for (let i = 0; i < H; i++) o[i] = st.outb[i]; st.outb.copyWithin(0, H); st.outb.fill(0, N - H); }
+    return true; }
+}
+registerProcessor('nad-specgate', SpecGate);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
@@ -232,24 +252,9 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const n = worklet("nad-duck", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "ratio", "depth", "attack", "release"]);
   } else if (type === "spectral") {
-    // Resonant spectral band-bank: 8 log-spaced bandpasses around a center frequency. PEAK sets how
-    // hard the center bands are emphasized, SPREAD the octave spacing, RES the sharpness — sweeping
-    // FREQ moves the whole spectral focus, giving the resonant, harmonic-reshaping character.
-    const N = 8, bps: BiquadFilterNode[] = [], gains: GainNode[] = [];
-    const sum = ctx.createGain(); sum.gain.value = .5; nodes.push(sum);
-    const cf = (f: number) => Math.min(16000, Math.max(40, f));
-    for (let i = 0; i < N; i++) {
-      const b = ctx.createBiquadFilter(); b.type = "bandpass"; const g = ctx.createGain();
-      nodes.push(b, g); input.connect(b).connect(g).connect(sum); bps.push(b); gains.push(g);
-    }
-    sum.connect(wet);
-    apply = p => {
-      for (let i = 0; i < N; i++) {
-        const d = (i - (N - 1) / 2) / (N / 2);
-        set(bps[i].frequency, cf(p.freq * 2 ** (d * p.spread * 2))); set(bps[i].Q, p.res);
-        set(gains[i].gain, 2 * 10 ** (p.peak * Math.exp(-d * d * 2.2) / 20) / N);
-      }
-    };
+    // Spectral gate: 512-point FFT frames; AMOUNT keeps only the loudest bins (0 = clean, 1 = a few glassy partials).
+    const n = worklet("nad-specgate"); input.connect(n).connect(wet);
+    apply = p => set(n.parameters.get("amount"), p.amount ?? .5);
   } else if (type === "gate") {
     const n = worklet("nad-gate"); input.connect(n).connect(wet);
     apply = p => wp(n, { ...p, rate: rateOf(p), mask: p.mask ?? 21845, steps: p.steps ?? 16, tight: p.tight ?? 0 }, ["rate", "mask", "steps", "depth", "smooth", "tight"]);
@@ -259,8 +264,13 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
-    input.connect(cr).connect(wet);
-    apply = p => { set(cr.parameters.get("bits"), p.bits); set(cr.parameters.get("reduce"), p.reduce); };
+    // SP mode: 1 = SP-1200 (26.04 kHz, 12-bit, no anti-alias, grit + dark output filter), 2 = MPC60 (40 kHz, 12-bit, smoother).
+    const pre = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = .9; nodes.push(pre, lp); let mode = -1;
+    input.connect(pre).connect(cr).connect(lp).connect(wet);
+    apply = p => { const sp = Math.round(p.sp ?? 0);
+      if (sp !== mode) { mode = sp; pre.curve = sp ? Float32Array.from({ length: 1024 }, (_, i) => { const v = i / 511.5 - 1, d = sp === 1 ? 2.2 : 1.4; return Math.tanh(v * d) / Math.tanh(d); }) : null; }
+      set(cr.parameters.get("bits"), sp ? 12 : p.bits); set(cr.parameters.get("reduce"), sp ? Math.max(1, ctx.sampleRate / (sp === 1 ? 26040 : 40000)) : p.reduce);
+      set(lp.frequency, sp === 1 ? 11000 : sp === 2 ? 16000 : 20000); };
   } else if (type === "delay") {
     const d = ctx.createDelay(2), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), w = lfo(); nodes.push(d, lp, fb);
     w.o.frequency.value = 0.7; w.g.connect(d.delayTime);
