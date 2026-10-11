@@ -266,7 +266,8 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
     // LOOP: playback starts at START, runs into the loop region (L-ST..L-END) and repeats it while held.
     const ls = Math.max(offset, Math.min(buf.duration - .03, (p.loopStartF ?? p.start) * buf.duration));
     const endSec = Math.max(ls + 0.02, Math.min(buf.duration, (p.loopEnd ?? 1) * buf.duration));
-    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, (endSec - ls) / 2 - 0.005));
+    // XFD is a fraction of the loop length (0..1), so the knob keeps working on short loops.
+    const xf = Math.max(0, Math.min(p.loopXfade ?? 0, 1)) * Math.max(0, (endSec - ls) / 2 - 0.005);
     const baked = xf > 0.002 ? loopBufferOf(ctx, buf, offset, ls, endSec, xf) : null;
     // A source buffer can only be assigned once, so the baked crossfade loop is chosen before assignment.
     if (baked) { src.buffer = baked.buf; src.loop = true; src.loopStart = baked.loopStart; src.loopEnd = baked.loopEnd; offset = 0; }
