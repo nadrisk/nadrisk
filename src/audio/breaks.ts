@@ -1,7 +1,7 @@
 import SignalsmithStretch, { type StretchNode } from "signalsmith-stretch";
 // Patched copy: tolerates a node with no input bus, so Safari's silent input channel can't flip it into live mode.
 import stretchModuleUrl from "./vendor/signalsmith-stretch.mjs?url";
-import type { SamplerParams, Voice } from "./voices";
+import { stretchBuffer, type SamplerParams, type Voice } from "./voices";
 
 // Use the unmodified self-contained WASM module, not a bundler-rewritten function.toString().
 SignalsmithStretch.moduleUrl = stretchModuleUrl;
