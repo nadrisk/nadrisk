@@ -41,8 +41,8 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
     body={(p, page) => {
       if (page === "FX") {
         // Framed DJ filter response: LP slopes down right of cutoff, HP left of it, resonance bump at cutoff.
-        p.box(2, 11, 124, 30);
-        const top = 15, bot = 36, x0 = 3, x1 = 124, res = v.djRes ?? 1, bump = Math.min(6, Math.round(res * .7));
+        p.box(2, 11, 124, 24);
+        const top = 15, bot = 30, x0 = 3, x1 = 124, res = v.djRes ?? 1, bump = Math.min(6, Math.round(res * .7));
         const cx = dj < 0 ? x0 + Math.round((1 + dj) * (x1 - x0)) : x0 + Math.round(dj * (x1 - x0));
         let py = top;
         for (let x = x0; x <= x1; x++) {
@@ -57,9 +57,9 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
         // SET key draws filled while a home is stored, and flashes on every tap so each press gives feedback.
-        if (v.timeHome || flash > 0) { p.rect(104, 28, 20, 9); p.text("SET", 107, 30, false); }
-        else { p.box(104, 28, 20, 9); p.text("SET", 107, 30); }
-        p.rect(3, 38, Math.round(v.tension * 121), 2);
+        if (v.timeHome || flash > 0) { p.rect(104, 36, 20, 9); p.text("SET", 107, 38, false); }
+        else { p.box(104, 36, 20, 9); p.text("SET", 107, 38); }
+        p.rect(3, 37, Math.round(v.tension * 98), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
         p.box(2, 11, 124, 30);
@@ -97,7 +97,7 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
         else p.textC("HOLD A KEY", 64, 54);
       }
     }}
-    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={30} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={28} w={20} h={9} label="Set time home" pressed={!!v.timeHome || flash > 0} onClick={tapSet} /></>
+    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={24} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={36} w={20} h={9} label="Set time home" pressed={!!v.timeHome || flash > 0} onClick={tapSet} /></>
     : page === "ECO" ? <Zone x={2} y={11} w={124} h={30} horizontal label="Echo time pad" value={v.echoDiv ?? 3} min={0} max={ECHO_DIVS.length - 1} step={1} onChange={echoDiv => set({ echoDiv })} />
     : page === "SEQ" ? <>
       {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}
