@@ -378,7 +378,7 @@ export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, del
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "time", "feedback"], eq: ["low", "mid", "high"] };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "note", "feedback"], eq: ["low", "mid", "high"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
 export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high" };
 /** Maps a 0..1 lane value onto the param's real range. */
