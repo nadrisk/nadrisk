@@ -140,7 +140,7 @@ export function useGroovebox() {
   const undoRef = useRef<Snap[]>([]), redoRef = useRef<Snap[]>([]), lastSnap = useRef(0);
   const [hist, setHist] = useState(0);
   const slotsForSnap = useRef<Slot[]>([]);
-  const snap = useCallback(() => { const now = performance.now(); if (now - lastSnap.current > 400) { undoRef.current.push({ banks: banksRef.current, mods: slotsForSnap.current.map(x => x.mods) }); if (undoRef.current.length > 32) undoRef.current.shift(); redoRef.current = []; setHist(h => h + 1); } lastSnap.current = now; }, []);
+  const snap = useCallback(() => { const now = window.performance.now(); if (now - lastSnap.current > 400) { undoRef.current.push({ banks: banksRef.current, mods: slotsForSnap.current.map(x => x.mods) }); if (undoRef.current.length > 32) undoRef.current.shift(); redoRef.current = []; setHist(h => h + 1); } lastSnap.current = now; }, []);
   const editBank = useCallback((f: (b: Bank) => Bank) => { snap(); setBanks(bs => bs.map((b, i) => (i === bankRef.current ? f(b) : b))); }, [snap]);
   const setPattern = useCallback((v: StepVal[][] | ((p: StepVal[][]) => StepVal[][])) => editBank(b => ({ ...b, pattern: typeof v === "function" ? v(b.pattern) : v })), [editBank]);
   const setLengths = useCallback((v: number[] | ((l: number[]) => number[])) => editBank(b => ({ ...b, lengths: typeof v === "function" ? v(b.lengths) : v })), [editBank]);
