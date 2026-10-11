@@ -154,7 +154,7 @@ class SpecGate extends AudioWorkletProcessor {
       for (let i = 0; i < N; i++) { st.re[i] = st.inb[i] * this.win[i]; st.im[i] = 0; } this.fft(st.re, st.im, false);
       const B = N / 2 + 1; for (let k = 0; k < B; k++) { this.mag[k] = Math.hypot(st.re[k], st.im[k]); this.srt[k] = this.mag[k]; } this.srt.sort();
       // Keep only bins above the AMOUNT percentile of this frame (spectral gate), smoothed per bin to avoid chirps.
-      const th = this.srt[Math.min(B - 1, Math.floor(amt * .985 * B))] * (amt > 0 ? 1 : 0);
+      const q = 1 - Math.pow(1 - amt, 3), th = this.srt[Math.min(B - 1, Math.floor(q * .985 * B))] * (amt > 0 ? 1 : 0);
       for (let k = 0; k < B; k++) { const tg = this.mag[k] >= th ? 1 : 0; st.g[k] += (tg - st.g[k]) * (tg > st.g[k] ? .7 : .25); const gk = st.g[k]; st.re[k] *= gk; st.im[k] *= gk; if (k > 0 && k < N / 2) { st.re[N - k] = st.re[k]; st.im[N - k] = -st.im[k]; } }
       this.fft(st.re, st.im, true);
       for (let i = 0; i < N; i++) st.outb[i] += st.re[i] / N * this.win[i] * (2 / 3);
