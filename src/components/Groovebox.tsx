@@ -1,3 +1,4 @@
+import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import { fxLoad } from "@/audio/effects";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -155,7 +156,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   // Live post-fader dB meters: polled each frame and written straight to the DOM so playback never re-renders the mixer.
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let raf = 0; const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
+    const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
     const poll = () => {
       const lv = getLevels(), el = root.current;
       if (lv && el) el.querySelectorAll<HTMLElement>("[data-ch]").forEach(strip => {
@@ -167,9 +168,8 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
         strip.querySelectorAll("i").forEach((c, n) => { c.className = n < on ? (n >= SEGS - 1 ? "on clip" : "on") : n === pk - 1 ? "on" : ""; });
         const t = strip.querySelector<HTMLElement>(".gb-strip-val"); if (t) { const s = Number.isFinite(hold[i]) && hold[i] > FLOOR ? (hold[i] >= 0 ? "CLIP" : hold[i].toFixed(0)) : "-INF"; if (t.textContent !== s) t.textContent = s; }
       });
-      raf = requestAnimationFrame(poll);
     };
-    raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
+    return gatedLoop(root.current, poll);
   }, [getLevels]);
   return <div className={`gb-mixer-workspace mixer-page-${page}`} ref={root}>
     <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
@@ -185,6 +185,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
     </div>)}</div>
   </div>;
 });
+const DESKTOP_MQ = "(min-width: 1024px) and (pointer: fine)";
 const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "vis", "sets", "midi"] as const;
 type Utility = typeof UTILITIES[number];
 const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", vis: "VIS", sets: "MEM", midi: "MIDI" };
@@ -193,7 +194,13 @@ function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) 
 export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
   const g = useGroovebox();
   const rootRef = useRef<HTMLElement>(null);
-  const midi = useMidi(rootRef, g.hit, g.release);
+  const gHit = g.hit;
+  const hit = useCallback((...args: Parameters<typeof gHit>) => { pokeAudio(); return gHit(...args); }, [gHit]) as typeof gHit;
+  useEffect(() => { setTransportPlaying(g.playing); }, [g.playing]);
+  // Mount only the layout actually shown, so hidden desktop/phone trees don't run duplicate monitors.
+  const [desktop, setDesktop] = useState(() => window.matchMedia(DESKTOP_MQ).matches);
+  useEffect(() => { const m = window.matchMedia(DESKTOP_MQ), on = () => setDesktop(m.matches); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
+  const midi = useMidi(rootRef, hit, g.release);
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
@@ -239,7 +246,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
       <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
-      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
+      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
       <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
@@ -248,12 +255,12 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         </PatchNode>
         <div className="gb-desktop-views">
           <nav className="gb-view-switch" aria-label="Desktop workspace view"><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
-          <div className={desktopView === "devices" ? "gb-desktop-view active" : "gb-desktop-view"}>{desktopDevices}</div>
-          <div className={desktopView === "sequence" ? "gb-desktop-view active" : "gb-desktop-view"}>{seqPerformancePanel}</div>
+          {desktop && desktopView === "devices" && <div className="gb-desktop-view active">{desktopDevices}</div>}
+          {desktop && desktopView === "sequence" && <div className="gb-desktop-view active">{seqPerformancePanel}</div>}
         </div>
         <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel gb-mobile-utility">
           <nav className="gb-utility-nav" aria-label="Utility workspace">{UTILITIES.map(k => <button key={k} aria-pressed={utility === k} onClick={() => setUtility(k)}>{UTILITY_LABELS[k]}</button>)}</nav>
-          <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>
+          {!desktop && <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>}
         </PatchNode>
       </div>
     </div>

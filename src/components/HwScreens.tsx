@@ -1,3 +1,4 @@
+import { gatedLoop } from "@/lib/frameGate";
 import { useEffect, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
@@ -20,9 +21,9 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
   const [dyn, setDyn] = useState({ gr: 0, out: -60 });
   useEffect(() => {
     if (!getMasterDyn) return;
-    let raf = 0; const smooth = { gr: 0, out: -60 };
-    const poll = () => { const d = getMasterDyn(); if (d) { smooth.gr = d.gr > smooth.gr ? d.gr : smooth.gr * .9 + d.gr * .1; smooth.out = d.out > smooth.out ? d.out : smooth.out * .85 + d.out * .15; setDyn({ ...smooth }); } raf = requestAnimationFrame(poll); };
-    raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
+    const smooth = { gr: 0, out: -60 };
+    const poll = () => { const d = getMasterDyn(); if (d) { smooth.gr = d.gr > smooth.gr ? d.gr : smooth.gr * .9 + d.gr * .1; smooth.out = d.out > smooth.out ? d.out : smooth.out * .85 + d.out * .15; setDyn({ ...smooth }); } };
+    return gatedLoop(null, poll);
   }, [getMasterDyn]);
   const keys = (page: string): K[] => page === "OUT" ? [
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },

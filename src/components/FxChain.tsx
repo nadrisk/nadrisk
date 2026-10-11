@@ -1,3 +1,4 @@
+import { gatedLoop } from "@/lib/frameGate";
 import { memo, useEffect, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
@@ -102,7 +103,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
-    let frame = 0, last = 0, smooth: FxLevels = { input: -60, output: -60 };
+    let last = 0, smooth: FxLevels = { input: -60, output: -60 };
     const poll = (now: number) => {
       if (now - last >= 50) {
         const next = getLevels(slotIndex, f.id);
@@ -113,10 +114,8 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
         }
         last = now;
       }
-      frame = requestAnimationFrame(poll);
     };
-    frame = requestAnimationFrame(poll);
-    return () => cancelAnimationFrame(frame);
+    return gatedLoop(null, poll);
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * 4, pi * 4 + 4).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
