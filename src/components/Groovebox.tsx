@@ -13,6 +13,7 @@ import type { FxUnit } from "@/audio/effects";
 import { MasterScreen, MidiScreen, SeqScreen } from "@/components/HwScreens";
 import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
+import DevicePanel from "./DevicePanel";
 import FxChain from "./FxChain";
 import ArpEditor from "./ArpEditor";
 import { HarmonyContext } from "./harmonyKnob";
@@ -230,12 +231,12 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const compactAt = compactUtilities.indexOf(utility);
   const utilityContent = compactAt < 0 ? utilityPanels[utility] : <div className="gb-compact-stack">{[0, 1, 2].map(offset => { const key = compactUtilities[(compactAt + offset) % compactUtilities.length]; return <section className="gb-compact-module" key={key}><header>{UTILITY_LABELS[key]}</header>{utilityPanels[key]}</section>; })}</div>;
   const desktopDevices = <div className="gb-device-surface">
-    <section className="gb-device-module device-fx">{utilityPanels.fx}</section>
-    <section className="gb-device-module device-master">{utilityPanels.master}</section>
-    <section className="gb-device-module device-memory">{utilityPanels.sets}</section>
-    <section className="gb-device-module device-phrase">{utilityPanels.phrase}</section>
-    <section className="gb-device-module device-tape">{utilityPanels.tape}</section>
-    <section className="gb-device-module device-midi">{utilityPanels.midi}</section>
+    <DevicePanel className="gb-device-module device-fx" label="FX">{utilityPanels.fx}</DevicePanel>
+    <DevicePanel className="gb-device-module device-master" label="Master">{utilityPanels.master}</DevicePanel>
+    <DevicePanel className="gb-device-module device-memory" label="Memory">{utilityPanels.sets}</DevicePanel>
+    <DevicePanel className="gb-device-module device-phrase" label="Phrase">{utilityPanels.phrase}</DevicePanel>
+    <DevicePanel className="gb-device-module device-tape" label="Tape">{utilityPanels.tape}</DevicePanel>
+    <DevicePanel className="gb-device-module device-midi" label="MIDI">{utilityPanels.midi}</DevicePanel>
     <section className="gb-device-mixer">{utilityPanels.mixer}</section>
   </div>;
 
