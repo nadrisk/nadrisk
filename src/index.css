@@ -518,39 +518,15 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 @keyframes gb-blink { 50% { opacity: .35; } }
 
 /* ---------- Monochrome LCD display themes (flat, one hue, no glow) ---------- */
-.instrument-workspace[data-lcd="nadrisk"] { --lcd-h: 160; --lcd-s: 68%; --primary: 268 60% 55%; }
-.instrument-workspace[data-lcd="teal"] { --lcd-h: 178; --lcd-s: 80%; }
-.instrument-workspace[data-lcd="amber"] { --lcd-h: 38; --lcd-s: 100%; }
-.instrument-workspace[data-lcd="matrix"] { --lcd-h: 125; --lcd-s: 85%; }
-.instrument-workspace[data-lcd="ice"] { --lcd-h: 205; --lcd-s: 90%; }
-.instrument-workspace[data-lcd="acid"] { --lcd-h: 72; --lcd-s: 100%; }
 .instrument-workspace:not([data-lcd="studio"]) {
-  --background: var(--lcd-h) 30% 4%;
-  --foreground: var(--lcd-h) var(--lcd-s) 78%;
-  --muted: var(--lcd-h) 30% 9%;
-  --muted-foreground: var(--lcd-h) 25% 48%;
-  --secondary: var(--lcd-h) 30% 14%;
-  --accent: var(--lcd-h) var(--lcd-s) 60%;
-  --accent-foreground: var(--lcd-h) 30% 5%;
-  --border: var(--lcd-h) 35% 20%;
-  --input: var(--lcd-h) 35% 20%;
-  --ring: var(--lcd-h) var(--lcd-s) 60%;
-  --patch-surface: var(--lcd-h) 30% 6%;
-  --patch-header: var(--lcd-h) 30% 9%;
-  --patch-background: var(--lcd-h) 30% 4%;
   --patch-violet: var(--lcd-h) var(--lcd-s) 70%;
   --patch-yellow: var(--lcd-h) var(--lcd-s) 75%;
-  --scope-line: hsl(var(--lcd-h) var(--lcd-s) 62%);
-  --scope-grid: hsl(var(--lcd-h) 30% 13%);
   --scope-secondary: hsl(var(--lcd-h) var(--lcd-s) 48%);
   --scope-warning: hsl(var(--lcd-h) var(--lcd-s) 72%);
   --scope-danger: hsl(var(--lcd-h) var(--lcd-s) 88%);
-  --chassis: var(--lcd-h) 20% 9%;
-  --chassis-edge: var(--lcd-h) 20% 16%;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
-.instrument-workspace:not([data-lcd="studio"]):not([data-lcd="nadrisk"]) { --primary: var(--lcd-h) var(--lcd-s) 38%; --destructive: var(--lcd-h) var(--lcd-s) 70%; }
 .instrument-workspace:not([data-lcd="studio"]) .patch-node { background: hsl(var(--patch-surface)); box-shadow: none; }
 .instrument-workspace:not([data-lcd="studio"]) .node-heading { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.on { background: hsl(var(--accent)); }
