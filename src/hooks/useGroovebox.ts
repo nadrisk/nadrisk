@@ -209,7 +209,7 @@ export function useGroovebox() {
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].gain, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2);
-    e.outs[i].chain.forEach(f => f.setPitch?.(semi, t0));
+    e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
     let notes = (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;

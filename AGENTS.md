@@ -5,7 +5,7 @@
 - Keep the site on React and Vite with shared patcher styling across home and news so navigation remains consistent.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Preserve the original news data as the archive's source of truth; the home page may select entries but must not duplicate their content.- Pad phrase sequencers store pitch as scale degrees (src/audio/arp.ts) and run on a look-ahead audio-clock scheduler while a pad is held, so phrases stay in key and in time.
+- Preserve the original news data as the archive's source of truth; home may select but not duplicate it. Pad phrase sequencers store scale degrees and run on an audio-clock scheduler.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
@@ -25,3 +25,4 @@
 - Pads use touch-action:none plus non-passive touch preventDefault and release on the last lifted pointer, so iOS never swallows fast taps.
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
+- Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
