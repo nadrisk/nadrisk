@@ -24,12 +24,15 @@ import { DisplayThemeContext } from "@/pixel/PixelScreen";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
+// Bottom ~12% of a pad reads as silent, top ~8% as full, so a fingertip can reach both ends.
+const padYVel = (y: number, b: DOMRect) => Math.round(Math.min(1, Math.max(0, ((1 - (y - b.top) / b.height) - .12) / .8)) * 100) / 100;
+
 const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel }: {
   slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
 }) {
   // With pad repeat on, finger height inside the pad sets velocity (bottom = soft, top = loud), drawn as a fill.
   const setVel = (i: number, v: number) => { const el = padRefs.current[i]; if (!el) return; el.style.setProperty("--vel", String(v)); const n = el.querySelector(".gb-pad-velnum"); if (n) n.textContent = `VEL ${Math.round(v * 127)}`; onVel(i, v); };
-  const vel = (i: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); setVel(i, Math.round(Math.min(1, Math.max(.05, 1 - (e.clientY - b.top) / b.height)) * 100) / 100); };
+  const vel = (i: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); setVel(i, padYVel(e.clientY, b)); };
   // Touch screens: pads read the raw touch signal (every finger in changedTouches is its own hit), like native
   // drum apps; cancelling the touch also stops iOS gesture recognisers from holding back fast repeated taps.
   // Mouse and pen keep using pointer events below.
@@ -45,9 +48,9 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
     const padOf = (t: Touch) => { const b = (t.target as Element | null)?.closest?.(".gb-pad") as HTMLElement | null; return b ? Number(b.dataset.pad) : -1; };
     const start = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
       for (const t of Array.from(e.changedTouches)) { const i = padOf(t); if (i < 0) continue; touchPad.current.set(t.identifier, i); fingers.current[i].add(-1 - t.identifier);
-        const L = live.current; if (L.velMode) { const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(), v = Math.round(Math.min(1, Math.max(.05, 1 - (t.clientY - b.top) / b.height)) * 100) / 100; L.vel(i, v); } L.onHit(i); } };
+        const L = live.current; if (L.velMode) { const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(), v = padYVel(t.clientY, b); L.vel(i, v); } L.onHit(i); } };
     const move = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); const L = live.current; if (!L.velMode) return;
-      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(); L.vel(i, Math.round(Math.min(1, Math.max(.05, 1 - (t.clientY - b.top) / b.height)) * 100) / 100); } };
+      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(); L.vel(i, padYVel(t.clientY, b)); } };
     const end = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
       for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; touchPad.current.delete(t.identifier); const f = fingers.current[i]; f.delete(-1 - t.identifier); if (!f.size) live.current.onRelease(i); } };
     el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: false });
@@ -109,7 +112,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
     <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
 {view === "vel" || view === "chance" || view === "roll" ? (() => { const lit = row.map((v, c) => (v ? c : -1)).filter(c => c >= 0), vals = lit.map(c => view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : (view === "vel" ? vel : chance)[r]?.[c] ?? 1), rv = vals.length ? Math.max(...vals) : 1;
-      const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(view === "vel" ? .05 : 0, (e.clientX - b.left) / b.width))); };
+      const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(0, (e.clientX - b.left) / b.width))); };
       return <button className="gb-cycle gb-row-fader" aria-label={`${slots[r].name} row ${view === "chance" ? "chance" : view === "vel" ? "velocity" : "roll"}`} style={{ touchAction: "none", position: "relative", overflow: "hidden" }}
         onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); setX(e); }} onPointerMove={e => { if (e.buttons) setX(e); }}
         onDoubleClick={() => onRow(view, r, view === "roll" ? 0 : 1)}>
