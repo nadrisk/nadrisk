@@ -22,7 +22,7 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const knobs: K[] = page === "SMP" ? (sm.loop ? [
     { label: "Loop start", short: "L-ST", value: sm.loopStartF ?? sm.start, min: 0, max: .95, step: .005, fmt: pct, set: v => M({ loopStartF: Math.max(v, sm.start), loopEnd: Math.max(sm.loopEnd ?? 1, Math.max(v, sm.start) + .02) }) },
     { label: "Loop end", short: "L-END", value: sm.loopEnd ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: loopEnd => M({ loopEnd: Math.max(loopEnd, (sm.loopStartF ?? sm.start) + .02) }) },
-    { label: "Loop crossfade", short: "XFD", value: sm.loopXfade ?? 0, min: 0, max: .5, step: .005, fmt: ms, set: loopXfade => M({ loopXfade }) },
+    { label: "Loop crossfade", short: "XFD", value: sm.loopXfade ?? 0, min: 0, max: 1, step: .01, fmt: pct, set: loopXfade => M({ loopXfade }) },
     { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
   ] : [
     { label: "Start", short: "STRT", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start, end: Math.max(start + .02, sm.end ?? 1) }) },
