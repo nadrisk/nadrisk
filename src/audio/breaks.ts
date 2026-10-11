@@ -1,7 +1,7 @@
 import SignalsmithStretch, { type StretchNode } from "signalsmith-stretch";
 // Patched copy: tolerates a node with no input bus, so Safari's silent input channel can't flip it into live mode.
 import stretchModuleUrl from "./vendor/signalsmith-stretch.mjs?url";
-import type { SamplerParams, Voice } from "./voices";
+import { stretchBuffer, type SamplerParams, type Voice } from "./voices";
 
 // Use the unmodified self-contained WASM module, not a bundler-rewritten function.toString().
 SignalsmithStretch.moduleUrl = stretchModuleUrl;
@@ -77,15 +77,24 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
      void ready.node.schedule({ output: at, active: true, input: timing.start, rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
     scheduleRelease();
   };
-  // Fallback when the stretch engine can't load: plain looped playback at the tempo rate (pitch follows speed).
+  // Fallback when the stretch engine can't load (some iPhones): bake the region with the vintage
+  // stretcher to seconds*pitchFactor, then play at pitchFactor — tempo and pitch stay independent.
+  const sliceBuffer = (from: number, to: number) => {
+    const sr = buf.sampleRate, a = Math.round(from * sr), b = Math.min(buf.length, Math.round(to * sr));
+    const out = ctx.createBuffer(buf.numberOfChannels, Math.max(1, b - a), sr);
+    for (let c = 0; c < buf.numberOfChannels; c++) out.getChannelData(c).set(buf.getChannelData(c).subarray(a, b));
+    return out;
+  };
   const fallback = () => {
     if (cancelled || ctx.currentTime >= endAt) { cleanup(); return; }
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    src.loopStart = timing.start; src.loopEnd = timing.end; src.playbackRate.value = timing.rate;
+    const pitchFactor = 2 ** (p.pitch / 12), regionLen = Math.max(.001, timing.end - timing.start);
+    const baked = stretchBuffer(ctx, sliceBuffer(timing.start, timing.end), Math.max(.05, timing.seconds * pitchFactor / regionLen), .05);
+    const src = ctx.createBufferSource(); src.buffer = baked; src.loop = true;
+    src.playbackRate.value = pitchFactor;
     src.connect(amp); const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-    src.start(at, timing.start);
+    src.start(at, 0);
     const poll = () => {
       if (ctx.currentTime < endAt) { window.setTimeout(poll, 50); return; }
       try { src.stop(); } catch { /* already stopped */ } src.disconnect(); cleanup();
