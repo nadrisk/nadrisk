@@ -38,6 +38,7 @@ function Vis({ type, taps, eco, theme }: { type: VisType; taps: Taps | null; eco
     const draw = (now = 0) => {
       if (now - last < (eco ? 66 : 16)) return; last = now;
       const w = el.clientWidth, h = el.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1); // native resolution, crisp lines
+      if (w < 2 || h < 2) return; // hidden: zero-size grid steps would never advance
       if (el.width !== Math.round(w * dpr) || el.height !== Math.round(h * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); if (type === "waterfall") c.clearRect(0, 0, el.width, el.height); }
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = taps;
