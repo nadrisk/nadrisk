@@ -927,6 +927,9 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-mixer-workspace.mixer-page-0 .gb-strip-page-1,
   .instrument-workspace .gb-mixer-workspace.mixer-page-1 .gb-strip-page-0 { display: none; }
   .instrument-workspace .gb-seq-perf { display: flex; flex-direction: column; gap: 4px; }
+  .instrument-workspace .gb-seq-controls { order: 1; }
+  .instrument-workspace .gb-seq-grid { order: 2; }
+  .instrument-workspace .gb-seq-performance { order: 3; }
   .instrument-workspace .gb-compact-module > header { display: none; }
   .instrument-workspace .gb-compact-module:not(:first-child) { display: none; }
 }
