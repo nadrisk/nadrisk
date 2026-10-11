@@ -322,7 +322,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const n = worklet("nad-ngate"); input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "attack", "hold", "release", "range"]);
   } else if (type === "drumbus") {
-    // TRANS (tight <-> open) -> SMASH (1176 all-buttons FET) -> TONE tilt -> CLIP (tape-style: lows hit the clipper first).
+    // TIGHT (tight <-> open) -> SMASH (1176 all-buttons FET) -> TONE tilt -> CLIP (tape-style: lows hit the clipper first).
     const n = worklet("nad-transient"), sm = worklet("nad-smash"), tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), emph = ctx.createBiquadFilter(), drive = ctx.createGain(), sh = ctx.createWaveShaper(), de = ctx.createBiquadFilter(), roll = ctx.createBiquadFilter(), post = ctx.createGain();
     tl.type = "lowshelf"; th.type = "highshelf"; tl.frequency.value = th.frequency.value = 800; emph.type = de.type = "lowshelf"; emph.frequency.value = de.frequency.value = 160; roll.type = "lowpass"; roll.Q.value = .5;
     sh.oversample = eco ? "none" : "2x"; nodes.push(tl, th, emph, drive, sh, de, roll, post);
