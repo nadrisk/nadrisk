@@ -59,9 +59,13 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     // Keep the currently playing loop alive during its fade; no new voice is triggered on lift.
     fade.gain.cancelScheduledValues(at);
     fade.gain.setTargetAtTime(0, at, Math.max(.001, releaseR) / 3 + .001);
-    void entry.node.schedule({ output: endAt, outputTime: endAt, active: false });
+     // schedule() advances its internal map to outputTime immediately. Booking a
+     // future stop here would discard the active segment before it ever sounds.
     if (timer !== undefined) clearTimeout(timer);
-    timer = window.setTimeout(cleanup, Math.max(0, (endAt - ctx.currentTime) * 1000) + 80);
+     timer = window.setTimeout(() => {
+       if (entry) void entry.node.schedule({ output: ctx.currentTime, active: false });
+       cleanup();
+     }, Math.max(0, (endAt - ctx.currentTime) * 1000) + 80);
   };
   const launch = (ready: Entry) => {
     entry = ready;
@@ -70,8 +74,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-    // This library version needs outputTime as well as output to retain future changes.
-    void ready.node.schedule({ output: at, outputTime: at, active: true, input: timing.start, rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
+     void ready.node.schedule({ output: at, active: true, input: timing.start, rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
     scheduleRelease();
   };
   const available = pool.entries.find(e => !e.busy);
@@ -80,6 +83,6 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
   return {
     stop: at => { cancelled = true; releaseAt = at; releaseR = .005; endAt = at + .04; scheduleRelease(); },
     release: (at, r) => { const end = at + Math.max(.001, r) * 1.5 + .06; if (end >= endAt) return; releaseAt = at; releaseR = r; endAt = end; scheduleRelease(); },
-    glide: (delta, at) => { if (entry) { void entry.node.schedule({ output: at, outputTime: at, semitones: p.pitch + delta }); scheduleRelease(); } },
+     glide: (delta, at) => { if (entry) { void entry.node.schedule({ output: at, semitones: p.pitch + delta }); scheduleRelease(); } },
   };
 }
