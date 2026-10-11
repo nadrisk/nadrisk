@@ -898,6 +898,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .device-panel .px-wrap {
     position: relative; z-index: 2; width: 100%; max-width: none; margin: 0 !important; border: 0 !important;
     padding: 0; overflow: visible; contain: layout;
+    background: linear-gradient(to bottom, hsl(var(--foreground)) 0 calc(9px * var(--device-scale)), hsl(var(--background)) calc(9px * var(--device-scale)) 100%) !important;
   }
   .instrument-workspace .device-panel .px-screen {
     width: calc(128px * var(--device-scale)) !important;
