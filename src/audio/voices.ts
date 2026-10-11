@@ -13,7 +13,7 @@ export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests; /** true = restart on every note; default free-running per pad. */ retrig?: boolean };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number; grainDens?: number; grainRnd?: number; gLfoRate?: number; gLfoAmt?: number; gLfoShape?: "sin" | "tri" | "sqr" | "rnd" };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -299,25 +299,33 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
     glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
-// Granular budget: one shared Hann window, at most 12 grains sounding at once across all pads, at most ~25 grains/s per voice.
+// Granular budget: one shared Hann window, at most 16 grains sounding at once across all pads, at most 40 grains/s per voice.
 const HANN = (() => { const c = new Float32Array(new ArrayBuffer(64 * 4)); for (let i = 0; i < 64; i++) c[i] = .7 * Math.sin(Math.PI * i / 63) ** 2; return c; })();
 let liveGrains = 0;
 /** Light granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
 export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   let stopAt = adsr(amp.gain, t, p.env, gate, vel);
-  const size = Math.max(.03, p.grainSize ?? .08), hop = Math.max(.04, size / 2), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
-  let next = t, pos = p.start * buf.duration;
+  const size = Math.max(.02, p.grainSize ?? .08), hop = 1 / Math.max(2, Math.min(40, p.grainDens ?? 12)), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
+  const D = buf.duration, lo = p.start * D, hi = Math.max(lo + size, (p.end ?? 1) * D), rnd = p.grainRnd ?? 0;
+  const lRate = p.gLfoRate ?? 0, lAmt = p.gLfoAmt ?? 0, shp = p.gLfoShape ?? "sin";
+  // Free-running LFO read from the audio clock, so its phase continues across notes.
+  const lfo = (at: number) => { const ph = at * lRate, f = ph - Math.floor(ph);
+    if (shp === "tri") return 1 - 4 * Math.abs(f - .5); if (shp === "sqr") return f < .5 ? 1 : -1;
+    if (shp === "rnd") { const x = Math.sin(Math.floor(ph) * 12.9898) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; } return Math.sin(2 * Math.PI * f); };
+  let next = t, pos = lo;
   const pump = () => {
     const horizon = ctx.currentTime + .12;
     while (next < horizon && next < stopAt) {
-      if (liveGrains >= 12) { next += hop; continue; }
-      const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = buf; src.playbackRate.value = rate;
+      if (liveGrains >= 16) { next += hop; continue; }
+      const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = buf;
+      src.playbackRate.value = rate * 2 ** ((Math.random() * 2 - 1) * rnd / 12);
       g.gain.value = 0; g.gain.setValueCurveAtTime(HANN, next, size); liveGrains++;
       src.connect(g).connect(amp);
-      const off = Math.max(0, Math.min(buf.duration - .01, pos + (Math.random() * 2 - 1) * spray * Math.min(1, buf.duration) * .5));
+      const c = pos + (lAmt > 0 && lRate > 0 ? lfo(next) * lAmt * .5 * D : 0) + (Math.random() * 2 - 1) * spray * Math.min(1, D) * .5;
+      const off = Math.max(0, Math.min(D - .01, c));
       src.start(next, off); src.stop(next + size + .01); src.onended = () => { liveGrains--; src.disconnect(); g.disconnect(); };
-      next += hop; if (!p.freeze) { pos += hop * .5; if (pos > buf.duration - size) pos = p.start * buf.duration; }
+      next += hop; if (!p.freeze) { pos += hop * .5 * rate; if (pos > hi - size) pos = lo; }
     }
     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => amp.disconnect(), Math.max(0, (stopAt - ctx.currentTime) * 1000) + 300); }
   };

@@ -16,6 +16,8 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
   const M = (p: Partial<typeof sm>) => onChange({ sampler: { ...sm, ...p } });
   const [page, setPage] = useState<Page>("SMP");
   const [readout, setReadout] = useState("");
+  const [lfoView, setLfoView] = useState(false);
+  const SHP = ["sin", "tri", "sqr", "rnd"] as const;
   const show = (s: string) => setReadout(s);
 
   type K = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
@@ -38,10 +40,17 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k], min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
     fmt: k === "s" ? pct : ms, set: (v: number) => M({ env: { ...env, [k]: v } }),
   })) : [
-    { label: "Position", short: "POS", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: start => M({ start }) },
-    { label: "Grain size", short: "SIZE", value: sm.grainSize ?? .08, min: .01, max: .4, step: .005, fmt: ms, set: grainSize => M({ grainSize }) },
-    { label: "Spray", short: "SPRY", value: sm.spray ?? .1, min: 0, max: 1, step: .01, fmt: pct, set: spray => M({ spray }) },
-    { label: "Pitch", short: "PTCH", value: sm.pitch, min: -24, max: 24, step: 1, fmt: v => `${v > 0 ? "+" : ""}${v}ST`, set: pitch => M({ pitch }) },
+    ...(lfoView ? [
+      { label: "Grain LFO rate", short: "RATE", value: sm.gLfoRate ?? 0, min: 0, max: 8, step: .01, fmt: (v: number) => v > 0 ? `${v.toFixed(2)}HZ` : "OFF", set: (gLfoRate: number) => M({ gLfoRate }) },
+      { label: "Grain LFO amount", short: "AMT", value: sm.gLfoAmt ?? 0, min: 0, max: 1, step: .01, fmt: pct, set: (gLfoAmt: number) => M({ gLfoAmt }) },
+      { label: "Grain LFO shape", short: "SHP", value: SHP.indexOf(sm.gLfoShape ?? "sin"), min: 0, max: 3, step: 1, fmt: (v: number) => SHP[Math.round(v)].toUpperCase(), set: (v: number) => M({ gLfoShape: SHP[Math.round(v)] }) },
+      { label: "Grain random pitch", short: "RND", value: sm.grainRnd ?? 0, min: 0, max: 12, step: .1, fmt: (v: number) => `${v.toFixed(1)}ST`, set: (grainRnd: number) => M({ grainRnd }) },
+    ] : [
+      { label: "Position", short: "POS", value: sm.start, min: 0, max: .95, step: .005, fmt: pct, set: (start: number) => M({ start }) },
+      { label: "Grain size", short: "SIZE", value: sm.grainSize ?? .08, min: .02, max: .4, step: .005, fmt: ms, set: (grainSize: number) => M({ grainSize }) },
+      { label: "Grain density", short: "DENS", value: sm.grainDens ?? 12, min: 2, max: 40, step: 1, fmt: (v: number) => `${v}/S`, set: (grainDens: number) => M({ grainDens }) },
+      { label: "Spray", short: "SPRY", value: sm.spray ?? .1, min: 0, max: 1, step: .01, fmt: pct, set: (spray: number) => M({ spray }) },
+    ]),
   ];
 
   const wave = (p: Px, x0: number, y0: number, w: number, h: number) => {
@@ -95,15 +104,18 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     } else {
       p.box(2, 11, 21, 7); if (sm.grain) p.invert(3, 12, 19, 5); p.text("GRN", 6, 12, !sm.grain);
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
+      p.box(48, 11, 21, 7); if (lfoView) p.invert(49, 12, 19, 5); p.text("LFO", 52, 12, !lfoView);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
       const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
       p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 125 - Math.max(3, gx - sp)), 24, true);
+      // LFO sweep range drawn as a bracket under the grain window.
+      const la = Math.round((sm.gLfoAmt ?? 0) * 61); if (la > 0 && (sm.gLfoRate ?? 0) > 0) { const l0 = Math.max(3, gx - la), l1 = Math.min(124, gx + la); p.line(l0, 43, l1, 43); p.line(l0, 41, l0, 43); p.line(l1, 41, l1, 43); }
     }
     knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 58); });
   };
 
   return <div className="px-panel">
-    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, readout, slot.name, slot.level, slot.pan, sm, peaks]}>
+    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks]}>
       {PAGES.map((pg, i) => <Tap key={pg} x={68 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />
@@ -117,10 +129,11 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       {page === "GRN" && <>
         <Tap x={2} y={10} w={21} h={9} label="Grain mode" pressed={!!sm.grain} onClick={() => M({ grain: !sm.grain })} />
         <Tap x={25} y={10} w={21} h={9} label="Grain freeze" pressed={!!sm.freeze} disabled={!sm.grain} onClick={() => M({ freeze: !sm.freeze })} />
+        <Tap x={48} y={10} w={21} h={9} label="Grain LFO page" pressed={lfoView} onClick={() => setLfoView(v => !v)} />
       </>}
       {page !== "ENV" && page !== "STR" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
-      {knobs.map((k, i) => <Zone key={page + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />)}
+      {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} onChange={v => { k.set(v); show(`${k.short} ${k.fmt(v)}`); }} />)}
     </PixelScreen>
   </div>;
 }
