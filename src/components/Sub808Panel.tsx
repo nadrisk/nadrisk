@@ -11,6 +11,7 @@ const PAGES = ["PTCH", "AMP", "WGT"] as const;
 function Sub808Panel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const b = slot.bass;
   const B = (p: Partial<typeof b>) => onChange({ bass: { ...b, ...p } });
+  const noteK = useNoteKnob(slot, onChange, 20, 60);
 
   const knobs = (page: string): Knob[] => {
     if (page === "PTCH") return [
