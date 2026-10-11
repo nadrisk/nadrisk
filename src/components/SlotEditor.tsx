@@ -12,8 +12,8 @@ import LibraryScreen from "@/components/LibraryScreen";
 function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler;
   return <div className="node-body gb-editor-body">
-    <SlotScreen slot={slot} onChange={onChange} />
-    <div className="gb-ed-main">
+    <div className="gb-ed-slot"><SlotScreen slot={slot} onChange={onChange} /></div>
+    <div className="gb-ed-main gb-ed-device">
       {slot.engine === "drum" && <DrumkitPanel slot={slot} onChange={onChange} />}
       {slot.engine === "synth" && <CyberspacePanel slot={slot} onChange={onChange} />}
       {slot.engine === "808" && <Sub808Panel slot={slot} onChange={onChange} />}
@@ -21,7 +21,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       {slot.engine === "poly" && <EnsemblePanel slot={slot} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
     </div>
-    <div className="gb-ed-sub">
+    <div className="gb-ed-sub gb-ed-device">
       <ChannelEqScreen slot={slot} onChange={onChange} />
       {slot.engine === "sampler" && <LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} />}
       {(slot.engine === "sampler" || slot.engine === "poly") && <ChordScreen slot={slot} onChange={onChange} />}
