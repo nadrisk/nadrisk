@@ -108,7 +108,6 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     { s: `CPY>${bank ? "A" : "B"}`, label: "Copy pattern", x: 1, y: 22, w: 31, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 33, y: 22, w: 31, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 65, y: 22, w: 31, on: false, fn: clear },
-    { s: "RST", label: "Reset all", x: 97, y: 22, w: 30, on: false, fn: reset },
   ];
   const hint = view === "mod" ? "DRAG LIT STEPS TO SET AMOUNT" : view === "vel" ? "DRAG LIT STEPS FOR VELOCITY" : view === "chance" ? "DRAG LIT STEPS FOR CHANCE" : view === "roll" ? "DRAG A STEP TO SPLIT IT" : "TAP HIT > TIE > OFF";
   return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[bank ? "B" : "A"]} deps={[bank, queued, view]} knobs={() => []}
