@@ -16,9 +16,13 @@
 - Old sets that used sine, triangle, saw or square load as the matching recipe, so they sound almost the same.
 - One difference to listen for: because each recipe uses 16 partials, SAW and SQR are slightly softer at the very top than the old built-in waves.
 
-## 4. FM between additive oscillators
-- Likely cause (not confirmed yet): the new additive loudness balancing makes O2's waveform much quieter. When O2 is used to modulate O1 (FM), that leaves almost no FM.
-- Confirm by measuring first, then size the FM depth from O2's real peak level so that FM amount sounds the same whatever wave O2 uses.
+## 4. FM works like Serum's "FM from B"
+- How it works today: the amount of FM is multiplied by O2's volume. So turning O2 down, the usual Serum technique, also turns the FM off. The additive balancing also makes O2 quieter, which weakens FM even more.
+- New behaviour:
+  - **FM mode:** O2 is never heard on its own and only shapes O1. O2's GAIN stops controlling how much FM there is, so you can turn O2 all the way down and the FM sound stays. The FM knob is the only control for depth.
+  - **MIX mode:** both oscillators play together at their GAIN levels, as now.
+- The FM follows O2's pitch. It works like phase modulation, the way Serum does it: FM depth grows with O2's pitch ratio, so the tone stays consistent across the keyboard and when you change O2's PTCH.
+- O2's real peak level is used when sizing the depth, so FM is equally strong whichever wave or partial recipe O2 uses.
 
 ## 5. Filter envelope also moves FM
 - On the ENV page with the FLT tab open, there will be two amount strips at the top: **CUT** (the current one) and **FM** (new, 0–100%).
