@@ -844,3 +844,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-perf-mutes button { aspect-ratio: 1; min-height: 0; font-size: 9px; }
 .instrument-workspace .gb-perf-live button[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .instrument-workspace .gb-perf-banks button.queued { border-style: dashed; outline: 1px dashed hsl(var(--foreground)); outline-offset: -5px; }
+/* Live strip shows only real state: no press-invert flash (iOS) — a touch draws an inner outline instead. */
+.instrument-workspace .gb-perf-live button { touch-action: none; -webkit-tap-highlight-color: transparent; }
+.instrument-workspace:not([data-lcd="studio"]) .gb-perf-live button:active:not([aria-pressed="true"]):not(.active) { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; }
+.instrument-workspace .gb-perf-live button.touching { outline: 2px solid hsl(var(--foreground)); outline-offset: -6px; }
+.instrument-workspace .gb-perf-live button.touching[aria-pressed="true"] { outline-color: hsl(var(--background)); }
