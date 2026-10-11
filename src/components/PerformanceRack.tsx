@@ -11,7 +11,8 @@ const CMODES = ["pad", "block", "strum", "arp"] as const;
 const DIVS: [number, string][] = [[1, "1/4"], [.5, "1/8"], [.25, "1/16"], [.125, "1/32"]];
 const LOOPS = [0, 1, 2, 4, 8];
 
-export default function PerformanceRack({ value, onChange }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void }) {
+type PadInfo = { name: string; mute: boolean };
+export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
@@ -110,5 +111,14 @@ export default function PerformanceRack({ value, onChange }: { value: Performanc
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
     </> : null} />
   <button type="button" className="gb-perf-reset" aria-label="Reset performance" onPointerDown={e => { e.preventDefault(); reset(); }} onClick={reset} onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); reset(); } }}>RESET · DROP</button>
+  {/* Live strip: pattern launch (switches on the next bar) and one mute key per pad, same mutes as the mixer. */}
+  <div className="gb-perf-live">
+    <div className="gb-perf-banks" role="group" aria-label="Performance pattern">
+      {["A", "B", "C", "D"].map((n, b) => <button key={n} type="button" aria-label={`Performance pattern ${n}`} aria-pressed={bank === b} className={queued === b ? "queued" : ""} onClick={() => selectBank(b)}>{queued === b ? `${n}>` : n}</button>)}
+    </div>
+    <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
+      {pads.map((pd, i) => <button key={i} type="button" aria-label={`Mute pad ${i + 1}${pd.name ? ` ${pd.name}` : ""}`} aria-pressed={!pd.mute} title={pd.name || String(i + 1)} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+    </div>
+  </div>
   </div>;
 }
