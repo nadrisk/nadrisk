@@ -6,9 +6,9 @@ import type { PerformanceParams } from "@/audio/performance";
 import type { MasterMeter } from "@/hooks/useGroovebox";
 
 export const pkey = (p: Px, s: string, x: number, y: number, w: number, on: boolean, h = 9) => { if (on) p.rect(x, y, w, h); else p.box(x, y, w, h); p.textC(s, x + w / 2, y + Math.floor((h - 5) / 2), !on); };
-type K = { s: string; label: string; x: number; y: number; w: number; on: boolean; fn: () => void; disabled?: boolean };
-const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w, k.on));
-const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
+type K = { s: string; label: string; x: number; y: number; w: number; on: boolean; fn: () => void; disabled?: boolean; h?: number };
+const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w, k.on, k.h));
+const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={k.h ?? 9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
 export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
@@ -105,18 +105,18 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
 }) {
   const views = ["note", "vel", "chance", "roll", "mod"];
   const ks: K[] = [
-    ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 9, y: 11, w: 8, on: bank === b, fn: () => selectBank(b) })),
-    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 38 + i * 18, y: 11, w: 17, on: view === v, fn: () => setView(v) })),
-    { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 22, w: 25, on: false, fn: copy },
-    { s: "RAND", label: "Random pattern", x: 27, y: 22, w: 25, on: false, fn: () => random(view) },
-    { s: "CLR", label: "Clear pattern", x: 53, y: 22, w: 24, on: false, fn: clear },
-    { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 78, y: 22, w: 24, on: playing, fn: onPlay },
-    { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 103, y: 22, w: 24, on: paused, fn: onPause },
-    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 78, y: 33, w: 24, on: false, disabled: !canUndo, fn: undo },
-    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 103, y: 33, w: 24, on: false, disabled: !canRedo, fn: redo },
+    ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 11, w: 30, h: 10, on: bank === b, fn: () => selectBank(b) })),
+    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 1 + i * 25, y: 22, w: i === 4 ? 26 : 24, h: 10, on: view === v, fn: () => setView(v) })),
+    { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 33, w: 24, h: 10, on: false, fn: copy },
+    { s: "RAND", label: "Random pattern", x: 26, y: 33, w: 24, h: 10, on: false, fn: () => random(view) },
+    { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: clear },
+    { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 76, y: 33, w: 25, h: 10, on: playing, fn: onPlay },
+    { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 102, y: 33, w: 25, h: 10, on: paused, fn: onPause },
+    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 44, w: 62, h: 10, on: false, disabled: !canUndo, fn: undo },
+    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 65, y: 44, w: 62, h: 10, on: false, disabled: !canRedo, fn: redo },
   ];
   const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : "HIT>TIE>OFF";
   return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[BANK_NAMES[bank]]} deps={[bank, queued, view, playing, paused, canUndo, canRedo]} knobs={() => []}
-    body={p => { drawKeys(p, ks); p.text(hint, 2, 35); }}
+    body={p => { drawKeys(p, ks); p.textC(hint, 64, 56); }}
     extra={() => keyZones(ks)} /></div>;
 }

@@ -114,10 +114,13 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   {/* Live strip: pattern launch (switches on the next bar) and one mute key per pad, same mutes as the mixer. */}
   <div className="gb-perf-live">
     <div className="gb-perf-banks" role="group" aria-label="Performance pattern">
-      {["A", "B", "C", "D"].map((n, b) => <button key={n} type="button" aria-label={`Performance pattern ${n}`} aria-pressed={bank === b} className={queued === b ? "queued" : ""} onClick={() => selectBank(b)}>{queued === b ? `${n}>` : n}</button>)}
+      {["A", "B", "C", "D"].map((n, b) => {
+        const active = bank === b, waiting = queued === b;
+        return <button key={n} type="button" aria-label={`Performance pattern ${n}${waiting ? ", queued for next bar" : active ? ", active" : ""}`} aria-pressed={active} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
+      })}
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
-      {pads.map((pd, i) => <button key={i} type="button" aria-label={`Mute pad ${i + 1}${pd.name ? ` ${pd.name}` : ""}`} aria-pressed={!pd.mute} title={pd.name || String(i + 1)} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      {pads.map((pd, i) => <button key={i} type="button" aria-label={`${pd.mute ? "Unmute" : "Mute"} pad ${i + 1}${pd.name ? ` ${pd.name}` : ""}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
     </div>
   </div>
   </div>;
