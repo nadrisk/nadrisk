@@ -17,14 +17,15 @@ DESKTOP RACK — horizontal scroll only when needed
 ```
 
 - Use one level desktop rail with aligned top and bottom edges instead of the current pads-above-workspaces stack.
-- Keep the drum rack first, the selected slot editor second, then a narrow vertical utility selector, then a flexible utility bay.
+- Keep the drum rack first, a compact selected-slot stack second, then a narrow vertical utility selector, then a flexible utility bay.
+- Keep SLOT, instrument, and INSERT at their natural 128×64 hardware size, stacked tightly without stretching to fill the rack height or column width.
 - Give the rack a controlled hardware height and stable column widths so panels do not stretch into oversized windows.
 - Let the rack scroll horizontally inside the groovebox when the available screen is narrower than the complete rack; keep the page itself stable.
 - Keep the heading and status footer outside the rail so transport, theme, About, and status remain easy to reach.
 
 ## Smart utility bay
 - Do not stretch a small 128×64 device merely because the utility bay is wide.
-- Small utilities use a three-module vertical stack, matching the selected instrument stack and keeping each display at a natural hardware size.
+- Small utilities use a three-module vertical stack, matching the compact selected-instrument stack and keeping each display at its natural 128×64 hardware size.
 - The selector chooses which compact modules occupy that stack, so related tools can remain visible together instead of replacing the entire bay one at a time.
 - Pair **SEQ + PERF** as a dedicated composition/performance workspace: the sequencer receives the wide area it needs, with the performance rack kept alongside or directly beneath it as one coherent working setup.
 - **Mixer:** use the complete bay width and show all 16 channels in one desktop bank; retain 8-channel paging on smaller screens.
