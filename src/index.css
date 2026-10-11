@@ -832,3 +832,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace:not([data-lcd="studio"]) .gb-perf-live button:active:not([aria-pressed="true"]):not(.active) { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; }
 .instrument-workspace .gb-perf-live button.touching { outline: 2px solid hsl(var(--foreground)); outline-offset: -6px; }
 .instrument-workspace .gb-perf-live button.touching[aria-pressed="true"] { outline-color: hsl(var(--background)); }
+
+.about-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: hsl(var(--background) / 0.85); }
+.about-dialog { position: relative; width: min(720px, 100%); max-height: 100%; overflow: auto; background: hsl(var(--background)); user-select: text; -webkit-user-select: text; }
+.about-dialog .about-section { margin: 0; }
+.about-close { position: absolute; top: 6px; right: 6px; }
