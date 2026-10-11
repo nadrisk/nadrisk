@@ -1,7 +1,7 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
+import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
@@ -26,8 +26,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const base: Knob[] = [
         { label: `${k} gain`, short: "GAIN", value: o.gain, min: 0, max: 1, step: .01, fmt: pct, set: gain => set({ gain }) },
         // O1 carries the pad's root NOTE; O2 keeps its PTCH as the interval to osc 1.
-        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, fmt: st, set: coarse => set({ coarse }) },
-        { label: `${k} fine`, short: "FINE", value: o.fine, min: -50, max: 50, step: 1, fmt: v => `${Math.round(v)}CT`, set: fine => set({ fine }) },
+        k === "osc1" ? noteK : { label: `${k} pitch`, short: "PTCH", value: o.coarse, min: -24, max: 24, step: 1, bare: true, fmt: v => `P${st(v)}`, set: coarse => set({ coarse }) },
+        { label: `${k} fine`, short: "FINE", value: Math.max(-50, Math.min(50, o.fine)), min: -50, max: 50, step: 1, bare: true, fmt: v => `F${fineSt(v)}`, set: fine => set({ fine }) },
       ];
       if (k === "osc2") base.push({ label: "FM amount", short: "FM", value: s.osc2.fmAmount, min: 0, max: 10, step: .05, fmt: v => v.toFixed(1), set: fmAmount => S({ osc2: { ...s.osc2, fmAmount } }) });
       else base.push({ label: "Noise", short: "NOIZ", value: s.noise, min: 0, max: 1, step: .01, fmt: pct, set: noise => S({ noise }) });
@@ -36,8 +36,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "FLT") return [
       { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => S({ cutoff }) },
       { label: "Resonance", short: "RES", value: s.res, min: .1, max: 20, step: .1, fmt: v => v.toFixed(1), set: res => S({ res }) },
-      { label: "Filter env", short: "FENV", value: s.filterEnv, min: -4, max: 4, step: .1, fmt: v => `${v > 0 ? "+" : ""}${v.toFixed(1)}`, set: filterEnv => S({ filterEnv }) },
-      { label: "Env decay", short: "FDEC", value: s.filterDecay, min: .005, max: 2, step: .005, fmt: ms, set: filterDecay => S({ filterDecay }) },
+      // FENV is 0-100% of a 4-octave sweep; FDEC was removed because the FLT ADSR owns the envelope shape.
+      { label: "Filter env", short: "FENV", value: Math.max(0, s.filterEnv) / 4, min: 0, max: 1, step: .01, fmt: pct, set: v => S({ filterEnv: v * 4 }) },
     ];
     if (page === "LFO") return lfoPage === "SHP" ? [
       { label: "LFO rate", short: "RATE", value: s.lfo.rate, min: .05, max: 20, step: .05, fmt: v => `${v.toFixed(1)}HZ`, set: rate => S({ lfo: { ...s.lfo, rate } }) },
@@ -145,7 +145,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     </>;
     if (page === "ENV") return <>
       {envPage === "PIT" && <Zone x={2} y={10} w={55} h={7} label="Pitch envelope amount" value={s.pitchEnv} min={-24} max={24} step={1} onChange={pitchEnv => S({ pitchEnv })} />}
-      {envPage === "FLT" && <Zone x={2} y={10} w={55} h={7} label="Filter envelope amount" value={s.filterEnv} min={-4} max={4} step={.1} onChange={filterEnv => S({ filterEnv })} />}
+      {envPage === "FLT" && <Zone x={2} y={10} w={55} h={7} label="Filter envelope amount" value={Math.max(0, s.filterEnv)} min={0} max={4} step={.04} onChange={filterEnv => S({ filterEnv })} />}
       {(["AMP", "PIT", "FLT"] as const).map((k, i) => <Tap key={k} x={61 + i * 21} y={10} w={20} h={7} label={`${k} envelope`} pressed={envPage === k} onClick={() => setEnvPage(k)} />)}
       <EnvZones env={selectedEnv} set={setSelectedEnv} y0={16} h={27} />
     </>;
