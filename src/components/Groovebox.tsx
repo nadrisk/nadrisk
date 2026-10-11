@@ -23,7 +23,6 @@ import Waveform from "./Waveform";
 import SetBank from "./SetBank";
 import PerformanceRack from "./PerformanceRack";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
-import VisualizerRack from "./VisualizerRack";
 import type { StepVal } from "@/hooks/useGroovebox";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import { DISPLAY_THEMES, nextDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
@@ -186,9 +185,9 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   </div>;
 });
 const DESKTOP_MQ = "(min-width: 1024px) and (pointer: fine)";
-const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "vis", "sets", "midi"] as const;
+const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "sets", "midi"] as const;
 type Utility = typeof UTILITIES[number];
-const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", vis: "VIS", sets: "MEM", midi: "MIDI" };
+const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", sets: "MEM", midi: "MIDI" };
 function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
@@ -225,15 +224,14 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     perf: seqPerformancePanel,
     tape: <TapeDeck getSource={tapSource} />,
     midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
-    vis: <VisualizerRack master={g.engine.current?.performance.output ?? null} eco={g.eco} theme={theme} />,
     sets: <SetBank getSet={g.getSet} applySet={g.applySet} />,
   };
-  const compactUtilities: Utility[] = ["phrase", "master", "tape", "vis", "sets", "midi"];
+  const compactUtilities: Utility[] = ["phrase", "master", "tape", "sets", "midi"];
   const compactAt = compactUtilities.indexOf(utility);
   const utilityContent = compactAt < 0 ? utilityPanels[utility] : <div className="gb-compact-stack">{[0, 1, 2].map(offset => { const key = compactUtilities[(compactAt + offset) % compactUtilities.length]; return <section className="gb-compact-module" key={key}><header>{UTILITY_LABELS[key]}</header>{utilityPanels[key]}</section>; })}</div>;
   const desktopDevices = <div className="gb-device-surface">
     <section className="gb-device-module device-fx">{utilityPanels.fx}</section>
-    <section className="gb-device-module device-master"><div>{utilityPanels.master}</div><div className="gb-master-vis">{utilityPanels.vis}</div></section>
+    <section className="gb-device-module device-master">{utilityPanels.master}</section>
     <section className="gb-device-module device-memory">{utilityPanels.sets}</section>
     <section className="gb-device-module device-phrase">{utilityPanels.phrase}</section>
     <section className="gb-device-module device-tape">{utilityPanels.tape}</section>
