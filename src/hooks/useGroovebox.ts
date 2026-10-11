@@ -5,6 +5,7 @@ import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, t
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
+import { playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
 import { CHORDS, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
@@ -205,7 +206,6 @@ export function useGroovebox() {
     // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
     const samplerRun = (sm: SamplerParams, dur: number, semi: number, offset: number, factor: number): SamplerParams => {
       const base = { ...sm, env: scaledEnv(sm.env, factor), pitch: sm.pitch + semi + offset };
-      if (sm.warp) { const beats = sm.beats || guessBeats(dur, bpmRef.current); Object.assign(base, { stretch: true, stretchAmt: Math.max(.25, Math.min(4, beats * 60 / bpmRef.current / dur)) }); }
       const n = Math.round(sm.slices ?? 0);
       if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sm.pitch + offset }); }
       return base;
@@ -218,7 +218,7 @@ export function useGroovebox() {
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const voices = ns.map((offset, k) => s.engine === "808" ? play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel)
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
-        : s.engine === "sampler" ? (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length))
+        : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: s.sampler.pitch + semi + offset }, buf, at(k), gk(k), bpmRef.current, vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length)))
         : s.engine === "poly" ? null
         : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel, e.lfos[i])
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel, e.lfos[i]));
@@ -448,7 +448,8 @@ export function useGroovebox() {
       if (s.engine !== "sampler" || s.sampler.grain) return;
       const raw = buffers.current[i]; if (!raw) return;
       const buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw, sm = s.sampler;
-      const amt = sm.warp ? Math.max(.25, Math.min(4, (sm.beats || guessBeats(raw.duration, bpm)) * 60 / bpm / raw.duration)) : sm.stretch ? sm.stretchAmt ?? 1 : 1;
+      if (sm.warp) { void prepareBreak(e.ctx, buf).catch(() => setError("Break playback could not load. Try selecting BRK again.")); return; }
+      const amt = sm.stretch ? sm.stretchAmt ?? 1 : 1;
       if (Math.abs(amt - 1) > .01) stretchBuffer(e.ctx, buf, amt, sm.stretchGrain ?? .05);
     }));
     return () => { (window as unknown as { cancelIdleCallback?: (n: number) => void }).cancelIdleCallback?.(id); clearTimeout(id); };
