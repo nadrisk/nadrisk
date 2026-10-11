@@ -12,7 +12,7 @@ export const hz = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${M
 export const fineSt = (cents: number) => { const v = Math.round(cents) / 100; return `${v > 0 ? "+" : v < 0 ? "-" : ""}${Math.abs(v).toFixed(2)}`; };
 export const st = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}ST`;
 
-export type Knob = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void; log?: boolean; bare?: boolean };
+export type Knob = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void; log?: boolean; bare?: boolean; /** Double-tap home value. */ reset?: number };
 
 // Measured tab layout: each tab is as wide as its word plus padding, right-aligned with 1px gaps.
 export function tabLayout(pages: readonly string[]) {
@@ -41,7 +41,7 @@ export function drawKnobs(p: Px, knobs: Knob[]) {
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.

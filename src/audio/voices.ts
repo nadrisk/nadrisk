@@ -8,14 +8,14 @@ export type DrumMachine = { pAtk?: number; pCurve?: number; pEnd?: number; fmDec
 export type DrumParams = DrumMachine & { kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 /** partials2 gives oscillator 2 its own additive shape; older sets without it fall back to partials. */
-export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: SynthLfo };
+export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: SynthLfo; /** Filter envelope -> FM index, 0-1. */ fenvFm?: number };
 /** dests/attack are optional so older sets (single depth + target) still load; lfoDests() fills them. */
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests; /** true = restart on every note; default free-running per pad. */ retrig?: boolean };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; breakDouble?: boolean; sampleBpm?: number; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number; grainDens?: number; grainRnd?: number; gLfoRate?: number; gLfoAmt?: number; gLfoShape?: "sin" | "tri" | "sqr" | "rnd"; sampleKey?: number; fine?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
-export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void };
+export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams>) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
@@ -158,7 +158,13 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
   return finish(srcs, nodes, end, amp);
 }
 
-export function partialWave(ctx: BaseAudioContext, partials: number[]) {
+// PeriodicWaves are cached per context and partial recipe (built once on edit, never per hit), with their real peak
+// so FM depth can be sized independently of how loud a recipe is.
+const waveCache = new WeakMap<BaseAudioContext, Map<string, { wave: PeriodicWave; peak: number }>>();
+export function partialWaveInfo(ctx: BaseAudioContext, partials: number[]) {
+  const key = partials.slice(0, 16).map(v => Math.round(v * 100)).join(",");
+  let m = waveCache.get(ctx); if (!m) { m = new Map(); waveCache.set(ctx, m); }
+  const hit = m.get(key); if (hit) return hit;
   const real = new Float32Array(17), imag = new Float32Array(17);
   // Harmonic additive: index i = harmonic i+1 at (i+1) x the root. Bars are perceptual (squared to amplitude) and the
   // wave is normalised to a fixed peak budget ourselves, so raising one partial adds that tone instead of just
@@ -167,8 +173,11 @@ export function partialWave(ctx: BaseAudioContext, partials: number[]) {
   if (!imag.some(v => v > 0)) imag[1] = 1;
   const sum = imag.reduce((a, b) => a + b, 0), g = 1 / Math.max(1, sum);
   for (let i = 1; i < 17; i++) imag[i] *= g;
-  return ctx.createPeriodicWave(real, imag, { disableNormalization: true });
+  let peak = 0; for (let k = 0; k < 512; k++) { let y = 0; for (let h = 1; h < 17; h++) if (imag[h]) y += imag[h] * Math.sin(2 * Math.PI * h * k / 512); peak = Math.max(peak, Math.abs(y)); }
+  const r = { wave: ctx.createPeriodicWave(real, imag, { disableNormalization: true }), peak: Math.max(.05, peak) };
+  if (m.size > 64) m.clear(); m.set(key, r); return r;
 }
+export const partialWave = (ctx: BaseAudioContext, partials: number[]) => partialWaveInfo(ctx, partials).wave;
 
 export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
@@ -180,19 +189,25 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, Math.max(0, p.filterEnv));
   const wet = ctx.createGain(); wet.gain.value = p.wet; const dry = ctx.createGain(); dry.gain.value = 1 - p.wet;
   mix.connect(filt).connect(wet).connect(trem); mix.connect(dry).connect(trem);
-  const makeOsc = (o: OscParams, partials: number[]) => {
+  let peak2 = 1;
+  const makeOsc = (o: OscParams, partials: number[], isMod = false) => {
     const osc = at(ctx.createOscillator(), t);
-    if (o.wave === "additive") osc.setPeriodicWave(partialWave(ctx, partials)); else osc.type = o.wave;
+    if (o.wave === "additive") { const w = partialWaveInfo(ctx, partials); osc.setPeriodicWave(w.wave); if (isMod) peak2 = w.peak; } else osc.type = o.wave;
     osc.frequency.value = base * 2 ** (o.coarse / 12);
     modAdsr(osc.detune, t, p.pitchEnvShape, gate, Math.max(-50, Math.min(50, o.fine)), p.pitchEnv * 100);
     srcs.push(osc); nodes.push(osc); return osc;
   };
-  const o1 = makeOsc(p.osc1, p.partials), o2 = makeOsc(p.osc2, p.partials2 ?? p.partials);
+  const o1 = makeOsc(p.osc1, p.partials), o2 = makeOsc(p.osc2, p.partials2 ?? p.partials, true);
   const g1 = ctx.createGain(); g1.gain.value = p.osc1.gain; o1.connect(g1).connect(mix);
   const g2 = ctx.createGain();
-  if (p.osc2.mode === "fm") { g2.gain.value = p.osc2.fmAmount * base * p.osc2.gain; o2.connect(g2).connect(o1.frequency); }
+  // Serum-style "FM from B": O2 only modulates O1 (never heard) and its GAIN doesn't scale the depth. Depth is a
+  // modulation index: deviation = index x modulator frequency / modulator peak, so the timbre tracks the keyboard and
+  // O2's PTCH like phase modulation, whatever O2's wave. The filter envelope can add index on top (fenvFm).
+  const f2 = base * 2 ** (p.osc2.coarse / 12), fmK = f2 / peak2;
+  if (p.osc2.mode === "fm") { const idx = p.osc2.fmAmount * fmK; if (p.fenvFm) modAdsr(g2.gain, t, p.filterEnvShape, gate, idx, p.fenvFm * 10 * fmK); else g2.gain.value = idx; o2.connect(g2).connect(o1.frequency); }
   else { g2.gain.value = p.osc2.gain; o2.connect(g2).connect(mix); }
-  if (p.noise > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; const ng = ctx.createGain(); ng.gain.value = p.noise; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
+  const ng = ctx.createGain(); ng.gain.value = p.noise; nodes.push(ng); ng.connect(mix);
+  if (p.noise > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
   const ld = lfoDests(p.lfo); let unhook: (() => void) | undefined;
   if (ld.pitch || ld.cutoff || ld.amp || ld.osc1 || ld.osc2) {
     // The pad's free-running LFO is picked up where it is (TRIG mode restarts a per-note one), faded in by
@@ -215,6 +230,16 @@ export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams
   const v = finish(srcs, nodes, end, amp, () => unhook?.());
   // Glide moves both oscillators from their current pitch, so slides start wherever the last one ended.
   v.glide = (delta, at, time) => glideParams([o1.frequency, o2.frequency], delta, at, time);
+  // Held-note tweaks glide over ~20 ms. Cutoff moves via detune so the filter envelope keeps running underneath.
+  let cur = p;
+  v.update = q => { const n = ctx.currentTime, tc = .007, nx = { ...cur, ...q } as SynthParams; cur = nx;
+    if (q.cutoff) filt.detune.setTargetAtTime(1200 * Math.log2(q.cutoff / p.cutoff), n, tc);
+    if (q.res !== undefined) filt.Q.setTargetAtTime(q.res, n, tc);
+    if (q.wet !== undefined) { wet.gain.setTargetAtTime(q.wet, n, tc); dry.gain.setTargetAtTime(1 - q.wet, n, tc); }
+    if (q.noise !== undefined) ng.gain.setTargetAtTime(q.noise, n, tc);
+    if (q.osc1) { g1.gain.setTargetAtTime(q.osc1.gain, n, tc); o1.frequency.setTargetAtTime(base * 2 ** ((q.osc1.coarse + (q.osc1.fine - p.osc1.fine) / 100) / 12), n, tc); }
+    if (q.osc2) { const nf2 = base * 2 ** ((q.osc2.coarse + (q.osc2.fine - p.osc2.fine) / 100) / 12); o2.frequency.setTargetAtTime(nf2, n, tc);
+      if (p.osc2.mode === "fm") { if (!p.fenvFm) g2.gain.setTargetAtTime(q.osc2.fmAmount * nf2 / peak2, n, tc); } else g2.gain.setTargetAtTime(q.osc2.gain, n, tc); } };
   return v;
 }
 
@@ -419,7 +444,13 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
       if (k === 1) { const pwm = at(ctx.createOscillator(), t), pg = ctx.createGain(); pwm.frequency.value = .4; pg.gain.value = p.pulse * 8; pwm.connect(pg).connect(o.detune); srcs.push(pwm); nodes.push(pwm, pg); }
     }
   });
-  return finish(srcs, nodes, adsr(amp.gain, t, p.env, gate, vel * .25), amp);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, p.env, gate, vel * .25), amp);
+  const dets = srcs.filter((o): o is OscillatorNode => o instanceof OscillatorNode && o.detune.value !== 0 && Math.abs(o.detune.value) === p.detune);
+  v.update = q => { const n = ctx.currentTime, tc = .007;
+    if (q.cutoff) { const c = 1200 * Math.log2(q.cutoff / p.cutoff); f1.detune.setTargetAtTime(c, n, tc); f2.detune.setTargetAtTime(c, n, tc); }
+    if (q.res !== undefined) f1.Q.setTargetAtTime(q.res, n, tc);
+    if (q.detune !== undefined) dets.forEach(o => o.detune.setTargetAtTime(Math.sign(o.detune.value) * q.detune!, n, tc)); };
+  return v;
 }
 
 export type SirenParams = { wave: Wave; lfoWave: Wave; rate: number; depth: number; sweep: number; sweepTime: number; release: number; tone: number };

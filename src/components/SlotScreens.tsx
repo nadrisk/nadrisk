@@ -104,15 +104,15 @@ const EQ_FREQS = Float32Array.from({ length: 121 }, (_, i) => 20 * 1000 ** (i / 
 export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const eq = { lowFreq: 100, highFreq: 9000, q: .7, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
   const gainKnobs: Knob[] = [
-    { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
-    { label: "Mid EQ", short: "MID", value: eq.mid, min: -15, max: 15, step: .5, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: mid => set({ mid }) },
-    { label: "High shelf EQ", short: "HIGH", value: eq.high, min: -24, max: 12, step: .5, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: high => set({ high }) },
+    { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, reset: 0, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
+    { label: "Mid EQ", short: "MID", value: eq.mid, min: -15, max: 15, step: .5, reset: 0, fmt: v => `${v > 0 ? "+" : ""}${v}DB`, set: mid => set({ mid }) },
+    { label: "High shelf EQ", short: "HIGH", value: eq.high, min: -24, max: 12, step: .5, reset: 0, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: high => set({ high }) },
   ];
   const freqKnobs: Knob[] = [
-    { label: "Low shelf frequency", short: "LO-F", value: eq.lowFreq, min: 40, max: 500, step: 5, fmt: v => `${Math.round(v)}HZ`, set: lowFreq => set({ lowFreq }) },
-    { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 10000, step: 10, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
-    { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, fmt: v => v.toFixed(1), set: q => set({ q }) },
-    { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
+    { label: "Low shelf frequency", short: "LO-F", value: eq.lowFreq, min: 40, max: 500, step: 5, reset: 100, fmt: v => `${Math.round(v)}HZ`, set: lowFreq => set({ lowFreq }) },
+    { label: "Mid frequency", short: "FREQ", value: eq.midFreq, min: 200, max: 10000, step: 10, reset: 1000, fmt: v => `${Math.round(v)}HZ`, set: midFreq => set({ midFreq }) },
+    { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
+    { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
   return <Panel name="INSERT" label="Channel EQ insert" pages={["LVL", "FRQ"]} deps={[eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : freqKnobs}
     body={p => {
