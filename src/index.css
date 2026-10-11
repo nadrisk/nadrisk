@@ -834,3 +834,13 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Bar-quarter separators: a gap before steps 5, 9 and 13 so grooves read in groups of four. */
 .gb-step.group { margin-left: 4px; }
+
+/* Performance live strip: pattern keys + 16 square pad mute keys (lit = playing), pixel-key styling. */
+.instrument-workspace .gb-perf-live { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.instrument-workspace .gb-perf-banks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.instrument-workspace .gb-perf-mutes { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }
+@media (max-width: 640px) { .instrument-workspace .gb-perf-mutes { grid-template-columns: repeat(8, 1fr); } }
+.instrument-workspace .gb-perf-live button { font-family: 'Silkscreen', monospace; font-size: 11px; border-radius: 0; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); min-height: 34px; cursor: pointer; touch-action: manipulation; padding: 0; }
+.instrument-workspace .gb-perf-mutes button { aspect-ratio: 1; min-height: 0; font-size: 9px; }
+.instrument-workspace .gb-perf-live button[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.instrument-workspace .gb-perf-banks button.queued { border-style: dashed; }
