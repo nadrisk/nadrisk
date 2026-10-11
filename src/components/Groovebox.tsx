@@ -171,9 +171,9 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
     };
     raf = requestAnimationFrame(poll); return () => cancelAnimationFrame(raf);
   }, [getLevels]);
-  return <div className="gb-mixer-workspace" ref={root}>
+  return <div className={`gb-mixer-workspace mixer-page-${page}`} ref={root}>
     <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
-    <div className="gb-mixer">{slots.slice(start, start + 8).map((s, ii) => { const i = start + ii; return <div key={i} data-ch={i} className={`gb-strip ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
+    <div className="gb-mixer">{slots.map((s, i) => <div key={i} data-ch={i} className={`gb-strip gb-strip-page-${Math.floor(i / 8)} ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
       <span className="gb-strip-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-strip-val" title="Peak dBFS">-INF</span>
       <div className="gb-meter" aria-hidden="true">{Array.from({ length: SEGS }, (_, n) => <i key={n} />)}</div>
       <Slider orientation="vertical" aria-label={`${s.name} volume`} min={0} max={100} value={[s.level]} onValueChange={([v]) => onLevel(i, v)} className="gb-vslider" />
@@ -182,7 +182,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
         <button className={`gb-ms ${s.solo ? "s-on" : ""}`} aria-pressed={s.solo} aria-label={`Solo ${s.name}`} onClick={() => onSolo(i)}>S</button>
       </div>
       <button className="gb-strip-name" aria-pressed={selected === i} onClick={() => onSelect(i)}>{s.name || String(i + 1).padStart(2, "0")}</button>
-    </div>; })}</div>
+    </div>)}</div>
   </div>;
 });
 const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "vis", "sets", "midi"] as const;
@@ -210,7 +210,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const utilityPanels: Record<Utility, JSX.Element> = {
     fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} load={fxLoad(g.slots.map(x => x.fx))} />,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} {...(s.engine === "drum" || s.engine === "siren" ? {} : { note: s.note, onNote: (note: number) => g.updateSelected({ note }), noteOf: (deg: number) => s.note + phraseSemi(g.harmony, s.note, s.arp.scale, deg) })} />,
-    seq: <><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></>,
+    seq: <div className="gb-seq-perf"><div className="gb-seq-bay"><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></div><div className="gb-seq-performance"><PerformanceRack value={g.performance} onChange={g.setPerformance} bank={g.bank} queued={g.queued} selectBank={g.selectBank} pads={g.slots.map(x => ({ name: x.name, mute: x.mute }))} toggleMute={g.toggleMute} unmuteAll={g.unmuteAll} /></div></div>,
     mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: <PerformanceRack value={g.performance} onChange={g.setPerformance} bank={g.bank} queued={g.queued} selectBank={g.selectBank} pads={g.slots.map(x => ({ name: x.name, mute: x.mute }))} toggleMute={g.toggleMute} unmuteAll={g.unmuteAll} />,
@@ -228,7 +228,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
       <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
-      <div className={`gb-workspaces ${utility === "seq" ? "seq-wide" : ""}`}>
+      <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
         <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
