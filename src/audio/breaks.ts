@@ -94,7 +94,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     src.connect(amp); const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-    src.start(at, timing.start);
+    src.start(at, 0);
     const poll = () => {
       if (ctx.currentTime < endAt) { window.setTimeout(poll, 50); return; }
       try { src.stop(); } catch { /* already stopped */ } src.disconnect(); cleanup();
