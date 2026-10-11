@@ -929,3 +929,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-compact-module:not(:first-child) { display: none; }
 }
 
+/* Monitor canvases never feed their own size back into layout (stops WebKit resize/reflow loops). */
+.gb-scope, .gb-vis-screen { position: relative; overflow: hidden; min-width: 0; contain: layout size paint; }
+.gb-scope .scope-canvas, .gb-vis-screen .scope-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.px-wrap { min-width: 0; contain: layout paint; }
