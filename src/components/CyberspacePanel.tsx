@@ -7,6 +7,14 @@ import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
 const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
 
+// Classic harmonic recipes (bar = perceived level): saw = all harmonics 1/n, square = odd 1/n, organ drawbars, bell-ish.
+const H = (f: (n: number) => number) => Array.from({ length: 16 }, (_, i) => Math.min(1, Math.sqrt(Math.max(0, f(i + 1)))));
+const PRESETS: [string, number[]][] = [
+  ["SAW", H(n => 1 / n)], ["SQR", H(n => (n % 2 ? 1 / n : 0))], ["ORG", H(n => ([1, 2, 3, 4, 6, 8].includes(n) ? .6 : 0))],
+  ["HOLW", H(n => (n % 2 ? 1 / (n * n) : 0) * 3)], ["BELL", H(n => ([1, 3, 5, 9, 12].includes(n) ? .5 / Math.sqrt(n) : 0))], ["SINE", H(n => (n === 1 ? 1 : 0))],
+];
+const addLabel = (pl: number[]) => PRESETS.find(([, v]) => v.every((x, i) => Math.abs(x - (pl[i] ?? 0)) < .02))?.[0] ?? "USR";
+
 // CYBERSPACE: the synth editor as a 128x64 1-bit hardware screen.
 function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const s = slot.synth;
@@ -101,6 +109,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         const pl = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
         p.box(2, 25, 124, 19, true);
         for (let i = 0; i < 16; i++) { const v = pl[i] ?? 0, bh = Math.round(v * 15); p.rect(4 + i * 7.6, 42 - bh, 4, bh); if (i % 2) p.dot(5 + i * 7.6, 42); }
+        // Octave markers (harmonics 1, 2, 4, 8, 16) show which bars sit on the root's octaves.
+        [0, 1, 3, 7, 15].forEach(i => p.line(5 + i * 7.6, 26, 6 + i * 7.6, 26));
+        p.box(101, 12, 25, 7); p.textC(addLabel(pl), 114, 13);
       } else {
         scope(p, page);
       }
@@ -130,6 +141,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${o.wave}, tap for next`} onClick={() => S({ [k]: { ...o, wave: waves[(idx + 1) % waves.length] } } as Partial<typeof s>)} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {o.wave === "additive" && <>
+          <Tap x={100} y={10} w={27} h={11} label={`${k} partial preset, tap for next`} onClick={() => { const cur = PRESETS.findIndex(([n]) => n === addLabel(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials)); const nx = PRESETS[(cur + 1) % PRESETS.length][1]; S(k === "osc2" ? { partials2: nx } : { partials: nx }); }} />
           {/* Each oscillator owns its partial set: osc2 edits partials2 (seeded from partials once). */}
           <BarDraw x={3} y={26} w={122} h={17} values={(k === "osc2" ? (s.partials2 ?? s.partials) : s.partials).slice(0, 16)}
             onChange={partials => S(k === "osc2" ? { partials2: partials } : { partials })} />
