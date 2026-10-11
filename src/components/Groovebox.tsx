@@ -131,7 +131,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
         onPointerUp={ev => { if (drag2) return up(); const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && t.k === `${r}:${c}` && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); }}
         onPointerCancel={ev => { if (!drag2) { const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); } else up(); }}
         onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
-        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${drag2 ? "mod" : ""}`}>
+        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${c > 0 && c % 4 === 0 ? "group" : ""} ${drag2 ? "mod" : ""}`}>
         {drag2 && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
         {drag2 && view !== "roll" && <b className="gb-step-val">{Math.round(val * 100)}</b>}
         {drag2 && view === "roll" && <b className="gb-step-roll">X{ratchet[r]?.[c] ?? 1}</b>}
