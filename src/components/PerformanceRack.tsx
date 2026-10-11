@@ -149,7 +149,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       })}
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
-      {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      <div className="gb-perf-mute-grid">
+        {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+      </div>
       <button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button>
     </div>
   </div>
