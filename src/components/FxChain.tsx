@@ -3,7 +3,7 @@ import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, gainDbToPos, gainPosToDb, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
@@ -28,7 +28,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     for (let n = 0; n < steps; n++) { const x = Math.floor((128 - steps * 8) / 2) + n * 8; if (mask & (1 << n)) d.rect(x, 25, 7, 12); else d.box(x, 25, 7, 12); }
     d.line(1, 41, 126, 41, true); return;
   }
-  if (type === "gain") { const g = pv(p, "gain", 0); d.textC(`+${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(g / 24 * 118), 7); return; }
+  if (type === "gain") { const pos = p.level ?? gainDbToPos(pv(p, "gain", 0)), g = gainPosToDb(pos); d.textC(g === -Infinity ? "-INF" : `${g > 0 ? "+" : ""}${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(pos * 118), 7); d.rect(5 + Math.round(GAIN_ZERO * 118), 32, 1, 11); return; }
   d.box(1, 21, 126, 24);
   if (["saturation", "acid", "bitcrush"].includes(type)) {
     const drive = pv(p, "drive", type === "bitcrush" ? 6 : 4), bias = pv(p, "bias", 0), bits = pv(p, "bits", 16); let py = 42;
