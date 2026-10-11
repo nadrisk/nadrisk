@@ -57,7 +57,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     // Keep the currently playing loop alive during its fade; no new voice is triggered on lift.
     fade.gain.cancelScheduledValues(at);
     fade.gain.setTargetAtTime(0, at, Math.max(.001, releaseR) / 3 + .001);
-    void entry.node.stop(endAt);
+    void entry.node.schedule({ output: endAt, outputTime: endAt, active: false });
     if (timer !== undefined) clearTimeout(timer);
     timer = window.setTimeout(cleanup, Math.max(0, (endAt - ctx.currentTime) * 1000) + 80);
   };
@@ -78,6 +78,6 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
   return {
     stop: at => { cancelled = true; releaseAt = at; releaseR = .005; endAt = at + .04; scheduleRelease(); },
     release: (at, r) => { const end = at + Math.max(.001, r) * 1.5 + .06; if (end >= endAt) return; releaseAt = at; releaseR = r; endAt = end; scheduleRelease(); },
-    glide: (delta, at) => { if (entry) void entry.node.schedule({ output: at, outputTime: at, semitones: p.pitch + delta }); },
+    glide: (delta, at) => { if (entry) { void entry.node.schedule({ output: at, outputTime: at, semitones: p.pitch + delta }); scheduleRelease(); } },
   };
 }
