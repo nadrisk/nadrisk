@@ -1,7 +1,7 @@
 const Footer = () => {
   return (
     <footer className="site-footer">
-      <span>© {new Date().getFullYear()} NADRISK</span><span>NAD GROOVEBOX <span className="status-dot" /></span><span>BUILT BY NADIR ČAJIĆ</span>
+      <span>© {new Date().getFullYear()} NADRISK</span><span>END OF SIGNAL <span className="status-dot" /></span><span>BUILD / NAD_GROOVEBOX</span>
     </footer>
   );
 };
