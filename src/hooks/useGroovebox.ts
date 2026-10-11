@@ -53,6 +53,7 @@ const defaultSlots = (): Slot[] => [
   base("TOM FM", "drum", 48, { level: 55, fx: [makeFx("reverb", { size: 1.5, mix: .2 })], drum: drum({ pitch: 130, pitchEnv: 20, pitchDecay: .05, fm: 1.5, fmRatio: 1.7, env: { a: .001, d: .22, s: 0, r: .08 } }) }),
   base("DRONE", "synth", 43, { level: 40, fx: [makeFx("phaser"), makeFx("reverb", { size: 7, mix: .5 })], synth: synth({ osc1: { wave: "triangle", gain: .8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 1.2, d: 1, s: .8, r: 2.5 }, lfo: { wave: "triangle", rate: .2, depth: .5, target: "cutoff" } }) }),
 ];
+const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
 /** Which column a row plays on a tick. With a loop crop, the offset slides the loop window across the row. */
@@ -129,6 +130,7 @@ export function useGroovebox() {
   const setLengths = useCallback((v: number[] | ((l: number[]) => number[])) => editBank(b => ({ ...b, lengths: typeof v === "function" ? v(b.lengths) : v })), [editBank]);
   const [selected, setSelected] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [step, setStep] = useState(-1);
   const [bpm, setBpm] = useState(124);
   const [tune, setTune] = useState(0);
@@ -429,10 +431,18 @@ export function useGroovebox() {
     try {
       if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
+      setPaused(false);
       if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
+  const togglePause = useCallback(async () => {
+    try {
+      await ensure(); const t = Tone.getTransport();
+      if (playing) { interrupted.current = false; t.pause(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setPlaying(false); setPaused(true); }
+      else if (paused) { t.start("+0.05"); setPlaying(true); setPaused(false); }
+    } catch { setError("Audio unavailable. Try another browser."); }
+  }, [ensure, playing, paused, cancelBooked]);
   const resetMeter = useCallback(() => { engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; setMeter({ m: -Infinity, s: -Infinity, i: -Infinity, sub: -Infinity, subPeak: -Infinity }); }, []);
   const getFxLevels = useCallback((slot: number, id: number): FxLevels | null => {
     const e = engine.current, s = slotsRef.current[slot];
@@ -575,9 +585,10 @@ export function useGroovebox() {
   // The default kit's bundled samples load straight away (decoding works before audio is started).
   const loadKitSamples = useCallback(() => { defaultSlots().forEach((x, i) => { if (x.engine === "sampler" && x.sampler.sampleId) void loadById(i, x.sampler.sampleId, x.sampler.sampleName); }); }, [loadById]);
   useEffect(() => { loadKitSamples(); }, [loadKitSamples]);
+  const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks([makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots()); setBanks([defaultBank(), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
 
-  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, paused, togglePause, newBlank, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

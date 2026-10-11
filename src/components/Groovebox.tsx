@@ -61,12 +61,15 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
   </button>)}</div>;
 });
 
-function RepeatBar({ repeat, onRepeat, rec, onRec }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void }) {
+function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void; onNew: () => void }) {
+  const [sure, setSure] = useState(false);
+  useEffect(() => { if (!sure) return; const id = window.setTimeout(() => setSure(false), 3000); return () => window.clearTimeout(id); }, [sure]);
   return <div className="gb-seq-tools gb-repeat">
     <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
     <div className="gb-banks"><button className={`gb-bank ${repeat.on && !repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && !repeat.latch} aria-label="Repeat momentary" onClick={() => onRepeat({ ...repeat, on: true, latch: false })}>MOMENT</button><button className={`gb-bank ${repeat.on && repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, on: true, latch: true })}>LATCH</button><button className={`gb-bank ${repeat.roll ? "active" : ""}`} aria-pressed={!!repeat.roll} aria-label="Repeat roll" onClick={() => onRepeat({ ...repeat, roll: !repeat.roll })}>ROLL</button></div>
     <button className="gb-cycle" aria-label="Repeat rate" onClick={() => onRepeat({ ...repeat, rate: cyc(Object.keys(RATES), repeat.rate) as RateName })}>{repeat.rate}</button>
     <button className={`gb-mute gb-rec ${rec ? "selected" : ""}`} aria-pressed={rec} aria-label="Record into sequencer" onClick={() => onRec(!rec)}>● REC</button>
+    <button className={`gb-mute ${sure ? "selected" : ""}`} aria-label="New blank kit" onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</button>
   </div>;
 }
 
@@ -103,7 +106,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
-    <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name}</button>
+    <button className="gb-row-label" onClick={() => onSelect(r)}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
     <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
 {view === "vel" || view === "chance" || view === "roll" ? (() => { const lit = row.map((v, c) => (v ? c : -1)).filter(c => c >= 0), vals = lit.map(c => view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : (view === "vel" ? vel : chance)[r]?.[c] ?? 1), rv = vals.length ? Math.max(...vals) : 1;
       const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(view === "vel" ? .05 : 0, (e.clientX - b.left) / b.width))); };
@@ -170,7 +173,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
         <button className={`gb-ms ${s.mute ? "m-on" : ""}`} aria-pressed={s.mute} aria-label={`Mute ${s.name}`} onClick={() => onMute(i)}>M</button>
         <button className={`gb-ms ${s.solo ? "s-on" : ""}`} aria-pressed={s.solo} aria-label={`Solo ${s.name}`} onClick={() => onSolo(i)}>S</button>
       </div>
-      <button className="gb-strip-name" aria-pressed={selected === i} onClick={() => onSelect(i)}>{s.name}</button>
+      <button className="gb-strip-name" aria-pressed={selected === i} onClick={() => onSelect(i)}>{s.name || String(i + 1).padStart(2, "0")}</button>
     </div>; })}</div>
   </div>;
 });
@@ -200,7 +203,7 @@ export default function Groovebox() {
   const utilityPanels: Record<Utility, JSX.Element> = {
     fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} load={fxLoad(g.slots.map(x => x.fx))} />,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} />,
-    seq: <><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></>,
+    seq: <><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} /><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></>,
     mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: <PerformanceRack value={g.performance} onChange={g.setPerformance} />,
@@ -214,7 +217,7 @@ export default function Groovebox() {
     <div className="workspace-heading"><span><span className="status-dot" /> NAD_RACK.nad</span><span className="gb-heading-tools"><button className="gb-cycle" aria-label={g.playing ? "Pause transport" : "Play transport"} aria-pressed={g.playing} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button><span className="gb-cycle" aria-hidden>{g.bpm} BPM</span><button className="gb-cycle" aria-label="Global tune down" onClick={() => g.setTune(Math.max(-12, g.tune - 1))}>−</button><button className="gb-cycle" aria-label="Global tune reset" title="Double-tap to reset" onDoubleClick={() => g.setTune(0)}>TUNE {g.tune > 0 ? "+" : ""}{g.tune}</button><button className="gb-cycle" aria-label="Global tune up" onClick={() => g.setTune(Math.min(12, g.tune + 1))}>+</button><button className="gb-cycle" aria-label="Display theme" onClick={() => setTheme(cyc(THEMES.map(t => t[0]), theme))}>DISP: {THEMES.find(t => t[0] === theme)?.[1] ?? theme}</button></span><span className="workspace-index">01 / GROOVEBOX</span></div>
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
-      <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} />
+      <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
       <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={g.hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
