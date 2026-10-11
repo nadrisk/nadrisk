@@ -26,3 +26,4 @@
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
+- Visual animation loops go through src/lib/frameGate.ts (sleep when idle, hidden or off-screen) and Groovebox mounts only the active desktop or phone utility tree, so Safari never runs hidden monitors.
