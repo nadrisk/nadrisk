@@ -3,10 +3,10 @@ import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
-  k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
+  k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "lofi" ? (v >= .5 ? "ON" : "OFF") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
@@ -14,7 +14,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 const nm = (t: FxType) => FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", modRate: "RATE", modSync: "SYNC", modTime: "M-TM", modTone: "M-TN", modFb: "M-FB", smash: "SMSH" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", modRate: "RATE", modSync: "SYNC", modTime: "M-TM", modTone: "M-TN", modFb: "M-FB", smash: "SMSH", preset: "PATT", tight: "TGHT", lofi: "LOFI" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -117,7 +117,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * 4, pi * 4 + 4).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k), value: f.params[k] ?? r[0], min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
-    fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v } }),
+    fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
   }));
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
