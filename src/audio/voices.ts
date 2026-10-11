@@ -50,10 +50,12 @@ function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, ba
 }
 
 /** Holds the gain where it is at `at`, then fades to silence with release r; returns when the voice is silent. */
-function fadeOut(g: AudioParam, at: number, r: number) {
-  const h = g as AudioParam & { cancelAndHoldAtTime?: (t: number) => AudioParam };
-  if (h.cancelAndHoldAtTime) h.cancelAndHoldAtTime(at); else { g.cancelScheduledValues(at); g.setValueAtTime(g.value, at); }
-  g.setTargetAtTime(0, at, Math.max(.001, r) / 3 + .001);
+/** Every voice's amp feeds a dedicated release stage, so fading out never reads or cancels the envelope
+ *  (Safari can report stale AudioParam values mid-envelope, which made release jump to silence or full). */
+function link(amp: GainNode, dest: AudioNode) { const rg = amp.context.createGain(); rg.gain.value = 1; amp.connect(rg).connect(dest); (amp as GainNode & { __rg?: GainNode }).__rg = rg; }
+function fadeOut(amp: GainNode, at: number, r: number) {
+  const rg = (amp as GainNode & { __rg?: GainNode }).__rg, g = rg ? rg.gain : amp.gain;
+  g.cancelScheduledValues(at); g.setTargetAtTime(0, at, Math.max(.001, r) / 3 + .001);
   return at + Math.max(.001, r) * 1.5 + .06;
 }
 function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void): Voice {
@@ -64,7 +66,7 @@ function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: numbe
   srcs[0].onended = () => { clearTimeout(timer); cleanup(); };
   let endT = end;
   return { stop: at => { endT = at; amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
-    release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp.gain, at, r); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
+    release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, at, r); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
 }
 const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
 
@@ -106,7 +108,7 @@ const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createW
 
 export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams, t: number, vel = 1): Voice {
   const p = mach(p0), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
-  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   // Output strip: base-width (HP base, LP base*2^width) -> multimode filter -> drive -> amp.
   const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = clampF(p.fltBase); hp.Q.value = .707;
   const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = clampF(p.fltBase * 2 ** p.fltWidth); lp.Q.value = .707;
@@ -167,7 +169,7 @@ export function partialWave(ctx: BaseAudioContext, partials: number[]) {
 export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const base = 440 * 2 ** ((midi - 69) / 12);
-  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   const trem = ctx.createGain(); trem.connect(amp);
   const mix = ctx.createGain();
   const filt = ctx.createBiquadFilter(); filt.type = p.filter; filt.Q.value = p.res;
@@ -255,7 +257,7 @@ export function stretchBuffer(ctx: BaseAudioContext, buf: AudioBuffer, ratio: nu
 }
 
 export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
-  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   if (p.stretch && Math.abs((p.stretchAmt ?? 1) - 1) > .01) buf = stretchBuffer(ctx, buf, p.stretchAmt ?? 1, p.stretchGrain ?? .05);
   const src = ctx.createBufferSource();
   const rate = 2 ** (p.pitch / 12); src.playbackRate.value = rate;
@@ -281,7 +283,7 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const timer = window.setTimeout(cleanup, Math.max(0, (endT - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: s => { endT = s; amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } },
-    release: (s, r) => { if (s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp.gain, s, r); try { src.stop(endT); } catch { /* stopped */ } },
+    release: (s, r) => { if (s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, s, r); try { src.stop(endT); } catch { /* stopped */ } },
     glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
@@ -290,7 +292,7 @@ const HANN = (() => { const c = new Float32Array(new ArrayBuffer(64 * 4)); for (
 let liveGrains = 0;
 /** Light granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
 export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
-  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   let stopAt = adsr(amp.gain, t, p.env, gate, vel);
   const size = Math.max(.03, p.grainSize ?? .08), hop = Math.max(.04, size / 2), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
   let next = t, pos = p.start * buf.duration;
@@ -309,7 +311,7 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
   };
   const iv = window.setInterval(pump, 40); pump();
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, .004); stopAt = Math.min(stopAt, s + .05); },
-    release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp.gain, s, r); } };
+    release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp, s, r); } };
 }
 
 const tubeCache = new Map<number, Float32Array<ArrayBuffer>>(), harmCache = new Map<number, Float32Array<ArrayBuffer>>();
@@ -323,7 +325,7 @@ function harmCurve(h: number) { const k = Math.round(h * 20) / 20; let c = harmC
 /** 808 bass: sine with pitch sweep, sub octave, harmonic enhancer and tube drive; glides like a trap 808. */
 export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params, midi: number, t: number, gate: number, vel = 1): Voice {
   const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
-  const amp = ctx.createGain(); amp.gain.value = 0; amp.connect(dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   const lp = ctx.createBiquadFilter(); lp.frequency.value = p.tone; lp.Q.value = .5; lp.connect(amp);
   const dc = ctx.createBiquadFilter(); dc.type = "highpass"; dc.frequency.value = 18; dc.connect(lp);
   const tube = ctx.createWaveShaper(); tube.curve = tubeCurve(p.tube); tube.oversample = "2x";
@@ -367,7 +369,7 @@ export function peaksOf(buf: AudioBuffer, n = 160) {
 /** Bounded five-note analog-style chord voice; detuned saw/PWM/sub through a four-pole filter and stereo modulated delay. */
 export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1): Voice {
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
-  const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; amp.connect(dest); nodes.push(amp, mix);
+  const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp, mix);
   const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.frequency.value = f2.frequency.value = p.cutoff; f1.Q.value = p.res; f2.Q.value = .707;
   mix.connect(f1).connect(f2).connect(amp); nodes.push(f1, f2);
   if (p.fenvAmt) { filterEnvAdsr(f1.frequency, t, p.fenv, gate, p.cutoff, p.fenvAmt); filterEnvAdsr(f2.frequency, t, p.fenv, gate, p.cutoff, p.fenvAmt); }
@@ -379,7 +381,7 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
   notes.slice(0, 5).forEach(midi => { const f = 440 * 2 ** ((midi - 69) / 12);
     for (let k = 0; k < 3; k++) { const o = at(ctx.createOscillator(), t), g = ctx.createGain();
       o.type = k === 2 ? "square" : k === 1 ? "square" : "sawtooth"; o.frequency.value = k === 2 ? f / 2 : f; o.detune.value = k === 0 ? -p.detune : k === 1 ? p.detune : 0;
-      g.gain.value = (k === 2 ? p.sub : k === 1 ? p.pulse : .7) / Math.max(1, notes.length ** .85); o.connect(g).connect(mix); srcs.push(o); nodes.push(o, g);
+      g.gain.value = (k === 2 ? p.sub : k === 1 ? p.pulse : .7) / Math.sqrt(notes.length); o.connect(g).connect(mix); srcs.push(o); nodes.push(o, g);
       if (k === 1) { const pwm = at(ctx.createOscillator(), t), pg = ctx.createGain(); pwm.frequency.value = .4; pg.gain.value = p.pulse * 8; pwm.connect(pg).connect(o.detune); srcs.push(pwm); nodes.push(pwm, pg); }
     }
   });
@@ -391,7 +393,7 @@ export const defaultSiren = (): SirenParams => ({ wave: "square", lfoWave: "squa
 /** Dub siren: one oscillator wobbled by an LFO (semitones) plus a long pitch rise/fall; sustains while the pad is held. */
 export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
   const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
-  const amp = ctx.createGain(), lp = ctx.createBiquadFilter(); amp.gain.value = 0; lp.frequency.value = p.tone; lp.Q.value = 2; lp.connect(amp).connect(dest);
+  const amp = ctx.createGain(), lp = ctx.createBiquadFilter(); amp.gain.value = 0; lp.frequency.value = p.tone; lp.Q.value = 2; lp.connect(amp); link(amp, dest);
   const osc = at(ctx.createOscillator(), t), lg = ctx.createGain(); lg.gain.value = p.depth * 100; osc.type = p.wave;
   // The wobble comes from the pad's free-running LFO when given, so it continues across hits.
   let lfo: AudioNode, unhook: (() => void) | undefined;
