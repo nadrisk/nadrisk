@@ -838,3 +838,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .about-dialog { position: relative; width: min(720px, 100%); max-height: 100%; overflow: auto; background: hsl(var(--background)); user-select: text; -webkit-user-select: text; }
 .about-dialog .about-section { margin: 0; }
 .about-close { position: absolute; top: 6px; right: 6px; }
+
+/* Desktop tidy-up: pads stay hardware-sized instead of growing into tall tiles. */
+@media (min-width: 1024px) { .instrument-workspace .gb-pad { aspect-ratio: 2.1; } }
