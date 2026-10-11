@@ -185,7 +185,9 @@ export function useGroovebox() {
     e.mono[i]?.stop(now); e.ring[i].forEach(r => r.stop(now)); e.ring[i] = [];
   }, []);
   /** Plays one note on a slot. `semi` is relative pitch (from the phrase sequencer), `gateSec` overrides the note length, `noteIdx` plays one chord note (arpeggio step). */
-  const trigger = useCallback((i: number, time?: number, vel = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
+  const trigger = useCallback((i: number, time?: number, vel0 = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
+    // Fader-like loudness curve: low velocities fade smoothly to true silence.
+    const vel = Math.max(0, Math.min(1, vel0)) ** 2; if (vel <= 0) return;
     const e = engine.current, s = slotsRef.current[i];
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
