@@ -840,7 +840,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .about-close { position: absolute; top: 6px; right: 6px; }
 
 /* Desktop hardware rack: full-width pads with compact, aligned device rows below. */
-@media (min-width: 1200px) and (pointer: fine) {
+@media (min-width: 1024px) and (pointer: fine) {
   .instrument-workspace { width: min(1180px, calc(100vw - 24px)); max-width: 1180px; margin: 8px auto 0; overflow: visible; }
   .instrument-workspace .gb-fixed-layout {
     display: flex;
@@ -900,10 +900,13 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     width: 100%;
   }
   .instrument-workspace .gb-seq-controls { grid-column: 1; }
-  .instrument-workspace .gb-seq-performance { grid-column: 2; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 4px; }
+  .instrument-workspace .gb-seq-performance { display: contents; }
+  .instrument-workspace .gb-seq-performance > .gb-perf { display: contents; }
   .instrument-workspace .gb-seq-controls .px-wrap,
   .instrument-workspace .gb-seq-performance .px-wrap { width: 100%; max-width: 568px; }
-  .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; }
+  .instrument-workspace .gb-seq-performance .px-wrap { grid-column: 2; grid-row: 1; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 4px; }
+  .instrument-workspace .gb-seq-performance .gb-perf-reset { grid-column: 2; grid-row: 2; margin-left: 4px; width: calc(100% - 4px); }
+  .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid hsl(var(--foreground) / .5); padding-top: 4px; }
   .instrument-workspace .gb-seq-grid { grid-column: 1 / -1; border-top: 1px solid hsl(var(--foreground) / .5); padding-top: 4px; }
   .instrument-workspace .gb-compact-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
   .instrument-workspace .gb-compact-module { width: 100%; min-width: 0; border-right: 1px solid hsl(var(--foreground) / .5); }
@@ -920,7 +923,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-mixer-head > span::after { content: " / 16 CH"; }
 }
 
-@media (max-width: 1199px), (pointer: coarse) {
+@media (max-width: 1023px), (pointer: coarse) {
   .instrument-workspace .gb-mixer-workspace.mixer-page-0 .gb-strip-page-1,
   .instrument-workspace .gb-mixer-workspace.mixer-page-1 .gb-strip-page-0 { display: none; }
   .instrument-workspace .gb-seq-perf { display: flex; flex-direction: column; gap: 4px; }
