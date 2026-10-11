@@ -13,7 +13,7 @@ export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests; /** true = restart on every note; default free-running per pad. */ retrig?: boolean };
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
-export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number };
+export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
@@ -273,17 +273,26 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   src.connect(amp);
   // The sampler follows the gate (finger down / step length), then fades by RELEASE. One-shots that end
   // before the gate just end; slices stop at their slice edge. Loops sustain for the whole gate.
-  const stopSec = p.endFrac !== undefined && !p.loop ? Math.max(offset + .005, p.endFrac * buf.duration) : buf.duration;
-  const playLen = (stopSec - offset) / rate;
-  const g = p.loop ? Math.max(.005, gate) : Math.max(.005, Math.min(gate, playLen));
-  const envEnd = adsr(amp.gain, t, p.env, g, vel);
-  let endT = p.loop ? envEnd : Math.min(envEnd, t + playLen + .01);
+  // Region end: sample END (and a slice edge, when slicing) bounds playback.
+  const endF = Math.min(p.endFrac ?? 1, p.end ?? 1), stopSec = !p.loop ? Math.max(offset + .005, endF * buf.duration) : buf.duration;
+  const playLen = (stopSec - offset) / rate, oneShot = p.mode === "one" && !p.loop;
+  let endT: number;
+  if (oneShot) {
+    // ONE: the region plays to its end regardless of hold time; only a 3 ms declick at each edge, no envelope.
+    const e = t + playLen; amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(vel, t + .003);
+    amp.gain.setValueAtTime(vel, Math.max(t + .003, e - .003)); amp.gain.linearRampToValueAtTime(0, e); endT = e + .01;
+  } else {
+    // ADSR: the envelope shapes volume only; playback position runs independently through the region.
+    const g = p.loop ? Math.max(.005, gate) : Math.max(.005, Math.min(gate, playLen));
+    const envEnd = adsr(amp.gain, t, p.env, g, vel);
+    endT = p.loop ? envEnd : Math.min(envEnd, t + playLen + .01);
+  }
   src.start(t, offset); src.stop(endT);
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
   const timer = window.setTimeout(cleanup, Math.max(0, (endT - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: s => { endT = s; amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } },
-    release: (s, r) => { if (s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, s, r); try { src.stop(endT); } catch { /* stopped */ } },
+    release: (s, r) => { if (oneShot || s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, s, r); try { src.stop(endT); } catch { /* stopped */ } },
     glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
