@@ -1,24 +1,21 @@
-# Remove flashes when switching instruments
+# Make the synth oscillator display consistently additive
 
-## Goal
-Make rapid pad/instrument switching on iPhone feel stable, without changing sound, selection behavior, or the groovebox layout.
+## Confirmed issue
+The new recording matches the current synth logic: an oscillator saved with an older native SINE/TRI/SAW/SQR shape initially draws the legacy waveform trace. The first waveform change converts it to the additive version, after which it always draws the 16 harmonic bars. This is why the visual changes format only after the first tap.
 
-## Confirmed cause
-The recording shows the selected pad briefly becoming a solid white block. The current styles invert a pad both while it is physically pressed and for a 90 ms playback flash; selecting another pad updates the instrument editor at the same time. This makes rapid device switching look like a screen flash even though selection is working.
-
-## Changes
-1. Separate **selection feedback** from **playback feedback** on the 16 pads.
-   - Keep the selected pad visible with the existing inset outline.
-   - Replace the full solid-white press/play inversion with a restrained border or inner marker.
-   - Preserve velocity mode, muted styling, and sequencer-trigger feedback.
-2. Stabilize the instrument editor during selection changes.
-   - Keep the existing editor frame and dimensions in place while its controls update.
-   - Prevent broad pressed-state styling from visually inverting unrelated editor controls during an iPhone tap.
-3. Leave audio triggering, pad sustain/release, MIDI, the sequencer, and all instrument parameters untouched.
+## Fix
+1. Show the 16-partial additive display immediately on O1 and O2, including when an older set or starter sound still contains a native waveform value.
+2. For an older native value, derive the displayed bars from its matching additive recipe:
+   - SINE → fundamental only
+   - TRI → odd harmonics with triangle falloff
+   - SAW → all harmonics
+   - SQR → odd harmonics
+3. Make the bars editable immediately. The first bar edit or waveform-button tap will store the matching additive shape, so the display and sound remain aligned.
+4. Keep waveform order, labels, oscillator parameters, FM behavior, saved-set loading, and audio triggering unchanged.
 
 ## Verification
-- Test rapid switching across all 16 pads with an iPhone-sized touch browser.
-- Confirm each tap selects and sounds the intended pad exactly once.
-- Confirm no full-white pad or editor flash appears.
-- Confirm the selected-pad outline, muted pads, velocity display, and sequencer playback indicators still work.
-- Check the preview build and browser console before completion.
+- Open every existing synth pad and confirm O1/O2 show harmonic bars on the first selection.
+- Cycle SINE, TRI, SAW, SQR, ORG, HOLW, and BELL and confirm the display never returns to the legacy trace.
+- Edit a bar before changing presets and confirm it becomes USR and affects the intended oscillator.
+- Check an older saved set still loads and retains its waveform choice.
+- Verify the preview build and browser console are clean.
