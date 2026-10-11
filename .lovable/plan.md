@@ -1,8 +1,8 @@
 # Pad row tidy-up, GAIN to -INF, and a TIME "home" for RESET
 
 ## 1. Tidy pad-rack button row
-- Move **NEW** to sit directly right of **REPEAT ON/OFF**, so the row reads:
-  `REPEAT | NEW | MOMENT LATCH ROLL | rate | REC`
+- Move **NEW** to the start of the row, so it reads:
+  `NEW | REPEAT | MOMENT LATCH ROLL | rate | REC`
 - Give all keys in the row the same height and even gaps; REPEAT and NEW share a width, the three mode keys share a width, rate and REC fill the rest so the row ends flush on both edges. Same on phone and wide screens.
 - NEW keeps the tap-twice "SURE?" safety.
 
