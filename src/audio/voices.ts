@@ -299,15 +299,22 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
     glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
 }
 
-// Granular budget: one shared Hann window, at most 16 grains sounding at once across all pads, at most 40 grains/s per voice.
-const HANN = (() => { const c = new Float32Array(new ArrayBuffer(64 * 4)); for (let i = 0; i < 64; i++) c[i] = .7 * Math.sin(Math.PI * i / 63) ** 2; return c; })();
+// Shared smooth window; the 16-grain global budget also includes booked grains.
+const HANN = (() => { const c = new Float32Array(new ArrayBuffer(256 * 4)); for (let i = 0; i < c.length; i++) c[i] = Math.sin(Math.PI * i / (c.length - 1)) ** 2; return c; })();
 let liveGrains = 0;
-/** Light granulator: overlapping windowed grains read around the start position; freeze holds the position still. */
+/** Soft stereo cloud: overlap stays continuous at low densities; freeze holds the reading position. */
 export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerParams, buf: AudioBuffer, t: number, gate: number, vel = 1): Voice {
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   let stopAt = adsr(amp.gain, t, p.env, gate, vel);
-  const size = Math.max(.02, p.grainSize ?? .08), hop = 1 / Math.max(2, Math.min(40, p.grainDens ?? 12)), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
-  const D = buf.duration, lo = p.start * D, hi = Math.max(lo + size, (p.end ?? 1) * D), rnd = p.grainRnd ?? 0;
+  const size = Math.max(.02, Math.min(.4, p.grainSize ?? .08)), hop = 1 / Math.max(2, Math.min(40, p.grainDens ?? 12)), rate = 2 ** (p.pitch / 12), spray = p.spray ?? .1;
+  // A SIZE of 80 ms at 12/s used to leave near-silent gaps. Broaden the window to
+  // overlap at least 2.5 neighbours, with energy compensation instead of louder peaks.
+  const duration = Math.max(size, hop * 2.5), overlap = duration / hop;
+  const cloud = ctx.createGain(), tone = ctx.createBiquadFilter();
+  cloud.gain.value = .7 / Math.sqrt(Math.max(1, overlap * .375));
+  tone.type = "lowpass"; tone.frequency.value = Math.min(8500, ctx.sampleRate * .4); tone.Q.value = .5;
+  cloud.connect(tone).connect(amp);
+  const D = buf.duration, lo = Math.max(0, Math.min(D - .001, p.start * D)), hi = Math.min(D, Math.max(lo + .001, (p.end ?? 1) * D)), rnd = p.grainRnd ?? 0;
   const lRate = p.gLfoRate ?? 0, lAmt = p.gLfoAmt ?? 0, shp = p.gLfoShape ?? "sin";
   // Free-running LFO read from the audio clock, so its phase continues across notes.
   const lfo = (at: number) => { const ph = at * lRate, f = ph - Math.floor(ph);
@@ -318,16 +325,19 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
     const horizon = ctx.currentTime + .12;
     while (next < horizon && next < stopAt) {
       if (liveGrains >= 16) { next += hop; continue; }
-      const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = buf;
+       const src = ctx.createBufferSource(), g = ctx.createGain(), pan = ctx.createStereoPanner(); src.buffer = buf;
       src.playbackRate.value = rate * 2 ** ((Math.random() * 2 - 1) * rnd / 12);
-      g.gain.value = 0; g.gain.setValueCurveAtTime(HANN, next, size); liveGrains++;
-      src.connect(g).connect(amp);
+       const grainDuration = Math.min(duration, (hi - lo) / src.playbackRate.value);
+       g.gain.value = 0; g.gain.setValueCurveAtTime(HANN, next, grainDuration); liveGrains++;
+       pan.pan.value = (Math.random() * 2 - 1) * .65;
+       src.connect(g).connect(pan).connect(cloud);
       const c = pos + (lAmt > 0 && lRate > 0 ? lfo(next) * lAmt * .5 * D : 0) + (Math.random() * 2 - 1) * spray * Math.min(1, D) * .5;
-      const off = Math.max(0, Math.min(D - .01, c));
-      src.start(next, off); src.stop(next + size + .01); src.onended = () => { liveGrains--; src.disconnect(); g.disconnect(); };
-      next += hop; if (!p.freeze) { pos += hop * .5 * rate; if (pos > hi - size) pos = lo; }
+       const off = Math.max(lo, Math.min(hi - grainDuration * src.playbackRate.value, c));
+       src.start(next, off); src.stop(next + grainDuration); src.onended = () => { liveGrains--; src.disconnect(); g.disconnect(); pan.disconnect(); };
+       // Slightly irregular spacing avoids a rigid buzz without changing average density.
+       next += hop * (.9 + Math.random() * .2); if (!p.freeze) { pos += hop * .5 * rate; if (pos > hi) pos = lo; }
     }
-    if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => amp.disconnect(), Math.max(0, (stopAt - ctx.currentTime) * 1000) + 300); }
+     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => { cloud.disconnect(); tone.disconnect(); amp.disconnect(); }, Math.max(0, (stopAt + duration - ctx.currentTime) * 1000) + 100); }
   };
   const iv = window.setInterval(pump, 40); pump();
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, .004); stopAt = Math.min(stopAt, s + .05); },
