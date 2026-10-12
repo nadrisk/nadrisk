@@ -174,6 +174,9 @@ export function useGroovebox() {
   const meterPeak = useRef(-Infinity);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  // Swing 50-75%: off-beat 16ths are delayed on the audio clock (MPC-style); 50 = straight.
+  const [swing, setSwing] = useState(50);
+  const swingRef = useRef(swing); swingRef.current = swing;
   const selectedRef = useRef(selected); selectedRef.current = selected;
   // Pad repeat (momentary or latched) with a per-pad velocity set by finger height on the pad.
   const [repeat, setRepeatState] = useState<RepeatParams>({ on: false, latch: false, rate: "1/16" });
@@ -402,9 +405,10 @@ export function useGroovebox() {
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
-    const loop = Tone.getTransport().scheduleRepeat(time => {
+    const loop = Tone.getTransport().scheduleRepeat(gridTime => {
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
+      const time = gridTime + (tick % 2 ? (Math.max(50, Math.min(75, swingRef.current)) - 50) / 50 * sixteenth : 0);
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
       const cb = banksRef.current[bankRef.current];
       const pf = performanceRef.current;
@@ -620,7 +624,7 @@ export function useGroovebox() {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
