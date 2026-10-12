@@ -26,8 +26,10 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
   // mouse, keyboard and MIDI (el.click()) still go through onClick.
   const liveRef = useRef<HTMLDivElement>(null);
-  const liveAct = useRef({ toggleMute, selectBank, unmuteAll });
-  liveAct.current = { toggleMute, selectBank, unmuteAll };
+  // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
+  const reset = () => { set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 }); setDropFlash(f => f + 1); };
+  const liveAct = useRef({ toggleMute, selectBank, unmuteAll, perfReset: reset });
+  liveAct.current = { toggleMute, selectBank, unmuteAll, perfReset: reset };
   useEffect(() => {
     const el = liveRef.current; if (!el) return;
     const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
@@ -51,9 +53,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
     el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, []);
-  // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
-  const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 });
-  const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
+  const hold =  (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
     onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); set({ mode }); }} onPointerUp={() => set({ mode: 0 })} onPointerCancel={() => set({ mode: 0 })} onLostPointerCapture={() => set({ mode: 0 })}
     onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); set({ mode }); } }} onKeyUp={() => set({ mode: 0 })} onBlur={() => set({ mode: 0 })} />;
   const knobs = (page: string): Knob[] => page === "FX" ? [
