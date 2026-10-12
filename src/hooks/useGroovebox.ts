@@ -174,6 +174,9 @@ export function useGroovebox() {
   const meterPeak = useRef(-Infinity);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  // Swing 50-75%: off-beat 16ths are delayed on the audio clock (MPC-style); 50 = straight.
+  const [swing, setSwing] = useState(50);
+  const swingRef = useRef(swing); swingRef.current = swing;
   const selectedRef = useRef(selected); selectedRef.current = selected;
   // Pad repeat (momentary or latched) with a per-pad velocity set by finger height on the pad.
   const [repeat, setRepeatState] = useState<RepeatParams>({ on: false, latch: false, rate: "1/16" });
@@ -402,9 +405,10 @@ export function useGroovebox() {
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
-    const loop = Tone.getTransport().scheduleRepeat(time => {
+    const loop = Tone.getTransport().scheduleRepeat(gridTime => {
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
+      const time = gridTime + (tick % 2 ? (Math.max(50, Math.min(75, swingRef.current)) - 50) / 50 * sixteenth : 0);
       if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
       const cb = banksRef.current[bankRef.current];
       const pf = performanceRef.current;
@@ -620,7 +624,7 @@ export function useGroovebox() {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
@@ -630,7 +634,7 @@ export function useGroovebox() {
     if (st.banks?.length) setBanks(Array.from({ length: NBANKS }, (_, i) => (st.banks![i] ? fixBank(st.banks![i]) : makeBank(emptyPattern()))));
     undoRef.current = []; redoRef.current = []; setHist(h => h + 1);
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
-    setBpm(st.bpm ?? 124); setTune(st.tune ?? 0); setVolume(st.volume ?? 60);
+    setBpm(st.bpm ?? 124); setSwing(st.swing ?? 50); setTune(st.tune ?? 0); setVolume(st.volume ?? 60);
     buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
     // Restore every sample, then report all the missing ones together instead of only the last.
     const jobs = (st.slots ?? []).map((o, i) => (o?.sampler?.sampleId ? loadById(i, o.sampler.sampleId, o.sampler.sampleName).then(ok => (ok ? null : o.sampler.sampleName)) : Promise.resolve(null)));
@@ -653,9 +657,9 @@ export function useGroovebox() {
   const loadKitSamples = useCallback(() => { defaultSlots().forEach((x, i) => { if (x.engine === "sampler" && x.sampler.sampleId) void loadById(i, x.sampler.sampleId, x.sampler.sampleName); }); }, [loadById]);
   useEffect(() => { loadKitSamples(); }, [loadKitSamples]);
   const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
-  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
+  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setSwing(50); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
 
-  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
-export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
+export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
