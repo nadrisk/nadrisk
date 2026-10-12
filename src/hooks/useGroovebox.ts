@@ -110,6 +110,7 @@ const defaultBank = (): Bank => {
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 const defaultFxParams = (type: FxType) => Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, r[0]]));
+const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal"]);
 function syncChain(e: Engine, i: number, s: Slot) {
   const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
@@ -468,12 +469,22 @@ export function useGroovebox() {
     engine.current = null;
   }, []);
 
+  const lastStop = useRef(0);
+  /** Ableton-style double-STOP: rebuild every tail-carrying FX chain (fresh nodes = empty delay lines and reverb) after a short fade. */
+  const killTails = useCallback(() => {
+    const e = engine.current; if (!e) return; e.performance.flush?.();
+    e.outs.forEach((o, i) => { if (!o.chain.some((_, k) => TAIL_FX.has(slotsRef.current[i].fx.filter(f => f.on)[k]?.type))) return;
+      const g = o.pan as unknown as AudioNode; void g; o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
+      setTimeout(() => { o.sig = ""; syncChain(e, i, slotsRef.current[i]); }, 35); });
+  }, []);
   const togglePlay = useCallback(async () => {
     try {
       if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
       setPaused(false);
-      if (playing) { t.stop(); engine.current?.outs.forEach(o => o.chain.forEach(f => f.hush?.(true, Tone.getContext().rawContext.currentTime))); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { if (t.state !== "stopped") t.stop(); engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); resetTick.current(); engine.current?.outs.forEach(o => o.chain.forEach(f => f.hush?.(false, Tone.getContext().rawContext.currentTime))); t.position = 0; t.start("+0.05"); setPlaying(true); }
+      const nowMs = performance.now(), dbl = nowMs - lastStop.current < 400; lastStop.current = nowMs;
+      if (!playing) { if (dbl) { killTails(); lastStop.current = 0; return; } }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { if (t.state !== "stopped") t.stop(); engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); resetTick.current(); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
