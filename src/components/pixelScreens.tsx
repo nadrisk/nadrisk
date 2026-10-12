@@ -109,16 +109,16 @@ export function drawWaveIcon(p: Px, wave: Wave | "additive", x: number, y: numbe
 }
 
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps, onPage }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
-  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void;
+  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined;
 }) {
   const [page, setPage] = useState(pages[0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
   const [readout, setReadout] = useState("");
   const ks = knobs(page);
   return <div className="px-panel">
-    <PixelScreen label={`${label} screen, page ${page}`} deps={[page, readout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page); body(p, page); drawKnobs(p, ks); }}>
+    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page); body(p, page); drawKnobs(p, ks); }}>
       {tabZones(pages, page, setPage)}
       {extra?.(page)}
       {knobZones(ks, page, setReadout)}

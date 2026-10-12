@@ -22,7 +22,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, peaks, onChange, on
       {slot.engine === "synth" && <CyberspacePanel slot={slot} onChange={onChange} />}
       {slot.engine === "808" && <Sub808Panel slot={slot} onChange={onChange} />}
       {slot.engine === "siren" && <SirenPanel slot={slot} onChange={onChange} />}
-      {slot.engine === "poly" && <EnsemblePanel slot={slot} onChange={onChange} />}
+      {slot.engine === "poly" && <EnsemblePanel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
     </DevicePanel>
     <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getWave={getWave} /></DevicePanel>

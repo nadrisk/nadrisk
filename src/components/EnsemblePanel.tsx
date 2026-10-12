@@ -1,5 +1,7 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
+import type { GetWave } from "./ScopeScreen";
+import { drawReeseHands, reeseVisualLevel } from "@/pixel/reeseHands";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
@@ -11,7 +13,17 @@ const RPAGES = ["RSE", "PIT", "FLT", "ENV"] as const;
 const PAGES = ["VOX", "PIT", "FLT", "ENV"] as const;
 
 // ENSEMBLE: the poly editor as a 128x64 1-bit hardware screen.
-function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
+function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; index?: number; getWave?: GetWave; onChange: (p: Partial<Slot>) => void }) {
+  const visual = useRef({ index, buffer: new Float32Array(512), level: 0, bucket: 0 });
+  if (visual.current.index !== index) { visual.current.index=index; visual.current.level=0; visual.current.bucket=0; }
+  const reactToSound = () => {
+    const v=visual.current;
+    if (!getWave?.(index,v.buffer)) v.buffer.fill(0);
+    v.level=reeseVisualLevel(v.buffer,v.level);
+    if (v.level<.015) v.level=0;
+    const bucket=Math.round(v.level*12), changed=bucket!==v.bucket;
+    v.bucket=bucket; return changed;
+  };
   const y = slot.poly;
   const Y = (p: Partial<typeof y>) => onChange({ poly: { ...y, ...p } });
   const [envSel, setEnvSel] = useState<"vol" | "flt">("vol");
@@ -48,10 +60,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
     const rb = (p: import("@/pixel/draw").Px, page: string) => {
       if (page === "RSE") {
         p.box(2, 11, 124, 34);
-        // Two saws pull apart in phase as detune rises; the sub sits underneath.
-        const off = r.detune / 50 * 10;
-        for (let k = 0; k < 2; k++) { let px = 4, py = 0; for (let x = 4; x < 124; x++) { const ph = ((x - 4 + k * off) % 20) / 20, yy = 14 + k * 9 + Math.round(ph * 8); if (x > 4 && yy >= py) p.line(px, py, x, yy); px = x; py = yy; } }
-        const sh = Math.round(r.sub * 6); for (let x = 4; x < 124; x++) p.dot(x, 40 - Math.round(Math.sin((x - 4) / 40 * Math.PI * 2) * sh / 2));
+        drawReeseHands(p,r,visual.current.bucket/12,window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       } else if (page === "PIT") pitBody(p);
       else if (page === "FLT") drawFilterCurve(p, "lowpass", r.cutoff, r.res, 2, 11, 124, 32);
       else { drawEnvGraph(p, curR); ["VOL", "FLT"].forEach((t, k) => { const on = (k ? "flt" : "vol") === envSel, x = 92 + k * 17; if (on) { p.rect(x, 11, 16, 8); p.text(t, x + 2, 12, false); } else { p.box(x, 11, 16, 8); p.text(t, x + 2, 12); } }); }
@@ -61,7 +70,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
       : page === "ENV" ? <><EnvZones env={curR} set={setR} />
         <Tap x={92} y={11} w={16} h={8} label="Poly volume envelope" pressed={envSel === "vol"} onClick={() => setEnvSel("vol")} />
         <Tap x={109} y={11} w={16} h={8} label="Poly filter envelope" pressed={envSel === "flt"} onClick={() => setEnvSel("flt")} /></> : null;
-    return <Panel name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} deps={[slot.name, y, envSel]} />;
+    return <Panel name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} live={page => page === "RSE" && getWave ? reactToSound : undefined} deps={[index, slot.name, y, envSel]} />;
   }
   const knobs = (page: string): Knob[] => {
     if (page === "VOX") return [
