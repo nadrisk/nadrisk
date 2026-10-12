@@ -28,4 +28,4 @@
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
 - Gate visual loops in frameGate and mount only visible panels; generate cached reverb DENS impulses in deferred chunks and sync audio FX only for slots whose FX list changed, keeping pad input unblocked.
 
-- Siren LASER uses three native oscillators and one pitch-trajectory helper for audio/display; separate settings preserve DUB recall.
+- LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
