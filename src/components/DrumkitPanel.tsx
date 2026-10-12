@@ -24,7 +24,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const D = (p: Partial<typeof d0>) => onChange({ drum: { ...d0, ...p } });
   const K = (label: string, short: string, key: keyof typeof d, min: number, max: number, step: number, fmt: (v: number) => string): Knob =>
     ({ label, short, value: d[key] as number, min, max, step, fmt, reset: (home as Record<string, unknown>)[key as string] as number | undefined, set: v => D({ [key]: v } as Partial<typeof d0>) });
-  const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, hz), SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
+  const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, noteCents), TUNE_HZ = { ...TUNE, fmt: hz }, SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
 
   const knobs = (page: string): Knob[] => {
     if (page === "PRST") return [];
