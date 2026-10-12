@@ -1,11 +1,11 @@
 # Architecture
 - BRK pools Signalsmith Stretch WASM voices on the shared raw context, keeping pitch/duration independent and taps warm.
 - Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
-- Keep the native Capacitor shell on the shared Groovebox component and select it through Capacitor runtime detection, so iOS behavior stays aligned with the website instrument without including site content.
+- Native uses shared Groovebox via Capacitor detection, so iOS stays aligned without site content.
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Archive unrouted news. Pad phrases store scale degrees and use audio-clock scheduling.
+- Archive unrouted news; phrases use scale degrees and the audio clock.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
@@ -27,3 +27,5 @@
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
 - Gate visual loops in frameGate and mount only visible panels; generate cached reverb DENS impulses in deferred chunks and sync audio FX only for slots whose FX list changed, keeping pad input unblocked.
+
+- Siren LASER uses three native oscillators and one pitch-trajectory helper for audio/display; separate settings preserve DUB recall.

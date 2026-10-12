@@ -82,7 +82,7 @@ const migrateSlot = (x: Slot): Slot => {
   return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
 };
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
-const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? s.poly.env.r : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? s.siren?.release ?? .4 : s.synth.env.r;
+const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? s.poly.env.r : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
 function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
   let r = reversed.get(b); if (r) return r;
@@ -551,8 +551,8 @@ export function useGroovebox() {
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly)) hv.update((patch.synth ?? patch.poly) as Parameters<NonNullable<Voice["update"]>>[0]); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
-  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); if (patch.siren) engine.current?.mono[selectedRef.current]?.update?.(patch.siren); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
     let buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
