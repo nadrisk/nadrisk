@@ -11,3 +11,4 @@
 - The channel insert EQ is configured by configureEq() for both audio and screen (screen reads getFrequencyResponse from an offline mirror), so the drawn curve is the real response.
 - tape.delay~ is one tape loop read by three serial heads with feedback scaled by 1/sqrt(active heads) and a spring tank fed by input plus echoes, so MODE changes never destabilise the loop.
 - POLY REESE mode (src/audio/reese.ts) is mono with its own saved params beside POLY's, a tempo-locked filter pulse restarted per hit and a centred unfiltered sub, so switching modes never overwrites either sound.
+- Each slot's voices enter through a zero-time DelayNode (outs[i].input), because the audio wrapper's per-connect cycle check stops at delays; without it every hit walked the whole downstream graph.
