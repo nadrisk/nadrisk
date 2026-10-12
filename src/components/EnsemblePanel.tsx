@@ -3,10 +3,10 @@ import { memo, useState } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { defaultReese, reeseParams, reesePulseAt, REESE_RATES, REESE_RATE_NAMES, type ReeseParams } from "@/audio/reese";
+import { defaultReese, reeseParams, type ReeseParams } from "@/audio/reese";
 import { ms } from "./pixelScreens";
 
-const RPAGES = ["RSE", "PLS", "PIT", "FLT", "ENV"] as const;
+const RPAGES = ["RSE", "PIT", "FLT", "ENV"] as const;
 
 const PAGES = ["VOX", "PIT", "FLT", "ENV"] as const;
 
@@ -30,7 +30,6 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
   };
   if (reese) {
     const fenvR = r.fenv, curR = envSel === "vol" ? r.env : fenvR, setR = (e: typeof fenvR) => envSel === "vol" ? R({ env: e }) : R({ fenv: e });
-    const ri = REESE_RATES.indexOf(r.rate as typeof REESE_RATES[number]);
     const rk = (page: string): Knob[] => {
       if (page === "RSE") return [
         { label: "Reese detune", short: "DET", value: r.detune, min: 0, max: 50, step: .1, fmt: v => `${v.toFixed(0)}CT`, reset: home.detune, set: detune => R({ detune }) },
@@ -38,13 +37,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
         { label: "Reese width", short: "WID", value: r.width, min: 0, max: 1, step: .01, fmt: pct, reset: home.width, set: width => R({ width }) },
         { label: "Reese sub", short: "SUB", value: r.sub, min: 0, max: 1, step: .01, fmt: pct, reset: home.sub, set: sub => R({ sub }) },
       ];
-      if (page === "PLS") return [
-        { label: "Reese pulse rate", short: "RATE", value: ri < 0 ? 2 : ri, min: 0, max: 4, step: 1, fmt: v => REESE_RATE_NAMES[Math.round(v)], reset: 2, set: v => R({ rate: REESE_RATES[Math.round(v)] }) },
-        { label: "Reese pulse depth", short: "DPTH", value: r.depth, min: 0, max: 4, step: .05, fmt: v => `${v.toFixed(1)}OC`, reset: home.depth, set: depth => R({ depth }) },
-        { label: "Reese pulse shape", short: "SHP", value: r.shape, min: 0, max: 1, step: .01, fmt: pct, reset: home.shape, set: shape => R({ shape }) },
-        { label: "Reese glide", short: "GLD", value: r.glide, min: 0, max: .5, step: .001, fmt: ms, reset: home.glide, set: glide => R({ glide }) },
-      ];
-      if (page === "PIT") return [noteK];
+      if (page === "PIT") return [noteK, { label: "Reese glide", short: "GLD", value: r.glide, min: 0, max: .5, step: .001, fmt: ms, reset: home.glide, set: glide => R({ glide }) }];
       if (page === "FLT") return [
         { label: "Reese cutoff", short: "CUT", value: r.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, reset: home.cutoff, set: cutoff => R({ cutoff }) },
         { label: "Reese resonance", short: "RES", value: r.res, min: 0, max: 8, step: .1, fmt: v => v.toFixed(1), reset: home.res, set: res => R({ res }) },
@@ -59,10 +52,6 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
         const off = r.detune / 50 * 10;
         for (let k = 0; k < 2; k++) { let px = 4, py = 0; for (let x = 4; x < 124; x++) { const ph = ((x - 4 + k * off) % 20) / 20, yy = 14 + k * 9 + Math.round(ph * 8); if (x > 4 && yy >= py) p.line(px, py, x, yy); px = x; py = yy; } }
         const sh = Math.round(r.sub * 6); for (let x = 4; x < 124; x++) p.dot(x, 40 - Math.round(Math.sin((x - 4) / 40 * Math.PI * 2) * sh / 2));
-      } else if (page === "PLS") {
-        p.box(2, 11, 124, 34); p.text(REESE_RATE_NAMES[ri < 0 ? 2 : ri], 4, 13);
-        const beats = 4 / (r.rate); let px = 3, py = 28;
-        for (let x = 3; x < 125; x++) { const ph = (x - 3) / 122 * Math.min(8, beats), yy = 28 - Math.round(reesePulseAt(r, ph) / 2 * 14); p.line(px, py, x, yy); px = x; py = yy; }
       } else if (page === "PIT") pitBody(p);
       else if (page === "FLT") drawFilterCurve(p, "lowpass", r.cutoff, r.res, 2, 11, 124, 32);
       else { drawEnvGraph(p, curR); ["VOL", "FLT"].forEach((t, k) => { const on = (k ? "flt" : "vol") === envSel, x = 92 + k * 17; if (on) { p.rect(x, 11, 16, 8); p.text(t, x + 2, 12, false); } else { p.box(x, 11, 16, 8); p.text(t, x + 2, 12); } }); }
