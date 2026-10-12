@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Verify all-partial previews and silent empty additive oscillators
+
 - [x] Correct and verify synth waveform preview sampling without audio changes
 
 - [x] Apply chosen LASER defaults and short pitch attack; verify resets, recall, audio and screen

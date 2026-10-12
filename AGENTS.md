@@ -16,7 +16,7 @@
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
 - DevicePanel owns grid-fixed desktop frames/insets; PixelScreen owns headers/controls. Phones stay stacked; VIS stays unmounted.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
-- Screens use integer-scaled 128x64 bitmaps and labelled hit-zones for crisp pixels/MIDI. Synth preview squares partial bars and resamples to pixel bandwidth without changing audio.
+- Screens use integer-scaled 128x64 bitmaps and labelled hit-zones for crisp pixels/MIDI. Synth preview squares all 16 partials with fast-detail column coverage; empty additive oscillators are silent.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
 - Pad holds (phrase, repeat, chord arp) are pumped from Tone's worker clock tick with a 150 ms horizon, and every voice booked ahead is tracked per pad so release, transport stop and set load cancel future notes; the grid uses a 100 ms look-ahead, so scheduling survives main-thread stalls without notes after release.
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.
