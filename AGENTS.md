@@ -5,7 +5,7 @@
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
-- Archive unrouted news; phrases use scale degrees and the audio clock.
+- Archive news; phrases use scale degrees/audio clock.
 
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
@@ -16,7 +16,7 @@
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
 - DevicePanel owns grid-fixed desktop frames/insets; PixelScreen owns headers/controls. Phones stay stacked; VIS stays unmounted.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
-- Hardware-style instrument screens render on a fixed 128x64 canvas with a bitmap font (src/pixel), integer-scaled, with invisible aria-labelled hit-zones on top, so pixels stay crisp on every device and MIDI learn still works.
+- Screens use integer-scaled 128x64 bitmaps and labelled hit-zones for crisp pixels/MIDI. Synth preview squares partial bars and resamples to pixel bandwidth without changing audio.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
 - Pad holds (phrase, repeat, chord arp) are pumped from Tone's worker clock tick with a 150 ms horizon, and every voice booked ahead is tracked per pad so release, transport stop and set load cancel future notes; the grid uses a 100 ms look-ahead, so scheduling survives main-thread stalls without notes after release.
 - Audio-context interruptions pause the transport in place and cancel booked notes; resume is retried on visibility return and the next tap, and the transport restarts only if the user hadn't pressed STOP, so interruptions never leave stuck or bursting notes.

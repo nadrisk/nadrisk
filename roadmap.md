@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Correct and verify synth waveform preview sampling without audio changes
+
 - [x] Apply chosen LASER defaults and short pitch attack; verify resets, recall, audio and screen
 
 - [x] Add LASER siren mode, signed pitch envelope, detune and fixed resets
