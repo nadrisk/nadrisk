@@ -24,7 +24,10 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const D = (p: Partial<typeof d0>) => onChange({ drum: { ...d0, ...p } });
   const K = (label: string, short: string, key: keyof typeof d, min: number, max: number, step: number, fmt: (v: number) => string): Knob =>
     ({ label, short, value: d[key] as number, min, max, step, fmt, reset: (home as Record<string, unknown>)[key as string] as number | undefined, set: v => D({ [key]: v } as Partial<typeof d0>) });
-  const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, noteCents), TUNE_HZ = { ...TUNE, fmt: hz }, SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
+  // Kick spans ~2 octaves of sub/body (25-135 Hz), snare 80-500 Hz; log travel + fine steps so a drag lands on a note.
+  const TUNE: Knob = { ...(d.kind === "snare" ? K("Tune", "TUNE", "pitch", 80, 500, .1, noteCents) : K("Tune", "TUNE", "pitch", 25, 135, .05, noteCents)), log: true, bare: true };
+  const TUNE_HZ: Knob = { ...K("Tune", "TUNE", "pitch", 20, 1200, 1, hz), log: true };
+  const SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
 
   const knobs = (page: string): Knob[] => {
     if (page === "PRST") return [];
