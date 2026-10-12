@@ -124,6 +124,7 @@ function syncChain(e: Engine, i: number, s: Slot) {
 
 export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
+  const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);
   const [slots, setSlots] = useState<Slot[]>(() => defaultSlots().map(migrateSlot));
@@ -440,6 +441,7 @@ export function useGroovebox() {
     const lfos = slotsRef.current.map(() => { const o = ctx.createOscillator(); o.start(); return o; });
     engine.current = { ctx, master, performance: perf, analyser, outs, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
+    syncedFx.current = slotsRef.current.map(s => s.fx);
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger, phraseStep, stepHit]);
@@ -447,8 +449,10 @@ export function useGroovebox() {
   useEffect(() => {
     const e = engine.current; if (!e) return;
     slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); { const o = e.lfos[i], sir = s.engine === "siren", w = (sir ? s.siren?.lfoWave : s.synth.lfo.wave) ?? "sine", r = (sir ? s.siren?.rate : s.synth.lfo.rate) ?? 1; if (o.type !== w && w !== ("additive" as string)) o.type = w as OscillatorType; o.frequency.setTargetAtTime(r, e.ctx.currentTime, .02); }
-      configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02)); syncChain(e, i, s); });
-  }, [slots, playing]);
+      configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02));
+      if (syncedFx.current[i] !== s.fx) { syncChain(e, i, s); syncedFx.current[i] = s.fx; }
+    });
+  }, [slots]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
   useEffect(() => { Tone.getTransport().bpm.value = bpm; setFxBpm(bpm); const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s)); }, [bpm]);
