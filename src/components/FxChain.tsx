@@ -12,12 +12,12 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "ON" : "OFF") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
-  : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
+  : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
   : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 const nm = (t: FxType) => FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -72,6 +72,14 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     const inDb = levels?.input ?? -60, o = levels?.output ?? -60, gr = Math.max(0, inDb - o);
     const bar = (x: number, lbl: string, f: number, down = false) => { d.box(x, 22, 9, 16); const h = Math.round(Math.max(0, Math.min(1, f)) * 14); if (down) d.rect(x + 1, 23, 7, h); else d.rect(x + 1, 37 - h, 7, h); d.textC(lbl, x + 5, 39); };
     bar(78, "IN", (inDb + 60) / 60); bar(96, "GR", gr / 30, true); bar(114, "OUT", (o + 60) / 60);
+  } else if (type === "dyneq") {
+    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121), mf = pv(p, "freq", 1000), q = pv(p, "q", 1.5), g = pv(p, "gain", -6); let py = 33;
+    d.line(3, 33, 124, 33, true);
+    for (let x = 3; x < 125; x++) { const oc = Math.log2(fx(x) / mf), y = Math.max(22, Math.min(44, Math.round(33 - g * Math.exp(-oc * oc * q * q * 1.5) * .65))); d.line(x - 1, py, x, y); py = y; }
+    d.text(`KEY ${pv(p, "source", 1)}`, 4, 23);
+  } else if (type === "neurobox") {
+    const r = pv(p, "reese", .35), g = pv(p, "growl", .4), sq = pv(p, "squelch", .3); let py = 33;
+    for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, w = Math.sin(t * Math.PI * 12) + Math.sin(t * Math.PI * 12 * (1 + r * .08)) * r, s = Math.sin(w * (1 + g * 3)) * (1 - sq * .4 + sq * .4 * Math.sin(t * Math.PI * 2)); const y = 33 - Math.round(s * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "spectral") {
     // Resonant band-bank curve: 8 log-spaced resonances around FREQ, shaped by PEAK/SPREAD/RES.
     const N = 8, cf = Math.min(16000, Math.max(40, pv(p, "freq", 1200))), res = pv(p, "res", 6), spread = pv(p, "spread", 1), peak = pv(p, "peak", 14);
