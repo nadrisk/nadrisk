@@ -12,5 +12,5 @@
 - The channel insert EQ is configured by configureEq() for both audio and screen (screen reads getFrequencyResponse from an offline mirror), so the drawn curve is the real response.
 - tape.delay~ is one tape loop read by three serial heads with feedback scaled by 1/sqrt(active heads) and a spring tank fed by input plus echoes, so MODE changes never destabilise the loop.
 - POLY REESE mode (src/audio/reese.ts) is mono with its own saved params beside POLY's and a centred unfiltered sub, so switching modes never overwrites either sound.
-- POLY ACID stores its own parameters; its single oscillator feeds pooled nonlinear TPT ladder processors in the shared worklet bundle, with velocity accents and existing phrase slides. Returned processors reset before reuse; inactive inputs skip DSP.
+- ACID is the 808 engine's second mode (bass.mode) and stores its own parameters beside the 808's, loading old POLY-ACID pads as 808 ACID; its single oscillator feeds pooled nonlinear TPT ladder processors in the shared worklet bundle, with velocity accents and existing phrase slides. Returned processors reset before reuse; inactive inputs skip DSP.
 - Each slot's voices enter through a zero-time DelayNode (outs[i].input), because the audio wrapper's per-connect cycle check stops at delays; without it every hit walked the whole downstream graph.
