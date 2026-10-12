@@ -1,5 +1,5 @@
 # Architecture
-- BRK uses pooled Signalsmith Stretch WASM voices on the shared raw audio context with its separately loaded self-contained npm module, so pitch and rhythmic duration stay independent while prepared voices avoid cold-start work on taps.
+- BRK pools Signalsmith Stretch WASM voices on the shared raw context, keeping pitch/duration independent and taps warm.
 - Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
 - Keep the native Capacitor shell on the shared Groovebox component and select it through Capacitor runtime detection, so iOS behavior stays aligned with the website instrument without including site content.
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
@@ -26,4 +26,4 @@
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
-- Animation loops use src/lib/frameGate.ts and only the visible layout's panels mount, so Safari never runs idle or hidden monitors.
+- Animation loops use src/lib/frameGate.ts and only visible panels mount; reverb DENS selects cached sparse-to-diffuse impulses, avoiding idle loops and continuous buffer rebuilds.

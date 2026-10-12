@@ -5,6 +5,7 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
+import { glyph } from "@/pixel/font";
 import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -17,13 +18,13 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
-  : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
+  : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "density" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -110,11 +111,15 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
   } else if (type === "reverb") {
-    // Reflection cloud: MIX = how many dots, SIZE = how far they spread and how long each lives, DAMP = how many reach the top (highs).
-    const size = pv(p, "size", 2.5), damp = pv(p, "damp", 6000), mix = pv(p, "mix", .3), n = Math.round(20 + mix * 140), top = 22 + Math.round((1 - damp / 16000) * 12);
-    for (let i = 0; i < n; i++) { const age = (t / size + rnd(i)) % 1, r = age * (14 + size * 6), a = rnd(i + 99) * TAU;
-      if (rnd(i + 7) < age * .9) continue; const x = Math.round(64 + Math.cos(a) * r * 2.2), y = Math.round(36 + Math.sin(a) * r * .7);
-      if (x > 2 && x < 125 && y >= top && y < 44) d.dot(x, y); }
+    // Fixed reflection field: SIZE fills outward, DENS changes spacing, DAMP thins the high region, MIX is the wet bar.
+    const size = Math.max(0, Math.min(1, (pv(p, "size", 2.5) - .2) / 7.8)), dens = pv(p, "density", .6), damp = pv(p, "damp", 6000) / 16000, mix = pv(p, "mix", .3);
+    const gap = dens > .78 ? 2 : dens > .48 ? 3 : dens > .22 ? 4 : 6, rx = 7 + size * 52, ry = 2 + size * 8;
+    for (let y = 23; y <= 41; y += gap) for (let x = 4; x <= 123; x += gap) {
+      const nx = Math.abs(x - 64) / rx, ny = Math.abs(y - 32) / ry, inside = nx * nx + ny * ny <= 1;
+      const highKeep = y > 31 || rnd(x * 17 + y * 31) < .18 + damp * .82;
+      if (inside && highKeep) d.dot(x, y);
+    }
+    d.rect(3, 43, Math.round(122 * mix), 1);
   } else if (type === "tremolo") {
     // The real gain curve: 1 at the top, 1-DEPTH at the bottom, with SHAPE's waveform and RATE's cycle count.
     const depth = pv(p, "depth", .6), shape = pv(p, "shape", 0), cycles = Math.max(1, Math.min(6, pv(p, "rate", 4) / 2)); let py = 23;
@@ -155,10 +160,17 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     if (sw < 0) d.rect(64 - w, 33, w, 7); else if (sw > 0) d.rect(65, 33, w, 7);
     if (!w) d.textC("FLAT", 64, 25);
     else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
-  } else if (["compressor", "ott"].includes(type)) {
+  } else if (type === "ott") {
+    // Outlined stroke-cells stay visible; DEPTH fills the OTT lettering from bottom to top.
+    const depth = Math.max(0, Math.min(1, pv(p, "depth", .6))), word = "OTT", cell = 4, glyphW = 3 * cell, gap = 3, width = word.length * glyphW + (word.length - 1) * gap, x0 = Math.round(64 - width / 2), y0 = 22;
+    [...word].forEach((ch, ci) => { const g = glyph(ch); for (let k = 0; k < 15; k++) if (g[k] === "1") {
+      const row = Math.floor(k / 3), x = x0 + ci * (glyphW + gap) + (k % 3) * cell, y = y0 + row * cell;
+      d.box(x, y, cell, cell); if ((5 - row) / 5 <= depth) d.rect(x + 1, y + 1, cell - 2, cell - 2);
+    } });
+  } else if (type === "compressor") {
     // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
-    const thr = pv(p, "threshold", type === "ott" ? -30 : -24);
-    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : pv(p, "ratio", 4);
+    const thr = pv(p, "threshold", -24);
+    const ratio = pv(p, "ratio", 4);
     const makeup = pv(p, "makeup", 0), depth = 1;
     const out = (i: number) => i > thr ? thr + (i - thr) / ratio : i;
     const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
