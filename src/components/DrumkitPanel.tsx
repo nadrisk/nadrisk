@@ -4,6 +4,7 @@ import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, 
 import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
+import { noteName } from "@/audio/arp";
 
 const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV", "PRST"] as const;
 const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
