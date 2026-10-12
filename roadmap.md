@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Verify all-partial previews and silent empty additive oscillators
+- [x] Verify all-partial previews and silent empty additive oscillators
 
 - [x] Correct and verify synth waveform preview sampling without audio changes
 
