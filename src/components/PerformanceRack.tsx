@@ -19,6 +19,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   const [flash, setFlash] = useState(0);
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
   const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
+  // DROP key in the live strip: same momentary flash so every tap gives feedback.
+  const [dropFlash, setDropFlash] = useState(0);
+  useEffect(() => { if (!dropFlash) return; const t = setTimeout(() => setDropFlash(0), 160); return () => clearTimeout(t); }, [dropFlash]);
   // iPhone drops quick taps (double-tap detection, tiny finger slides), so the live strip reads raw touches:
   // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
   // mouse, keyboard and MIDI (el.click()) still go through onClick.
@@ -28,7 +31,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   useEffect(() => {
     const el = liveRef.current; if (!el) return;
     const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
-    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset]") as HTMLElement | null;
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset],[data-perfreset]") as HTMLElement | null;
     const start = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); b.classList.add("touching"); }
     };
@@ -41,7 +44,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         if (e.cancelable) e.preventDefault();
         if (e.type !== "touchend") continue;
         const { mute, bank: bk } = s.b.dataset;
-        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll();
+        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll(); else if (s.b.dataset.perfreset !== undefined) liveAct.current.perfReset();
       }
     };
     el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
