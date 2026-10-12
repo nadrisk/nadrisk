@@ -13,13 +13,13 @@ export const DRUM_PRESETS: Record<DrumKind, readonly DrumPreset[]> = {
  recipe('snare','ringy','RINGY',{pitch:220,pitchEnv:4,tone2:2.06,fm:.3,noise:.3,noiseDecay:.1,bodyDecay:.42,drive:.1,fltBase:100,env:{a:.001,d:.46,s:0,r:.08}}),
  recipe('snare','pitchy','PITCHY SNAPPY',{pitch:280,pitchEnv:33,pitchDecay:.026,pCurve:.55,fm:2,noise:.65,noiseTone:5500,noiseDecay:.07,bodyDecay:.075,env:{a:.001,d:.12,s:0,r:.025}})],
  hat: [recipe('hat','closed','CLOSED HAT',{}),
- recipe('hat','open','OPEN HAT',{pitch:440,noise:.48,ring:.6,transient:.2,cutoff:6800,fltBase:4800,fltWidth:1.8,env:{a:.001,d:.55,s:0,r:.14}}),
- recipe('hat','ride','RIDE',{pitch:390,pitchEnv:0,spread:.86,fm:1.2,ring:.9,ringFreq:2450,noise:.12,transient:.2,cutoff:3800,fltBase:2500,fltWidth:2.6,drive:.05,env:{a:.001,d:.95,s:0,r:.2}}),
+ recipe('hat','open','OPEN HAT',{pitch:460,pitchEnv:0,spread:1.3,fm:3,fmRatio:1.41,noise:.75,ring:.1,transient:.3,drive:.05,filter:'highpass',cutoff:7500,fltBase:5500,fltWidth:1.9,grit:.6,env:{a:.001,d:.35,s:0,r:.1}}),
+ recipe('hat','ride','RIDE',{pitch:520,pitchEnv:0,spread:1.35,fm:2,fmRatio:1.41,noise:.3,ring:.3,ringFreq:3800,transient:.5,drive:.05,filter:'highpass',cutoff:5000,fltBase:3200,fltWidth:2.2,grit:.4,env:{a:.001,d:1.4,s:0,r:.25}}),
  recipe('hat','shaker','SHAKER',{pitchEnv:0,fm:0,noise:1,ring:0,transient:0,drive:.05,filter:'bandpass',cutoff:6200,res:.8,fltBase:2200,fltWidth:2,env:{a:.013,d:.13,s:0,r:.03}})],
- clap: [recipe('clap','snap','SHORT SNAP',{noiseTone:2100,cutoff:2100,tone2:4,bursts:1,burstGap:.004,tail:.07,drive:.12,env:{a:.001,d:.055,s:0,r:.02}}),
- recipe('clap','natural','NATURAL',{noiseTone:1600,cutoff:1800,tone2:1.3,bursts:4,burstGap:.007,tail:.38,drive:.08,env:{a:.001,d:.18,s:0,r:.04}}),
+ clap: [recipe('clap','snap','SHORT SNAP',{noiseTone:1800,cutoff:1900,tone2:3,bursts:1,burstGap:.004,tail:.04,drive:.3,gain:1.8,env:{a:.001,d:.07,s:0,r:.02}}),
+ recipe('clap','natural','NATURAL',{noiseTone:1500,cutoff:1800,tone2:1.6,bursts:3,burstGap:.005,tail:.25,drive:.12,gain:1.4,env:{a:.001,d:.14,s:0,r:.03}}),
  recipe('clap','808','TR-808 STYLE',{noiseTone:1050,cutoff:1450,tone2:2.6,bursts:3,burstGap:.011,tail:.6,drive:.18,env:{a:.001,d:.26,s:0,r:.06}}),
- recipe('clap','sloppy','SLOPPY',{noiseTone:1200,cutoff:1700,tone2:1.1,bursts:6,burstGap:.023,tail:.55,pitchEnv:-5,pitchDecay:.07,drive:.16,env:{a:.001,d:.32,s:0,r:.08}})]
+ recipe('clap','sloppy','SLOPPY',{noiseTone:1250,cutoff:1700,tone2:1.2,bursts:4,burstGap:.013,tail:.4,pitchEnv:-3,pitchDecay:.06,drive:.15,gain:1.15,env:{a:.001,d:.24,s:0,r:.06}})]
 };
 export const drumPreset = (kind: DrumKind, id?: string) => DRUM_PRESETS[kind].find(p => p.id === id);
 export const copyDrumPreset = (p: DrumPreset): DrumParams => ({ ...p.sound, env: { ...p.sound.env } });
