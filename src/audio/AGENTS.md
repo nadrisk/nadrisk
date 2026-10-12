@@ -14,3 +14,4 @@
 - POLY REESE mode (src/audio/reese.ts) is mono with its own saved params beside POLY's and a centred unfiltered sub, so switching modes never overwrites either sound.
 - ACID is the 808 engine's second mode (bass.mode) and stores its own parameters beside the 808's, loading old POLY-ACID pads as 808 ACID; its single oscillator feeds pooled nonlinear TPT ladder processors in the shared worklet bundle, with velocity accents and existing phrase slides. Returned processors reset before reuse; inactive inputs skip DSP.
 - Each slot's voices enter through a zero-time DelayNode (outs[i].input), because the audio wrapper's per-connect cycle check stops at delays; without it every hit walked the whole downstream graph.
+- Drum presets can set optional gain (post-filter level) and grit (cached 6-bit staircase + 14 kHz lowpass for 909-ROM hat character); both default neutral so older sets sound unchanged.
