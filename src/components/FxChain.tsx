@@ -38,12 +38,12 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
   if (type === "metal") {
     // The word itself: NOTE sets letter spacing, DRIVE slices and shears it, FDBK leaves ringing ghost copies; flashes when the input crosses THRS.
     const note = pv(p, "note", 57), drv = pv(p, "drive", .2), fb = pv(p, "feedback", .85), hit = (levels?.input ?? -80) > pv(p, "thresh", -40);
-    const gap = Math.round(2 + (84 - note) / 12), word = "METAL", sc = 4, w = word.length * 3 * sc + (word.length - 1) * gap, x0 = Math.round(64 - w / 2), y0 = 24;
+    const gap = Math.round(3 + (84 - note) / 10), word = "METAL", sc = 3, w = word.length * 3 * sc + (word.length - 1) * gap, x0 = Math.round(64 - w / 2), y0 = 26;
     const c = d.c, jit = hit ? 1 : 0;
     for (let s = 0; s < 5; s++) {
       const off = Math.round((rnd(s + Math.floor(t * 8) * jit * 7) - .5) * drv * 14);
       c.save(); c.beginPath(); c.rect(0, y0 + s * sc, 128, sc); c.clip();
-      for (let g = Math.round(fb * 3); g >= 1; g--) if (s % 2 === g % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * 3 + k * (3 * sc + gap), y0, true, sc));
+      for (let g = fb > .9 ? 2 : fb > .5 ? 1 : 0; g >= 1; g--) if (s % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * (sc + 3) + k * (3 * sc + gap), y0, true, sc));
       [...word].forEach((ch, k) => d.text(ch, x0 + off + k * (3 * sc + gap), y0, true, sc));
       c.restore();
     }
