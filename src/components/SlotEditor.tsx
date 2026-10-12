@@ -9,8 +9,10 @@ import EnsemblePanel from "@/components/EnsemblePanel";
 import { SlotScreen, ChordScreen, ChannelEqScreen } from "@/components/SlotScreens";
 import LibraryScreen from "@/components/LibraryScreen";
 import DevicePanel from "@/components/DevicePanel";
+import ScopeScreen, { type GetWave } from "@/components/ScopeScreen";
+import PolyVoiceScreen from "@/components/PolyVoiceScreen";
 
-function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
+function SlotEditor({ slot, index = 0, getWave, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; index?: number; getWave?: GetWave; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler;
   return <div className="node-body gb-editor-body">
     <DevicePanel className="gb-ed-slot" label="Slot"><SlotScreen slot={slot} onChange={onChange} /></DevicePanel>
@@ -22,9 +24,11 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       {slot.engine === "poly" && <EnsemblePanel slot={slot} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
     </DevicePanel>
-    <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} /></DevicePanel>
+    <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getWave={getWave} /></DevicePanel>
     {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {slot.engine === "sampler" && <DevicePanel className="gb-ed-library gb-ed-device" label="Library"><LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} /></DevicePanel>}
+    {slot.engine === "poly" && <DevicePanel className="gb-ed-voice gb-ed-device" label="Voice"><PolyVoiceScreen slot={slot} onChange={onChange} /></DevicePanel>}
+    {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-scope gb-ed-device" label="Scope"><ScopeScreen slot={index} name={slot.name} getWave={getWave} /></DevicePanel>}
   </div>;
 }
 

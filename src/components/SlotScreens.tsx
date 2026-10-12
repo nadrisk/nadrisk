@@ -1,3 +1,4 @@
+import { useScope, drawScope, type GetWave } from "@/components/ScopeScreen";
 import { eqCurve, EQ_KILL } from "@/audio/eqResponse";
 import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
@@ -101,7 +102,10 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
 }
 
 const EQ_FREQS = Float32Array.from({ length: 121 }, (_, i) => 20 * 1000 ** (i / 120));
-export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
+export function ChannelEqScreen({ slot, onChange, index = 0, getWave }: { slot: Slot; onChange: (p: Partial<Slot>) => void; index?: number; getWave?: GetWave }) {
+  // SCP page turns the EQ tile into this pad's oscilloscope; it only polls while that page is showing.
+  const [pg, setPg] = useState("LVL");
+  const scope = useScope(index, getWave, pg === "SCP");
   const eq = { lowFreq: 100, highFreq: 9000, q: .7, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
   const gainKnobs: Knob[] = [
     { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, reset: 0, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
@@ -114,8 +118,9 @@ export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: 
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
     { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
-  return <Panel name="EQ" label="Channel EQ insert" pages={["LVL", "FRQ"]} deps={[eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : freqKnobs}
-    body={p => {
+  return <Panel name={pg === "SCP" ? "SCOPE" : "EQ"} label="Channel EQ insert" pages={["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
+    body={(p, page) => {
+      if (page === "SCP") { drawScope(p, scope.buf, 2, 11, 124, 51); return; }
       // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
       // If the response can't be read yet (or a value is missing) the curve falls back to flat instead of leaving a blank screen.
       const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq || 1000);

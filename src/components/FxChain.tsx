@@ -33,9 +33,15 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   }
   if (type === "gain") { const pos = p.level ?? gainDbToPos(pv(p, "gain", 0)), g = gainPosToDb(pos); d.textC(g === -Infinity ? "-INF" : `${g > 0 ? "+" : ""}${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(pos * 118), 7); d.rect(5 + Math.round(GAIN_ZERO * 118), 32, 1, 11); return; }
   d.box(1, 21, 126, 24);
-  if (["saturation", "acid", "bitcrush"].includes(type)) {
-    const drive = pv(p, "drive", type === "bitcrush" ? 6 : 4), bias = pv(p, "bias", 0), bits = pv(p, "bits", 16); let py = 42;
-    for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = type === "bitcrush" ? Math.round(input * bits) / bits : Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
+  if (type === "bitcrush") {
+    // Bits/rate staircase: a sine sampled-and-held every REDUCE pixels and quantised to BITS levels.
+    const bits = Math.max(1, Math.round(pv(p, "bits", 6))), hold = Math.max(1, Math.round(pv(p, "reduce", 4) / 2)), lv = Math.min(10, 2 ** Math.min(bits, 4) / 2);
+    d.line(3, 33, 124, 33, true); let py = 33, held = 0;
+    for (let x = 3; x < 125; x++) { if ((x - 3) % hold === 0) held = Math.round(Math.sin((x - 3) / 121 * Math.PI * 4) * lv) / lv; const y = 33 - Math.round(held * 9); d.line(x - 1, py, x, y); py = y; }
+    d.text(`${bits}B /${Math.round(pv(p, "reduce", 4))}`, 4, 23);
+  } else if (["saturation", "acid"].includes(type)) {
+    const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
+    for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (["delay", "reverseDelay", "metal"].includes(type)) {
     const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = type === "metal" ? Math.max(4, Math.min(20, Math.round(4 + (84 - pv(p, "note", 57)) / 4))) : Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
@@ -82,6 +88,11 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (type === "neurobox") {
     const r = pv(p, "reese", .35), g = pv(p, "growl", .4), sq = pv(p, "squelch", .3); let py = 33;
     for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, w = Math.sin(t * Math.PI * 12) + Math.sin(t * Math.PI * 12 * (1 + r * .08)) * r, s = Math.sin(w * (1 + g * 3)) * (1 - sq * .4 + sq * .4 * Math.sin(t * Math.PI * 2)); const y = 33 - Math.round(s * 9); d.line(x - 1, py, x, y); py = y; }
+  } else if (type === "spectral" && p.freq === undefined) {
+    // Spectral gate: bins below the AMOUNT threshold line are removed (dotted), loud bins pass (solid).
+    const thr = 42 - Math.round(pv(p, "amount", .5) * 20);
+    for (let k = 0; k < 30; k++) { const x = 4 + k * 4, h = Math.round(4 + 16 * Math.abs(Math.sin(k * 1.7) * Math.cos(k * .45)) * (1 - k / 45)), top = 43 - h; if (top <= thr) d.rect(x, top, 3, h); else d.box(x, top, 3, h, true); }
+    d.line(3, thr, 124, thr, true); d.text("THR", 108, thr - 6);
   } else if (type === "spectral") {
     // Resonant band-bank curve: 8 log-spaced resonances around FREQ, shaped by PEAK/SPREAD/RES.
     const N = 8, cf = Math.min(16000, Math.max(40, pv(p, "freq", 1200))), res = pv(p, "res", 6), spread = pv(p, "spread", 1), peak = pv(p, "peak", 14);
