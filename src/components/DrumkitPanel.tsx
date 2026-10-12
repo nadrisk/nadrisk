@@ -83,7 +83,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
       <Zone x={2} y={10} w={92} h={35} horizontal label="Pitch env decay drag" value={d.pitchDecay} min={.003} max={.5} step={.001} onChange={pitchDecay => D({ pitchDecay })} />
       <Zone x={94} y={10} w={32} h={35} label="Pitch env end" value={d.pEnd} min={-24} max={24} step={1} onChange={pEnd => D({ pEnd })} />
     </>;
-    if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff drag" value={d.cutoff} min={40} max={16000} step={10} onChange={cutoff => D({ cutoff })} />;
+    if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff drag" value={d.cutoff} min={40} max={16000} step={10} log onChange={cutoff => D({ cutoff })} />;
     if (page === "ENV") return <EnvZones env={d.env} set={env => D({ env })} />;
     return null;
   };
