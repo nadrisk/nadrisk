@@ -120,7 +120,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         }
         const ax = 8 + start * 7 + 2; p.rect(ax, 32, 2, 1); p.dot(ax - 1, 32); p.dot(ax + 2, 32);
       } else {
-        key(p, "REV", 1, 11, 30, v.mode === 1); key(p, "STUT", 33, 11, 30, v.mode === 2); key(p, "STOP", 65, 11, 30, v.mode === 3); key(p, "RST", 97, 11, 30, false);
+        key(p, "REV", 1, 11, 30, v.mode === 1); key(p, "STUT", 33, 11, 30, v.mode === 2); key(p, "STOP", 65, 11, 30, v.mode === 3);
         STYLES.forEach((s, i) => key(p, s.slice(0, 5).toUpperCase(), 1 + i * 42, 24, 41, v.style === s));
         CMODES.forEach((m, i) => key(p, m.toUpperCase(), 1 + i * 32, 37, 31, (v.chordMode ?? "pad") === m));
         p.box(2, 49, 124, 14);
@@ -138,7 +138,6 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       <Zone x={8} y={32} w={112} h={8} horizontal label="Offset strip" value={v.offset} min={-8} max={8} step={1} onChange={offset => set({ offset })} />
     </> : page === "HLD" ? <>
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
-      <Tap x={97} y={11} w={30} h={9} label="Reset performance (HLD)" onClick={reset} />
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
     </> : null} />
@@ -149,6 +148,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const active = bank === b, waiting = queued === b;
         return <button key={n} type="button" data-bank={b} aria-label={`Performance pattern ${n}`} aria-pressed={active} title={waiting ? "queued for next bar" : active ? "active" : undefined} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
       })}
+      <button type="button" data-perfreset aria-label="Reset performance" aria-pressed={dropFlash > 0} title="drop: tension, holds, DJ filter and echo snap back" onClick={reset}>DROP</button>
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
       <div className="gb-perf-mute-grid">
