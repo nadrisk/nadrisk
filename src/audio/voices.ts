@@ -178,7 +178,6 @@ export function partialWaveInfo(ctx: BaseAudioContext, partials: number[]) {
   // wave is normalised to a fixed peak budget ourselves, so raising one partial adds that tone instead of just
   // turning every other partial down (the default PeriodicWave normalisation hides single-partial edits).
   partials.slice(0, 16).forEach((v, i) => { imag[i + 1] = v * v; });
-  if (!imag.some(v => v > 0)) imag[1] = 1;
   const sum = imag.reduce((a, b) => a + b, 0), g = 1 / Math.max(1, sum);
   for (let i = 1; i < 17; i++) imag[i] *= g;
   let peak = 0; for (let k = 0; k < 512; k++) { let y = 0; for (let h = 1; h < 17; h++) if (imag[h]) y += imag[h] * Math.sin(2 * Math.PI * h * k / 512); peak = Math.max(peak, Math.abs(y)); }

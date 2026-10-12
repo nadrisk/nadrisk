@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { synthPreview } from "./synthPreview";
+import { synthPreview, synthPreviewColumns } from "./synthPreview";
 
 describe("synth bitmap preview", () => {
   const bars = (fn: (h: number) => number) => Array.from({ length: 16 }, (_, i) => Math.sqrt(fn(i + 1)));
@@ -16,7 +16,16 @@ describe("synth bitmap preview", () => {
       expect(result).toHaveLength(22);
       expect(result.every(v => Number.isFinite(v) && Math.abs(v) <= 1)).toBe(true);
     }
-    expect(synthPreview([])).toEqual(synthPreview([1]));
+    expect(synthPreview([])).toEqual(Array(22).fill(0));
+    expect(synthPreviewColumns([]).every(c => c.value === 0 && c.min === 0 && c.max === 0)).toBe(true);
+  });
+  it("represents every isolated harmonic including above pixel Nyquist", () => {
+    for (let h = 1; h <= 16; h++) {
+      const columns = synthPreviewColumns(bars(n => n === h ? 1 : 0));
+      expect(columns.some(c => Math.round(c.max * 5) !== 0 || Math.round(c.min * 5) !== 0)).toBe(true);
+      expect(columns.every(c => c.min <= c.value && c.value <= c.max && c.min >= -1 && c.max <= 1)).toBe(true);
+      if (h >= 11) expect(columns.some(c => c.max - c.min > .5)).toBe(true);
+    }
   });
   it("caches without mutating recipes and responds to custom edits", () => {
     const p = [1, .5]; const old = p.slice();

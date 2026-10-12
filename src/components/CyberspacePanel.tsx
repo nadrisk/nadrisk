@@ -1,6 +1,6 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
-import { synthPreview } from "@/pixel/synthPreview";
+import { synthPreviewColumns } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
@@ -108,8 +108,13 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const wname = o.wave === "additive" ? addLabel(stored) : NATIVE[o.wave];
       const pl = o.wave === "additive" ? stored : presetPartials(wname);
       {
-        const ys = synthPreview(pl, o.wave === "additive" ? undefined : o.wave);
-        let prev = 0; ys.forEach((v, x) => { const y = 17 - Math.round(v * 5); if (x) p.line(1 + x, prev, 2 + x, y); prev = y; });
+        const columns = synthPreviewColumns(pl, o.wave === "additive" ? undefined : o.wave);
+        let prev = 0; columns.forEach((c, x) => {
+          const y = 17 - Math.round(c.value * 5);
+          if (x) p.line(1 + x, prev, 2 + x, y);
+          p.line(2 + x, 17 - Math.round(c.max * 5), 2 + x, 17 - Math.round(c.min * 5));
+          prev = y;
+        });
       }
       p.text(`${wname} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
