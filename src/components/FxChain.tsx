@@ -43,7 +43,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     for (let s = 0; s < 5; s++) {
       const off = Math.round((rnd(s + Math.floor(t * 8) * jit * 7) - .5) * drv * 14);
       c.save(); c.beginPath(); c.rect(0, y0 + s * sc, 128, sc); c.clip();
-      for (let g = fb > .9 ? 2 : fb > .5 ? 1 : 0; g >= 1; g--) if (s % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * (sc + 3) + k * (3 * sc + gap), y0, true, sc));
+      for (let g = hit ? (fb > .9 ? 2 : fb > .5 ? 1 : 0) : 0; g >= 1; g--) if (s % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * (sc + 3) + k * (3 * sc + gap), y0, true, sc));
       [...word].forEach((ch, k) => d.text(ch, x0 + off + k * (3 * sc + gap), y0, true, sc));
       c.restore();
     }
