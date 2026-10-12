@@ -4,7 +4,7 @@ import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX
 import { defaultHarmony, harmonyOn, keyChord, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
-import { stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
+import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
@@ -54,7 +54,7 @@ const defaultSlots = (): Slot[] => [
   base("TOM FM", "drum", 48, { level: 55, fx: [makeFx("reverb", { size: 1.5, mix: .2 })], drum: drum({ pitch: 130, pitchEnv: 20, pitchDecay: .05, fm: 1.5, fmRatio: 1.7, env: { a: .001, d: .22, s: 0, r: .08 } }) }),
   base("DRONE", "synth", 43, { level: 40, fx: [makeFx("phaser"), makeFx("reverb", { size: 7, mix: .5 })], synth: synth({ osc1: { wave: "triangle", gain: .8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 1.2, d: 1, s: .8, r: 2.5 }, lfo: { wave: "triangle", rate: .2, depth: .5, target: "cutoff" } }) }),
 ];
-const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48));
+const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48, { drum: { kind: "kick", ...DRUM_INIT.kick, env: { ...DRUM_INIT.kick.env } } }));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
 /** Which column a row plays on a tick. With a loop crop, the offset slides the loop window across the row. */
@@ -110,6 +110,7 @@ const defaultBank = (): Bank => {
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 const defaultFxParams = (type: FxType) => Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, r[0]]));
+const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal"]);
 function syncChain(e: Engine, i: number, s: Slot) {
   const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
@@ -468,12 +469,22 @@ export function useGroovebox() {
     engine.current = null;
   }, []);
 
+  const lastStop = useRef(0);
+  /** Ableton-style double-STOP: rebuild every tail-carrying FX chain (fresh nodes = empty delay lines and reverb) after a short fade. */
+  const killTails = useCallback(() => {
+    const e = engine.current; if (!e) return; e.performance.flush?.();
+    e.outs.forEach((o, i) => { if (!o.chain.some((_, k) => TAIL_FX.has(slotsRef.current[i].fx.filter(f => f.on)[k]?.type))) return;
+      o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
+      setTimeout(() => { o.sig = ""; syncChain(e, i, slotsRef.current[i]); }, 35); });
+  }, []);
   const togglePlay = useCallback(async () => {
     try {
       if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
       setPaused(false);
-      if (playing) { t.stop(); engine.current?.outs.forEach(o => o.chain.forEach(f => f.hush?.(true, Tone.getContext().rawContext.currentTime))); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { if (t.state !== "stopped") t.stop(); engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); resetTick.current(); engine.current?.outs.forEach(o => o.chain.forEach(f => f.hush?.(false, Tone.getContext().rawContext.currentTime))); t.position = 0; t.start("+0.05"); setPlaying(true); }
+      const nowMs = window.performance.now(), dbl = nowMs - lastStop.current < 400; lastStop.current = nowMs;
+      if (!playing) { if (dbl) { killTails(); lastStop.current = 0; return; } }
+      if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { if (t.state !== "stopped") t.stop(); engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); resetTick.current(); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, playing]);
@@ -594,7 +605,9 @@ export function useGroovebox() {
   const setStepValue = useCallback((kind: "vel" | "chance" | "ratchet", row: number, col: number, v: number) => editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((r, j) => (j === row ? r.map((x, k) => (k === col ? v : x)) : r)) })), [editBank]);
   // Row fader: one value for every lit step in a row (current bank).
   const setRowValue = useCallback((kind: "vel" | "chance" | "ratchet", row: number, v: number) => { const pat = banksRef.current[bankRef.current].pattern[row]; editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((r, j) => (j === row ? r.map((x, k) => (pat[k] ? v : x)) : r)) })); }, [editBank]);
-  const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row ? len : v))), []);
+  const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row || performanceRef.current.lenLock ? len : v))), []);
+  /** Clears one row of the current pattern: notes plus its velocity, chance and roll values (mod lane kept). */
+  const clearRow = useCallback((row: number) => { snap(); editBank(b => ({ ...b, pattern: b.pattern.map((r, i) => i === row ? r.map(() => 0 as StepVal) : r), vel: b.vel.map((r, i) => i === row ? r.map(() => 1) : r), chance: b.chance.map((r, i) => i === row ? r.map(() => 1) : r), ratchet: (b.ratchet ?? ones()).map((r, i) => i === row ? r.map(() => 1) : r) })); }, [editBank, snap]);
   const selectBank = useCallback((b: number) => {
     if (b === bankRef.current) { queuedRef.current = null; setQueued(null); return; }
     if (Tone.getTransport().state === "started") { queuedRef.current = b; setQueued(b); }
@@ -642,7 +655,7 @@ export function useGroovebox() {
   const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
 
-  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, selected, playing, paused, togglePause, newBlank, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

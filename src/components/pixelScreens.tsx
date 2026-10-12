@@ -69,10 +69,10 @@ export function EnvZones({ env, set, x0 = 2, y0 = 11, w = 124, h = 34 }: { env: 
   </>;
 }
 
-export const envKnobs = (env: ADSR, set: (e: ADSR) => void): Knob[] => (["a", "d", "s", "r"] as const).map(k => ({
+export const envKnobs = (env: ADSR, set: (e: ADSR) => void, home?: ADSR): Knob[] => (["a", "d", "s", "r"] as const).map(k => ({
   label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k],
   min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
-  fmt: k === "s" ? pct : ms, set: (v: number) => set({ ...env, [k]: v }),
+  fmt: k === "s" ? pct : ms, reset: home?.[k], set: (v: number) => set({ ...env, [k]: v }),
 }));
 
 // Stepped filter-magnitude curve.
