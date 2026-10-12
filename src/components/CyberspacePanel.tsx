@@ -106,7 +106,12 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const stored = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
       const wname = o.wave === "additive" ? addLabel(stored) : NATIVE[o.wave];
       const pl = o.wave === "additive" ? stored : presetPartials(wname);
-      drawWaveIcon(p, o.wave === "additive" ? "additive" : o.wave, 2, 11, 22, 12);
+      {
+        // Real single cycle from the 16 partials: sum of A[n]*sin(n*t), normalised to the icon box.
+        const N = 22, ys: number[] = []; let peak = 1e-6;
+        for (let x = 0; x < N; x++) { const t = x / (N - 1) * Math.PI * 2; let v = 0; for (let n = 0; n < 16; n++) v += (pl[n] ?? 0) * Math.sin((n + 1) * t); ys.push(v); peak = Math.max(peak, Math.abs(v)); }
+        let prev = 0; ys.forEach((v, x) => { const y = 17 - Math.round(v / peak * 5); if (x) p.line(1 + x, prev, 2 + x, y); prev = y; });
+      }
       p.text(`${wname} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
       // Native waves from older sets are represented by their matching harmonic recipe immediately,
