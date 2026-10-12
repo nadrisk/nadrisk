@@ -1,4 +1,4 @@
-import { useState, type ReactNode , useEffect} from "react";
+import { useState, useRef, type ReactNode , useEffect} from "react";
 import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
 import { textWidth } from "@/pixel/font";
 import type { Px } from "@/pixel/draw";
@@ -23,12 +23,23 @@ export function tabLayout(pages: readonly string[]) {
 }
 
 // Inverted title bar with machine name, live readout and page tabs.
-export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string) {
+export function compactHeaderText(readout: string, width: number) {
+  if (textWidth(readout) <= width) return readout;
+  const compact = readout.replace(/(\d{4,})MS$/, (_, ms: string) => `${Number(ms) / 1000}S`).replace(/\s+/g, "");
+  return compact;
+}
+
+export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string, compactReadout = false) {
   p.invert(0, 0, 128, 9);
   const tabs = tabLayout(pages);
-  p.text(name.slice(0, 8), 2, 2, false);
-  const maxReadout = Math.max(0, Math.floor((tabs[0].x - 40) / 4));
-  p.text(readout.slice(0, maxReadout), 38, 2, false);
+  if (compactReadout) {
+    const width = (tabs[0]?.x ?? 128) - 4;
+    p.text(readout ? compactHeaderText(readout, width) : name.slice(0, Math.floor((width + 1) / 4)), 2, 2, false);
+  } else {
+    p.text(name.slice(0, 8), 2, 2, false);
+    const maxReadout = Math.max(0, Math.floor(((tabs[0]?.x ?? 128) - 40) / 4));
+    p.text(readout.slice(0, maxReadout), 38, 2, false);
+  }
   tabs.forEach(({ pg, x, w }) => { if (pg === page) { p.rect(x, 1, w, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
 }
 
@@ -109,19 +120,32 @@ export function drawWaveIcon(p: Px, wave: Wave | "additive", x: number, y: numbe
 }
 
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
-  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined;
+  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined; compactReadout?: boolean;
 }) {
   const [page, setPage] = useState(pages[0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
   const [readout, setReadout] = useState("");
+  const readoutTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (!compactReadout) return;
+    setReadout("");
+    return () => clearTimeout(readoutTimer.current);
+  }, [page, name, compactReadout]);
+  const showReadout = (text: string) => {
+    setReadout(text);
+    if (compactReadout) {
+      clearTimeout(readoutTimer.current);
+      readoutTimer.current = setTimeout(() => setReadout(""), 1600);
+    }
+  };
   const ks = knobs(page);
   return <div className="px-panel">
-    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page); body(p, page); drawKnobs(p, ks); }}>
+    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page, compactReadout); body(p, page); drawKnobs(p, ks); }}>
       {tabZones(pages, page, setPage)}
       {extra?.(page)}
-      {knobZones(ks, page, setReadout)}
+      {knobZones(ks, page, showReadout)}
     </PixelScreen>
   </div>;
 }

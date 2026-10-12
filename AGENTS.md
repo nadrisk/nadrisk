@@ -14,7 +14,7 @@
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
-- DevicePanel owns grid-fixed desktop frames/insets; PixelScreen owns headers/controls. Phones stay stacked; VIS stays unmounted.
+- DevicePanel owns frames; PixelScreen owns headers/controls. Drum headers temporarily replace the name with width-fitted knob values so six tabs cannot hide feedback. Phones stack; VIS stays unmounted.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.
 - Screens use integer-scaled 128x64 bitmaps and labelled hit-zones for crisp pixels/MIDI. Synth preview squares all 16 partials with fast-detail column coverage; empty additive oscillators are silent.
 - Synth pitch, filter, and amplifier envelopes remain independent ADSRs, with shared draggable pixel-graph controls and backward-compatible set hydration so sound design stays direct without breaking saved sets.
