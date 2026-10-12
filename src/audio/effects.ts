@@ -440,7 +440,8 @@ export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, del
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "note", "feedback"], eq: ["low", "mid", "high"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain", "freq", "mix"] };
+// Only the targets that make an obvious difference per step are offered, so the MOD lane list stays short.
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["mix", "time"], metal: ["mix", "note"], eq: ["mid"], djfilter: ["sweep"], vibrato: ["depth"], tremolo: ["depth"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
 export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq" };
 /** Maps a 0..1 lane value onto the param's real range. */
