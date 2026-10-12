@@ -6,6 +6,7 @@ import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, t
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
+import type { PatchSound } from "@/audio/patchStore";
 import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { playBreak, prepareBreak } from "@/audio/breaks";
@@ -650,6 +651,15 @@ export function useGroovebox() {
     const jobs = (st.slots ?? []).map((o, i) => (o?.sampler?.sampleId ? loadById(i, o.sampler.sampleId, o.sampler.sampleName).then(ok => (ok ? null : o.sampler.sampleName)) : Promise.resolve(null)));
     void Promise.all(jobs).then(r => { const miss = r.filter((x): x is string => !!x); if (miss.length > 1) setError(`${miss.length} samples not found on this device: ${miss.slice(0, 3).join(", ")}${miss.length > 3 ? "…" : ""}`); });
   }, [loadById]);
+  // Patches replace only the selected pad's sound + FX rack, via the same hydration as set load.
+  const getPatch = useCallback(() => slotsRef.current[selectedRef.current], []);
+  const applyPatch = useCallback((o: PatchSound) => {
+    const i = selectedRef.current; cancelBooked(i); idle();
+    setSlots(sl => sl.map((x, j) => { if (j !== i) return x; const oldSynth = o.synth ?? x.synth;
+      const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }, filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 };
+      return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, fx: o.fx ?? [] }); }));
+    if (o.engine === "sampler" && o.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName ?? "sample");
+  }, [loadById]);
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
   const canUndo = hist >= 0 && undoRef.current.length > 0, canRedo = hist >= 0 && redoRef.current.length > 0;
@@ -669,7 +679,7 @@ export function useGroovebox() {
   const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setSwing(50); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
 
-  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
