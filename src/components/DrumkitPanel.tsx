@@ -4,11 +4,17 @@ import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, 
 import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
+import { NOTE_NAMES } from "@/audio/arp";
 
 const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV", "PRST"] as const;
 const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
 const KLAB: Record<DrumKind, string> = { kick: "KICK", snare: "SNR", hat: "HAT", clap: "CLAP" };
 const f2 = (v: number) => v.toFixed(2);
+// Kick/snare tune reads as a musical note plus cents, so the body can be tuned to the track's key.
+const noteCents = (f: number) => {
+  const m = 69 + 12 * Math.log2(f / 440), r = Math.round(m), c = Math.round((m - r) * 100);
+  return `${NOTE_NAMES[((r % 12) + 12) % 12]}${Math.floor(r / 12) - 1}${c > 0 ? "+" : c < 0 ? "-" : ""}${c ? Math.abs(c) + "c" : ""}`;
+};
 
 // DRUMKIT: four drum machines (kick / snare / hat / clap) on a 128x64 1-bit hardware screen.
 function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
@@ -18,13 +24,13 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const D = (p: Partial<typeof d0>) => onChange({ drum: { ...d0, ...p } });
   const K = (label: string, short: string, key: keyof typeof d, min: number, max: number, step: number, fmt: (v: number) => string): Knob =>
     ({ label, short, value: d[key] as number, min, max, step, fmt, reset: (home as Record<string, unknown>)[key as string] as number | undefined, set: v => D({ [key]: v } as Partial<typeof d0>) });
-  const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, hz), SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
+  const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, noteCents), TUNE_HZ = { ...TUNE, fmt: hz }, SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
 
   const knobs = (page: string): Knob[] => {
     if (page === "PRST") return [];
     if (page === "SRC") {
       if (d.kind === "snare") return [TUNE, SWP, K("Body tone 2", "TON2", "tone2", .5, 3, .01, f2), DRV];
-      if (d.kind === "hat") return [TUNE, SWP, K("Spread", "SPRD", "spread", 0, 2, .01, f2), DRV];
+      if (d.kind === "hat") return [TUNE_HZ, SWP, K("Spread", "SPRD", "spread", 0, 2, .01, f2), DRV];
       if (d.kind === "clap") return [K("Clap tone", "TONE", "noiseTone", 300, 6000, 10, hz), K("Bursts", "BRST", "bursts", 1, 6, 1, v => String(Math.round(v))), K("Burst gap", "GAP", "burstGap", .002, .03, .001, ms), DRV];
       return [TUNE, SWP, CTR, DRV];
     }
