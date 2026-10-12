@@ -15,3 +15,6 @@
 - ACID is the 808 engine's second mode (bass.mode) and stores its own parameters beside the 808's, loading old POLY-ACID pads as 808 ACID; its single oscillator feeds pooled nonlinear TPT ladder processors in the shared worklet bundle, with velocity accents and existing phrase slides. Returned processors reset before reuse; inactive inputs skip DSP.
 - Each slot's voices enter through a zero-time DelayNode (outs[i].input), because the audio wrapper's per-connect cycle check stops at delays; without it every hit walked the whole downstream graph.
 - Drum presets can set optional gain (post-filter level) and grit (cached 6-bit staircase + 14 kHz lowpass for 909-ROM hat character); both default neutral so older sets sound unchanged.
+- BRK pools Signalsmith Stretch WASM voices on the shared raw context, keeping pitch/duration independent and taps warm.
+- Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
+- LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
