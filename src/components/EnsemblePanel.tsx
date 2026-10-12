@@ -72,7 +72,7 @@ function EnsemblePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<S
       : page === "ENV" ? <><EnvZones env={curR} set={setR} />
         <Tap x={92} y={11} w={16} h={8} label="Poly volume envelope" pressed={envSel === "vol"} onClick={() => setEnvSel("vol")} />
         <Tap x={109} y={11} w={16} h={8} label="Poly filter envelope" pressed={envSel === "flt"} onClick={() => setEnvSel("flt")} /></> : null;
-    return <Panel name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} deps={[slot.name, y, envSel, slot.note]} />;
+    return <Panel name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} deps={[slot.name, y, envSel]} />;
   }
   const knobs = (page: string): Knob[] => {
     if (page === "VOX") return [
