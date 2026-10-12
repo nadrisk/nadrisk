@@ -20,7 +20,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, peaks, onChange, on
     <DevicePanel className="gb-ed-main gb-ed-device" label={slot.engine}>
       {slot.engine === "drum" && <DrumkitPanel slot={slot} onChange={onChange} />}
       {slot.engine === "synth" && <CyberspacePanel slot={slot} onChange={onChange} />}
-      {slot.engine === "808" && <Sub808Panel slot={slot} onChange={onChange} />}
+      {slot.engine === "808" && <Sub808Panel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
       {slot.engine === "siren" && <SirenPanel slot={slot} onChange={onChange} />}
       {slot.engine === "poly" && <EnsemblePanel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
@@ -28,7 +28,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, peaks, onChange, on
     <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getWave={getWave} /></DevicePanel>
     {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {slot.engine === "sampler" && <DevicePanel className="gb-ed-library gb-ed-device" label="Library"><LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} /></DevicePanel>}
-    {slot.engine === "poly" && slot.poly.mode !== "acid" && <DevicePanel className="gb-ed-voice gb-ed-device" label="Voice"><PolyVoiceScreen slot={slot} onChange={onChange} /></DevicePanel>}
+    {slot.engine === "poly" && <DevicePanel className="gb-ed-voice gb-ed-device" label="Voice"><PolyVoiceScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-scope gb-ed-device" label="Spectrum"><SpectrumScreen slot={index} name={slot.name} getSpectrum={getSpectrum} /></DevicePanel>}
   </div>;
 }
