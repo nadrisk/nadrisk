@@ -18,7 +18,7 @@ function curveComp(curve: Float32Array | null): number {
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
-  delay: { label: "tape.delay~", params: { time: [0.375, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
   chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
@@ -27,11 +27,11 @@ export const FX_DEFS = {
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
-  metal: { label: "res.metal~", params: { note: [57, 24, 84, 1], fine: [0, -50, 50, 1], track: [0, 0, 1, 1], feedback: [0.85, 0, 0.97, 0.01], metal: [0.4, 0, 1, 0.01], drive: [0.2, 0, 1, 0.01], decay: [0.35, 0.02, 2, 0.01], tone: [6000, 300, 16000, 10], random: [0, 0, 1, 0.01], mix: [0.4, 0, 1, 0.01] } },
+  metal: { label: "res.metal~", params: { note: [57, 24, 84, 1], fine: [0, -50, 50, 1], track: [0, 0, 1, 1], feedback: [0.85, 0, 0.97, 0.01], metal: [0.4, 0, 1, 0.01], drive: [0.2, 0, 1, 0.01], decay: [0.35, 0.02, 2, 0.01], thresh: [-40, -60, 0, 1], tone: [6000, 300, 16000, 10], random: [0, 0, 1, 0.01], mix: [0.4, 0, 1, 0.01] } },
   spectral: { label: "spectral~", params: { amount: [0.5, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
-  sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], threshold: [-24, -60, 0, 1], ratio: [6, 1, 20, 0.1], depth: [1, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
+  sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], hp: [80, 20, 1000, 5], depth: [0.8, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
-  reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], ping: [0, 0, 1, 1], mix: [0.35, 0, 1, 0.01] } },
   acid: { label: "acid.drive~", params: { drive: [10, 1, 40, 0.1], bias: [0.35, 0, 0.9, 0.01], bite: [1800, 300, 6000, 10], tone: [7000, 800, 16000, 10], mix: [1, 0, 1, 0.01] } },
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
@@ -109,11 +109,11 @@ class Transient extends AudioWorkletProcessor {
   }
 }
 class MetalEnv extends AudioWorkletProcessor {
-  static get parameterDescriptors() { return [{ name: 'decay', defaultValue: .35 }]; }
+  static get parameterDescriptors() { return [{ name: 'decay', defaultValue: .35 }, { name: 'thresh', defaultValue: -60 }]; }
   constructor() { super(); this.e = 0; }
   process(ins, outs, p) {
     const x = ins[0], y = outs[0][0], kr = Math.exp(-1 / (sampleRate * Math.max(.005, p.decay[0]) / 3));
-    for (let n = 0; n < y.length; n++) { const v = Math.min(1, Math.max(Math.abs(x?.[0]?.[n] || 0), Math.abs(x?.[1]?.[n] || 0)) * 6); this.e = v > this.e ? this.e + (v - this.e) * .2 : this.e * kr; y[n] = this.e; }
+    for (let n = 0; n < y.length; n++) { const th = Math.pow(10, p.thresh[0] / 20), a = Math.max(Math.abs(x?.[0]?.[n] || 0), Math.abs(x?.[1]?.[n] || 0)), v = Math.min(1, Math.max(0, a - th) / Math.max(.02, 1 - th) * 6); this.e = v > this.e ? this.e + (v - this.e) * .2 : this.e * kr; y[n] = this.e; }
     return true;
   }
 }
@@ -140,7 +140,7 @@ class Smash extends AudioWorkletProcessor {
     // FET "all buttons in": near-instant attack, very high ratio, program-dependent release, driven input stage.
     const x = ins[0], y = outs[0]; if (!x || !x.length) return true; const a = p.amount[0];
     if (a < .001) { for (let c = 0; c < y.length; c++) y[c].set(x[c] || x[0]); return true; }
-    const th = Math.pow(10, (-6 - a * 30) / 20), ratio = 4 + a * 26, pre = 1 + a * 3, mk = Math.pow(10, a * 30 / 20), ka = 1 - Math.exp(-1 / (sampleRate * .0002));
+    const th = Math.pow(10, (-12 - a * 30) / 20), ratio = 4 + a * 26, pre = 1 + a * 5, mk = Math.pow(10, a * 34 / 20), ka = 1 - Math.exp(-1 / (sampleRate * .0002));
     for (let n = 0; n < y[0].length; n++) {
       const v = Math.max(Math.abs((x[0][n] || 0) * pre), Math.abs(((x[1] || x[0])[n] || 0) * pre));
       this.r = this.r * .9995 + (v > th ? .0005 : 0);
@@ -222,6 +222,9 @@ const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
   return level > 0.00001 ? Math.max(-60, 20 * Math.log10(level)) : -60;
 };
 
+// Warm soft clip (Airwindows Density/Spiral flavour): cubic knee that rounds peaks gradually with a touch of even harmonics.
+function warmCurve(k: number) { const c = new Float32Array(2048), norm = (v: number) => { const z = Math.max(-1, Math.min(1, v)); return z - z * z * z / 3; }, top = norm(k * .5) || 1;
+  for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * k * .5; c[i] = (norm(x) + .06 * norm(x) * Math.abs(norm(x)) - .0) / (top * 1.06); } return c; }
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
 function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
 // Impulses are cached by rounded length so a sequenced reverb decay doesn't rebuild noise on every step.
@@ -293,7 +296,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       last = p;
       retune(p, automationTime, .12); // tape-style glide: NOTE changes bend the pitch
       const dk = Math.round((p.drive ?? .2) * 50); if (dk !== driveKey) { driveKey = dk; const c = satCurve(1 + dk / 50 * 9); sides.forEach(s => { s.drv.curve = c; }); }
-      sides.forEach(s => set(s.lp.frequency, p.tone ?? 6000)); set(fbAmt.gain, Math.min(.97, p.feedback ?? .85)); set(env.parameters.get("decay"), p.decay ?? .35);
+      sides.forEach(s => set(s.lp.frequency, p.tone ?? 6000)); set(fbAmt.gain, Math.min(.97, p.feedback ?? .85)); set(env.parameters.get("decay"), p.decay ?? .35); set(env.parameters.get("thresh"), p.thresh ?? -60);
     };
     setPitch = (semi, at) => { semiOff = semi; if (last.track) retune(last, at, .004); };
     trigger = at => { const amount = last.random ?? 0; if (amount <= 0) return; const r = () => Math.random() * 2 - 1;
@@ -308,10 +311,11 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { set(lp.frequency, p.sweep < 0 ? 20000 * (40 / 20000) ** -p.sweep : 20000); set(hp.frequency, p.sweep > 0 ? 20 * (16000 / 20) ** p.sweep : 20); set(lp.Q, p.sweep < 0 ? p.resonance : .1); set(hp.Q, p.sweep > 0 ? p.resonance : .1); };
   } else if (type === "reverseDelay") {
     const n = worklet("nad-reverse-delay"); input.connect(n).connect(wet);
-    apply = p => { const b = beatsOf(p); wp(n, { ...p, time: b ? Math.min(1.5, b * 60 / fxBpm) : p.time }, ["time", "feedback"]); };
+    apply = p => { const b = beatsOf(p); wp(n, { ...p, time: b ? Math.min(1.5, b * 60 / fxBpm) : p.time, ping: p.ping ?? 0 }, ["time", "feedback", "ping"]); };
   } else if (type === "sidechain") {
-    const n = worklet("nad-duck", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
-    apply = p => wp(n, p, ["threshold", "ratio", "depth", "attack", "release"]);
+    // Pure ducker: the key pad (high-passed by HP so only its punch counts) pulls the level down by DUCK, SMOOTH attack, REL release.
+    const n = worklet("nad-duck2", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
+    apply = p => wp(n, { hp: p.hp ?? 80, depth: p.depth ?? .8, attack: p.attack ?? .005, release: p.release ?? .2 }, ["hp", "depth", "attack", "release"]);
   } else if (type === "dyneq") {
     const n = worklet("nad-dyneq", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
     apply = p => wp(n, p, ["freq", "gain", "threshold", "q"]);
@@ -348,7 +352,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(); sh.oversample = eco ? "none" : "4x"; nodes.push(sh, lp);
     input.connect(sh).connect(lp).connect(wet); let k = 0;
     const out = ctx.createGain(); nodes.push(out); lp.disconnect(); lp.connect(out).connect(wet);
-    apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = satCurve(k); } set(out.gain, curveComp(sh.curve)); set(lp.frequency, p.tone); };
+    apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = warmCurve(k); } set(out.gain, curveComp(sh.curve)); set(lp.frequency, p.tone); };
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
     // SP mode, modelled on what makes these machines recognisable:
@@ -367,10 +371,28 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       set(cr.parameters.get("bits"), sp ? 12 : p.bits); set(cr.parameters.get("reduce"), sp === 1 ? Math.max(1, ctx.sampleRate / 12000) : sp === 2 ? Math.max(1, ctx.sampleRate / 20000) : p.reduce);
       set(lp.frequency, sp === 1 ? 7500 : sp === 2 ? 11000 : 20000); set(lp.Q, sp === 1 ? 2.2 : sp === 2 ? 1 : .7); set(low.gain, sp === 1 ? 3 : sp === 2 ? 5 : 0); };
   } else if (type === "delay") {
-    const d = ctx.createDelay(2), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), w = lfo(); nodes.push(d, lp, fb);
-    w.o.frequency.value = 0.7; w.g.connect(d.delayTime);
-    input.connect(d).connect(lp).connect(wet); lp.connect(fb).connect(d);
-    apply = p => { const b = beatsOf(p); set(d.delayTime, Math.min(b ? b * 60 / fxBpm : p.time, 1.99)); set(fb.gain, p.feedback); set(lp.frequency, p.tone); set(w.g.gain, p.wow * 0.004); };
+    // Space Echo (RE-201 style): one tape loop read by three heads at 1x/2x/3x TIME; MODE picks the heads.
+    // The repeats run through warm tape saturation, a darkening TONE lowpass and a bass-thinning highpass on every pass,
+    // wow + flutter wobble the tape, and a SPRING tank (allpass chirp cascade in a short lowpassed loop) drips over input + echoes.
+    const heads = [0, 1, 2].map(() => { const d = ctx.createDelay(1.6), tap = ctx.createGain(); tap.gain.value = 0; nodes.push(d, tap); return { d, tap }; });
+    const rec = ctx.createGain(), sum = ctx.createGain(), sat = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(), fb = ctx.createGain(), echoOut = ctx.createGain();
+    hp.type = "highpass"; hp.frequency.value = 140; hp.Q.value = .5; lp.Q.value = .4; sat.curve = warmCurve(2.2); sat.oversample = eco ? "none" : "2x"; nodes.push(rec, sum, sat, lp, hp, fb, echoOut);
+    input.connect(rec).connect(heads[0].d).connect(heads[1].d).connect(heads[2].d);
+    heads.forEach(h => h.d.connect(h.tap).connect(sum));
+    sum.connect(sat).connect(lp).connect(hp); hp.connect(echoOut).connect(wet); hp.connect(fb).connect(rec); echoOut.gain.value = 1 / curveComp(sat.curve);
+    const wow = lfo(), flut = lfo(); wow.o.frequency.value = .55; flut.o.frequency.value = 6.3; heads.forEach(h => { wow.g.connect(h.d.delayTime); flut.g.connect(h.d.delayTime); });
+    // Spring tank.
+    const spIn = ctx.createGain(), spD = ctx.createDelay(.1), spFb = ctx.createGain(), spLp = ctx.createBiquadFilter(), spHp = ctx.createBiquadFilter(), spOut = ctx.createGain();
+    spD.delayTime.value = .043; spFb.gain.value = .72; spLp.frequency.value = 3800; spHp.type = "highpass"; spHp.frequency.value = 220; spOut.gain.value = 0; nodes.push(spIn, spD, spFb, spLp, spHp, spOut);
+    const chirp = Array.from({ length: 6 }, (_, i) => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.frequency.value = 900 + i * 260; a.Q.value = 6; nodes.push(a); return a; });
+    input.connect(spIn); echoOut.connect(spIn); spIn.connect(chirp[0]); chirp.reduce((a, b) => (a.connect(b), b)).connect(spHp).connect(spD).connect(spLp);
+    spLp.connect(spFb).connect(chirp[0]); spLp.connect(spOut).connect(wet);
+    const HEADS = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]];
+    apply = p => { const b = beatsOf(p), t = Math.min(b ? b * 60 / fxBpm : p.time, 1.5), on = HEADS[Math.round(p.mode ?? 0)] ?? HEADS[0], n = on.reduce((a, v) => a + v, 0) || 1;
+      heads.forEach((h, i) => { set(h.d.delayTime, i === 0 ? t : Math.min(1.5, t)); set(h.tap.gain, on[i] / Math.sqrt(n)); });
+      // Feedback is shared by every active head, so scale it down as heads are added to keep the loop stable.
+      set(fb.gain, Math.min(.95, p.feedback) / Math.sqrt(n)); set(lp.frequency, p.tone);
+      const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0); };
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let size = 0;
     input.connect(cv).connect(lp).connect(wet);
@@ -396,9 +418,9 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { set(m.o.frequency, rateOf(p)); set(vca.gain, 1 - p.depth / 2); set(m.g.gain, p.depth / 2); };
     m.g.connect(vca.gain); input.connect(vca).connect(wet);
   } else if (type === "compressor") {
-    const c = ctx.createDynamicsCompressor(), mk = ctx.createGain(); nodes.push(c, mk);
-    input.connect(c).connect(mk).connect(wet);
-    apply = p => { set(c.threshold, p.threshold); set(c.ratio, p.ratio); set(c.attack, p.attack); set(c.release, p.release); set(mk.gain, 10 ** (p.makeup / 20)); };
+    // Feed-forward VCA compressor: log-domain detector, 6 dB soft knee, exact attack/release — reacts the moment you turn a knob.
+    const n = worklet("nad-vca"); input.connect(n).connect(wet);
+    apply = p => wp(n, p, ["threshold", "ratio", "attack", "release", "makeup"]);
   } else if (type === "noisegate") {
     const n = worklet("nad-ngate"); input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "attack", "hold", "release", "range"]);
@@ -436,7 +458,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 4, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */

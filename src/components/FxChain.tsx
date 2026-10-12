@@ -7,7 +7,9 @@ import type { Px } from "@/pixel/draw";
 import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
+  k === "mode" ? `HEAD ${HEAD_NAMES[Math.round(v)] ?? "1"}` : k === "spring" ? `${Math.round(v * 100)}%` : k === "ping" ? (v >= .5 ? "ON" : "OFF") : k === "hp" ? `${Math.round(v)}HZ` : k === "thresh" ? `${Math.round(v)}DB` : k === "depth" && p.hp !== undefined ? `${Math.round(v * 100)}%` : k === "attack" && p.hp !== undefined ? `${Math.round(v * 1000)}MS` :
   k === "level" ? (() => { const d = gainPosToDb(v); return d === -Infinity ? "-INF" : `${d > 0 ? "+" : ""}${d.toFixed(1)}DB`; })() : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
   k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "ON" : "OFF") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
@@ -19,7 +21,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string) => ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -33,6 +35,25 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   }
   if (type === "gain") { const pos = p.level ?? gainDbToPos(pv(p, "gain", 0)), g = gainPosToDb(pos); d.textC(g === -Infinity ? "-INF" : `${g > 0 ? "+" : ""}${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(pos * 118), 7); d.rect(5 + Math.round(GAIN_ZERO * 118), 32, 1, 11); return; }
   d.box(1, 21, 126, 24);
+  if (type === "sidechain") {
+    // Envelope dip: flat, then pulled down by DUCK on each key hit (SMOOTH slope), recovering over REL.
+    const depth = pv(p, "depth", .8), att = Math.max(1, Math.round(pv(p, "attack", .005) * 400)), rel = Math.max(4, Math.round(pv(p, "release", .2) * 90)), low = 24 + Math.round(depth * 18);
+    let px = 3, py = 24;
+    for (const x0 of [10, 70]) { d.line(px, py, x0, 24); d.line(x0, 24, x0 + att, low); let qy = low; for (let x = 1; x <= rel && x0 + att + x < 124; x++) { const y = Math.round(low - (low - 24) * (1 - Math.exp(-x / (rel / 3)))); d.line(x0 + att + x - 1, qy, x0 + att + x, y); qy = y; } px = Math.min(124, x0 + att + rel); py = qy; }
+    d.line(px, py, 124, 24); d.text(`KEY ${pv(p, "source", 1)}`, 96, 37);
+    return;
+  }
+  if (type === "delay") {
+    // Space Echo: three playback heads (lit = active), the tape line, and the spring coil sized by SPRING.
+    const on = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]][Math.round(pv(p, "mode", 0))] ?? [1, 0, 0];
+    d.line(3, 26, 70, 26); d.rect(5, 23, 5, 6);
+    on.forEach((v, i) => { const x = 20 + i * 16; if (v) d.rect(x, 22, 10, 8); else d.box(x, 22, 10, 8, true); d.textC(String(i + 1), x + 5, 32); });
+    const fb = pv(p, "feedback", .45); for (let i = 0; i < 6; i++) { const h = Math.max(1, Math.round(7 * fb ** i)); d.rect(4 + i * 11, 43 - h, 3, h); }
+    const sp = pv(p, "spring", 0), amp = Math.round(1 + sp * 6); let py = 33;
+    d.text("SPRG", 78, 23);
+    for (let x = 78; x < 124; x++) { const y = 36 + Math.round(Math.sin((x - 78) * 1.4) * amp * (sp > 0 ? 1 : .2)); d.line(x - 1, py, x, y); py = y; }
+    return;
+  }
   if (type === "bitcrush") {
     // Bits/rate staircase: a sine sampled-and-held every REDUCE pixels and quantised to BITS levels.
     const bits = Math.max(1, Math.round(pv(p, "bits", 6))), hold = Math.max(1, Math.round(pv(p, "reduce", 4) / 2)), lv = Math.min(10, 2 ** Math.min(bits, 4) / 2);
@@ -42,7 +63,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (["saturation", "acid"].includes(type)) {
     const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
     for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
-  } else if (["delay", "reverseDelay", "metal"].includes(type)) {
+  } else if (["reverseDelay", "metal"].includes(type)) {
     const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = type === "metal" ? Math.max(4, Math.min(20, Math.round(4 + (84 - pv(p, "note", 57)) / 4))) : Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
   } else if (type === "reverb") {
@@ -67,11 +88,11 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     if (sw < 0) d.rect(64 - w, 33, w, 7); else if (sw > 0) d.rect(65, 33, w, 7);
     if (!w) d.textC("FLAT", 64, 25);
     else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
-  } else if (["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(type)) {
+  } else if (["compressor", "ott", "drumbus", "noisegate"].includes(type)) {
     // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
     const thr = pv(p, "threshold", type === "ott" ? -30 : type === "drumbus" ? -18 : -24);
     const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : type === "drumbus" ? 1 + pv(p, "drive", 3) / 4 : type === "noisegate" ? 1 : pv(p, "ratio", 4);
-    const makeup = pv(p, "makeup", 0), depth = type === "sidechain" ? pv(p, "depth", 1) : 1;
+    const makeup = pv(p, "makeup", 0), depth = 1;
     const out = (i: number) => type === "noisegate" ? (i < thr ? -60 + (1 - pv(p, "range", 0)) * 0 + i * pv(p, "range", 0) : i) : (i > thr ? thr + (i - thr) / ratio : i) * 1;
     const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
     d.line(3, 43, 69, 22, true); let py = toY(out(-60));
@@ -139,7 +160,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
     return gatedLoop(null, poll);
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * 4, pi * 4 + 4).map(([k, r]) => ({
-    label: `${FX_DEFS[f.type].label} ${k}`, short: short(k), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
+    label: `${FX_DEFS[f.type].label} ${k}`, short: short(k, f.type), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
     fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
   }));
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
