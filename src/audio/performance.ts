@@ -10,6 +10,8 @@ export type PerformanceParams = {
   /** Performance override for every chord pad: "pad" keeps each pad's own play mode. */
   chordMode?: "pad" | "block" | "strum" | "arp";
   /** Performance DJ filter (-1 low-pass .. +1 high-pass) and dub tape echo send. */
+  /** Sequencer LEN lock: one row's length change applies to every row. */
+  lenLock?: boolean;
   djSweep?: number; djRes?: number; echoSend?: number; echoDiv?: number; echoFeedback?: number; echoTone?: number;
   /** Mastering: broad low-Q EQ (dB) with sub high-pass, then a gentle glue compressor. */
   mEqOn?: boolean; mHpf?: number; mLow?: number; mMud?: number; mPresence?: number; mAir?: number;
