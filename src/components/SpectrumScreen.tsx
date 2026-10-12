@@ -29,7 +29,7 @@ function SpectrumScreen({ slot, name, getSpectrum }: { slot: number; name: strin
       setTick(t => (t + 1) % 1e6);
     });
   }, [slot, getSpectrum]);
-  return <Panel name="SPECTRUM" label={`Spectrum analyzer ${name}`} pages={["FFT"]} deps={[tick, name]}
+  return <Panel name="SPECTRUM" label={`Spectrum analyzer ${name}`} pages={["FFT"]} deps={[tick, name]} knobs={() => []}
     body={p => {
       const x0 = 4, y0 = 12, h = 34, w = 5;
       p.box(2, y0 - 2, 124, h + 4, true);
