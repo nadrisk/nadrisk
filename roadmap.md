@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Replace rejected REESE hands with dark interference waves; verify controls, bounds, sound reaction and screen performance
+- [x] Replace rejected REESE hands with dark interference waves; verify controls, bounds, sound reaction and screen performance (real iPhone responsiveness remains unverified)
 
 - [x] Verify all-partial previews and silent empty additive oscillators
 
