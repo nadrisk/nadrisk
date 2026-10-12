@@ -1,5 +1,6 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
+import { synthPreview } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
@@ -107,10 +108,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const wname = o.wave === "additive" ? addLabel(stored) : NATIVE[o.wave];
       const pl = o.wave === "additive" ? stored : presetPartials(wname);
       {
-        // Real single cycle from the 16 partials: sum of A[n]*sin(n*t), normalised to the icon box.
-        const N = 22, ys: number[] = []; let peak = 1e-6;
-        for (let x = 0; x < N; x++) { const t = x / (N - 1) * Math.PI * 2; let v = 0; for (let n = 0; n < 16; n++) v += (pl[n] ?? 0) * Math.sin((n + 1) * t); ys.push(v); peak = Math.max(peak, Math.abs(v)); }
-        let prev = 0; ys.forEach((v, x) => { const y = 17 - Math.round(v / peak * 5); if (x) p.line(1 + x, prev, 2 + x, y); prev = y; });
+        const ys = synthPreview(pl, o.wave === "additive" ? undefined : o.wave);
+        let prev = 0; ys.forEach((v, x) => { const y = 17 - Math.round(v * 5); if (x) p.line(1 + x, prev, 2 + x, y); prev = y; });
       }
       p.text(`${wname} >`, 28, 15);
       if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
