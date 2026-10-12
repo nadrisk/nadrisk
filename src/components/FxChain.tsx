@@ -1,6 +1,6 @@
 import { gatedLoop } from "@/lib/frameGate";
-import { memo, useEffect, useState } from "react";
-import { Tap } from "@/pixel/PixelScreen";
+import { memo, useEffect, useRef, useState } from "react";
+import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
@@ -27,7 +27,7 @@ const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
 
-function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
+function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][] = []) {
   const p = f.params, type = f.type;
   if (type === "gate") {
     const steps = Math.max(1, Math.min(16, Math.round(p.steps ?? 16))), mask = Math.round(p.mask ?? 21845);
@@ -36,6 +36,27 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   }
   if (type === "gain") { const pos = p.level ?? gainDbToPos(pv(p, "gain", 0)), g = gainPosToDb(pos); d.textC(g === -Infinity ? "-INF" : `${g > 0 ? "+" : ""}${g.toFixed(1)} DB`, 64, 24); d.box(4, 33, 120, 9); d.rect(5, 34, Math.round(pos * 118), 7); d.rect(5 + Math.round(GAIN_ZERO * 118), 32, 1, 11); return; }
   d.box(1, 21, 126, 24);
+  const yDb = (db: number) => 43 - Math.round(Math.max(0, Math.min(1, (db + 80) / 80)) * 20);
+  if (type === "noisegate") {
+    // Scrolling detector level (newest on the right); columns where the gate is closing are dotted. Drag the THR line.
+    const h = hist.slice(-121), thr = yDb(pv(p, "threshold", -40));
+    h.forEach(([lv, g], k) => { const x = 124 - (h.length - 1 - k), y = yDb(lv ?? -80); if (y >= 43) return; if ((g ?? 0) > .5) d.line(x, y, x, 43); else for (let yy = y; yy <= 43; yy += 2) d.rect(x, yy, 1, 1); });
+    d.line(2, thr, 125, thr); d.rect(2, thr - 1, 3, 3); d.text("THR", 108, Math.max(22, thr - 7));
+    return;
+  }
+  if (type === "drumbus") {
+    // Left: incoming level trace. Right: separate meters for TIGHT (transient change), SMSH (gain reduction) and CLIP (saturation drive).
+    const h = hist.slice(-66); let py = 43;
+    h.forEach(([lv], k) => { const x = 3 + k, y = yDb(lv ?? -80); d.line(x, py, x, y); py = y; });
+    const tr = levels?.state?.[0] ?? 0, gr = -(levels?.state?.[1] ?? 0), clip = pv(p, "clip", .3);
+    const bar = (x: number, lbl: string, f: number, mid = false) => { d.box(x, 22, 13, 16); const v = Math.max(-1, Math.min(1, f));
+      if (mid) { d.line(x + 1, 30, x + 11, 30, true); const hh = Math.round(Math.abs(v) * 7); if (v > 0) d.rect(x + 2, 30 - hh, 9, hh); else d.rect(x + 2, 31, 9, hh); }
+      else { const hh = Math.round(Math.max(0, v) * 14); d.rect(x + 2, 37 - hh, 9, hh); } d.textC(lbl, x + 7, 39); };
+    bar(72, "TGT", tr / 12, true); bar(90, "SMH", gr / 24); bar(108, "CLP", clip);
+    // Heavier processing = thicker frame.
+    if ((p.smash ?? 0) + clip > 1.2) d.box(0, 20, 128, 26);
+    return;
+  }
   if (type === "sidechain") {
     // Envelope dip: flat, then pulled down by DUCK on each key hit (SMOOTH slope), recovering over REL.
     const depth = pv(p, "depth", .8), att = Math.max(1, Math.round(pv(p, "attack", .005) * 400)), rel = Math.max(4, Math.round(pv(p, "release", .2) * 90)), low = 24 + Math.round(depth * 18);
@@ -93,12 +114,12 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     if (sw < 0) d.rect(64 - w, 33, w, 7); else if (sw > 0) d.rect(65, 33, w, 7);
     if (!w) d.textC("FLAT", 64, 25);
     else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
-  } else if (["compressor", "ott", "drumbus", "noisegate"].includes(type)) {
+  } else if (["compressor", "ott"].includes(type)) {
     // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
-    const thr = pv(p, "threshold", type === "ott" ? -30 : type === "drumbus" ? -18 : -24);
-    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : type === "drumbus" ? 1 + pv(p, "drive", 3) / 4 : type === "noisegate" ? 1 : pv(p, "ratio", 4);
+    const thr = pv(p, "threshold", type === "ott" ? -30 : -24);
+    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : pv(p, "ratio", 4);
     const makeup = pv(p, "makeup", 0), depth = 1;
-    const out = (i: number) => type === "noisegate" ? (i < thr ? -60 + (1 - pv(p, "range", 0)) * 0 + i * pv(p, "range", 0) : i) : (i > thr ? thr + (i - thr) / ratio : i) * 1;
+    const out = (i: number) => i > thr ? thr + (i - thr) / ratio : i;
     const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
     d.line(3, 43, 69, 22, true); let py = toY(out(-60));
     for (let x = 3; x <= 69; x++) { const y = toY(out((x - 3) / 66 * 60 - 60) + makeup); d.line(x - 1, py, x, y); py = y; }
@@ -109,8 +130,11 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (type === "dyneq") {
     // Flat at rest; the curve is the gain the detector is applying right now (reported by the effect).
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121), mf = pv(p, "freq", 1000), q = pv(p, "q", 1.5), g = levels?.state?.[0] ?? 0; let py = 33;
-    d.line(3, 33, 124, 33, true);
-    for (let x = 3; x < 125; x++) { const oc = Math.log2(fx(x) / mf), y = Math.max(22, Math.min(44, Math.round(33 - g * Math.exp(-oc * oc * q * q * 1.5) * .65))); d.line(x - 1, py, x, y); py = y; }
+    const xOf = (hz: number) => 3 + Math.round(Math.log(hz / 20) / Math.log(1000) * 121), bw = 1 / q, lo = xOf(mf / 2 ** (bw / 2)), hi = xOf(mf * 2 ** (bw / 2));
+    d.line(3, 33, 124, 33, true); d.line(lo, 42, hi, 42); d.line(lo, 41, lo, 43); d.line(hi, 41, hi, 43);
+    // Boost is drawn solid, cut dotted; flat when nothing triggers.
+    for (let x = 3; x < 125; x++) { const oc = Math.log2(fx(x) / mf), y = Math.max(22, Math.min(44, Math.round(33 - g * Math.exp(-oc * oc * q * q * 1.5) * .65))); if (g >= 0 || x % 2) d.line(x - 1, py, x, y); py = y; }
+    d.text(`${g > 0 ? "+" : ""}${g.toFixed(1)}`, 100, 23);
     d.text(`KEY ${pv(p, "source", 1)}`, 4, 23);
   } else if (type === "neurobox") {
     const r = pv(p, "reese", .35), g = pv(p, "growl", .4), sq = pv(p, "squelch", .3); let py = 33;
@@ -118,7 +142,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (type === "spectral" && p.freq === undefined) {
     // Live bands from the effect: level bar height, solid = kept, dotted = removed; THRESH line.
     const st = levels?.state, yOf = (db: number) => 43 - Math.round(Math.max(0, Math.min(1, (db + 80) / 80)) * 20), thr = yOf(pv(p, "thresh", -45));
-    for (let b = 0; b < 24; b++) { const x = 4 + b * 5, top = st ? yOf(st[b]) : 43, h = 43 - top; if (h < 1) continue; if ((st?.[24 + b] ?? 0) > .4) d.rect(x, top, 4, h); else d.box(x, top, 4, h, true); }
+    for (let b = 0; b < 24; b++) { const x = 4 + b * 5, top = st ? yOf(st[b]) : 43, h = 43 - top; if (h < 1) continue; if ((st?.[24 + b] ?? 0) > .4) d.rect(x, top, 4, h); else d.box(x, top, 4, h, true); if ((st?.[48 + b] ?? 0) > .25) d.rect(x + 1, Math.max(22, top - 2), 2, 1); }
+    d.text("TRN", 4, 23);
     d.line(3, thr, 124, thr, true);
   } else if (type === "spectral") {
     // Resonant band-bank curve: 8 log-spaced resonances around FREQ, shaped by PEAK/SPREAD/RES.
@@ -142,6 +167,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const [sel, setSel] = useState(0);
   const [pg, setPg] = useState(0);
   const [levels, setLevels] = useState<FxLevels | null>(null);
+  const hist = useRef<number[][]>([]);
   const i = Math.min(sel, Math.max(0, fx.length - 1)), f = fx[i];
   const set = (p: Partial<FxUnit>) => onChange(fx.map((u, j) => (j === i ? { ...u, ...p } : u)));
   const move = (d: number) => { const j = i + d; if (!f || j < 0 || j >= fx.length) return; const n = [...fx]; [n[i], n[j]] = [n[j], n[i]]; onChange(n); setSel(j); };
@@ -151,13 +177,16 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
-    let last = 0, smooth: FxLevels = { input: -60, output: -60 };
+    hist.current = []; let last = 0, smooth: FxLevels = { input: -60, output: -60 };
     const poll = (now: number) => {
       if (now - last >= 50) {
         const next = getLevels(slotIndex, f.id);
         if (next) {
           const follow = (old: number, value: number) => value > old ? value : old * .78 + value * .22;
           smooth = { input: follow(smooth.input, next.input), output: follow(smooth.output, next.output), state: next.state };
+          if (f.type === "noisegate") hist.current.push([next.state?.[0] ?? -80, next.state?.[1] ?? 0]);
+          else if (f.type === "drumbus") hist.current.push([next.input]);
+          if (hist.current.length > 140) hist.current.shift();
           setLevels(smooth);
         }
         last = now;
@@ -182,7 +211,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
-          drawFxVisual(p, f, levels);
+          drawFxVisual(p, f, levels, hist.current);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
           FX_TYPES.forEach((t, k) => { const x = 1 + (k % 5) * 25, y = 10 + Math.floor(k / 5) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 24, 9, !ok); p.textC(nm(t).slice(0, 5), x + 12, y + 2); });
@@ -193,6 +222,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
         {fx.slice(top, top + ROWS).map((u, k) => <Tap key={u.id} x={0} y={11 + k * 9} w={128} h={9} label={`Select effect ${top + k + 1} ${FX_DEFS[u.type].label}`} pressed={top + k === i} onClick={() => setSel(top + k)} />)}
         {acts.map(([s, l, x, fn, en]) => <Tap key={s + l} x={x} y={54} w={30} h={9} label={l} disabled={!en} onClick={fn} />)}
       </> : page === "EDT" ? <>
+        {f?.type === "noisegate" && <Zone x={1} y={21} w={126} h={24} label="Gate threshold line" value={f.params.threshold ?? -40} min={-80} max={0} step={1} onChange={v => set({ params: { ...f.params, threshold: v } })} />}
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>

@@ -107,7 +107,9 @@ class Transient extends AudioWorkletProcessor {
       const r = (this.f + 1e-5) / (this.s + 1e-5), t = Math.min(8, Math.max(.05, Math.pow(r, r > 1 ? a * 1.6 : -su * 1.6)));
       this.g += (t - this.g) * .02;
       for (let c = 0; c < y.length; c++) y[c][n] = ((x[c] || x[0])[n] || 0) * this.g;
+      if (Math.abs(this.g - 1) > Math.abs((this.ext || 1) - 1)) this.ext = this.g;
     }
+    this.cnt = (this.cnt || 0) + y[0].length; if (this.cnt >= 1024) { this.port.postMessage({ o: 0, v: [20 * Math.log10(this.ext || 1)] }); this.cnt = 0; this.ext = 1; }
     return true;
   }
 }
@@ -151,7 +153,9 @@ class Smash extends AudioWorkletProcessor {
       this.e += (v - this.e) * (v > this.e ? ka : kr);
       const gr = this.e > th ? Math.pow(th / this.e, 1 - 1 / ratio) : 1;
       for (let c = 0; c < y.length; c++) { const s = ((x[c] || x[0])[n] || 0) * pre * gr * mk; y[c][n] = Math.tanh(s * (1 + a)) / (1 + a * .6); }
+      if (gr < (this.mg ?? 1)) this.mg = gr;
     }
+    this.cnt = (this.cnt || 0) + y[0].length; if (this.cnt >= 1024) { this.port.postMessage({ o: 1, v: [20 * Math.log10(this.mg ?? 1)] }); this.cnt = 0; this.mg = 1; }
     return true;
   }
 }
@@ -285,7 +289,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   let trigger: ((at: number) => void) | undefined;
   const worklet = (name: string, inputs = 1) => { const n = Tone.getContext().createAudioWorkletNode(name, { numberOfInputs: inputs, outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(n); return n; };
   let state: number[] | undefined;
-  const listen = (n: AudioWorkletNode) => { n.port.onmessage = e => { state = e.data as number[]; }; };
+  // Worklets post either a whole state array or { o, v } to write v at offset o (several worklets in one effect).
+  const listen = (n: AudioWorkletNode) => { n.port.onmessage = e => { const d = e.data; if (Array.isArray(d)) state = d; else { const next = [...(state ?? [])]; d.v.forEach((v: number, k: number) => { next[d.o + k] = v; }); state = next; } }; };
   const wp = (n: AudioWorkletNode, p: Record<string, number>, keys: string[]) => keys.forEach(k => set(n.parameters.get(k), p[k]));
   const lfo = () => { const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0; o.connect(g); o.start(); oscs.push(o); nodes.push(o, g); return { o, g }; };
   const follower = () => { const f = Tone.getContext().createAudioWorkletNode("nad-follow", { outputChannelCount: [1] }) as unknown as AudioNode, g = ctx.createGain(); g.gain.value = 0; input.connect(f).connect(g); nodes.push(f, g); return g; };
@@ -462,7 +467,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => wp(n, p, ["threshold", "attack", "hold", "release", "range"]);
   } else if (type === "drumbus") {
     // TIGHT (tight <-> open) -> SMASH (1176 all-buttons FET) -> TONE tilt -> CLIP (tape-style: lows hit the clipper first).
-    const n = worklet("nad-transient"), sm = worklet("nad-smash"), tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), emph = ctx.createBiquadFilter(), drive = ctx.createGain(), sh = ctx.createWaveShaper(), de = ctx.createBiquadFilter(), roll = ctx.createBiquadFilter(), post = ctx.createGain();
+    const n = worklet("nad-transient"), sm = worklet("nad-smash"); listen(n); listen(sm); const tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), emph = ctx.createBiquadFilter(), drive = ctx.createGain(), sh = ctx.createWaveShaper(), de = ctx.createBiquadFilter(), roll = ctx.createBiquadFilter(), post = ctx.createGain();
     tl.type = "lowshelf"; th.type = "highshelf"; tl.frequency.value = th.frequency.value = 800; emph.type = de.type = "lowshelf"; emph.frequency.value = de.frequency.value = 160; roll.type = "lowpass"; roll.Q.value = .5;
     sh.oversample = eco ? "none" : "2x"; nodes.push(tl, th, emph, drive, sh, de, roll, post);
     input.connect(n).connect(sm).connect(tl).connect(th).connect(emph).connect(drive).connect(sh).connect(de).connect(roll).connect(post).connect(wet); let k = -1;
