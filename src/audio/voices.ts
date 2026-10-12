@@ -1,4 +1,4 @@
-import { reeseParams, reesePulseHz, type ReeseParams } from "./reese";
+import { reeseParams, type ReeseParams } from "./reese";
 import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
@@ -463,17 +463,12 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
 }
 
 /** REESE: two detuned saws spread L/R plus a drifting centre saw through a 24 dB lowpass pulsed in tempo; sine sub bypasses the filter. */
-export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams, midi: number, t: number, gate: number, vel = 1, bpm = 124, glideFrom?: number): Voice {
+export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams, midi: number, t: number, gate: number, vel = 1, _bpm = 124, glideFrom?: number): Voice {
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [], f = 440 * 2 ** ((midi - 69) / 12);
   const from = glideFrom != null && r.glide > .001 ? 440 * 2 ** ((glideFrom - 69) / 12) : f;
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp);
   const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.Q.value = r.res; f2.Q.value = .707; f1.frequency.value = f2.frequency.value = r.cutoff; f1.connect(f2).connect(amp); nodes.push(f1, f2);
   if (r.fenvAmt) { filterEnvAdsr(f1.frequency, t, r.fenv, gate, r.cutoff, r.fenvAmt); filterEnvAdsr(f2.frequency, t, r.fenv, gate, r.cutoff, r.fenvAmt); }
-  // Tempo pulse on both filter stages (cents), phase restarted at t so it locks to the hit.
-  const pulse = ctx.createGain(); pulse.gain.value = r.depth / 2 * 1200; pulse.connect(f1.detune); pulse.connect(f2.detune); nodes.push(pulse);
-  const hz = reesePulseHz(bpm, r.rate), sine = at(ctx.createOscillator(), t), sqr = at(ctx.createOscillator(), t), sg = ctx.createGain(), qg = ctx.createGain();
-  sine.frequency.value = sqr.frequency.value = hz; sqr.type = "square"; sg.gain.value = 1 - r.shape; qg.gain.value = r.shape;
-  sine.connect(sg).connect(pulse); sqr.connect(qg).connect(pulse); srcs.push(sine, sqr); nodes.push(sine, sqr, sg, qg);
   const freqs: AudioParam[] = [], pans: StereoPannerNode[] = [], dets: [OscillatorNode, number][] = [];
   const saw = (det: number, pan: number, lvl: number) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(), pn = ctx.createStereoPanner();
     o.type = "sawtooth"; o.detune.value = det; g.gain.value = lvl; pn.pan.value = pan; o.connect(g).connect(pn).connect(f1); freqs.push(o.frequency); srcs.push(o); nodes.push(o, g, pn); return { o, pn }; };
@@ -490,8 +485,7 @@ export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams
     if (rq.detune !== undefined) dets.forEach(([o, sg2]) => o.detune.setTargetAtTime(sg2 * rq.detune!, n, tc));
     if (rq.width !== undefined) pans.forEach((pn, k) => pn.pan.setTargetAtTime((k ? 1 : -1) * rq.width!, n, tc));
     if (rq.sub !== undefined) subG.gain.setTargetAtTime(rq.sub * .9, n, tc);
-    if (rq.depth !== undefined) pulse.gain.setTargetAtTime(rq.depth / 2 * 1200, n, tc);
-    if (rq.shape !== undefined) { sg.gain.setTargetAtTime(1 - rq.shape, n, tc); qg.gain.setTargetAtTime(rq.shape, n, tc); } };
+  };
   return v;
 }
 
