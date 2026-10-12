@@ -485,7 +485,7 @@ export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams
   srcs.unshift(srcs.splice(srcs.indexOf(sub), 1)[0]);
   const v = finish(srcs, nodes, adsr(amp.gain, t, r.env, gate, vel * .3), amp);
   v.update = q => { const n = ctx.currentTime, tc = .007, rq = (q as { reese?: Partial<ReeseParams> }).reese; if (!rq) return;
-    if (rq.cutoff) { const cents = 1200 * Math.log2(rq.cutoff / r.cutoff); [f1, f2].forEach(fl => fl.frequency.setTargetAtTime(r.cutoff * 2 ** (cents / 1200), n, tc)); }
+    if (rq.cutoff) { const cents = 1200 * Math.log2(rq.cutoff / r.cutoff); [f1, f2].forEach(fl => fl.detune.setTargetAtTime(cents, n, tc)); }
     if (rq.res !== undefined) f1.Q.setTargetAtTime(rq.res, n, tc);
     if (rq.detune !== undefined) dets.forEach(([o, sg2]) => o.detune.setTargetAtTime(sg2 * rq.detune!, n, tc));
     if (rq.width !== undefined) pans.forEach((pn, k) => pn.pan.setTargetAtTime((k ? 1 : -1) * rq.width!, n, tc));
