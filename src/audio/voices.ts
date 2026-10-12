@@ -1,3 +1,4 @@
+import { reeseParams, reesePulseHz, type ReeseParams } from "./reese";
 import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
@@ -21,7 +22,7 @@ export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: numbe
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
 const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
-export type PolyParams = { cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
+export type PolyParams = { mode?: "poly" | "reese"; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
 export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 }, fenv: { a: .01, d: .4, s: .3, r: .5 }, fenvAmt: 0 });
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
@@ -433,7 +434,8 @@ export function peaksOf(buf: AudioBuffer, n = 160) {
 }
 
 /** Bounded five-note analog-style chord voice; detuned saw/PWM/sub through a four-pole filter and stereo modulated delay. */
-export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1): Voice {
+export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1, bpm = 124, glideFrom?: number): Voice {
+  if (p.mode === "reese") return playReese(ctx, dest, reeseParams(p.reese), notes[0], t, gate, vel, bpm, glideFrom);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp, mix);
   const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.frequency.value = f2.frequency.value = p.cutoff; f1.Q.value = p.res; f2.Q.value = .707;
@@ -457,6 +459,39 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
     if (q.cutoff) { const c = 1200 * Math.log2(q.cutoff / p.cutoff); f1.detune.setTargetAtTime(c, n, tc); f2.detune.setTargetAtTime(c, n, tc); }
     if (q.res !== undefined) f1.Q.setTargetAtTime(q.res, n, tc);
     if (q.detune !== undefined) dets.forEach(o => o.detune.setTargetAtTime(Math.sign(o.detune.value) * q.detune!, n, tc)); };
+  return v;
+}
+
+/** REESE: two detuned saws spread L/R plus a drifting centre saw through a 24 dB lowpass pulsed in tempo; sine sub bypasses the filter. */
+export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams, midi: number, t: number, gate: number, vel = 1, bpm = 124, glideFrom?: number): Voice {
+  const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [], f = 440 * 2 ** ((midi - 69) / 12);
+  const from = glideFrom != null && r.glide > .001 ? 440 * 2 ** ((glideFrom - 69) / 12) : f;
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp);
+  const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.Q.value = r.res; f2.Q.value = .707; f1.frequency.value = f2.frequency.value = r.cutoff; f1.connect(f2).connect(amp); nodes.push(f1, f2);
+  if (r.fenvAmt) { filterEnvAdsr(f1.frequency, t, r.fenv, gate, r.cutoff, r.fenvAmt); filterEnvAdsr(f2.frequency, t, r.fenv, gate, r.cutoff, r.fenvAmt); }
+  // Tempo pulse on both filter stages (cents), phase restarted at t so it locks to the hit.
+  const pulse = ctx.createGain(); pulse.gain.value = r.depth / 2 * 1200; pulse.connect(f1.detune); pulse.connect(f2.detune); nodes.push(pulse);
+  const hz = reesePulseHz(bpm, r.rate), sine = at(ctx.createOscillator(), t), sqr = at(ctx.createOscillator(), t), sg = ctx.createGain(), qg = ctx.createGain();
+  sine.frequency.value = sqr.frequency.value = hz; sqr.type = "square"; sg.gain.value = 1 - r.shape; qg.gain.value = r.shape;
+  sine.connect(sg).connect(pulse); sqr.connect(qg).connect(pulse); srcs.push(sine, sqr); nodes.push(sine, sqr, sg, qg);
+  const freqs: AudioParam[] = [], pans: StereoPannerNode[] = [], dets: [OscillatorNode, number][] = [];
+  const saw = (det: number, pan: number, lvl: number) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(), pn = ctx.createStereoPanner();
+    o.type = "sawtooth"; o.detune.value = det; g.gain.value = lvl; pn.pan.value = pan; o.connect(g).connect(pn).connect(f1); freqs.push(o.frequency); srcs.push(o); nodes.push(o, g, pn); return { o, pn }; };
+  const a = saw(-r.detune, -r.width, .32), b = saw(r.detune, r.width, .32), c = saw(0, 0, .2 * (.4 + r.drift)); pans.push(a.pn, b.pn); dets.push([a.o, -1], [b.o, 1]);
+  // Drift: a slow LFO wanders the centre saw so the beating never repeats exactly.
+  const dl = at(ctx.createOscillator(), t), dg = ctx.createGain(); dl.frequency.value = .13; dg.gain.value = r.drift * Math.max(4, r.detune) * .8; dl.connect(dg).connect(c.o.detune); srcs.push(dl); nodes.push(dl, dg);
+  const sub = at(ctx.createOscillator(), t), subG = ctx.createGain(); sub.type = "sine"; subG.gain.value = r.sub * .9; sub.connect(subG).connect(amp); freqs.push(sub.frequency); srcs.push(sub); nodes.push(sub, subG);
+  freqs.forEach((fr, k) => { const div = k === freqs.length - 1 ? 2 : 1; fr.setValueAtTime(from / div, t); if (from !== f) fr.setTargetAtTime(f / div, t, r.glide / 3); });
+  srcs.unshift(srcs.splice(srcs.indexOf(sub), 1)[0]);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, r.env, gate, vel * .3), amp);
+  v.update = q => { const n = ctx.currentTime, tc = .007, rq = (q as { reese?: Partial<ReeseParams> }).reese; if (!rq) return;
+    if (rq.cutoff) { const cents = 1200 * Math.log2(rq.cutoff / r.cutoff); [f1, f2].forEach(fl => fl.detune.setTargetAtTime(cents, n, tc)); }
+    if (rq.res !== undefined) f1.Q.setTargetAtTime(rq.res, n, tc);
+    if (rq.detune !== undefined) dets.forEach(([o, sg2]) => o.detune.setTargetAtTime(sg2 * rq.detune!, n, tc));
+    if (rq.width !== undefined) pans.forEach((pn, k) => pn.pan.setTargetAtTime((k ? 1 : -1) * rq.width!, n, tc));
+    if (rq.sub !== undefined) subG.gain.setTargetAtTime(rq.sub * .9, n, tc);
+    if (rq.depth !== undefined) pulse.gain.setTargetAtTime(rq.depth / 2 * 1200, n, tc);
+    if (rq.shape !== undefined) { sg.gain.setTargetAtTime(1 - rq.shape, n, tc); qg.gain.setTargetAtTime(rq.shape, n, tc); } };
   return v;
 }
 

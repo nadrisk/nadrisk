@@ -4,6 +4,7 @@ import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX
 import { defaultHarmony, harmonyOn, keyChord, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
+import { reeseParams } from "@/audio/reese";
 import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { playBreak, prepareBreak } from "@/audio/breaks";
@@ -82,7 +83,7 @@ const migrateSlot = (x: Slot): Slot => {
   return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
 };
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
-const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? s.poly.env.r : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
+const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? s.bass.decay : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
 function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
   let r = reversed.get(b); if (r) return r;
@@ -174,6 +175,7 @@ export function useGroovebox() {
   const meterPeak = useRef(-Infinity);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  const reeseLast = useRef<({ midi: number; until: number } | null)[]>(Array(16).fill(null));
   // Swing 50-75%: off-beat 16ths are delayed on the audio clock (MPC-style); 50 = straight.
   const [swing, setSwing] = useState(50);
   const swingRef = useRef(swing); swingRef.current = swing;
@@ -267,7 +269,12 @@ export function useGroovebox() {
         : s.engine === "poly" ? null
         : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel, e.lfos[i])
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel, e.lfos[i]));
-      if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
+      // REESE is mono: a new note cuts the old one and glides from its pitch while it still rings.
+      if (s.engine === "poly" && s.poly.mode === "reese") { const now0 = e.ctx.currentTime, last = reeseLast.current[i], from = last && last.until > t ? last.midi : undefined;
+        e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); const rp = s.poly.reese ?? {}; const rv = reeseParams(rp);
+        voices.push(playPoly(e.ctx, dest, { ...s.poly, reese: { ...rv, env: scaledEnv(rv.env, factor) } }, [pitch], t, gate, vel, bpmRef.current, from));
+        reeseLast.current[i] = { midi: pitch, until: Math.max(now0, t) + gate + rv.env.r }; }
+      else if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), release: rel, glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)), update: q => voices.forEach(v => v?.update?.(q)) };
       // Ring list: every live voice per pad, pruned when silent and capped at 6 so rapid rolls never overload the audio thread.
@@ -556,7 +563,7 @@ export function useGroovebox() {
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
   const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
-  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); if (patch.siren) engine.current?.mono[selectedRef.current]?.update?.(patch.siren); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); if (patch.siren) engine.current?.mono[selectedRef.current]?.update?.(patch.siren as never); if (patch.poly?.mode === "reese") engine.current?.mono[selectedRef.current]?.update?.({ reese: patch.poly.reese } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
     let buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
