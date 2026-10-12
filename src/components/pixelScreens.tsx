@@ -129,6 +129,7 @@ export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, li
   const [readout, setReadout] = useState("");
   const readoutTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
+    if (!compactReadout) return;
     setReadout("");
     return () => clearTimeout(readoutTimer.current);
   }, [page, name, compactReadout]);
