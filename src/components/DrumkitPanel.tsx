@@ -102,6 +102,6 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
     return null;
   };
 
-  return <Panel name={slot.name || "DRM"} pages={PAGES} label="Drumkit drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d0]} />;
+  return <Panel compactReadout name={slot.name || "DRM"} pages={PAGES} label="Drumkit drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d0]} />;
 }
 export default memo(DrumkitPanel);
