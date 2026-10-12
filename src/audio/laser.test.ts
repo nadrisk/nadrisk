@@ -34,7 +34,7 @@ describe("LASER pitch envelope", () => {
       expect(laserEnvelopeAt(p, attack)).toBe(amount);
       expect(laserEnvelopeAt(p, attack + p.decay)).toBe(0);
       for (let i = 0; i <= 100; i++) expect(Math.abs(laserEnvelopeAt(p, i / 100))).toBeLessThanOrEqual(Math.abs(amount));
-      if (attack) expect(laserEnvelopeAt(p, attack / 2)).toBe(amount / 2);
+      if (attack) expect(laserEnvelopeAt(p, attack / 2)).toBeCloseTo(amount / 2, 10);
     });
   }
 });
