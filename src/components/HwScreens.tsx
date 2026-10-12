@@ -25,9 +25,14 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     const poll = () => { const d = getMasterDyn(); if (d) { smooth.gr = d.gr > smooth.gr ? d.gr : smooth.gr * .9 + d.gr * .1; smooth.out = d.out > smooth.out ? d.out : smooth.out * .85 + d.out * .15; setDyn({ ...smooth }); } };
     return gatedLoop(null, poll);
   }, [getMasterDyn]);
+  const bump = (d: number) => setBpm(Math.max(60, Math.min(180, Math.round(bpm + d))));
+  const typeBpm = () => { const v = window.prompt("Tempo (60–180 BPM)", String(bpm)); const n = v == null ? NaN : Math.round(Number(v)); if (Number.isFinite(n)) setBpm(Math.max(60, Math.min(180, n))); };
   const keys = (page: string): K[] => page === "OUT" ? [
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
-    { s: "ECO", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
+    // LITE = eco mode: lighter processing and slower screens for older devices.
+    { s: "LITE", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
+    { s: "-", label: "Tempo down", x: 103, y: 11, w: 11, on: false, fn: () => bump(-1) },
+    { s: "+", label: "Tempo up", x: 116, y: 11, w: 11, on: false, fn: () => bump(1) },
   ] : page === "DYN" ? [
     { s: "GLUE", label: "Glue compressor", x: 2, y: 14, w: 40, on: !!pf.glueOn, fn: () => setPf({ glueOn: !pf.glueOn }) },
     { s: "CLIP", label: "Master clipper", x: 44, y: 14, w: 40, on: pf.clipOn, fn: () => setPf({ clipOn: !pf.clipOn }) },
@@ -39,15 +44,15 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     kn("Glue thresh", "THR", pf.glueThresh ?? -12, -30, 0, .5, "DB", glueThresh => setPf({ glueThresh })), kn("Ratio", "RAT", pf.glueRatio ?? 2, 1, 4, .1, ":1", glueRatio => setPf({ glueRatio })),
     kn("Clip drive", "DRV", pf.clipDrive, 0, 18, .5, "DB", clipDrive => setPf({ clipDrive })), kn("Limiter ceiling", "CEIL", pf.ceiling, -12, 0, .5, "DB", ceiling => setPf({ ceiling })),
   ] : page === "EQ" ? [
-    kn("Master Low 90Hz", "90", pf.mLow ?? 0, -6, 6, .5, "DB", mLow => setPf({ mLow })), kn("Master Mud 300Hz", "300", pf.mMud ?? 0, -6, 6, .5, "DB", mMud => setPf({ mMud })),
-    kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "12K", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
+    kn("Master Low 90Hz", "LOW", pf.mLow ?? 0, -6, 6, .5, "DB", mLow => setPf({ mLow })), kn("Master Mud 300Hz", "300", pf.mMud ?? 0, -6, 6, .5, "DB", mMud => setPf({ mMud })),
+    kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "AIR", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
   return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
-        p.text(`${bpm}`, 62, 11, true, 2); p.text("BPM", 90, 16);
+        p.text(`${bpm}`, 60, 11, true, 2); p.text("BPM", 86, 16);
         for (let i = 0; i < 16; i++) { const x = 2 + i * 8, cur = step >= 0 && step % 16 === i; if (cur) p.rect(x, 23, 6, 5); else p.box(x, 23, 6, 5); }
         p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
         p.text(`LU ${fmt(meter.m)}`, 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(Math.max(0, (db(meter.m) + 36) / 36) * 12)) p.rect(x, 40, 3, 5); else p.box(x, 40, 3, 5, true); }
@@ -81,7 +86,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         p.text(`SUB ${fmt(meter.sub)}DB`, 2, 48); p.box(2, 55, 124, 6); if (sub) p.rect(3, 56, sub, 4); p.line(3 + peak, 54, 3 + peak, 62);
       }
     }}
-    extra={page => keyZones(keys(page))} />;
+    extra={page => <>{keyZones(keys(page))}{page === "OUT" && <Tap x={58} y={10} w={42} h={12} label="Type tempo" onClick={typeBpm} />}</>} />;
 }
 
 export function MidiScreen({ devices, learn, target, mapCount, status, connect, setLearn, unmap, canUnmap, clear }: {

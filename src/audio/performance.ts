@@ -33,7 +33,8 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   djHp.connect(eSend).connect(eDelay).connect(eLp).connect(eHp).connect(eRet).connect(output); eHp.connect(eSat).connect(eFb).connect(eDelay);
   // Mastering stage between the summed mix and the clipper/limiter.
   const mHp = ctx.createBiquadFilter(), mLow = ctx.createBiquadFilter(), mMud = ctx.createBiquadFilter(), mPres = ctx.createBiquadFilter(), mAir = ctx.createBiquadFilter(), glue = ctx.createDynamicsCompressor(), glueMk = ctx.createGain();
-  mHp.type = "highpass"; mHp.Q.value = .6; mLow.type = "lowshelf"; mLow.frequency.value = 90; mMud.type = "peaking"; mMud.frequency.value = 300; mMud.Q.value = .7; mPres.type = "peaking"; mPres.frequency.value = 3200; mPres.Q.value = .6; mAir.type = "highshelf"; mAir.frequency.value = 12000;
+  // Broad Baxandall-style shelves: hinges at 150 Hz and 8 kHz so low/air moves are audible on any speaker.
+  mHp.type = "highpass"; mHp.Q.value = .6; mLow.type = "lowshelf"; mLow.frequency.value = 150; mMud.type = "peaking"; mMud.frequency.value = 300; mMud.Q.value = .7; mPres.type = "peaking"; mPres.frequency.value = 3200; mPres.Q.value = .6; mAir.type = "highshelf"; mAir.frequency.value = 8000;
   glue.knee.value = 6; glue.attack.value = .03; glue.release.value = .2;
   const mastered = ctx.createGain(); output.connect(mHp).connect(mLow).connect(mMud).connect(mPres).connect(mAir).connect(glue).connect(glueMk).connect(mastered);
   const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
