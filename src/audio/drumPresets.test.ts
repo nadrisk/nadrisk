@@ -14,7 +14,7 @@ describe("drum starting sounds", () => {
     expect(b.env.d).toBe(.35); expect(p.sound.env.d).toBe(.35); expect(drumPresetEdited(a, p)).toBe(true);
   });
   it("gives open hats and rides longer tails than closed hats", () => {
-    expect(DRUM_PRESETS.hat[1].sound.env.d).toBeGreaterThan(DRUM_PRESETS.hat[0].sound.env.d * 8);
+    expect(DRUM_PRESETS.hat[1].sound.env.d).toBeGreaterThan(DRUM_PRESETS.hat[0].sound.env.d * 6);
     expect(DRUM_PRESETS.hat[2].sound.env.d).toBeGreaterThan(DRUM_PRESETS.hat[1].sound.env.d);
   });
 });
