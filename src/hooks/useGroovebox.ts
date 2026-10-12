@@ -482,7 +482,7 @@ export function useGroovebox() {
       if (playing) interrupted.current = false; // STOP during an interruption must not be undone by the resume
       await ensure(); const t = Tone.getTransport();
       setPaused(false);
-      const nowMs = performance.now(), dbl = nowMs - lastStop.current < 400; lastStop.current = nowMs;
+      const nowMs = window.performance.now(), dbl = nowMs - lastStop.current < 400; lastStop.current = nowMs;
       if (!playing) { if (dbl) { killTails(); lastStop.current = 0; return; } }
       if (playing) { t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); } setPlaying(false); } else { if (t.state !== "stopped") t.stop(); engine.current?.performance.meter.port.postMessage("reset"); meterPeak.current = -Infinity; cursor.current.fill(0); resetTick.current(); t.position = 0; t.start("+0.05"); setPlaying(true); }
       setError("");

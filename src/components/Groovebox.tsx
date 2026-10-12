@@ -97,6 +97,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const lastToggle = useRef({ k: "", t: 0 });
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 150) return; lastToggle.current = { k, t }; onToggle(r, c); };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
+  const labelTap = useRef({ r: -1, t: 0 });
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
   const fmtV = (r: number, v: number) => view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
   const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const q = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
