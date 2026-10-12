@@ -21,6 +21,7 @@ import { HARMONY_SCALES, phraseSemi } from "@/audio/harmony";
 import { NOTE_NAMES } from "@/audio/arp";
 import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
+import PatchBank from "@/components/PatchBank";
 import SetBank from "./SetBank";
 import PerformanceRack from "./PerformanceRack";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
@@ -187,9 +188,9 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   </div>;
 });
 const DESKTOP_MQ = "(min-width: 1024px) and (pointer: fine)";
-const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "sets", "midi"] as const;
+const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "perf", "tape", "sets", "midi", "patch"] as const;
 type Utility = typeof UTILITIES[number];
-const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", sets: "MEM", midi: "MIDI" };
+const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", perf: "PERF", tape: "TAPE", sets: "MEM", midi: "MIDI", patch: "PATCH" };
 function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
@@ -227,8 +228,9 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     tape: <TapeDeck getSource={tapSource} playing={g.playing} step={g.step} bpm={g.bpm} onPlay={g.togglePlay} />,
     midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
     sets: <SetBank getSet={g.getSet} applySet={g.applySet} />,
+    patch: <PatchBank getPatch={g.getPatch} applyPatch={g.applyPatch} />,
   };
-  const compactUtilities: Utility[] = ["phrase", "master", "tape", "sets", "midi"];
+  const compactUtilities: Utility[] = ["phrase", "master", "tape", "sets", "patch", "midi"];
   const compactAt = compactUtilities.indexOf(utility);
   const utilityContent = compactAt < 0 ? utilityPanels[utility] : <div className="gb-compact-stack">{[0, 1, 2].map(offset => { const key = compactUtilities[(compactAt + offset) % compactUtilities.length]; return <section className="gb-compact-module" key={key}><header>{UTILITY_LABELS[key]}</header>{utilityPanels[key]}</section>; })}</div>;
   const desktopDevices = <div className="gb-device-surface">
@@ -238,6 +240,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     <DevicePanel className="gb-device-module device-phrase" label="Phrase">{utilityPanels.phrase}</DevicePanel>
     <DevicePanel className="gb-device-module device-tape" label="Tape">{utilityPanels.tape}</DevicePanel>
     <DevicePanel className="gb-device-module device-midi" label="MIDI">{utilityPanels.midi}</DevicePanel>
+    <DevicePanel className="gb-device-module device-patch" label="Patch">{utilityPanels.patch}</DevicePanel>
     <section className="gb-device-mixer">{utilityPanels.mixer}</section>
   </div>;
 
