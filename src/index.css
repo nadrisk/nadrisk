@@ -824,7 +824,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Performance live strip: pattern keys + 16 square pad mute keys (lit = muted, matching the mixer). */
 .instrument-workspace .gb-perf-live { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.instrument-workspace .gb-perf-banks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.instrument-workspace .gb-perf-banks { display: grid; grid-template-columns: repeat(4, 1fr) .8fr; gap: 4px; }
 .instrument-workspace .gb-perf-mutes { display: flex; gap: 6px; align-items: stretch; }
 .instrument-workspace .gb-perf-mute-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; flex: 1; }
 @media (max-width: 640px) { .instrument-workspace .gb-perf-mute-grid { grid-template-columns: repeat(8, 1fr); } }
