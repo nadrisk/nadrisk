@@ -237,6 +237,7 @@ let fxBpm = 124;
 export const setFxBpm = (b: number) => { fxBpm = b; };
 const beatsOf = (p: Record<string, number>) => SYNC_DIVS[Math.round(p.sync ?? 0)]?.[1] ?? 0;
 /** LFO rate in Hz, following the tempo when a sync division is chosen. */
+export const fxRate = (p: Record<string, number>) => rateOf(p);
 const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
 
 export type FxLevels = { input: number; output: number; state?: number[] };
