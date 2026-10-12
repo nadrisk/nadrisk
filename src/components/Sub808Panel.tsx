@@ -15,22 +15,22 @@ function Sub808Panel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slo
 
   const knobs = (page: string): Knob[] => {
     if (page === "PTCH") return [
-      { label: "Pitch env", short: "PENV", value: b.pitchEnv, min: 0, max: 48, step: 1, fmt: st, set: pitchEnv => B({ pitchEnv }) },
-      { label: "Env decay", short: "PDEC", value: b.pitchDecay, min: .005, max: .4, step: .005, fmt: ms, set: pitchDecay => B({ pitchDecay }) },
+      { label: "Pitch env", short: "PENV", value: b.pitchEnv, min: 0, max: 48, step: 1, reset: 24, fmt: st, set: pitchEnv => B({ pitchEnv }) },
+      { label: "Env decay", short: "PDEC", value: b.pitchDecay, min: .005, max: .4, step: .005, reset: .06, fmt: ms, set: pitchDecay => B({ pitchDecay }) },
       noteK,
-      { label: "Click", short: "CLK", value: b.click, min: 0, max: 1, step: .01, fmt: pct, set: click => B({ click }) },
+      { label: "Click", short: "CLK", value: b.click, min: 0, max: 1, step: .01, reset: .3, fmt: pct, set: click => B({ click }) },
     ];
     if (page === "AMP") return [
-      { label: "Release", short: "REL", value: b.decay, min: .05, max: 4, step: .01, fmt: ms, set: decay => B({ decay }) },
-      { label: "Click", short: "CLK", value: b.click, min: 0, max: 1, step: .01, fmt: pct, set: click => B({ click }) },
-      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
-      { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
+      { label: "Release", short: "REL", value: b.decay, min: .05, max: 4, step: .01, reset: 1.2, fmt: ms, set: decay => B({ decay }) },
+      { label: "Tube drive", short: "DRV", value: b.tube, min: 0, max: 1, step: .01, reset: .25, fmt: pct, set: tube => B({ tube }) },
+      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, reset: 80, fmt: v => `${v}%`, set: level => onChange({ level }) },
+      { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, reset: 0, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
     ];
     return [
-      { label: "Tube drive", short: "TUBE", value: b.tube, min: 0, max: 1, step: .01, fmt: pct, set: tube => B({ tube }) },
-      { label: "Harmonics", short: "HARM", value: b.harmonics, min: 0, max: 1, step: .01, fmt: pct, set: harmonics => B({ harmonics }) },
-      { label: "Tone", short: "TONE", value: b.tone, min: 200, max: 16000, step: 10, fmt: hz, set: tone => B({ tone }) },
-      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
+      { label: "Tube drive", short: "TUBE", value: b.tube, min: 0, max: 1, step: .01, reset: .25, fmt: pct, set: tube => B({ tube }) },
+      { label: "Harmonics", short: "HARM", value: b.harmonics, min: 0, max: 1, step: .01, reset: .2, fmt: pct, set: harmonics => B({ harmonics }) },
+      { label: "Tone", short: "TONE", value: b.tone, min: 200, max: 16000, step: 10, reset: 2500, fmt: hz, set: tone => B({ tone }) },
+      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, reset: 80, fmt: v => `${v}%`, set: level => onChange({ level }) },
     ];
   };
 
