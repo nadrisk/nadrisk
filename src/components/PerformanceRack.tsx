@@ -19,16 +19,21 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   const [flash, setFlash] = useState(0);
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
   const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
+  // DROP key in the live strip: same momentary flash so every tap gives feedback.
+  const [dropFlash, setDropFlash] = useState(0);
+  useEffect(() => { if (!dropFlash) return; const t = setTimeout(() => setDropFlash(0), 160); return () => clearTimeout(t); }, [dropFlash]);
   // iPhone drops quick taps (double-tap detection, tiny finger slides), so the live strip reads raw touches:
   // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
   // mouse, keyboard and MIDI (el.click()) still go through onClick.
   const liveRef = useRef<HTMLDivElement>(null);
-  const liveAct = useRef({ toggleMute, selectBank, unmuteAll });
-  liveAct.current = { toggleMute, selectBank, unmuteAll };
+  // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
+  const reset = () => { set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 }); setDropFlash(f => f + 1); };
+  const liveAct = useRef({ toggleMute, selectBank, unmuteAll, perfReset: reset });
+  liveAct.current = { toggleMute, selectBank, unmuteAll, perfReset: reset };
   useEffect(() => {
     const el = liveRef.current; if (!el) return;
     const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
-    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset]") as HTMLElement | null;
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset],[data-perfreset]") as HTMLElement | null;
     const start = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); b.classList.add("touching"); }
     };
@@ -41,16 +46,14 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         if (e.cancelable) e.preventDefault();
         if (e.type !== "touchend") continue;
         const { mute, bank: bk } = s.b.dataset;
-        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll();
+        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll(); else if (s.b.dataset.perfreset !== undefined) liveAct.current.perfReset();
       }
     };
     el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
     el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, []);
-  // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
-  const reset = () => set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 });
-  const hold = (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
+  const hold =  (mode: number, label: string, x: number, y: number, w: number) => <button key={label} className="px-zone" style={pos(x, y, w, 9)} aria-label={label} aria-pressed={v.mode === mode}
     onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); set({ mode }); }} onPointerUp={() => set({ mode: 0 })} onPointerCancel={() => set({ mode: 0 })} onLostPointerCapture={() => set({ mode: 0 })}
     onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); set({ mode }); } }} onKeyUp={() => set({ mode: 0 })} onBlur={() => set({ mode: 0 })} />;
   const knobs = (page: string): Knob[] => page === "FX" ? [
@@ -117,7 +120,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         }
         const ax = 8 + start * 7 + 2; p.rect(ax, 32, 2, 1); p.dot(ax - 1, 32); p.dot(ax + 2, 32);
       } else {
-        key(p, "REV", 1, 11, 30, v.mode === 1); key(p, "STUT", 33, 11, 30, v.mode === 2); key(p, "STOP", 65, 11, 30, v.mode === 3); key(p, "RST", 97, 11, 30, false);
+        key(p, "REV", 1, 11, 30, v.mode === 1); key(p, "STUT", 33, 11, 30, v.mode === 2); key(p, "STOP", 65, 11, 30, v.mode === 3);
         STYLES.forEach((s, i) => key(p, s.slice(0, 5).toUpperCase(), 1 + i * 42, 24, 41, v.style === s));
         CMODES.forEach((m, i) => key(p, m.toUpperCase(), 1 + i * 32, 37, 31, (v.chordMode ?? "pad") === m));
         p.box(2, 49, 124, 14);
@@ -135,7 +138,6 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       <Zone x={8} y={32} w={112} h={8} horizontal label="Offset strip" value={v.offset} min={-8} max={8} step={1} onChange={offset => set({ offset })} />
     </> : page === "HLD" ? <>
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
-      <Tap x={97} y={11} w={30} h={9} label="Reset performance (HLD)" onClick={reset} />
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
     </> : null} />
@@ -146,6 +148,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const active = bank === b, waiting = queued === b;
         return <button key={n} type="button" data-bank={b} aria-label={`Performance pattern ${n}`} aria-pressed={active} title={waiting ? "queued for next bar" : active ? "active" : undefined} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
       })}
+      <button type="button" data-perfreset aria-label="Reset performance" aria-pressed={dropFlash > 0} title="drop: tension, holds, DJ filter and echo snap back" onClick={reset}>DROP</button>
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
       <div className="gb-perf-mute-grid">
