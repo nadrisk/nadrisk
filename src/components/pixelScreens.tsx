@@ -36,12 +36,14 @@ export function tabZones(pages: readonly string[], page: string, setPage: (p: st
   return tabLayout(pages).map(({ pg, x, w }) => <Tap key={pg} x={x} y={0} w={w} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />);
 }
 
+/** Frequency/pitch knobs (Hz readout over a wide positive range) move perceptually, so each turn covers an equal musical interval. */
+export const isLogKnob = (k: Knob) => k.log ?? (k.min > 0 && k.max / k.min >= 8 && /HZ$|\dK$/i.test(k.fmt(k.max)));
 export function drawKnobs(p: Px, knobs: Knob[]) {
-  knobs.forEach((k, i) => { const x = (knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, k.log ? Math.log(k.value / k.min) / Math.log(k.max / k.min) : f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
+  knobs.forEach((k, i) => { const x = (knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, isLogKnob(k) ? Math.log(k.value / k.min) / Math.log(k.max / k.min) : f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
 }
 
 export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={k.log} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
+  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={isLogKnob(k)} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
