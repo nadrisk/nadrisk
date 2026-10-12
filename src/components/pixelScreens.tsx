@@ -1,5 +1,6 @@
-import { useState, useRef, type ReactNode , useEffect} from "react";
-import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
+import { useState, useRef, type ReactNode, useEffect, useContext } from "react";
+import { createPortal } from "react-dom";
+import PixelScreen, { Tap, XYZone, Zone, DisplayThemeContext } from "@/pixel/PixelScreen";
 import { textWidth } from "@/pixel/font";
 import type { Px } from "@/pixel/draw";
 import type { ADSR, FilterKind, Wave } from "@/audio/voices";
@@ -55,8 +56,8 @@ export function drawKnobs(p: Px, knobs: Knob[]) {
   knobs.forEach((k, i) => { const x = (knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, isLogKnob(k) ? Math.log(k.value / k.min) / Math.log(k.max / k.min) : f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
 }
 
-export function knobZones(knobs: Knob[], page: string, show: (s: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={isLogKnob(k)} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />);
+export function knobZones(knobs: Knob[], page: string, show: (s: string, knobLabel?: string) => void) {
+  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={isLogKnob(k)} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`, k.label); }} />);
 }
 
 // Stepped ADSR breakpoint graph.
@@ -121,33 +122,68 @@ export function drawWaveIcon(p: Px, wave: Wave | "additive", x: number, y: numbe
   }
 }
 
+// Pixel-style typed value entry (same look as the sample BPM box).
+function ValueDialog({ title, value, parse, onClose, onSave }: { title: string; value: string; parse: (t: string) => number | null; onClose: () => void; onSave: (v: number) => void }) {
+  const theme = useContext(DisplayThemeContext);
+  const [v, setV] = useState(value), [bad, setBad] = useState(false);
+  const submit = () => { const n = parse(v); if (n == null) { setBad(true); return; } onSave(n); onClose(); };
+  return createPortal(
+    <div data-lcd={theme} className="instrument-workspace gb-rename-portal fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <form onSubmit={e => { e.preventDefault(); submit(); }} className="w-full max-w-sm border-4 border-foreground bg-background text-foreground" style={{ fontFamily: "Silkscreen, monospace" }}>
+        <div className="bg-foreground px-3 py-1 text-background text-sm uppercase tracking-widest">{title}{bad ? " · ?" : ""}</div>
+        <div className="p-4 space-y-4">
+          <input autoFocus value={v} maxLength={12} aria-label={`${title} value`} onChange={e => { setV(e.target.value); setBad(false); }}
+            onKeyDown={e => { if (e.key === "Escape") onClose(); }} onFocus={e => e.currentTarget.select()}
+            className="w-full border-2 border-foreground bg-background px-3 py-2 text-2xl tracking-[0.2em] text-foreground outline-none" style={{ fontFamily: "Silkscreen, monospace", borderRadius: 0 }} />
+          <div className="grid grid-cols-2 gap-3 text-sm uppercase tracking-widest">
+            <button type="button" onClick={onClose} className="border-2 border-foreground py-2">Cancel</button>
+            <button type="submit" className="border-2 border-foreground bg-foreground py-2 text-background">OK</button>
+          </div>
+        </div>
+      </form>
+    </div>, document.body);
+}
+
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false, parseReadout }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
   body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined; compactReadout?: boolean;
+  /** Opt-in: double-tapping the header readout of this knob opens typed entry. */
+  parseReadout?: (k: Knob) => ((text: string) => number | null) | undefined;
 }) {
   const [page, setPage] = useState(pages[0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
   const [readout, setReadout] = useState("");
+  const [readoutKnob, setReadoutKnob] = useState("");
+  const [editing, setEditing] = useState(false);
   const readoutTimer = useRef<ReturnType<typeof setTimeout>>();
+  const lastTap = useRef(0);
   useEffect(() => {
     if (!compactReadout) return;
-    setReadout("");
+    setReadout(""); setEditing(false);
     return () => clearTimeout(readoutTimer.current);
   }, [page, name, compactReadout]);
-  const showReadout = (text: string) => {
-    setReadout(text);
-    if (compactReadout) {
-      clearTimeout(readoutTimer.current);
-      readoutTimer.current = setTimeout(() => setReadout(""), 1600);
-    }
+  const armTimer = () => { clearTimeout(readoutTimer.current); readoutTimer.current = setTimeout(() => setReadout(""), 1600); };
+  const showReadout = (text: string, knobLabel = "") => {
+    setReadout(text); setReadoutKnob(knobLabel);
+    if (compactReadout) armTimer();
   };
   const ks = knobs(page);
+  const editKnob = readout ? ks.find(k => k.label === readoutKnob) : undefined;
+  const parser = editKnob && parseReadout?.(editKnob);
+  const tabX = tabLayout(pages)[0]?.x ?? 128;
   return <div className="px-panel">
     <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page, compactReadout); body(p, page); drawKnobs(p, ks); }}>
       {tabZones(pages, page, setPage)}
+      {parser && <Tap x={0} y={0} w={tabX - 1} h={9} label="Type exact value" onClick={() => {
+        const now = performance.now();
+        if (now - lastTap.current < 400) { lastTap.current = 0; clearTimeout(readoutTimer.current); setEditing(true); } else lastTap.current = now;
+      }} />}
       {extra?.(page)}
       {knobZones(ks, page, showReadout)}
     </PixelScreen>
+    {editing && editKnob && parser && <ValueDialog title={editKnob.label} value={editKnob.fmt(editKnob.value)} parse={parser}
+      onClose={() => { setEditing(false); armTimer(); }}
+      onSave={v => { const c = Math.min(editKnob.max, Math.max(editKnob.min, v)); editKnob.set(c); setReadout(editKnob.bare ? editKnob.fmt(c) : `${editKnob.short} ${editKnob.fmt(c)}`); }} />}
   </div>;
 }
