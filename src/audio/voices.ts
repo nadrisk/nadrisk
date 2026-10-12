@@ -7,7 +7,7 @@ export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch";
 export type ADSR = { a: number; d: number; s: number; r: number };
 export type DrumKind = "kick" | "snare" | "hat" | "clap";
 /** Machine fields are optional so older sets load unchanged; drumDefaults() fills them per kind. */
-export type DrumMachine = { pAtk?: number; pCurve?: number; pEnd?: number; fmDecay?: number; transient?: number; bodyDecay?: number; noiseDecay?: number; noiseTone?: number; tone2?: number; spread?: number; bursts?: number; burstGap?: number; tail?: number; drive?: number; fltBase?: number; fltWidth?: number };
+export type DrumMachine = { gain?: number; grit?: number; pAtk?: number; pCurve?: number; pEnd?: number; fmDecay?: number; transient?: number; bodyDecay?: number; noiseDecay?: number; noiseTone?: number; tone2?: number; spread?: number; bursts?: number; burstGap?: number; tail?: number; drive?: number; fltBase?: number; fltWidth?: number };
 export type DrumParams = DrumMachine & { preset?: string; kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 /** partials2 gives oscillator 2 its own additive shape; older sets without it fall back to partials. */
@@ -93,7 +93,7 @@ function filterEnvAdsr(f: AudioParam, t: number, e: ADSR | undefined, gate: numb
   f.setTargetAtTime(base, rel, e.r / 3 + .001);
 }
 
-export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ pAtk: 0, pCurve: .7, pEnd: 0, fmDecay: .08, transient: k === "kick" ? .4 : .2, bodyDecay: k === "snare" ? .12 : .3, noiseDecay: k === "snare" ? .18 : .1, noiseTone: k === "clap" ? 1200 : 2500, tone2: k === "clap" ? 2.5 : 1.58, spread: 1, bursts: 4, burstGap: .009, tail: .6, drive: 0, fltBase: 20, fltWidth: 10 });
+export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ gain: 1, grit: 0, pAtk: 0, pCurve: .7, pEnd: 0, fmDecay: .08, transient: k === "kick" ? .4 : .2, bodyDecay: k === "snare" ? .12 : .3, noiseDecay: k === "snare" ? .18 : .1, noiseTone: k === "clap" ? 1200 : 2500, tone2: k === "clap" ? 2.5 : 1.58, spread: 1, bursts: 4, burstGap: .009, tail: .6, drive: 0, fltBase: 20, fltWidth: 10 });
 /** Ready-to-play starting sound per drum machine: loaded on kind switch and used as every knob's double-tap home. */
 export const DRUM_INIT: Record<DrumKind, Omit<DrumParams, "kind">> = {
   kick: { pitch: 50, pitchEnv: 38, pitchDecay: .03, pAtk: 0, pCurve: .75, pEnd: 0, fm: .6, fmRatio: 1.5, fmDecay: .03, transient: .7, noise: .01, drive: .25, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 9000, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 20, fltWidth: 10, env: { a: .001, d: .32, s: 0, r: .06 } },
@@ -114,6 +114,9 @@ function pitchEnvelope(f: AudioParam, base: number, t: number, amt: number, atk:
 // Drive curves are cached per 0.05 step so a drum hit never rebuilds a 1024-point table on the pad's critical path.
 const driveCache = new Map<number, Float32Array<ArrayBuffer>>();
 const driveCurve = (drive: number) => { const q = Math.round(drive * 20) / 20; let c = driveCache.get(q); if (c) return c; const k = 1 + q * 14; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } driveCache.set(q, c); return c; };
+// 6-bit staircase (TR-909 cymbal ROM character); one cached curve, so hits never build tables.
+let gritC: Float32Array<ArrayBuffer> | null = null;
+const gritCurve = () => { if (gritC) return gritC; const c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.round(x * 31.5) / 31.5; } return (gritC = c); };
 const shaper = (ctx: BaseAudioContext, drive: number) => { const w = ctx.createWaveShaper(); w.curve = driveCurve(drive); w.oversample = "2x"; return w; };
 
 export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams, t: number, vel = 1): Voice {
@@ -125,6 +128,11 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
   const filt = filterWithEnv(ctx, t, p.filter, p.cutoff, p.res, p.filterEnv, p.filterDecay);
   hp.connect(lp).connect(filt); let tail: AudioNode = filt;
   if (p.drive > 0) { const w = shaper(ctx, p.drive), g = ctx.createGain(); g.gain.value = 1 / (1 + p.drive * 1.5); tail.connect(w).connect(g); nodes.push(w, g); tail = g; }
+  if (p.grit > 0) { // Blend in 6-bit steps (pre-gained so quiet tails still hit the coarse steps), then soften the top like the 909's DAC filter.
+    const pre = ctx.createGain(), w = ctx.createWaveShaper(), post = ctx.createGain(), dry = ctx.createGain(), sm = ctx.createBiquadFilter();
+    pre.gain.value = 1; w.curve = gritCurve(); post.gain.value = p.grit; dry.gain.value = 1 - p.grit; sm.type = "lowpass"; sm.frequency.value = 14000; sm.Q.value = .5;
+    tail.connect(pre).connect(w).connect(post).connect(sm); tail.connect(dry).connect(sm); nodes.push(pre, w, post, dry, sm); tail = sm; }
+  if (p.gain !== 1) { const g = ctx.createGain(); g.gain.value = Math.max(0, Math.min(2.5, p.gain)); tail.connect(g); nodes.push(g); tail = g; }
   tail.connect(amp); nodes.push(hp, lp, filt, amp);
   const bus = hp;
   const sweep = p.pitchEnv * (.6 + .4 * vel);
