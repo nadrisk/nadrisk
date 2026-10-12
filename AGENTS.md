@@ -24,6 +24,6 @@
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
-- Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
+- Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and shared 808/ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.

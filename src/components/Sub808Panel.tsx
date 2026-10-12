@@ -4,7 +4,7 @@ import { memo, useRef } from "react";
 import type { GetWave } from "./ScopeScreen";
 import { reeseVisualLevel } from "@/pixel/reeseWaves";
 import { acidParams, defaultAcid, type AcidParams } from "@/audio/acid";
-import { drawAcidDisplay } from "@/pixel/acidDisplay";
+import { drawAcidDisplay, draw808Display } from "@/pixel/acidDisplay";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
@@ -69,10 +69,7 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     p.box(2, 11, 124, 34);
     if (page === "PTCH") {
-      const dec = Math.max(2, Math.round(b.pitchDecay / .4 * 88)), drop = Math.round(b.pitchEnv / 48 * 24);
-      p.line(4, 14, 4 + dec, 14 + drop); p.line(4 + dec, 14 + drop, 96, 14 + drop);
-      p.rect(3, 13, 3, 3); p.rect(3 + dec, 13 + drop, 3, 3);
-      const value = `+${Math.round(b.pitchEnv)}ST`; p.text(value, 124 - value.length * 4, 36); drawMode(p);
+      draw808Display(p, b, slot.note, visual.current.bucket / 12); drawMode(p);
     } else if (page === "AMP") {
       // Release tail graph.
       const rel = Math.max(2, Math.round(b.decay / 4 * 88));
@@ -93,6 +90,7 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
     return null;
   };
 
-  return <Panel name={slot.name || "808"} pages={PAGES} label="Sub808 bass" knobs={knobs} body={body} extra={extra} deps={[slot.name, slot.note, slot.level, slot.pan, b]} />;
+  return <Panel name={slot.name || "808"} pages={PAGES} label="Sub808 bass" knobs={knobs} body={body} extra={extra} deps={[index, slot.name, slot.note, slot.level, slot.pan, b]}
+    live={page => page === "PTCH" && getWave ? reactToSound : undefined} />;
 }
 export default memo(Sub808Panel);
