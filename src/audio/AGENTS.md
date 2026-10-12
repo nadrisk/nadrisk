@@ -4,6 +4,7 @@
 - Tone registers only one AudioWorklet module per context, so NAD processors (including the tape recorder in src/audio/tapeWorklet.ts) must be concatenated into the single loadWorklets bundle; Signalsmith Stretch is the exception and registers its self-contained WASM module directly on the raw context.
 - Dynamics effect displays read silent analyser taps on each effect's pre/post nodes, so meters show live signal without altering the audible chain.
 - Drum voices are per-kind machines in src/audio/voices.ts with optional fields filled by drumDefaults(), so older sets load without migration.
+- Drum recipes live in drumPresets.ts and load complete copied sounds; an optional preset ID sets reset homes without overwriting edited values on recall.
 - Pad hits never build buffers or curves (sample variants pre-baked at idle, drive curves cached; max 6 ringing voices per pad), so every instrument triggers instantly.
 - Voices expose stop() (instant cut for chokes, cap, transport) and release(at, r) (fade from the current level that only ever shortens a tail); retriggers and live release edits re-time a pad's ringing tails with its current release, so release changes are heard immediately.
 - Synth and siren LFOs run from one free-running oscillator per slot in the engine (TRIG mode builds a per-note one), so modulation phase continues across notes.
@@ -11,4 +12,5 @@
 - The channel insert EQ is configured by configureEq() for both audio and screen (screen reads getFrequencyResponse from an offline mirror), so the drawn curve is the real response.
 - tape.delay~ is one tape loop read by three serial heads with feedback scaled by 1/sqrt(active heads) and a spring tank fed by input plus echoes, so MODE changes never destabilise the loop.
 - POLY REESE mode (src/audio/reese.ts) is mono with its own saved params beside POLY's and a centred unfiltered sub, so switching modes never overwrites either sound.
+- POLY ACID stores its own parameters; its single oscillator feeds pooled nonlinear TPT ladder processors in the shared worklet bundle, with velocity accents and existing phrase slides. Returned processors reset before reuse; inactive inputs skip DSP.
 - Each slot's voices enter through a zero-time DelayNode (outs[i].input), because the audio wrapper's per-connect cycle check stops at delays; without it every hit walked the whole downstream graph.

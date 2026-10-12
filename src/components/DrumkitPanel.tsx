@@ -3,8 +3,9 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
+import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
 
-const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV"] as const;
+const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV", "PRST"] as const;
 const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
 const KLAB: Record<DrumKind, string> = { kick: "KICK", snare: "SNR", hat: "HAT", clap: "CLAP" };
 const f2 = (v: number) => v.toFixed(2);
@@ -12,13 +13,15 @@ const f2 = (v: number) => v.toFixed(2);
 // DRUMKIT: four drum machines (kick / snare / hat / clap) on a 128x64 1-bit hardware screen.
 function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const d0 = slot.drum, d = { ...drumDefaults(d0.kind), ...Object.fromEntries(Object.entries(d0).filter(([, v]) => v !== undefined)) } as typeof d0 & ReturnType<typeof drumDefaults>;
-  const home = { ...drumDefaults(d.kind), ...DRUM_INIT[d.kind] };
+  const selectedPreset = drumPreset(d.kind, d0.preset);
+  const home = { ...drumDefaults(d.kind), ...(selectedPreset?.sound ?? DRUM_INIT[d.kind]) };
   const D = (p: Partial<typeof d0>) => onChange({ drum: { ...d0, ...p } });
   const K = (label: string, short: string, key: keyof typeof d, min: number, max: number, step: number, fmt: (v: number) => string): Knob =>
     ({ label, short, value: d[key] as number, min, max, step, fmt, reset: (home as Record<string, unknown>)[key as string] as number | undefined, set: v => D({ [key]: v } as Partial<typeof d0>) });
   const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, hz), SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
 
   const knobs = (page: string): Knob[] => {
+    if (page === "PRST") return [];
     if (page === "SRC") {
       if (d.kind === "snare") return [TUNE, SWP, K("Body tone 2", "TON2", "tone2", .5, 3, .01, f2), DRV];
       if (d.kind === "hat") return [TUNE, SWP, K("Spread", "SPRD", "spread", 0, 2, .01, f2), DRV];
@@ -49,6 +52,15 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   };
 
   const body = (p: import("@/pixel/draw").Px, page: string) => {
+    if (page === "PRST") {
+      DRUM_PRESETS[d.kind].forEach((preset, i) => {
+        const y = 12 + i * 12, selected = preset.id === d0.preset;
+        p.box(2, y, 124, 10);
+        if (selected) p.rect(3, y + 1, 122, 8);
+        p.text(preset.name + (selected && drumPresetEdited(d0, preset) ? " *" : ""), 7, y + 3, !selected);
+      });
+      return;
+    }
     if (page === "SRC" || page === "SHP") {
       KINDS.forEach((k, i) => { const x = 2 + i * 31; p.box(x, 10, 29, 9); if (k === d.kind) p.invert(x + 1, 11, 27, 7); p.textC(KLAB[k], x + 15, 12, k !== d.kind); });
       if (d.kind === "hat") {
@@ -74,6 +86,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   };
 
   const extra = (page: string) => {
+    if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={2} y={12 + i * 12} w={124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ drum: copyDrumPreset(preset) })} />);
     if (page === "SRC" || page === "SHP") return <>
       {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => k !== d.kind && onChange({ drum: { kind: k, ...DRUM_INIT[k], env: { ...DRUM_INIT[k].env } } })} />)}
       {d.kind === "clap"

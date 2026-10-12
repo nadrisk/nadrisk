@@ -1,5 +1,9 @@
 # Roadmap
 
+- [x] Add sixteen complete drum presets; browser-check all selections, preset resets and recall; offline renders finite with distinct tails
+- [x] Add compact ACID voice and sound-reactive 303 display; verify saw/square sweeps, bounded resonance, release silence, mode recall, MIDI and phone canvas
+- [ ] User listening and real-iPhone ACID response check; complete phrase-slide/velocity integration and comparable POLY/REESE performance measurements (6x-throttled rapid taps were heavily busy with both 303 and SET visible)
+
 - [x] Replace rejected REESE hands with dark interference waves; verify controls, bounds, sound reaction and screen performance (real iPhone responsiveness remains unverified)
 
 - [x] Verify all-partial previews and silent empty additive oscillators
