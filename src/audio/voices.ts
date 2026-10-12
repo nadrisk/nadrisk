@@ -1,4 +1,4 @@
-import { laserParams, laserPitchAt, type LaserParams } from "./laser";
+import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
 export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch";
@@ -491,13 +491,18 @@ function playLaser(ctx: BaseAudioContext, dest: AudioNode, p: LaserParams, midi:
   const limit = ctx.sampleRate * .45 / 2 ** (100 / 1200);
   const root = Math.min(limit / 2 ** (Math.max(0, p.amount) / 12), Math.max(20 * 2 ** (Math.max(0, -p.amount) / 12), 440 * 2 ** ((midi - 69) / 12)));
   const duration = Math.max(.005, Math.min(2, p.decay));
+  const attack = Math.max(0, Math.min(.1, p.attack ?? 0));
   const oscs: OscillatorNode[] = [], nodes: AudioNode[] = [lp, amp];
   for (const side of [0, -1, 1]) {
     const o = at(ctx.createOscillator(), t), pan = ctx.createStereoPanner(), gain = ctx.createGain();
     o.type = p.wave; o.detune.value = side * Math.max(0, Math.min(100, p.detune));
     pan.pan.value = side * .65; gain.gain.value = 1 / 3;
-    o.frequency.setValueAtTime(root * 2 ** (laserPitchAt(p.amount, 0, p.curve) / 12), t);
-    for (let k = 1; k <= 64; k++) o.frequency.exponentialRampToValueAtTime(root * 2 ** (laserPitchAt(p.amount, k / 64, p.curve) / 12), t + duration * k / 64);
+    o.frequency.setValueAtTime(root * 2 ** (laserEnvelopeAt(p, 0) / 12), t);
+    if (attack > 0) o.frequency.exponentialRampToValueAtTime(root * 2 ** (laserEnvelopeAt(p, attack) / 12), t + attack);
+    for (let k = 1; k <= 64; k++) {
+      const elapsed = attack + duration * k / 64;
+      o.frequency.exponentialRampToValueAtTime(root * 2 ** (laserEnvelopeAt(p, elapsed) / 12), t + elapsed);
+    }
     o.connect(gain).connect(pan).connect(lp); oscs.push(o); nodes.push(o, pan, gain);
   }
   const end = adsr(amp.gain, t, p.env, gate, vel * .32);

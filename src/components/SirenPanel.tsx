@@ -2,7 +2,7 @@ import { noteName } from "@/audio/arp";
 import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawWaveIcon, drawEnvGraph, EnvZones, envKnobs, hz, ms, st, type Knob } from "./pixelScreens";
-import { defaultLaser, laserParams, laserPitchAt, type LaserParams } from "@/audio/laser";
+import { defaultLaser, laserParams, laserEnvelopeAt, type LaserParams } from "@/audio/laser";
 import type { Slot } from "@/hooks/useGroovebox";
 import { defaultSiren, type Wave } from "@/audio/voices";
 
@@ -15,7 +15,10 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
   const Z = (p: Partial<typeof z>) => onChange({ siren: { ...z, ...p } });
   const laser = z.mode === "laser", l = laserParams(z.laser), home = defaultLaser();
   const L = (p: Partial<LaserParams>) => Z({ laser: { ...l, ...p } });
-  const modeKey = <Tap x={96} y={11} w={30} h={10} label="Siren mode" pressed={laser} onClick={() => Z({ mode: laser ? "dub" : "laser" })} />;
+  const modeKey = <Tap x={96} y={11} w={30} h={10} label="Siren mode" pressed={laser} onClick={() => {
+    const firstLaser = !laser && !z.laser;
+    onChange({ siren: { ...z, mode: laser ? "dub" : "laser", ...(firstLaser ? { laser: defaultLaser() } : {}) }, ...(firstLaser ? { level: 80 } : {}) });
+  }} />;
 
   if (laser) {
     const laserKnobs = (page: string): Knob[] => {
@@ -23,10 +26,11 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
         { label: "Note", short: "NOTE", value: slot.note, min: 36, max: 96, step: 1, fmt: v => noteName(Math.round(v)), reset: 48, set: note => onChange({ note }) },
         { label: "Laser detune", short: "DTUN", value: l.detune, min: 0, max: 100, step: 1, fmt: v => `${Math.round(v)}CT`, reset: home.detune, set: detune => L({ detune }) },
         { label: "Laser tone", short: "TONE", value: l.tone, min: 300, max: 12000, step: 10, fmt: hz, log: true, reset: home.tone, set: tone => L({ tone }) },
-        { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, reset: 75, set: level => onChange({ level }) },
+        { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, reset: 80, set: level => onChange({ level }) },
       ];
       if (page === "PEN") return [
         { label: "Laser pitch amount", short: "AMT", value: l.amount, min: -24, max: 24, step: 1, fmt: st, reset: home.amount, set: amount => L({ amount }) },
+        { label: "Laser pitch attack", short: "ATK", value: l.attack ?? 0, min: 0, max: .1, step: .001, fmt: ms, log: false, reset: home.attack, set: attack => L({ attack }) },
         { label: "Laser pitch decay", short: "DEC", value: l.decay, min: .005, max: 2, step: .001, fmt: ms, log: true, reset: home.decay, set: decay => L({ decay }) },
         { label: "Laser pitch curve", short: "CRV", value: l.curve, min: .25, max: 6, step: .05, fmt: v => v.toFixed(2), reset: home.curve, set: curve => L({ curve }) },
       ];
@@ -46,9 +50,10 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
         p.text("PITCH ENV", 3, 14); p.box(2, 23, 124, 19);
         for (let x = 4; x < 124; x += 4) p.dot(x, 32);
         const width = 25 + Math.round(Math.log(l.decay / .005) / Math.log(400) * 94);
-        let px = 4, py = 32 - Math.round(l.amount / 24 * 7);
+        const duration = Math.max(0, Math.min(.1, l.attack ?? 0)) + Math.max(.005, Math.min(2, l.decay));
+        let px = 4, py = 32 - Math.round(laserEnvelopeAt(l, 0) / 24 * 7);
         for (let x = 1; x <= 119; x++) {
-          const y = 32 - Math.round(laserPitchAt(l.amount, x / width, l.curve) / 24 * 7);
+          const y = 32 - Math.round(laserEnvelopeAt(l, x / width * duration) / 24 * 7);
           p.line(px, py, 4 + x, y); px = 4 + x; py = y;
         }
       } else { p.text("AMP ENV", 3, 14); drawEnvGraph(p, l.env, 2, 23, 124, 18); }
