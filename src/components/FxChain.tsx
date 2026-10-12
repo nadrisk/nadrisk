@@ -116,10 +116,10 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     else { const hz = sw < 0 ? 20000 * Math.pow(0.01, -sw) : 20 * Math.pow(100, sw); d.textC(hz >= 1000 ? `${(hz / 1000).toFixed(1)}K` : `${Math.round(hz)}HZ`, 64, 25); }
   } else if (["compressor", "ott"].includes(type)) {
     // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
-    const thr = pv(p, "threshold", type === "ott" ? -30 : type === "drumbus" ? -18 : -24);
-    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : type === "drumbus" ? 1 + pv(p, "drive", 3) / 4 : type === "noisegate" ? 1 : pv(p, "ratio", 4);
+    const thr = pv(p, "threshold", type === "ott" ? -30 : -24);
+    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : pv(p, "ratio", 4);
     const makeup = pv(p, "makeup", 0), depth = 1;
-    const out = (i: number) => type === "noisegate" ? (i < thr ? -60 + (1 - pv(p, "range", 0)) * 0 + i * pv(p, "range", 0) : i) : (i > thr ? thr + (i - thr) / ratio : i) * 1;
+    const out = (i: number) => i > thr ? thr + (i - thr) / ratio : i;
     const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
     d.line(3, 43, 69, 22, true); let py = toY(out(-60));
     for (let x = 3; x <= 69; x++) { const y = toY(out((x - 3) / 66 * 60 - 60) + makeup); d.line(x - 1, py, x, y); py = y; }
