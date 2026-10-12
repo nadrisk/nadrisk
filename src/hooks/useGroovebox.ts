@@ -474,7 +474,7 @@ export function useGroovebox() {
   const killTails = useCallback(() => {
     const e = engine.current; if (!e) return; e.performance.flush?.();
     e.outs.forEach((o, i) => { if (!o.chain.some((_, k) => TAIL_FX.has(slotsRef.current[i].fx.filter(f => f.on)[k]?.type))) return;
-      const g = o.pan as unknown as AudioNode; void g; o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
+      o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
       setTimeout(() => { o.sig = ""; syncChain(e, i, slotsRef.current[i]); }, 35); });
   }, []);
   const togglePlay = useCallback(async () => {
