@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Correct and verify synth waveform preview sampling without audio changes
+- [x] Correct and verify synth waveform preview sampling without audio changes
 
 - [x] Apply chosen LASER defaults and short pitch attack; verify resets, recall, audio and screen
 
