@@ -106,8 +106,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
   } else if (["saturation", "acid"].includes(type)) {
     const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
     for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
-  } else if (["reverseDelay", "metal"].includes(type)) {
-    const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = type === "metal" ? Math.max(4, Math.min(20, Math.round(4 + (84 - pv(p, "note", 57)) / 4))) : Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
+  } else if (type === "reverseDelay") {
+    const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
   } else if (type === "reverb") {
     // Reflection cloud: MIX = how many dots, SIZE = how far they spread and how long each lives, DAMP = how many reach the top (highs).
@@ -210,7 +210,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const [levels, setLevels] = useState<FxLevels | null>(null);
   const hist = useRef<number[][]>([]);
   const [now, setNow] = useState(0);
-  const animated = !!f?.on && ANIM.includes(f.type);
+  const fCur = fx[Math.min(sel, Math.max(0, fx.length - 1))], animated = !!fCur?.on && ANIM.includes(fCur.type);
   useEffect(() => {
     if (!animated) return; let last = 0;
     // Phase comes from the audio clock so the screen moves at the effect's real rate.
