@@ -256,18 +256,27 @@ function warmCurve(k: number) { const c = new Float32Array(2048), norm = (v: num
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * k * .5; c[i] = (norm(x) + .06 * norm(x) * Math.abs(norm(x)) - .0) / (top * 1.06); } return c; }
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
 function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
-// Impulses are cached by rounded length and density so knob movement never rebuilds noise on every audio update.
+// Cache misses fill in deferred chunks so SIZE/DENS changes never block pad input.
 const impulses = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
-function impulse(ctx: BaseAudioContext, sec: number, density = .6) {
+const pendingImpulses = new WeakMap<BaseAudioContext, Map<string, ((buffer: AudioBuffer) => void)[]>>();
+function requestImpulse(ctx: BaseAudioContext, sec: number, density: number, ready: (buffer: AudioBuffer) => void) {
   const size = Math.round(sec * 4) / 4, dens = Math.round(Math.max(.05, Math.min(1, density)) * 20) / 20, key = `${size}:${dens}`;
   const m = impulses.get(ctx) ?? new Map<string, AudioBuffer>(); impulses.set(ctx, m);
-  const hit = m.get(key); if (hit) return hit; const b = makeImpulse(ctx, Math.max(.2, size), dens); m.set(key, b); return b;
-}
-function makeImpulse(ctx: BaseAudioContext, sec: number, density: number) {
-  const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
-  const chance = .015 + density * density * .985, gain = Math.min(3, 1 / Math.sqrt(chance));
-  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = Math.random() < chance ? (Math.random() * 2 - 1) * (1 - i / len) ** 3 * gain : 0; }
-  return b;
+  const hit = m.get(key); if (hit) { ready(hit); return; }
+  const pending = pendingImpulses.get(ctx) ?? new Map<string, ((buffer: AudioBuffer) => void)[]>(); pendingImpulses.set(ctx, pending);
+  const waiters = pending.get(key); if (waiters) { waiters.push(ready); return; }
+  pending.set(key, [ready]);
+  const len = Math.floor(ctx.sampleRate * Math.max(.2, size)), b = ctx.createBuffer(2, len, ctx.sampleRate);
+  const chance = .015 + dens * dens * .985, gain = Math.min(3, 1 / Math.sqrt(chance));
+  let ch = 0, at = 0;
+  const fill = () => {
+    const d = b.getChannelData(ch), end = Math.min(len, at + 8192);
+    for (let i = at; i < end; i++) d[i] = Math.random() < chance ? (Math.random() * 2 - 1) * (1 - i / len) ** 3 * gain : 0;
+    at = end; if (at >= len) { ch++; at = 0; }
+    if (ch < 2) { setTimeout(fill, 0); return; }
+    m.set(key, b); const callbacks = pending.get(key) ?? []; pending.delete(key); callbacks.forEach(cb => cb(b));
+  };
+  setTimeout(fill, 0);
 }
 
 /** Tremolo LFO shape: maps a sine (-1..1) to sine/triangle/square-ish; also used by the screen so it draws the real gain. */
@@ -435,10 +444,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       set(fb.gain, Math.min(.95, p.feedback) / Math.sqrt(n)); set(lp.frequency, p.tone);
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0); };
   } else if (type === "reverb") {
-    const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "";
+    const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
     input.connect(cv).connect(lp).connect(wet);
     apply = p => { const sec = eco ? Math.min(p.size * .5, 1.5) : p.size, density = p.density ?? .6, next = `${Math.round(sec * 4)}:${Math.round(density * 20)}`;
-      if (next !== shape) { shape = next; cv.buffer = impulse(ctx, sec, density); } set(lp.frequency, p.damp); };
+      if (next !== shape) { shape = next; const own = ++request; requestImpulse(ctx, sec, density, buffer => { if (own === request) cv.buffer = buffer; }); } set(lp.frequency, p.damp); };
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
     input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);

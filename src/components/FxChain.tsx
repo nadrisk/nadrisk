@@ -261,7 +261,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? "", now]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[fx, i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? "", now]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
