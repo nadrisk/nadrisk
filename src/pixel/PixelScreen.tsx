@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Px } from "./draw";
+import { gatedLoop } from "@/lib/frameGate";
 
 export const W = 128, H = 64;
 export const DisplayThemeContext = createContext("oled");
 
 // Fixed 128x64 display scaled by a whole number (nearest neighbour), so every pixel is identical on any device.
-export default function PixelScreen({ draw, deps, children, label }: { draw: (p: Px) => void; deps: unknown[]; children?: ReactNode; label: string }) {
+export default function PixelScreen({ draw, deps, children, label, live }: { draw: (p: Px) => void; deps: unknown[]; children?: ReactNode; label: string; live?: () => boolean }) {
   const wrap = useRef<HTMLDivElement>(null), cv = useRef<HTMLCanvasElement>(null);
+  const latest = useRef({ draw, live }); latest.current = { draw, live };
   const theme = useContext(DisplayThemeContext);
   const [scale, setScale] = useState(3);
   useLayoutEffect(() => {
@@ -34,6 +36,19 @@ export default function PixelScreen({ draw, deps, children, label }: { draw: (p:
     draw(new Px(ctx, fg, bg));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme, ...deps]);
+  const hasLive = Boolean(live);
+  useEffect(() => {
+    if (!hasLive) return;
+    const c = cv.current, ctx = c?.getContext("2d"); if (!c || !ctx) return;
+    const cs=getComputedStyle(c), fg=`hsl(${cs.getPropertyValue("--foreground")})`, bg=`hsl(${cs.getPropertyValue("--background")})`;
+    let last=0;
+    return gatedLoop(c, now => {
+      if (now-last<60) return; last=now;
+      if (!latest.current.live?.()) return;
+      ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+      latest.current.draw(new Px(ctx,fg,bg));
+    });
+  }, [hasLive, theme]);
   return <div ref={wrap} className="px-wrap">
     <div className="px-screen" style={{ width: W * scale, height: H * scale }}>
       <canvas ref={cv} width={W} height={H} role="img" aria-label={label} style={{ width: W * scale, height: H * scale }} />

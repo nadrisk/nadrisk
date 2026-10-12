@@ -26,6 +26,6 @@
 - Sampler, poly and siren pad taps sustain until the last finger lifts, then release; imports accept WAV/MP3 only and are truncated to MAX_SAMPLE_SEC on decode.
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
-- Gate visual loops in frameGate and mount only visible panels; generate cached reverb DENS impulses in deferred chunks and sync audio FX only for slots whose FX list changed, keeping pad input unblocked.
+- Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE pixel hands reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
