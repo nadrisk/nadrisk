@@ -9,3 +9,4 @@
 - Synth and siren LFOs run from one free-running oscillator per slot in the engine (TRIG mode builds a per-note one), so modulation phase continues across notes.
 - Effect additions are limited by FX_COST against MAX_FX_LOAD across all slots, so the groovebox can't be overloaded; loaded sets over budget still play.
 - The channel insert EQ is configured by configureEq() for both audio and screen (screen reads getFrequencyResponse from an offline mirror), so the drawn curve is the real response.
+- tape.delay~ is one tape loop read by three serial heads with feedback scaled by 1/sqrt(active heads) and a spring tank fed by input plus echoes, so MODE changes never destabilise the loop.
