@@ -4,7 +4,7 @@ import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX
 import { defaultHarmony, harmonyOn, keyChord, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
-import { stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
+import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";

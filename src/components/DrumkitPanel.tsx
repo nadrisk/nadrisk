@@ -33,7 +33,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
     }
     if (page === "PIT") return [{ ...SWP, label: "Pitch env amount", short: "AMT" }, K("Pitch env attack", "ATK", "pAtk", 0, .1, .001, ms), { ...CTR, label: "Pitch env decay", short: "DEC" }, K("Pitch env curve", "CRV", "pCurve", 0, 1, .01, pct)];
     if (page === "FLT") return [K("Filter base", "BASE", "fltBase", 20, 8000, 10, hz), K("Filter width", "WDTH", "fltWidth", 0, 10, .1, v => v.toFixed(1)), K("Cutoff", "CUT", "cutoff", 40, 16000, 10, hz), K("Resonance", "RES", "res", .1, 20, .1, v => v.toFixed(1))];
-    return envKnobs(d.env, env => D({ env }));
+    return envKnobs(d.env, env => D({ env }), home.env);
   };
 
   // Pitch-envelope curve drawn exactly like the engine: attack rise, then curved fall to the end pitch.
