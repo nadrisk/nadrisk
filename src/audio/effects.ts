@@ -37,6 +37,8 @@ export const FX_DEFS = {
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
   drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   gain: { label: "gain~", params: { level: [.55, 0, 1, 0.001] } },
+  neurobox: { label: "neuro.box~", params: { reese: [0.35, 0, 1, 0.01], growl: [0.4, 0, 1, 0.01], squelch: [0.3, 0, 1, 0.01], disp: [0.25, 0, 1, 0.01] } },
+  dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], gain: [-6, -15, 15, 0.5], threshold: [-30, -60, 0, 1], q: [1.5, 0.3, 8, 0.1], mix: [1, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -172,6 +174,23 @@ class SpecGate extends AudioWorkletProcessor {
     return true; }
 }
 registerProcessor('nad-specgate', SpecGate);
+class DynEq extends AudioWorkletProcessor {
+  // External-key dynamic bell: the key's level above THRESH pushes a peaking band towards GAIN (smoothed, no zipper).
+  static get parameterDescriptors() { return [{ name: 'freq', defaultValue: 1000 }, { name: 'gain', defaultValue: -6 }, { name: 'threshold', defaultValue: -30 }, { name: 'q', defaultValue: 1.5 }]; }
+  constructor() { super(); this.e = 0; this.amt = 0; this.z = [[0, 0, 0, 0], [0, 0, 0, 0]]; this.c = [1, 0, 0, 0, 0]; this.cnt = 0; }
+  coef(f, db, q) { const A = Math.pow(10, db / 40), w = 2 * Math.PI * Math.min(f, sampleRate * .45) / sampleRate, al = Math.sin(w) / (2 * q), cs = Math.cos(w), a0 = 1 + al / A;
+    this.c = [(1 + al * A) / a0, -2 * cs / a0, (1 - al * A) / a0, -2 * cs / a0, (1 - al / A) / a0]; }
+  process(ins, outs, p) { const x = ins[0], k = ins[1], y = outs[0]; if (!x || !x.length) return true;
+    const ka = 1 - Math.exp(-1 / (sampleRate * .005)), kr = 1 - Math.exp(-1 / (sampleRate * .12)), ks = 1 - Math.exp(-1 / (sampleRate * .01)), th = p.threshold[0];
+    for (let n = 0; n < y[0].length; n++) {
+      const v = k && k.length ? Math.max(Math.abs(k[0][n] || 0), Math.abs((k[1] || k[0])[n] || 0)) : 0; this.e += (v - this.e) * (v > this.e ? ka : kr);
+      const over = 20 * Math.log10(this.e + 1e-6) - th; this.amt += (Math.max(0, Math.min(1, over / 12)) - this.amt) * ks;
+      if (++this.cnt >= 32) { this.cnt = 0; this.coef(p.freq[0], p.gain[0] * this.amt, Math.max(.2, p.q[0])); }
+      const [b0, b1, b2, a1, a2] = this.c;
+      for (let c = 0; c < y.length; c++) { const z = this.z[c] || this.z[0], s = (x[c] || x[0])[n] || 0, o = b0 * s + b1 * z[0] + b2 * z[1] - a1 * z[2] - a2 * z[3]; z[1] = z[0]; z[0] = s; z[3] = z[2]; z[2] = o; y[c][n] = o; }
+    } return true; }
+}
+registerProcessor('nad-dyneq', DynEq);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
@@ -293,6 +312,31 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "sidechain") {
     const n = worklet("nad-duck", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
     apply = p => wp(n, p, ["threshold", "ratio", "depth", "attack", "release"]);
+  } else if (type === "dyneq") {
+    const n = worklet("nad-dyneq", 2), key = ctx.createGain(); key.connect(n, 0, 1); nodes.push(key); keyInput = key; input.connect(n).connect(wet);
+    apply = p => wp(n, p, ["freq", "gain", "threshold", "q"]);
+  } else if (type === "neurobox") {
+    // Mono sub below 150 Hz stays clean; above it: REESE (two slowly drifting detuned delays, L/R) -> GROWL (asymmetric fold)
+    // -> SQUELCH (two vowel formants pushed by the input envelope) -> DISP (allpass dispersion) -> auto tone tilt.
+    const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(), sub = ctx.createGain(); lp.frequency.value = hp.frequency.value = 150; hp.type = "highpass";
+    sub.channelCount = 1; sub.channelCountMode = "explicit"; input.connect(lp).connect(sub).connect(wet);
+    const direct = ctx.createGain(), merge = ctx.createChannelMerger(2), rs = ctx.createGain(), pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain();
+    sh.oversample = eco ? "none" : "2x"; nodes.push(lp, hp, sub, direct, merge, rs, pre, sh, post);
+    input.connect(hp); hp.connect(direct).connect(pre);
+    const mods = [0, 1].map(ch => { const d = ctx.createDelay(.05), m = lfo(); d.delayTime.value = .008; m.o.frequency.value = ch ? .37 : .29; m.g.connect(d.delayTime); hp.connect(d); d.connect(merge, 0, ch); nodes.push(d); return m; });
+    merge.connect(rs).connect(pre); pre.connect(sh).connect(post);
+    const env = follower(), f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(); f1.type = f2.type = "peaking"; nodes.push(f1, f2); env.connect(f1.frequency); env.connect(f2.frequency);
+    post.connect(f1).connect(f2);
+    const aps = Array.from({ length: 4 }, (_, i) => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.frequency.value = 250 * 1.8 ** i; nodes.push(a); return a; });
+    const dd = ctx.createGain(), dw = ctx.createGain(), tilt = ctx.createBiquadFilter(); tilt.type = "highshelf"; tilt.frequency.value = 5000; nodes.push(dd, dw, tilt);
+    f2.connect(dd).connect(tilt); f2.connect(aps[0]); aps.reduce((a, b) => (a.connect(b), b)).connect(dw).connect(tilt); tilt.connect(wet);
+    let gk = -1;
+    apply = p => { const r = p.reese ?? .35, g = p.growl ?? .4, sq = p.squelch ?? .3, ds = p.disp ?? .25;
+      mods.forEach(m => set(m.g.gain, r * .0025)); set(direct.gain, 1 - r * .6); set(rs.gain, r * .8);
+      const q = Math.round(g * 40); if (q !== gk) { gk = q; const k = 1 + q / 40 * 6; sh.curve = Float32Array.from({ length: 2048 }, (_, i) => { const x = (i / 1023.5 - 1) * k + q / 40 * .3; return Math.sin(x * 1.3) * .7 + Math.tanh(x) * .3; }); }
+      set(pre.gain, 1); set(post.gain, curveComp(sh.curve) * .9);
+      set(f1.frequency, 450); set(f2.frequency, 1300); set(f1.gain, sq * 12); set(f2.gain, sq * 9); set(f1.Q, 2 + sq * 4); set(f2.Q, 2 + sq * 4); set(env.gain, sq * 2600);
+      aps.forEach(a => set(a.Q, .3 + ds * 6)); set(dw.gain, ds); set(dd.gain, 1 - ds * .7); set(tilt.gain, -g * 5); };
   } else if (type === "spectral") {
     // Spectral gate: 512-point FFT frames; AMOUNT keeps only the loudest bins (0 = clean, 1 = a few glassy partials).
     const n = worklet("nad-specgate"); input.connect(n).connect(wet);
@@ -392,12 +436,12 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 3, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "note", "feedback"], eq: ["low", "mid", "high"] };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix", "size"], delay: ["mix", "time", "feedback"], metal: ["mix", "note", "feedback"], eq: ["low", "mid", "high"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain", "freq", "mix"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
-export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high" };
+export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq" };
 /** Maps a 0..1 lane value onto the param's real range. */
 export const modValue = (t: FxType, k: string, v: number) => { const r = (FX_DEFS[t].params as Record<string, Range>)[k]; return r ? r[1] + (r[2] - r[1]) * v : v; };
