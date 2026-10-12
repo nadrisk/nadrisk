@@ -12,8 +12,8 @@ const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w,
 const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={k.h ?? 9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
-export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
-  playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; volume: number; setVolume: (v: number) => void;
+export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwing, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
+  playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; swing: number; setSwing: (v: number) => void; volume: number; setVolume: (v: number) => void;
   eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
   getMasterDyn?: () => { gr: number; out: number } | null;
 }) {
@@ -39,7 +39,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     { s: "LIMIT", label: "Master limiter", x: 86, y: 14, w: 40, on: pf.limitOn, fn: () => setPf({ limitOn: !pf.limitOn }) },
   ] : page === "EQ" ? [{ s: "EQ", label: "Mastering EQ", x: 1, y: 11, w: 22, on: !!pf.mEqOn, fn: () => setPf({ mEqOn: !pf.mEqOn }) }] : page === "MTR" ? [{ s: "RESET", label: "Reset integrated loudness", x: 100, y: 11, w: 27, on: false, fn: resetMeter }] : [];
   const knobs = (page: string): Knob[] => page === "OUT" ? [
-    kn("Tempo", "BPM", bpm, 60, 180, 1, "", setBpm), kn("Master volume", "VOL", volume, 0, 100, 1, "%", setVolume),
+    kn("Tempo", "BPM", bpm, 60, 180, 1, "", setBpm), kn("Swing", "SWNG", swing, 50, 75, 1, "%", setSwing), kn("Master volume", "VOL", volume, 0, 100, 1, "%", setVolume),
   ] : page === "DYN" ? [
     kn("Glue thresh", "THR", pf.glueThresh ?? -12, -30, 0, .5, "DB", glueThresh => setPf({ glueThresh })), kn("Ratio", "RAT", pf.glueRatio ?? 2, 1, 4, .1, ":1", glueRatio => setPf({ glueRatio })),
     kn("Clip drive", "DRV", pf.clipDrive, 0, 18, .5, "DB", clipDrive => setPf({ clipDrive })), kn("Limiter ceiling", "CEIL", pf.ceiling, -12, 0, .5, "DB", ceiling => setPf({ ceiling })),
@@ -48,7 +48,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "AIR", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
-  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
+  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, swing, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
