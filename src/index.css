@@ -818,8 +818,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Performance panel: wide one-tap reset under the PERFORM screen, shown on every page. */
 .instrument-workspace .gb-perf { display: flex; flex-direction: column; gap: 6px; }
-.instrument-workspace .gb-perf-reset { font-family: 'Silkscreen', monospace; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; width: 100%; min-height: 48px; background: hsl(var(--background)); color: hsl(var(--foreground)); border: 2px solid hsl(var(--foreground)); border-radius: 0; cursor: pointer; touch-action: manipulation; }
-.instrument-workspace .gb-perf-reset:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 
 /* Bar-quarter separators: a gap before steps 5, 9 and 13 so grooves read in groups of four. */
 .gb-step.group { margin-left: 4px; }
@@ -938,7 +936,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-seq-controls .px-wrap,
   .instrument-workspace .gb-seq-performance .px-wrap { width: 100%; max-width: 568px; }
   .instrument-workspace .gb-seq-performance .px-wrap { grid-column: 2; grid-row: 1; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 0; }
-  .instrument-workspace .gb-seq-performance .gb-perf-reset { grid-column: 2; grid-row: 2; margin: 0; width: 100%; }
   .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid hsl(var(--foreground) / .5); padding: 0; margin: 0; gap: 0; }
   .instrument-workspace .gb-seq-performance .gb-perf-banks { gap: 0; }
   .instrument-workspace .gb-seq-performance .gb-perf-mutes { gap: 0; }
