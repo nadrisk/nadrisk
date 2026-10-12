@@ -15,8 +15,9 @@ export function acidParams(p?: Partial<AcidParams>): AcidParams {
 export const ACID_WORKLET = `
 class NadAcidFilter extends AudioWorkletProcessor {
  static get parameterDescriptors(){return [{name:'cutoff',defaultValue:320,minValue:40,maxValue:18000},{name:'res',defaultValue:.72,minValue:0,maxValue:1,automationRate:'k-rate'},{name:'drive',defaultValue:.24,minValue:0,maxValue:1,automationRate:'k-rate'}];}
- constructor(){super();this.z=new Float64Array(4);this.prev=0;}
+  constructor(){super();this.z=new Float64Array(4);this.prev=0;if(this.port)this.port.onmessage=()=>{this.z.fill(0);this.prev=0;};}
  process(ins,outs,p){const input=ins[0]?.[0],out=outs[0]?.[0];if(!out)return true;
+  if(!input){out.fill(0);return true;}
  const k=p.res[0]*3.85,drive=1+p.drive[0]*4;
  for(let n=0;n<out.length;n++){
  const x=input?.[n]||0,fc=Math.min(sampleRate*.19,Math.max(40,p.cutoff.length===1?p.cutoff[0]:p.cutoff[n]));
