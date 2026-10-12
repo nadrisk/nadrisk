@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode , useEffect} from "react";
 import PixelScreen, { Tap, XYZone, Zone } from "@/pixel/PixelScreen";
 import { textWidth } from "@/pixel/font";
 import type { Px } from "@/pixel/draw";
@@ -107,11 +107,12 @@ export function drawWaveIcon(p: Px, wave: Wave | "additive", x: number, y: numbe
 }
 
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
-  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[];
+  body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void;
 }) {
   const [page, setPage] = useState(pages[0]);
+  useEffect(() => { onPage?.(page); }, [page, onPage]);
   const [readout, setReadout] = useState("");
   const ks = knobs(page);
   return <div className="px-panel">
