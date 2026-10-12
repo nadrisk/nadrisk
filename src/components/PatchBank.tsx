@@ -54,7 +54,7 @@ export default function PatchBank({ getPatch, applyPatch }: { getPatch: () => Sl
     for (let k = 0; k < ROWS; k++) { const i = top + k, pt = list[i], y = 11 + k * 9; if (!pt) continue; const on = i !== sel;
       if (!on) p.invert(1, y - 1, 116, 9); p.text(pt.name.slice(0, 20).toUpperCase(), 3, y, on); p.text(TAG[pt.engine] ?? "", 104, y, on); }
     if (!list.length) p.text("NO PATCHES · SAVE", 3, 20);
-    p.box(119, 10, 8, 18); p.text("^", 121, 15); p.box(119, 29, 8, 18); p.text("v", 121, 35);
+    p.box(119, 10, 8, 18); p.box(119, 29, 8, 18); for (let r = 0; r < 3; r++) { p.line(123 - r, 17 + r, 123 + r, 17 + r); p.line(123 - r, 39 - r, 123 + r, 39 - r); }
     BTNS.forEach((b, i) => { const x = 1 + i * 21; p.box(x, 46, 20, 8); p.text(b === confirm ? "OK?" : b, x + 2, 47); });
     BTNS2.forEach((b, i) => { const x = 1 + i * 42; p.box(x, 55, 41, 8); p.textC(b, x + 20, 56); });
   };

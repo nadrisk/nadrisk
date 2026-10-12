@@ -29,3 +29,4 @@
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
+- Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
