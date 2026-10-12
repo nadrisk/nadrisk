@@ -1,7 +1,7 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useRef, useState } from "react";
 import type { GetWave } from "./ScopeScreen";
-import { drawReeseHands, reeseVisualLevel } from "@/pixel/reeseHands";
+import { drawReeseWaves, reeseVisualLevel } from "@/pixel/reeseWaves";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
@@ -60,7 +60,7 @@ function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; ind
     const rb = (p: import("@/pixel/draw").Px, page: string) => {
       if (page === "RSE") {
         p.box(2, 11, 124, 34);
-        drawReeseHands(p,r,visual.current.bucket/12,window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+        drawReeseWaves(p,r,visual.current.bucket/12,window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       } else if (page === "PIT") pitBody(p);
       else if (page === "FLT") drawFilterCurve(p, "lowpass", r.cutoff, r.res, 2, 11, 124, 32);
       else { drawEnvGraph(p, curR); ["VOL", "FLT"].forEach((t, k) => { const on = (k ? "flt" : "vol") === envSel, x = 92 + k * 17; if (on) { p.rect(x, 11, 16, 8); p.text(t, x + 2, 12, false); } else { p.box(x, 11, 16, 8); p.text(t, x + 2, 12); } }); }
