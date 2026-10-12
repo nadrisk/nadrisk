@@ -1,6 +1,6 @@
 # Roadmap
 
-- [x] Draw parameter-linked mirrored REESE gun fingers with gated output-level reaction; verify bounds and playback
+- [ ] Replace rejected REESE hands with dark interference waves; verify controls, bounds, sound reaction and screen performance
 
 - [x] Verify all-partial previews and silent empty additive oscillators
 
