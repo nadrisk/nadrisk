@@ -1,5 +1,9 @@
 # Roadmap
 
+- [ ] Add and verify sixteen complete drum presets with selected-preset resets and recall
+- [ ] Add and verify compact ACID sound, mono accents/slides and 303 display without changing POLY/REESE
+- [ ] Check presets/ACID playback, recall, MIDI, screen fit and throttled response
+
 - [x] Replace rejected REESE hands with dark interference waves; verify controls, bounds, sound reaction and screen performance (real iPhone responsiveness remains unverified)
 
 - [x] Verify all-partial previews and silent empty additive oscillators

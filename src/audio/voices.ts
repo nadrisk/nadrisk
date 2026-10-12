@@ -1,4 +1,5 @@
 import { reeseParams, type ReeseParams } from "./reese";
+import { acidParams, playAcid, type AcidParams } from "./acid";
 import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
@@ -7,7 +8,7 @@ export type ADSR = { a: number; d: number; s: number; r: number };
 export type DrumKind = "kick" | "snare" | "hat" | "clap";
 /** Machine fields are optional so older sets load unchanged; drumDefaults() fills them per kind. */
 export type DrumMachine = { pAtk?: number; pCurve?: number; pEnd?: number; fmDecay?: number; transient?: number; bodyDecay?: number; noiseDecay?: number; noiseTone?: number; tone2?: number; spread?: number; bursts?: number; burstGap?: number; tail?: number; drive?: number; fltBase?: number; fltWidth?: number };
-export type DrumParams = DrumMachine & { kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
+export type DrumParams = DrumMachine & { preset?: string; kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 /** partials2 gives oscillator 2 its own additive shape; older sets without it fall back to partials. */
 export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: SynthLfo; /** Filter envelope -> FM index, 0-1. */ fenvFm?: number };
@@ -22,7 +23,7 @@ export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: numbe
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
 const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
-export type PolyParams = { mode?: "poly" | "reese"; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
+export type PolyParams = { mode?: "poly" | "reese" | "acid"; acid?: Partial<AcidParams>; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
 export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 }, fenv: { a: .01, d: .4, s: .3, r: .5 }, fenvAmt: 0 });
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
@@ -435,6 +436,7 @@ export function peaksOf(buf: AudioBuffer, n = 160) {
 
 /** Bounded five-note analog-style chord voice; detuned saw/PWM/sub through a four-pole filter and stereo modulated delay. */
 export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1, bpm = 124, glideFrom?: number): Voice {
+  if (p.mode === "acid") return playAcid(ctx, dest, acidParams(p.acid), notes[0] ?? 36, t, gate, vel);
   if (p.mode === "reese") return playReese(ctx, dest, reeseParams(p.reese), notes[0], t, gate, vel, bpm, glideFrom);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp, mix);

@@ -7,6 +7,8 @@ import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type
 import type { Slot } from "@/hooks/useGroovebox";
 import { defaultReese, reeseParams, type ReeseParams } from "@/audio/reese";
 import { ms } from "./pixelScreens";
+import { acidParams, defaultAcid, type AcidParams } from "@/audio/acid";
+import { drawAcidDisplay } from "@/pixel/acidDisplay";
 
 const RPAGES = ["RSE", "PIT", "FLT", "ENV"] as const;
 
@@ -31,15 +33,33 @@ function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; ind
   const curEnv = envSel === "vol" ? y.env : fenv, setEnv = (e: typeof fenv) => envSel === "vol" ? Y({ env: e }) : Y({ fenv: e });
 
   const noteK = useNoteKnob(slot, onChange);
-  const reese = y.mode === "reese", r = reeseParams(y.reese), home = defaultReese();
+  const reese = y.mode === "reese", acid = y.mode === "acid", r = reeseParams(y.reese), home = defaultReese();
   const R = (q: Partial<ReeseParams>) => onChange({ poly: { ...y, reese: { ...r, ...q } } });
-  const modeKey = <Tap x={96} y={11} w={30} h={10} label="Poly mode" pressed={reese} onClick={() => onChange({ poly: { ...y, mode: reese ? "poly" : "reese", ...(!reese && !y.reese ? { reese: defaultReese() } : {}) } })} />;
-  const drawMode = (p: import("@/pixel/draw").Px) => { if (reese) { p.rect(96, 11, 30, 10); p.textC("REESE", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("POLY", 111, 14); } };
+  const modeKey = <Tap x={96} y={11} w={30} h={10} label="Poly mode" pressed={reese || acid} onClick={() => {
+    const mode = acid ? "poly" : reese ? "acid" : "reese";
+    onChange({ poly: { ...y, mode, ...(mode === "reese" && !y.reese ? { reese: defaultReese() } : {}), ...(mode === "acid" && !y.acid ? { acid: defaultAcid() } : {}) } });
+  }} />;
+  const drawMode = (p: import("@/pixel/draw").Px) => { if (reese || acid) { p.rect(96, 11, 30, 10); p.textC(acid ? "ACID" : "REESE", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("POLY", 111, 14); } };
   const pitBody = (p: import("@/pixel/draw").Px) => {
     p.box(2, 11, 124, 34); p.textC(noteK.fmt(slot.note), 48, 17);
     const pc = ((slot.note % 12) + 12) % 12; for (let i = 0; i < 12; i++) { const x = 9 + i * 9; p.box(x, 29, 7, 11); if (i === pc) p.rect(x + 1, 30, 5, 9); }
     drawMode(p);
   };
+  if (acid) {
+    const a = acidParams(y.acid), init = defaultAcid();
+    const A = (patch: Partial<AcidParams>) => onChange({ poly: { ...y, acid: { ...a, ...patch } } });
+    const k = (label: string, short: string, key: Exclude<keyof AcidParams, "wave">, min: number, max: number, step: number, fmt: (n: number) => string, log = false): Knob =>
+      ({ label: `Acid ${label}`, short, value: a[key], min, max, step, fmt, log, reset: init[key], set: v => A({ [key]: v }) });
+    return <Panel key="acid" name={slot.name || "ACID"} label="Ensemble acid" pages={["303", "SET"]} deps={[index, slot.name, y]}
+      live={page => page === "303" && getWave ? reactToSound : undefined}
+      knobs={page => page === "303" ? [
+        k("cutoff", "CUT", "cutoff", 40, 8000, 1, hz, true), k("resonance", "RES", "res", 0, 1, .01, pct),
+        k("envelope", "ENV", "envMod", 0, 5, .01, v => `${v.toFixed(1)}OC`), k("decay", "DEC", "decay", .06, 1.5, .001, ms),
+      ] : [noteK, k("accent", "ACC", "accent", 0, 1, .01, pct), k("drive", "DRV", "drive", 0, 1, .01, pct)]}
+      body={(p, page) => { if (page === "303") { p.box(2, 11, 124, 34); drawAcidDisplay(p, a, visual.current.bucket / 12); }
+        else { pitBody(p); p.rect(3, 12, 30, 10, false); p.box(3, 12, 30, 10); p.textC(a.wave === "square" ? "SQR" : "SAW", 18, 15); } }}
+      extra={page => page === "SET" ? <>{modeKey}<Tap x={3} y={12} w={30} h={10} label="Acid waveform" pressed={a.wave === "square"} onClick={() => A({ wave: a.wave === "square" ? "sawtooth" : "square" })} /></> : null} />;
+  }
   if (reese) {
     const fenvR = r.fenv, curR = envSel === "vol" ? r.env : fenvR, setR = (e: typeof fenvR) => envSel === "vol" ? R({ env: e }) : R({ fenv: e });
     const rk = (page: string): Knob[] => {
@@ -70,7 +90,7 @@ function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; ind
       : page === "ENV" ? <><EnvZones env={curR} set={setR} />
         <Tap x={92} y={11} w={16} h={8} label="Poly volume envelope" pressed={envSel === "vol"} onClick={() => setEnvSel("vol")} />
         <Tap x={109} y={11} w={16} h={8} label="Poly filter envelope" pressed={envSel === "flt"} onClick={() => setEnvSel("flt")} /></> : null;
-    return <Panel name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} live={page => page === "RSE" && getWave ? reactToSound : undefined} deps={[index, slot.name, y, envSel]} />;
+    return <Panel key="reese" name={slot.name || "REESE"} pages={RPAGES} label="Ensemble poly" knobs={rk} body={rb} extra={rx} live={page => page === "RSE" && getWave ? reactToSound : undefined} deps={[index, slot.name, y, envSel]} />;
   }
   const knobs = (page: string): Knob[] => {
     if (page === "VOX") return [
@@ -120,6 +140,6 @@ function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; ind
       <Tap x={109} y={11} w={16} h={8} label="Poly filter envelope" pressed={envSel === "flt"} onClick={() => setEnvSel("flt")} />
     </> : null;
 
-  return <Panel name={slot.name || "POLY"} pages={PAGES} label="Ensemble poly" knobs={knobs} body={body} extra={extra} deps={[slot.name, y, envSel]} />;
+  return <Panel key="poly" name={slot.name || "POLY"} pages={PAGES} label="Ensemble poly" knobs={knobs} body={body} extra={extra} deps={[slot.name, y, envSel]} />;
 }
 export default memo(EnsemblePanel);
