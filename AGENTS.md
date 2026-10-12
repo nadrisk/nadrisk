@@ -1,6 +1,4 @@
 # Architecture
-- BRK pools Signalsmith Stretch WASM voices on the shared raw context, keeping pitch/duration independent and taps warm.
-- Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
 - Native uses shared Groovebox via Capacitor detection, so iOS stays aligned without site content.
 - The public site renders only the groovebox; About opens as an overlay from an ABOUT key inside it; native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
@@ -28,5 +26,4 @@
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
-- LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
