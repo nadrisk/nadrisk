@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { drumDefaults, type DrumKind } from "@/audio/voices";
+import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 
 const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV"] as const;
 const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
@@ -12,9 +12,10 @@ const f2 = (v: number) => v.toFixed(2);
 // DRUMKIT: four drum machines (kick / snare / hat / clap) on a 128x64 1-bit hardware screen.
 function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const d0 = slot.drum, d = { ...drumDefaults(d0.kind), ...Object.fromEntries(Object.entries(d0).filter(([, v]) => v !== undefined)) } as typeof d0 & ReturnType<typeof drumDefaults>;
+  const home = { ...drumDefaults(d.kind), ...DRUM_INIT[d.kind] };
   const D = (p: Partial<typeof d0>) => onChange({ drum: { ...d0, ...p } });
   const K = (label: string, short: string, key: keyof typeof d, min: number, max: number, step: number, fmt: (v: number) => string): Knob =>
-    ({ label, short, value: d[key] as number, min, max, step, fmt, set: v => D({ [key]: v } as Partial<typeof d0>) });
+    ({ label, short, value: d[key] as number, min, max, step, fmt, reset: (home as Record<string, unknown>)[key as string] as number | undefined, set: v => D({ [key]: v } as Partial<typeof d0>) });
   const TUNE = K("Tune", "TUNE", "pitch", 20, 1200, 1, hz), SWP = K("Sweep", "SWP", "pitchEnv", -48, 48, 1, st), CTR = K("Contour", "CNTR", "pitchDecay", .003, .5, .001, ms), DRV = K("Drive", "DRV", "drive", 0, 1, .01, pct);
 
   const knobs = (page: string): Knob[] => {
@@ -74,16 +75,16 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
 
   const extra = (page: string) => {
     if (page === "SRC" || page === "SHP") return <>
-      {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => D({ kind: k })} />)}
+      {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => k !== d.kind && onChange({ drum: { kind: k, ...DRUM_INIT[k], env: { ...DRUM_INIT[k].env } } })} />)}
       {d.kind === "clap"
-        ? <Zone x={2} y={20} w={124} h={25} horizontal label="Clap decay" value={d.env.d} min={.02} max={1} step={.005} onChange={v => D({ env: { ...d.env, d: v } })} />
-        : <Zone x={2} y={20} w={124} h={25} label="Sweep" value={d.pitchEnv} min={-48} max={48} step={1} onChange={pitchEnv => D({ pitchEnv })} />}
+        ? <Zone x={2} y={20} w={124} h={25} horizontal label="Clap decay" reset={home.env.d} value={d.env.d} min={.02} max={1} step={.005} onChange={v => D({ env: { ...d.env, d: v } })} />
+        : <Zone x={2} y={20} w={124} h={25} label="Sweep" reset={home.pitchEnv} value={d.pitchEnv} min={-48} max={48} step={1} onChange={pitchEnv => D({ pitchEnv })} />}
     </>;
     if (page === "PIT") return <>
-      <Zone x={2} y={10} w={92} h={35} horizontal label="Pitch env decay drag" value={d.pitchDecay} min={.003} max={.5} step={.001} onChange={pitchDecay => D({ pitchDecay })} />
-      <Zone x={94} y={10} w={32} h={35} label="Pitch env end" value={d.pEnd} min={-24} max={24} step={1} onChange={pEnd => D({ pEnd })} />
+      <Zone x={2} y={10} w={92} h={35} horizontal label="Pitch env decay drag" reset={home.pitchDecay} value={d.pitchDecay} min={.003} max={.5} step={.001} onChange={pitchDecay => D({ pitchDecay })} />
+      <Zone x={94} y={10} w={32} h={35} label="Pitch env end" reset={home.pEnd} value={d.pEnd} min={-24} max={24} step={1} onChange={pEnd => D({ pEnd })} />
     </>;
-    if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff drag" value={d.cutoff} min={40} max={16000} step={10} log onChange={cutoff => D({ cutoff })} />;
+    if (page === "FLT") return <Zone x={2} y={10} w={124} h={35} horizontal label="Cutoff drag" reset={home.cutoff} value={d.cutoff} min={40} max={16000} step={10} log onChange={cutoff => D({ cutoff })} />;
     if (page === "ENV") return <EnvZones env={d.env} set={env => D({ env })} />;
     return null;
   };

@@ -54,7 +54,7 @@ const defaultSlots = (): Slot[] => [
   base("TOM FM", "drum", 48, { level: 55, fx: [makeFx("reverb", { size: 1.5, mix: .2 })], drum: drum({ pitch: 130, pitchEnv: 20, pitchDecay: .05, fm: 1.5, fmRatio: 1.7, env: { a: .001, d: .22, s: 0, r: .08 } }) }),
   base("DRONE", "synth", 43, { level: 40, fx: [makeFx("phaser"), makeFx("reverb", { size: 7, mix: .5 })], synth: synth({ osc1: { wave: "triangle", gain: .8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 1, coarse: 7, fine: 0, mode: "fm", fmAmount: 3 }, env: { a: 1.2, d: 1, s: .8, r: 2.5 }, lfo: { wave: "triangle", rate: .2, depth: .5, target: "cutoff" } }) }),
 ];
-const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48));
+const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48, { drum: { kind: "kick", ...DRUM_INIT.kick, env: { ...DRUM_INIT.kick.env } } }));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
 /** Which column a row plays on a tick. With a loop crop, the offset slides the loop window across the row. */
