@@ -86,7 +86,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, volume, setVo
         p.text(`SUB ${fmt(meter.sub)}DB`, 2, 48); p.box(2, 55, 124, 6); if (sub) p.rect(3, 56, sub, 4); p.line(3 + peak, 54, 3 + peak, 62);
       }
     }}
-    extra={page => keyZones(keys(page))} />;
+    extra={page => <>{keyZones(keys(page))}{page === "OUT" && <Tap x={58} y={10} w={42} h={12} label="Type tempo" onClick={typeBpm} />}</>} />;
 }
 
 export function MidiScreen({ devices, learn, target, mapCount, status, connect, setLearn, unmap, canUnmap, clear }: {

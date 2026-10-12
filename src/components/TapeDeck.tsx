@@ -8,16 +8,20 @@ type Source = () => Promise<{ ctx: BaseAudioContext; node: AudioNode } | null>;
 const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}.${Math.floor((s % 1) * 10)}`;
 
 /** tape.rec~ — records the final master output; exports WAV (16-bit) or MP3 (320 kbps), all on the device. */
-function TapeDeck({ getSource }: { getSource: Source }) {
+function TapeDeck({ getSource, playing, step, bpm, onPlay }: { getSource: Source; playing: boolean; step: number; bpm: number; onPlay: () => void }) {
   const tape = useRef<Awaited<ReturnType<typeof createTape>> | null>(null);
-  const [state, setState] = useState<"idle" | "rec" | "play">("idle");
+  // count = 2-beat count-in before starting the transport; arm = waiting for the pattern to wrap to step 1.
+  const [state, setState] = useState<"idle" | "count" | "arm" | "rec" | "play">("idle");
+  const [count, setCount] = useState(0);
   const [secs, setSecs] = useState(0);
   const [take, setTake] = useState<Take | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const audio = useRef<HTMLAudioElement>(null);
+  const timers = useRef<number[]>([]);
+  const lastStep = useRef(step);
 
-  useEffect(() => () => { tape.current?.dispose(); }, []);
+  useEffect(() => () => { tape.current?.dispose(); timers.current.forEach(clearTimeout); }, []);
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
   useEffect(() => {
     if (state !== "rec") return;
@@ -26,10 +30,24 @@ function TapeDeck({ getSource }: { getSource: Source }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  const begin = () => { tape.current?.start(); setState("rec"); };
+  // Punch-in: while armed, start the moment the pattern wraps back to its first step.
+  useEffect(() => {
+    const prev = lastStep.current; lastStep.current = step;
+    if (state !== "arm") return;
+    if (!playing) { setState("idle"); return; }
+    if (step >= 0 && step % 16 === 0 && prev !== step) begin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, state, playing]);
+
   const record = async () => {
     try {
       if (!tape.current) { const src = await getSource(); if (!src) return; tape.current = await createTape(src.node, src.ctx); }
-      audio.current?.pause(); setTake(null); setUrl(null); setSecs(0); tape.current.start(); setState("rec"); setBusy("");
+      audio.current?.pause(); setTake(null); setUrl(null); setSecs(0); setBusy("");
+      if (playing) { setState("arm"); return; }
+      const beat = 60000 / Math.max(30, bpm);
+      setState("count"); setCount(2);
+      timers.current = [window.setTimeout(() => setCount(1), beat), window.setTimeout(() => { begin(); onPlay(); }, beat * 2)];
     } catch { setBusy("recorder unavailable in this browser"); }
   };
   const stop = () => {
