@@ -1,10 +1,11 @@
 import { gatedLoop } from "@/lib/frameGate";
+import * as Tone from "tone";
 import { memo, useEffect, useRef, useState } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
@@ -27,8 +28,28 @@ const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
 
-function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][] = []) {
-  const p = f.params, type = f.type;
+const ANIM: FxType[] = ["tremolo", "vibrato", "chorus", "flanger", "phaser", "reverb", "metal"];
+const TAU = Math.PI * 2;
+/** Fixed pseudo-random sequence so dot clouds stay put between frames. */
+const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][] = [], t = 0) {
+  const p = f.params, type = f.type, hz = ANIM.includes(type) && p.rate !== undefined ? fxRate(p) : 0, ph = hz * t;
+  if (type === "metal") {
+    // The word itself: NOTE sets letter spacing, DRIVE slices and shears it, FDBK leaves ringing ghost copies; flashes when the input crosses THRS.
+    const note = pv(p, "note", 57), drv = pv(p, "drive", .2), fb = pv(p, "feedback", .85), hit = (levels?.input ?? -80) > pv(p, "thresh", -40);
+    const gap = Math.round(2 + (84 - note) / 12), word = "METAL", sc = 4, w = word.length * 3 * sc + (word.length - 1) * gap, x0 = Math.round(64 - w / 2), y0 = 24;
+    const c = d.c, jit = hit ? 1 : 0;
+    for (let s = 0; s < 5; s++) {
+      const off = Math.round((rnd(s + Math.floor(t * 8) * jit * 7) - .5) * drv * 14);
+      c.save(); c.beginPath(); c.rect(0, y0 + s * sc, 128, sc); c.clip();
+      for (let g = Math.round(fb * 3); g >= 1; g--) if (s % 2 === g % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * 3 + k * (3 * sc + gap), y0, true, sc));
+      [...word].forEach((ch, k) => d.text(ch, x0 + off + k * (3 * sc + gap), y0, true, sc));
+      c.restore();
+    }
+    if (hit) d.box(0, 20, 128, 26);
+    return;
+  }
   if (type === "gate") {
     const steps = Math.max(1, Math.min(16, Math.round(p.steps ?? 16))), mask = Math.round(p.mask ?? 21845);
     for (let n = 0; n < steps; n++) { const x = Math.floor((128 - steps * 8) / 2) + n * 8; if (mask & (1 << n)) d.rect(x, 25, 7, 12); else d.box(x, 25, 7, 12); }
@@ -41,7 +62,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     // Scrolling detector level (newest on the right); columns where the gate is closing are dotted. Drag the THR line.
     const h = hist.slice(-121), thr = yDb(pv(p, "threshold", -40));
     h.forEach(([lv, g], k) => { const x = 124 - (h.length - 1 - k), y = yDb(lv ?? -80); if (y >= 43) return; if ((g ?? 0) > .5) d.line(x, y, x, 43); else for (let yy = y; yy <= 43; yy += 2) d.rect(x, yy, 1, 1); });
-    d.line(2, thr, 125, thr); d.rect(2, thr - 1, 3, 3); d.text("THR", 108, Math.max(22, thr - 7));
+    d.line(2, thr, 125, thr); d.rect(2, thr - 1, 3, 3); d.rect(3, 22, 14, 7, false); d.text("THR", 4, 23);
     return;
   }
   if (type === "drumbus") {
@@ -89,15 +110,35 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = type === "metal" ? Math.max(4, Math.min(20, Math.round(4 + (84 - pv(p, "note", 57)) / 4))) : Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
   } else if (type === "reverb") {
-    const size = pv(p, "size", 2.5), damp = pv(p, "damp", 6000); let py = 23;
-    for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, env = Math.exp(-t * (7 / Math.max(.3, size))), grain = Math.sin(x * .9) * Math.sin(x * 2.3) * env; const y = 33 + Math.round(grain * (damp / 16000 * 10 + 2)); d.line(x - 1, py, x, y); py = y; }
+    // Reflection cloud: MIX = how many dots, SIZE = how far they spread and how long each lives, DAMP = how many reach the top (highs).
+    const size = pv(p, "size", 2.5), damp = pv(p, "damp", 6000), mix = pv(p, "mix", .3), n = Math.round(20 + mix * 140), top = 22 + Math.round((1 - damp / 16000) * 12);
+    for (let i = 0; i < n; i++) { const age = (t / size + rnd(i)) % 1, r = age * (14 + size * 6), a = rnd(i + 99) * TAU;
+      if (rnd(i + 7) < age * .9) continue; const x = Math.round(64 + Math.cos(a) * r * 2.2), y = Math.round(36 + Math.sin(a) * r * .7);
+      if (x > 2 && x < 125 && y >= top && y < 44) d.dot(x, y); }
   } else if (type === "tremolo") {
     // The real gain curve: 1 at the top, 1-DEPTH at the bottom, with SHAPE's waveform and RATE's cycle count.
     const depth = pv(p, "depth", .6), shape = pv(p, "shape", 0), cycles = Math.max(1, Math.min(6, pv(p, "rate", 4) / 2)); let py = 23;
-    for (let x = 3; x < 125; x++) { const g = 1 - depth / 2 + depth / 2 * tremoloShape(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles), shape), y = 43 - Math.round(g * 20); if (x > 3) d.line(x - 1, py, x, y); py = y; }
-  } else if (["chorus", "flanger", "phaser", "vibrato"].includes(type)) {
-    const depth = pv(p, "depth", .5), rate = pv(p, "rate", 1), cycles = Math.max(1, Math.min(5, rate / 2)); let py = 33;
-    for (let x = 3; x < 125; x++) { const y = 33 + Math.round(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles) * depth * 9); d.line(x - 1, py, x, y); py = y; }
+    for (let x = 3; x < 125; x++) { const g = 1 - depth / 2 + depth / 2 * tremoloShape(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles - TAU * ph), shape), y = 43 - Math.round(g * 20); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+  } else if (type === "vibrato") {
+    // Pitch, not volume: a fixed-height wave whose cycles squeeze and stretch as RATE/DEPTH push the pitch up and down.
+    const depth = pv(p, "depth", .4); let acc = 0, py = 33;
+    for (let x = 3; x < 125; x++) { acc += .45 * (1 + depth * .7 * Math.sin(TAU * ph - (x - 3) * .05)); const y = 33 + Math.round(Math.sin(acc) * 8); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+  } else if (type === "chorus") {
+    // Dry line plus two modulated copies, each drifting by DEPTH at RATE with its own phase.
+    const depth = pv(p, "depth", .5);
+    for (let v = 0; v < 3; v++) { let py = 33; for (let x = 3; x < 125; x++) { const sh = v ? depth * 2.2 * Math.sin(TAU * ph + v * 2.1 + x * .02) : 0, y = 33 + Math.round(Math.sin(x * .12 + sh) * (7 - v)); if (x > 3 && (v === 0 || x % (v + 1))) d.line(x - 1, py, x, y); py = y; } }
+  } else if (type === "flanger") {
+    // Dry line (dotted) against the delayed copy sliding by MAN +/- DEPTH; FDBK adds comb ripples to the copy.
+    const depth = pv(p, "depth", .6), man = pv(p, "manual", 2), fb = pv(p, "feedback", .6), del = man * (1 + depth * .9 * Math.sin(TAU * ph)) * 2;
+    let py = 33, qy = 33;
+    for (let x = 3; x < 125; x++) { const a = 33 + Math.round(Math.sin(x * .18) * 7), b = 33 + Math.round(Math.sin((x - del) * .18) * 7 + Math.sin((x - del) * 1.1) * fb * 2.5);
+      if (x > 3) { if (x % 2) d.line(x - 1, py, x, a); d.line(x - 1, qy, x, b); } py = a; qy = b; }
+  } else if (type === "phaser") {
+    // Frequency response with three notches (six allpass stages) swept around MAN by RATE/DEPTH; FDBK deepens them.
+    const depth = pv(p, "depth", .6), man = pv(p, "manual", 800), fb = pv(p, "feedback", .5), fc = man * 2 ** (depth * 2 * Math.sin(TAU * ph));
+    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 24;
+    for (let x = 3; x < 125; x++) { let g = 0; for (const m of [1, 2.6, 6]) { const oc = Math.log2(fx(x) / (fc * m)); g = Math.max(g, Math.exp(-oc * oc * (6 + fb * 20))); }
+      const y = 24 + Math.round(g * (10 + fb * 9)); if (x > 3) d.line(x - 1, py, x, y); py = y; }
   } else if (type === "eq") {
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121);
     const lf = pv(p, "lowFreq", 100), mf = pv(p, "midFreq", 1000), hf = pv(p, "highFreq", 9000), q = pv(p, "q", 1);
@@ -168,13 +209,20 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const [pg, setPg] = useState(0);
   const [levels, setLevels] = useState<FxLevels | null>(null);
   const hist = useRef<number[][]>([]);
+  const [now, setNow] = useState(0);
+  const animated = !!f?.on && ANIM.includes(f.type);
+  useEffect(() => {
+    if (!animated) return; let last = 0;
+    // Phase comes from the audio clock so the screen moves at the effect's real rate.
+    return gatedLoop(null, (ms: number) => { if (ms - last < 50) return; last = ms; setNow(Tone.getContext().rawContext.currentTime); });
+  }, [animated]);
   const i = Math.min(sel, Math.max(0, fx.length - 1)), f = fx[i];
   const set = (p: Partial<FxUnit>) => onChange(fx.map((u, j) => (j === i ? { ...u, ...p } : u)));
   const move = (d: number) => { const j = i + d; if (!f || j < 0 || j >= fx.length) return; const n = [...fx]; [n[i], n[j]] = [n[j], n[i]]; onChange(n); setSel(j); };
   const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask") as [string, number[]][] : [];
   const pages = Math.max(1, Math.ceil(params.length / 4)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
-  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral"].includes(f.type);
+  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
     hist.current = []; let last = 0, smooth: FxLevels = { input: -60, output: -60 };
@@ -201,7 +249,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? ""]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? "", now]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
@@ -211,7 +259,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
-          drawFxVisual(p, f, levels, hist.current);
+          drawFxVisual(p, f, levels, hist.current, now);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
           FX_TYPES.forEach((t, k) => { const x = 1 + (k % 5) * 25, y = 10 + Math.floor(k / 5) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 24, 9, !ok); p.textC(nm(t).slice(0, 5), x + 12, y + 2); });
