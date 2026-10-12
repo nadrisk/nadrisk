@@ -22,7 +22,7 @@ function SlotEditor({ slot, peaks, onChange, onLoad, onLoadId, onLoadFolder }: {
       {slot.engine === "poly" && <EnsemblePanel slot={slot} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
     </DevicePanel>
-    <DevicePanel className="gb-ed-insert gb-ed-device" label="Insert"><ChannelEqScreen slot={slot} onChange={onChange} /></DevicePanel>
+    <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} /></DevicePanel>
     {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {slot.engine === "sampler" && <DevicePanel className="gb-ed-library gb-ed-device" label="Library"><LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} /></DevicePanel>}
   </div>;

@@ -114,12 +114,15 @@ export function ChannelEqScreen({ slot, onChange }: { slot: Slot; onChange: (p: 
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
     { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
-  return <Panel name="INSERT" label="Channel EQ insert" pages={["LVL", "FRQ"]} deps={[eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : freqKnobs}
+  return <Panel name="EQ" label="Channel EQ insert" pages={["LVL", "FRQ"]} deps={[eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : freqKnobs}
     body={p => {
       // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
-      const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq);
-      const db = eqCurve(eq, EQ_FREQS); let px = 4, py = 30;
-      for (let x = 4; x <= 124; x++) { const y = Math.max(17, Math.min(43, Math.round(30 - db[x - 4] * .55))); p.line(px, py, x, y); px = x; py = y; }
-      p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${eq.midFreq >= 1000 ? `${(eq.midFreq / 1000).toFixed(1)}K` : Math.round(eq.midFreq)}`, Math.max(45, Math.min(94, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
+      // If the response can't be read yet (or a value is missing) the curve falls back to flat instead of leaving a blank screen.
+      const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq || 1000);
+      let db: Float32Array; try { db = eqCurve(eq, EQ_FREQS); } catch { db = new Float32Array(EQ_FREQS.length); }
+      let px = 4, py = 30;
+      for (let x = 4; x <= 124; x++) { const v = db[x - 4], y = Number.isFinite(v) ? Math.max(17, Math.min(43, Math.round(30 - v * .55))) : 30; p.line(px, py, x, y); px = x; py = y; }
+      const mf = eq.midFreq || 1000;
+      p.line(4, 30, 124, 30, true); p.text("20", 4, 12); p.text(`${mf >= 1000 ? `${(mf / 1000).toFixed(1)}K` : Math.round(mf)}`, Math.max(45, Math.min(94, Math.round(midX - 8))), 12); p.text("20K", 112, 12);
     }} />;
 }
