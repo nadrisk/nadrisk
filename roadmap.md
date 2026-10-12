@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Draw parameter-linked mirrored REESE gun fingers with gated output-level reaction; verify bounds and playback
+- [x] Draw parameter-linked mirrored REESE gun fingers with gated output-level reaction; verify bounds and playback
 
 - [x] Verify all-partial previews and silent empty additive oscillators
 
