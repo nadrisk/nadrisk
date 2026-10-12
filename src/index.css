@@ -138,8 +138,8 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .nav-links > .instagram-link { min-width: 30px; width: 30px; }
 .eyebrow { display: inline-block; font-size: 10px; color: hsl(var(--muted-foreground)); line-height: 1.6; }
 .status-dot { display: inline-block; width: 5px; height: 5px; border-radius: 0; background: hsl(var(--foreground)); }
-.instrument-workspace { margin: 8px 4% 0; border: 1px solid hsl(var(--border)); border-radius: 0; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; scroll-margin-top: 68px; }
-@media (min-width: 1280px) { .instrument-workspace { max-width: 1150px; margin: 8px auto 0; } }
+.instrument-workspace { margin: calc(8px + env(safe-area-inset-top)) 4% 0; border: 1px solid hsl(var(--border)); border-radius: 0; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; scroll-margin-top: 68px; }
+@media (min-width: 1280px) { .instrument-workspace { max-width: 1150px; margin: calc(8px + env(safe-area-inset-top)) auto 0; } }
 .instrument-workspace input, .instrument-workspace textarea, .instrument-workspace [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .workspace-heading { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 9px; color: hsl(var(--muted-foreground)); background: hsl(var(--patch-header)); border-bottom: 1px solid hsl(var(--border)); }
 .workspace-heading > span:first-child { color: hsl(var(--foreground)); display: flex; align-items: center; gap: 9px; }
@@ -783,6 +783,13 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-seq-grid { overflow-x: auto; }
 .instrument-workspace .gb-row { grid-template-columns: 46px 22px 42px repeat(16, 24px); min-width: 0; gap: 2px; width: max-content; }
 .instrument-workspace .gb-step, .instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 26px !important; width: 24px; padding: 0; }
+/* Desktop: taller, wider steps so VEL/CHNC/ROLL fills read as meters, not thin lines. */
+@media (min-width: 901px) {
+  .instrument-workspace .gb-row { grid-template-columns: 64px 30px 56px repeat(16, minmax(30px, 1fr)); width: 100%; gap: 3px; }
+  .instrument-workspace .gb-step, .instrument-workspace .gb-seq-grid.is-mod .gb-step { height: 44px !important; width: auto; }
+  .instrument-workspace .gb-step-val, .instrument-workspace .gb-step-roll { font-size: 11px !important; top: 3px; }
+  .instrument-workspace .gb-row-label { width: 64px; font-size: 8px; }
+}
 .instrument-workspace .gb-step.mod { touch-action: none !important; cursor: ns-resize; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.mod { background: hsl(var(--background)) !important; }
 .instrument-workspace:not([data-lcd="studio"]) .gb-seq-grid.view-chance .gb-step-fill { background: repeating-linear-gradient(0deg, hsl(var(--foreground)) 0 2px, transparent 2px 4px) !important; }
