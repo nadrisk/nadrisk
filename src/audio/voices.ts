@@ -1,5 +1,5 @@
 import { reeseParams, type ReeseParams } from "./reese";
-import { acidParams, playAcid, type AcidParams } from "./acid";
+import type { AcidParams } from "./acid";
 import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
@@ -19,11 +19,11 @@ export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; breakDouble?: boolean; sampleBpm?: number; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number; grainDens?: number; grainRnd?: number; gLfoRate?: number; gLfoAmt?: number; gLfoShape?: "sin" | "tri" | "sqr" | "rnd"; sampleKey?: number; fine?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams> & Partial<SirenParams>) => void };
-export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
+export type Bass808Params = { mode?: "808" | "acid"; acid?: Partial<AcidParams>; pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
 const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
-export type PolyParams = { mode?: "poly" | "reese" | "acid"; acid?: Partial<AcidParams>; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
+export type PolyParams = { mode?: "poly" | "reese"; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
 export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 9, sub: .3, pulse: .35, chorus: .35, env: { a: .04, d: .5, s: .65, r: .7 }, fenv: { a: .01, d: .4, s: .3, r: .5 }, fenvAmt: 0 });
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
@@ -436,7 +436,6 @@ export function peaksOf(buf: AudioBuffer, n = 160) {
 
 /** Bounded five-note analog-style chord voice; detuned saw/PWM/sub through a four-pole filter and stereo modulated delay. */
 export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, notes: number[], t: number, gate: number, vel = 1, bpm = 124, glideFrom?: number): Voice {
-  if (p.mode === "acid") return playAcid(ctx, dest, acidParams(p.acid), notes[0] ?? 36, t, gate, vel);
   if (p.mode === "reese") return playReese(ctx, dest, reeseParams(p.reese), notes[0], t, gate, vel, bpm, glideFrom);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(), mix = ctx.createGain(); amp.gain.value = 0; link(amp, dest); nodes.push(amp, mix);
