@@ -169,8 +169,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     } });
   } else if (type === "compressor") {
     // Transfer curve left, with live pre-effect, gain-change and post-effect meters on the right.
-    const thr = pv(p, "threshold", type === "ott" ? -30 : -24);
-    const ratio = type === "ott" ? 1 + pv(p, "depth", .6) * 9 : pv(p, "ratio", 4);
+    const thr = pv(p, "threshold", -24);
+    const ratio = pv(p, "ratio", 4);
     const makeup = pv(p, "makeup", 0), depth = 1;
     const out = (i: number) => i > thr ? thr + (i - thr) / ratio : i;
     const toY = (db: number) => 43 - Math.round((Math.max(-60, Math.min(0, db)) + 60) / 60 * 21), toX = (db: number) => 3 + Math.round((db + 60) / 60 * 66);
