@@ -241,7 +241,7 @@ export const fxRate = (p: Record<string, number>) => rateOf(p);
 const rateOf = (p: Record<string, number>) => { const b = beatsOf(p); return b ? fxBpm / 60 / b : p.rate; };
 
 export type FxLevels = { input: number; output: number; state?: number[] };
-export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; setPitch?: (semi: number, at: number) => void; trigger?: (at: number) => void; dispose: () => void };
+export type FxNode = { input: GainNode; output: GainNode; update: (p: Record<string, number>, at?: number) => void; levels: () => FxLevels; keyInput?: AudioNode; setPitch?: (semi: number, at: number) => void; trigger?: (at: number) => void; hush?: (on: boolean, at: number) => void; dispose: () => void };
 
 const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
   analyser.getFloatTimeDomainData(data);
@@ -299,6 +299,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   let keyInput: AudioNode | undefined;
   let setPitch: ((semi: number, at: number) => void) | undefined;
   let trigger: ((at: number) => void) | undefined;
+  let hush: ((on: boolean, at: number) => void) | undefined;
   const worklet = (name: string, inputs = 1) => { const n = Tone.getContext().createAudioWorkletNode(name, { numberOfInputs: inputs, outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(n); return n; };
   let state: number[] | undefined;
   // Worklets post either a whole state array or { o, v } to write v at offset o (several worklets in one effect).
@@ -433,15 +434,19 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const wow = lfo(), flut = lfo(); wow.o.frequency.value = .55; flut.o.frequency.value = 6.3; heads.forEach(h => { wow.g.connect(h.d.delayTime); flut.g.connect(h.d.delayTime); });
     // Spring tank.
     const spIn = ctx.createGain(), spD = ctx.createDelay(.1), spFb = ctx.createGain(), spLp = ctx.createBiquadFilter(), spHp = ctx.createBiquadFilter(), spOut = ctx.createGain();
-    spD.delayTime.value = .043; spFb.gain.value = .72; spLp.frequency.value = 3800; spHp.type = "highpass"; spHp.frequency.value = 220; spOut.gain.value = 0; nodes.push(spIn, spD, spFb, spLp, spHp, spOut);
+    spD.delayTime.value = .043; spFb.gain.value = .5; spLp.frequency.value = 3800; spHp.type = "highpass"; spHp.frequency.value = 220; spOut.gain.value = 0; nodes.push(spIn, spD, spFb, spLp, spHp, spOut);
     const chirp = Array.from({ length: 6 }, (_, i) => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.frequency.value = 900 + i * 260; a.Q.value = 6; nodes.push(a); return a; });
     input.connect(spIn); echoOut.connect(spIn); spIn.connect(chirp[0]); chirp.reduce((a, b) => (a.connect(b), b)).connect(spHp).connect(spD).connect(spLp);
     spLp.connect(spFb).connect(chirp[0]); spLp.connect(spOut).connect(wet);
+    let fbTarget = 0, hushed = false;
+    // STOP: fade only the regeneration paths so the in-flight repeat finishes and the tail dies cleanly; START restores them.
+    hush = (on, at) => { hushed = on; for (const [g, v] of [[fb.gain, fbTarget], [spFb.gain, .5]] as [AudioParam, number][]) { g.cancelScheduledValues(at); g.setValueAtTime(g.value, at); g.linearRampToValueAtTime(on ? 0 : v, at + (on ? .25 : .05)); } };
     const HEADS = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]];
     apply = p => { const b = beatsOf(p), t = Math.min(b ? b * 60 / fxBpm : p.time, 1.5), on = HEADS[Math.round(p.mode ?? 0)] ?? HEADS[0], n = on.reduce((a, v) => a + v, 0) || 1;
       heads.forEach((h, i) => { set(h.d.delayTime, i === 0 ? t : Math.min(1.5, t)); set(h.tap.gain, on[i] / Math.sqrt(n)); });
       // Feedback is shared by every active head, so scale it down as heads are added to keep the loop stable.
-      set(fb.gain, Math.min(.95, p.feedback) / Math.sqrt(n)); set(lp.frequency, p.tone);
+      // Loop gain is normalised against the saturator and capped well below unity, so every tail decays on its own.
+      fbTarget = Math.min(.95, p.feedback) * .72 * curveComp(sat.curve) / Math.sqrt(n); if (!hushed) set(fb.gain, fbTarget); set(lp.frequency, p.tone);
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0); };
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
@@ -508,7 +513,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   }
   const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
   update(init);
-  return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
+  return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, hush, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
