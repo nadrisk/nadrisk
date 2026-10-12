@@ -1,3 +1,4 @@
+import { laserParams, laserPitchAt, type LaserParams } from "./laser";
 // One-shot voice graphs built on the shared Web Audio context. Each trigger builds fresh nodes so every parameter applies instantly.
 export type Wave = "sine" | "triangle" | "sawtooth" | "square";
 export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch";
@@ -15,7 +16,7 @@ export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; breakDouble?: boolean; sampleBpm?: number; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number; grainDens?: number; grainRnd?: number; gLfoRate?: number; gLfoAmt?: number; gLfoShape?: "sin" | "tri" | "sqr" | "rnd"; sampleKey?: number; fine?: number };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
-export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams>) => void };
+export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams> & Partial<SirenParams>) => void };
 export type Bass808Params = { pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
@@ -460,10 +461,11 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
   return v;
 }
 
-export type SirenParams = { wave: Wave; lfoWave: Wave; rate: number; depth: number; sweep: number; sweepTime: number; release: number; tone: number };
+export type SirenParams = { mode?: "dub" | "laser"; laser?: LaserParams; wave: Wave; lfoWave: Wave; rate: number; depth: number; sweep: number; sweepTime: number; release: number; tone: number };
 export const defaultSiren = (): SirenParams => ({ wave: "square", lfoWave: "square", rate: 4, depth: 7, sweep: 12, sweepTime: 1.5, release: .4, tone: 3500 });
 /** Dub siren: one oscillator wobbled by an LFO (semitones) plus a long pitch rise/fall; sustains while the pad is held. */
 export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
+  if (p.mode === "laser") return playLaser(ctx, dest, laserParams(p.laser), midi, t, gate, vel);
   const f = 440 * 2 ** ((midi - 69) / 12), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(), lp = ctx.createBiquadFilter(); amp.gain.value = 0; lp.frequency.value = p.tone; lp.Q.value = 2; lp.connect(amp); link(amp, dest);
   const osc = at(ctx.createOscillator(), t), lg = ctx.createGain(); lg.gain.value = p.depth * 100; osc.type = p.wave;
@@ -476,5 +478,37 @@ export function playSiren(ctx: BaseAudioContext, dest: AudioNode, p: SirenParams
   const peak = vel * (p.wave === "sine" ? .5 : .28), hold = Math.max(gate, .02);
   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .005); amp.gain.setTargetAtTime(0, t + hold, p.release / 3 + .005);
   const v = finish(srcs, nodes, t + hold + p.release * 2 + .1, amp, () => unhook?.());
+  return v;
+}
+
+/** Three bounded native oscillators; LASER never connects to the DUB LFO. */
+function playLaser(ctx: BaseAudioContext, dest: AudioNode, p: LaserParams, midi: number, t: number, gate: number, vel: number): Voice {
+  const lp = ctx.createBiquadFilter(), amp = ctx.createGain();
+  lp.type = "lowpass"; lp.Q.value = .7;
+  lp.frequency.value = Math.min(ctx.sampleRate * .45, clampF(p.tone));
+  lp.connect(amp); link(amp, dest);
+  // Frequency carries the envelope; detune remains independently editable.
+  const limit = ctx.sampleRate * .45 / 2 ** (100 / 1200);
+  const root = Math.min(limit / 2 ** (Math.max(0, p.amount) / 12), Math.max(20 * 2 ** (Math.max(0, -p.amount) / 12), 440 * 2 ** ((midi - 69) / 12)));
+  const duration = Math.max(.005, Math.min(2, p.decay));
+  const oscs: OscillatorNode[] = [], nodes: AudioNode[] = [lp, amp];
+  for (const side of [0, -1, 1]) {
+    const o = at(ctx.createOscillator(), t), pan = ctx.createStereoPanner(), gain = ctx.createGain();
+    o.type = p.wave; o.detune.value = side * Math.max(0, Math.min(100, p.detune));
+    pan.pan.value = side * .65; gain.gain.value = 1 / 3;
+    o.frequency.setValueAtTime(root * 2 ** (laserPitchAt(p.amount, 0, p.curve) / 12), t);
+    for (let k = 1; k <= 64; k++) o.frequency.exponentialRampToValueAtTime(root * 2 ** (laserPitchAt(p.amount, k / 64, p.curve) / 12), t + duration * k / 64);
+    o.connect(gain).connect(pan).connect(lp); oscs.push(o); nodes.push(o, pan, gain);
+  }
+  const end = adsr(amp.gain, t, p.env, gate, vel * .32);
+  const v = finish(oscs, nodes, end, amp);
+  v.glide = (delta, at, time) => glideParams(oscs.map(o => o.frequency), delta, at, time);
+  v.update = q => {
+    if (q.mode && q.mode !== "laser") return;
+    const next = q.laser; if (!next) return;
+    const now = ctx.currentTime;
+    lp.frequency.setTargetAtTime(Math.min(ctx.sampleRate * .45, clampF(next.tone)), now, .007);
+    oscs.forEach((o, i) => o.detune.setTargetAtTime([0, -1, 1][i] * Math.max(0, Math.min(100, next.detune)), now, .007));
+  };
   return v;
 }
