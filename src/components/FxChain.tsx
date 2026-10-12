@@ -4,7 +4,7 @@ import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
@@ -70,7 +70,11 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (type === "reverb") {
     const size = pv(p, "size", 2.5), damp = pv(p, "damp", 6000); let py = 23;
     for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, env = Math.exp(-t * (7 / Math.max(.3, size))), grain = Math.sin(x * .9) * Math.sin(x * 2.3) * env; const y = 33 + Math.round(grain * (damp / 16000 * 10 + 2)); d.line(x - 1, py, x, y); py = y; }
-  } else if (["chorus", "flanger", "phaser", "vibrato", "tremolo"].includes(type)) {
+  } else if (type === "tremolo") {
+    // The real gain curve: 1 at the top, 1-DEPTH at the bottom, with SHAPE's waveform and RATE's cycle count.
+    const depth = pv(p, "depth", .6), shape = pv(p, "shape", 0), cycles = Math.max(1, Math.min(6, pv(p, "rate", 4) / 2)); let py = 23;
+    for (let x = 3; x < 125; x++) { const g = 1 - depth / 2 + depth / 2 * tremoloShape(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles), shape), y = 43 - Math.round(g * 20); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+  } else if (["chorus", "flanger", "phaser", "vibrato"].includes(type)) {
     const depth = pv(p, "depth", .5), rate = pv(p, "rate", 1), cycles = Math.max(1, Math.min(5, rate / 2)); let py = 33;
     for (let x = 3; x < 125; x++) { const y = 33 + Math.round(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles) * depth * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "eq") {
