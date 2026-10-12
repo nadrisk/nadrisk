@@ -36,10 +36,26 @@ class NadAcidFilter extends AudioWorkletProcessor {
 registerProcessor('nad-acid-filter',NadAcidFilter);
 `;
 
+// Reuse processors across hits: construction/registration work is not repeated
+// for every sequencer note. A pad's previous voice is released before acquisition.
+const filterPools = new WeakMap<AudioNode, { node: AudioWorkletNode; busy: boolean }[]>();
+function acquireFilter(dest: AudioNode) {
+  let pool = filterPools.get(dest);
+  if (!pool) { pool = []; filterPools.set(dest, pool); }
+  let entry = pool.find(e => !e.busy);
+  if (!entry) {
+    entry = { node: Tone.getContext().createAudioWorkletNode("nad-acid-filter", { outputChannelCount: [1], channelCount: 1 }) as unknown as AudioWorkletNode, busy: false };
+    pool.push(entry);
+  }
+  entry.busy = true;
+  entry.node.port.postMessage("reset");
+  return entry;
+}
+
 export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidParams, midi: number, t: number, gate: number, vel = 1): Voice {
   let p = params;
   const osc = ctx.createOscillator(), shape = ctx.createBiquadFilter(), amp = ctx.createGain(), releaseGain = ctx.createGain();
-  const filter = Tone.getContext().createAudioWorkletNode("nad-acid-filter", { outputChannelCount: [1], channelCount: 1 }) as unknown as AudioWorkletNode;
+  const entry = acquireFilter(dest), filter = entry.node;
   const cut = filter.parameters.get("cutoff"), res = filter.parameters.get("res"), drive = filter.parameters.get("drive");
   const frequency = 440 * 2 ** ((midi - 69) / 12);
   osc.type = p.wave; osc.frequency.setValueAtTime(frequency, t);
@@ -63,7 +79,7 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
   const gateEnd = t + Math.max(.005, gate);
   releaseGain.gain.setValueAtTime(1, t); releaseGain.gain.setTargetAtTime(0, gateEnd, .018);
   let end = gateEnd + .14, cleaned = false;
-  const cleanup = () => { if (cleaned) return; cleaned = true; [osc, shape, filter, amp, releaseGain].forEach(n => n.disconnect()); };
+  const cleanup = () => { if (cleaned) return; cleaned = true; [osc, shape, filter, amp, releaseGain].forEach(n => n.disconnect()); entry.busy = false; };
   osc.start(t); osc.stop(end); osc.onended = cleanup;
   const fade = (at: number, duration: number) => {
     const nextEnd = at + duration + .03; if (nextEnd >= end) return;
