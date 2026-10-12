@@ -4,11 +4,12 @@ import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
-import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
+  k === "shape" ? (v < .25 ? "SINE" : v < .75 ? "TRI" : "SQR") + Math.round(v * 100) : k === "focus" ? (Math.abs(v) < .02 ? "BOTH" : `${v > 0 ? "TRN" : "SUS"}${Math.round(Math.abs(v) * 100)}`) : k === "crush" ? `${Math.round(v * 100)}%` : k === "dir" ? (v >= .5 ? "BOOST" : "CUT") : k === "gain" && p.dir !== undefined ? `${v}DB` :
   k === "mode" ? `HEAD ${HEAD_NAMES[Math.round(v)] ?? "1"}` : k === "spring" ? `${Math.round(v * 100)}%` : k === "ping" ? (v >= .5 ? "ON" : "OFF") : k === "hp" ? `${Math.round(v)}HZ` : k === "thresh" ? `${Math.round(v)}DB` : k === "depth" && p.hp !== undefined ? `${Math.round(v * 100)}%` : k === "attack" && p.hp !== undefined ? `${Math.round(v * 1000)}MS` :
   k === "level" ? (() => { const d = gainPosToDb(v); return d === -Infinity ? "-INF" : `${d > 0 ? "+" : ""}${d.toFixed(1)}DB`; })() : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
   k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "ON" : "OFF") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
@@ -21,7 +22,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -69,7 +70,11 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
   } else if (type === "reverb") {
     const size = pv(p, "size", 2.5), damp = pv(p, "damp", 6000); let py = 23;
     for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, env = Math.exp(-t * (7 / Math.max(.3, size))), grain = Math.sin(x * .9) * Math.sin(x * 2.3) * env; const y = 33 + Math.round(grain * (damp / 16000 * 10 + 2)); d.line(x - 1, py, x, y); py = y; }
-  } else if (["chorus", "flanger", "phaser", "vibrato", "tremolo"].includes(type)) {
+  } else if (type === "tremolo") {
+    // The real gain curve: 1 at the top, 1-DEPTH at the bottom, with SHAPE's waveform and RATE's cycle count.
+    const depth = pv(p, "depth", .6), shape = pv(p, "shape", 0), cycles = Math.max(1, Math.min(6, pv(p, "rate", 4) / 2)); let py = 23;
+    for (let x = 3; x < 125; x++) { const g = 1 - depth / 2 + depth / 2 * tremoloShape(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles), shape), y = 43 - Math.round(g * 20); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+  } else if (["chorus", "flanger", "phaser", "vibrato"].includes(type)) {
     const depth = pv(p, "depth", .5), rate = pv(p, "rate", 1), cycles = Math.max(1, Math.min(5, rate / 2)); let py = 33;
     for (let x = 3; x < 125; x++) { const y = 33 + Math.round(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles) * depth * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "eq") {
@@ -102,7 +107,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     const bar = (x: number, lbl: string, f: number, down = false) => { d.box(x, 22, 9, 16); const h = Math.round(Math.max(0, Math.min(1, f)) * 14); if (down) d.rect(x + 1, 23, 7, h); else d.rect(x + 1, 37 - h, 7, h); d.textC(lbl, x + 5, 39); };
     bar(78, "IN", (inDb + 60) / 60); bar(96, "GR", gr / 30, true); bar(114, "OUT", (o + 60) / 60);
   } else if (type === "dyneq") {
-    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121), mf = pv(p, "freq", 1000), q = pv(p, "q", 1.5), g = pv(p, "gain", -6); let py = 33;
+    // Flat at rest; the curve is the gain the detector is applying right now (reported by the effect).
+    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121), mf = pv(p, "freq", 1000), q = pv(p, "q", 1.5), g = levels?.state?.[0] ?? 0; let py = 33;
     d.line(3, 33, 124, 33, true);
     for (let x = 3; x < 125; x++) { const oc = Math.log2(fx(x) / mf), y = Math.max(22, Math.min(44, Math.round(33 - g * Math.exp(-oc * oc * q * q * 1.5) * .65))); d.line(x - 1, py, x, y); py = y; }
     d.text(`KEY ${pv(p, "source", 1)}`, 4, 23);
@@ -110,10 +116,10 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     const r = pv(p, "reese", .35), g = pv(p, "growl", .4), sq = pv(p, "squelch", .3); let py = 33;
     for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, w = Math.sin(t * Math.PI * 12) + Math.sin(t * Math.PI * 12 * (1 + r * .08)) * r, s = Math.sin(w * (1 + g * 3)) * (1 - sq * .4 + sq * .4 * Math.sin(t * Math.PI * 2)); const y = 33 - Math.round(s * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "spectral" && p.freq === undefined) {
-    // Spectral gate: bins below the AMOUNT threshold line are removed (dotted), loud bins pass (solid).
-    const thr = 42 - Math.round(pv(p, "amount", .5) * 20);
-    for (let k = 0; k < 30; k++) { const x = 4 + k * 4, h = Math.round(4 + 16 * Math.abs(Math.sin(k * 1.7) * Math.cos(k * .45)) * (1 - k / 45)), top = 43 - h; if (top <= thr) d.rect(x, top, 3, h); else d.box(x, top, 3, h, true); }
-    d.line(3, thr, 124, thr, true); d.text("THR", 108, thr - 6);
+    // Live bands from the effect: level bar height, solid = kept, dotted = removed; THRESH line.
+    const st = levels?.state, yOf = (db: number) => 43 - Math.round(Math.max(0, Math.min(1, (db + 80) / 80)) * 20), thr = yOf(pv(p, "thresh", -45));
+    for (let b = 0; b < 24; b++) { const x = 4 + b * 5, top = st ? yOf(st[b]) : 43, h = 43 - top; if (h < 1) continue; if ((st?.[24 + b] ?? 0) > .4) d.rect(x, top, 4, h); else d.box(x, top, 4, h, true); }
+    d.line(3, thr, 124, thr, true);
   } else if (type === "spectral") {
     // Resonant band-bank curve: 8 log-spaced resonances around FREQ, shaped by PEAK/SPREAD/RES.
     const N = 8, cf = Math.min(16000, Math.max(40, pv(p, "freq", 1200))), res = pv(p, "res", 6), spread = pv(p, "spread", 1), peak = pv(p, "peak", 14);
@@ -142,7 +148,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask") as [string, number[]][] : [];
   const pages = Math.max(1, Math.ceil(params.length / 4)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
-  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate"].includes(f.type);
+  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
     let last = 0, smooth: FxLevels = { input: -60, output: -60 };
@@ -151,7 +157,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
         const next = getLevels(slotIndex, f.id);
         if (next) {
           const follow = (old: number, value: number) => value > old ? value : old * .78 + value * .22;
-          smooth = { input: follow(smooth.input, next.input), output: follow(smooth.output, next.output) };
+          smooth = { input: follow(smooth.input, next.input), output: follow(smooth.output, next.output), state: next.state };
           setLevels(smooth);
         }
         last = now;
@@ -166,7 +172,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[JSON.stringify(fx), i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? ""]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
