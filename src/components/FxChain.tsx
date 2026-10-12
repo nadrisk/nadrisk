@@ -40,8 +40,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null) {
     for (let x = 3; x < 125; x++) { if ((x - 3) % hold === 0) held = Math.round(Math.sin((x - 3) / 121 * Math.PI * 4) * lv) / lv; const y = 33 - Math.round(held * 9); d.line(x - 1, py, x, y); py = y; }
     d.text(`${bits}B /${Math.round(pv(p, "reduce", 4))}`, 4, 23);
   } else if (["saturation", "acid"].includes(type)) {
-    const drive = pv(p, "drive", type === "bitcrush" ? 6 : 4), bias = pv(p, "bias", 0), bits = pv(p, "bits", 16); let py = 42;
-    for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = type === "bitcrush" ? Math.round(input * bits) / bits : Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
+    const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
+    for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (["delay", "reverseDelay", "metal"].includes(type)) {
     const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = type === "metal" ? Math.max(4, Math.min(20, Math.round(4 + (84 - pv(p, "note", 57)) / 4))) : Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
     for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
