@@ -30,7 +30,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
     if (page === "PRST") return [];
     if (page === "SRC") {
       if (d.kind === "snare") return [TUNE, SWP, K("Body tone 2", "TON2", "tone2", .5, 3, .01, f2), DRV];
-      if (d.kind === "hat") return [TUNE, SWP, K("Spread", "SPRD", "spread", 0, 2, .01, f2), DRV];
+      if (d.kind === "hat") return [TUNE_HZ, SWP, K("Spread", "SPRD", "spread", 0, 2, .01, f2), DRV];
       if (d.kind === "clap") return [K("Clap tone", "TONE", "noiseTone", 300, 6000, 10, hz), K("Bursts", "BRST", "bursts", 1, 6, 1, v => String(Math.round(v))), K("Burst gap", "GAP", "burstGap", .002, .03, .001, ms), DRV];
       return [TUNE, SWP, CTR, DRV];
     }
