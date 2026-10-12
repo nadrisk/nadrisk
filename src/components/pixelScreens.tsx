@@ -25,7 +25,9 @@ export function tabLayout(pages: readonly string[]) {
 // Inverted title bar with machine name, live readout and page tabs.
 export function compactHeaderText(readout: string, width: number) {
   if (textWidth(readout) <= width) return readout;
-  const compact = readout.replace(/(\d{4,})MS$/, (_, ms: string) => `${Number(ms) / 1000}S`).replace(/\s+/g, "");
+  let compact = readout.replace(/(\d{4,})MS$/, (_, ms: string) => `${Number(ms) / 1000}S`).replace(/\s+/g, "");
+  // Hard guard: never draw into the first tab.
+  while (compact.length && textWidth(compact) > width) compact = compact.slice(0, -1);
   return compact;
 }
 
