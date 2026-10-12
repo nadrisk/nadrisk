@@ -5,6 +5,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
 import { NOTE_NAMES } from "@/audio/arp";
+import { parseNote } from "@/audio/noteParse";
 
 const PAGES = ["SRC", "SHP", "PIT", "FLT", "ENV", "PRST"] as const;
 const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
@@ -111,6 +112,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
     return null;
   };
 
-  return <Panel compactReadout name={slot.name || "DRM"} pages={PAGES} label="Drumkit drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d0]} />;
+  const parseReadout = (k: Knob) => (k.label === "Tune" && (d.kind === "kick" || d.kind === "snare") ? parseNote : undefined);
+  return <Panel compactReadout parseReadout={parseReadout} name={slot.name || "DRM"} pages={PAGES} label="Drumkit drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d0]} />;
 }
 export default memo(DrumkitPanel);
