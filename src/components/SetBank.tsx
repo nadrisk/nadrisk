@@ -10,7 +10,7 @@ const read = (): (GrooveSet | null)[] => { try { const v = JSON.parse(localStora
 const BTNS = ["SAVE", "LOAD", "DEL", "EXP", "EXP+", "IMP"] as const;
 
 // MEMORY: the set bank as a 128x64 1-bit hardware screen. Storage logic unchanged.
-export default function SetBank({ getSet, applySet }: { getSet: (name: string) => GrooveSet; applySet: (s: GrooveSet) => void }) {
+export default function SetBank({ getSet, applySet, locked }: { getSet: (name: string) => GrooveSet; applySet: (s: GrooveSet) => void; locked?: boolean }) {
   const [sets, setSets] = useState(read);
   const [sel, setSel] = useState(0);
   const [name, setName] = useState(() => read()[0]?.name ?? "SET 01");
@@ -20,9 +20,9 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
     try { localStorage.setItem(KEY, JSON.stringify(next)); setSets(next); return true; } catch { setMsg("storage full — export instead"); return false; }
   };
   const pick = (i: number) => { setSel(i); setName(sets[i]?.name ?? `SET ${String(i + 1).padStart(2, "0")}`); setMsg(""); };
-  const save = () => { const n = sets.slice(); n[sel] = getSet(name.trim() || `SET ${sel + 1}`); if (store(n)) setMsg(`saved to slot ${sel + 1}`); };
+  const save = () => { if (locked) { setMsg("NADRISK LOCK"); return; } const n = sets.slice(); n[sel] = getSet(name.trim() || `SET ${sel + 1}`); if (store(n)) setMsg(`saved to slot ${sel + 1}`); };
   const load = () => { const st = sets[sel]; if (st) { applySet(st); setMsg(`loaded "${st.name}"`); } };
-  const del = () => { const n = sets.slice(); n[sel] = null; if (store(n)) setMsg("slot cleared"); };
+  const del = () => { if (locked) { setMsg("NADRISK LOCK"); return; } const n = sets.slice(); n[sel] = null; if (store(n)) setMsg("slot cleared"); };
   const exportSet = async (bundle: boolean) => {
     const base = sets[sel] ?? getSet(name || "set");
     let st: GrooveSet & { samples?: Awaited<ReturnType<typeof packSamples>> } = base, missing = 0;
@@ -37,6 +37,7 @@ export default function SetBank({ getSet, applySet }: { getSet: (name: string) =
   };
   const importSet = async (f?: File) => {
     if (!f) return;
+    if (locked) { setMsg("NADRISK LOCK"); if (file.current) file.current.value = ""; return; }
     try { const raw = JSON.parse(await f.text()) as GrooveSet & { samples?: Parameters<typeof unpackSamples>[0] }; if (!Array.isArray(raw.slots)) throw 0; let samplesOk = true; try { await unpackSamples(raw.samples); } catch { samplesOk = false; }
       const { samples: _s, ...st } = raw; const n = sets.slice(); n[sel] = st; const kept = store(n); setName(st.name); applySet(st);
       if (!samplesOk) setMsg("imported · samples not saved"); else if (kept) setMsg(`imported "${st.name}"`); }
