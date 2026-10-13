@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Anchor Performance SET to TIME's shared layout column; verify alignment, clearances and interaction on phone and desktop
+- [x] Anchor Performance SET to TIME's shared layout column; verified matching centers, clearances and SET interaction at 320/393/768/1280px
 
 - [x] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verified save/load, scrolling, Reset and desktop/mobile spacing
 
