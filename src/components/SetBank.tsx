@@ -31,7 +31,7 @@ export default function SetBank({ getSet, applySet, locked }: { getSet: (name: s
       try { const samples = await packSamples(ids); missing = ids.filter(id => !samples[id]).length; st = { ...base, samples }; }
       catch { setMsg("samples unreadable — exported without"); missing = -1; }
     }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(st, null, 1)], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ ...st, origin: location.hostname }, null, 1)], { type: "application/json" }));
     const a = document.createElement("a"); a.href = url; a.download = `${st.name.replace(/[^\w-]+/g, "_")}${bundle ? ".bundle" : ""}.nadrisk.json`; a.click(); URL.revokeObjectURL(url);
     if (missing > 0) setMsg(`exported · ${missing} sample${missing > 1 ? "s" : ""} missing`); else if (!missing) setMsg(bundle ? "exported with samples" : "exported");
   };

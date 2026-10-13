@@ -1,6 +1,8 @@
 import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import MalfunctionOverlay from "@/components/MalfunctionOverlay";
+import { Capacitor } from "@capacitor/core";
+import { isLicensedHost } from "@/lib/origin";
 import { fxLoad } from "@/audio/effects";
 import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useMidi } from "@/hooks/useMidi";
