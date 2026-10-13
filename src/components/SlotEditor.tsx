@@ -13,7 +13,7 @@ import { type GetWave } from "@/components/ScopeScreen";
 import SpectrumScreen, { type GetSpectrum } from "@/components/SpectrumScreen";
 import PolyVoiceScreen from "@/components/PolyVoiceScreen";
 
-function SlotEditor({ slot, index = 0, getWave, getSpectrum, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; index?: number; getWave?: GetWave; getSpectrum?: GetSpectrum; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
+function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, onChange, onLoad, onLoadId, onLoadFolder }: { slot: Slot; index?: number; getWave?: GetWave; getSpectrum?: GetSpectrum; getSlices?: (i: number, sm: Slot["sampler"]) => number[]; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler;
   return <div className="node-body gb-editor-body">
     <DevicePanel className="gb-ed-slot" label="Slot"><SlotScreen slot={slot} onChange={onChange} /></DevicePanel>
@@ -23,7 +23,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, peaks, onChange, on
       {slot.engine === "808" && <Sub808Panel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
       {slot.engine === "siren" && <SirenPanel slot={slot} onChange={onChange} />}
       {slot.engine === "poly" && <EnsemblePanel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
-      {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} />}
+      {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} getSlices={getSlices ? sm => getSlices(index, sm) : undefined} />}
     </DevicePanel>
     <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getWave={getWave} /></DevicePanel>
     {(slot.engine === "sampler" || slot.engine === "poly") && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}

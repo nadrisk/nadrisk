@@ -262,7 +262,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
       </PatchNode>
       <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
         <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
-          <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
+          <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} getSlices={g.getSlices} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
         <div className="gb-desktop-views">
           <nav className="gb-view-switch" aria-label="Desktop workspace view" data-midi-ui><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>

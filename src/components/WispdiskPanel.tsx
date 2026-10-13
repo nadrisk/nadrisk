@@ -37,8 +37,10 @@ function BpmDialog({ value, onClose, onSave }: { value: number; onClose: () => v
 }
 
 // WISPDISK: the sampler editor as a 128x64 1-bit hardware screen.
-function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void }) {
+function WispdiskPanel({ slot, peaks, onChange, getSlices }: { slot: Slot; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; getSlices?: (sm: Slot["sampler"]) => number[] }) {
   const sm = slot.sampler, env = sm.env;
+  // Transient slices (fractions of the START..END region); recomputed only when sensitivity or region changes.
+  const sl = (sm.sliceSens ?? 0) > 0 && getSlices ? getSlices(sm) : [];
   const M = (p: Partial<typeof sm>) => onChange({ sampler: { ...sm, ...p } });
   const [page, setPage] = useState<Page>("SMP");
   const [readout, setReadout] = useState("");
@@ -61,15 +63,15 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
     noteK,
     fineK,
   ]) : page === "BRK" ? (sm.warp ? [
-    { label: "Break length in beats", short: "BEAT", value: sm.beats ?? 0, min: 0, max: 64, step: 1, fmt: v => v ? `${v * (sm.breakDouble ? 2 : 1)}B` : "AUTO", set: beats => M({ beats }) },
+    { label: "Slice sensitivity", short: "SLCE", value: sm.sliceSens ?? 0, min: 0, max: 1, step: .01, reset: 0, fmt: v => v > 0 ? `${sl.length > 1 ? sl.length : "-"} ${Math.round(v * 100)}%` : "OFF", set: sliceSens => M({ sliceSens, slices: 0 }) },
     noteK,
     { label: "Sample BPM", short: "S-BPM", value: sm.sampleBpm ?? 0, min: 59, max: 200, step: .1, fmt: v => v >= 60 ? v.toFixed(1) : "AUTO", set: v => M({ sampleBpm: v >= 60 ? v : 0 }) },
     { label: "Break end", short: "END", value: sm.end ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: end => M({ end: Math.max(end, sm.start + .02) }) },
   ] : [
     { label: "Stretch time", short: "TIME", value: sm.stretchAmt ?? 1, min: .25, max: 4, step: .01, fmt: v => `X${v.toFixed(2)}`, set: stretchAmt => M({ stretchAmt }) },
     { label: "Stretch grain", short: "GRN", value: sm.stretchGrain ?? .05, min: .01, max: .15, step: .001, fmt: ms, set: stretchGrain => M({ stretchGrain }) },
-    { label: "Loop length in beats", short: "BEAT", value: sm.beats ?? 0, min: 0, max: 64, step: 1, fmt: v => v ? `${v}B` : "AUTO", set: beats => M({ beats }) },
-    { label: "Slices", short: "SLC", value: sm.slices ?? 0, min: 0, max: 16, step: 1, fmt: v => v > 1 ? `${v}` : "OFF", set: slices => M({ slices }) },
+    { label: "Slice sensitivity", short: "SLCE", value: sm.sliceSens ?? 0, min: 0, max: 1, step: .01, reset: 0, fmt: v => v > 0 ? `${sl.length > 1 ? sl.length : "-"} ${Math.round(v * 100)}%` : "OFF", set: sliceSens => M({ sliceSens, slices: 0 }) },
+    noteK,
   ]) : page === "ENV" ? (["a", "d", "s", "r"] as const).map(k => ({
     label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k], min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
     fmt: k === "s" ? pct : ms, set: (v: number) => M({ env: { ...env, [k]: v } }),
@@ -133,11 +135,18 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       if (sm.warp && breakEngine) p.text(breakEngine, 112, 12);
       p.box(2, 19, 124, 26);
       // WARP / slicing view the whole loop; vintage stretch shows its new length (full width = x4).
-      const w = sm.warp || n > 1 ? 122 : Math.max(8, Math.round(122 * (sm.stretch ? amt : 1) / 4)); wave(p, 3, 20, w, 24);
-      if (n > 1) for (let k = 1; k < n; k++) { const x = 3 + Math.round(k * 122 / n); p.line(x, 20, x, 43, false); p.line(x, 20, x, 23); }
+      // BRK and slicing fill the frame; VNT draws 1x at full width, shorter below 1x, and marks the original length above 1x.
+      const vnt = sm.stretch && !sm.warp, w = sm.warp || n > 1 || sl.length > 1 || !vnt || amt >= 1 ? 122 : Math.max(8, Math.round(122 * amt)); wave(p, 3, 20, w, 24);
+      if (vnt && amt > 1 && sl.length < 2 && n < 2) { const ox = 3 + Math.round(122 / amt); for (let y = 20; y < 44; y += 2) p.dot(ox, y); }
+      if (sl.length > 1) {
+        // Crisp 1px markers at each detected hit; numbers only where there are at least 9px between labels.
+        const s0 = sm.start, s1 = sm.end ?? 1, xs = sl.map(f => 3 + Math.round((s0 + f * (s1 - s0)) * 121));
+        let lastLabel = -99;
+        xs.forEach((x, k) => { if (k > 0) p.line(x, 20, x, 43); if (x - lastLabel >= 9 && x + 8 < 126) { p.rect(x + 1, 20, String(k + 1).length * 4 + 1, 6, false); p.text(String(k + 1), x + 2, 20); lastLabel = x; } });
+      } else if (n > 1) for (let k = 1; k < n; k++) { const x = 3 + Math.round(k * 122 / n); p.line(x, 20, x, 43, false); p.line(x, 20, x, 23); }
       else if (sm.warp) { const beats = (sm.beats || 4) * (sm.breakDouble ? 2 : 1); for (let k = 1; k < Math.min(beats, 32); k++) { const x = 3 + Math.round(k * 122 / Math.min(beats, 32)); p.line(x, 20, x, k % 4 ? 22 : 25); } }
       else if (sm.stretch && !sm.warp) { const step = Math.max(3, Math.round((sm.stretchGrain ?? .05) * 120)); for (let x = 3 + step; x < 3 + w; x += step) p.line(x, 20, x, 22, true); }
-      if (!sm.warp && n < 2) for (let x = 3 + Math.round(122 / 4); x < 125; x += 4) p.dot(x, 44);
+      
     } else {
       p.box(2, 11, 21, 7); if (sm.grain) p.invert(3, 12, 19, 5); p.text("GRN", 6, 12, !sm.grain);
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
