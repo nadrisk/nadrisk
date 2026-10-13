@@ -676,6 +676,9 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 button.px-zone { cursor: pointer; }
 .px-zone:focus-visible { outline: 1px dotted hsl(var(--foreground)); }
 .px-panel { display: flex; flex-direction: column; gap: 6px; }
+.px-knob-column { position: absolute; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 7fr 1fr 17fr; justify-items: center; pointer-events: none; }
+.px-knob-column > button.px-zone { position: static; grid-row: 1; width: 50% !important; height: 100% !important; pointer-events: auto; }
+.px-knob-column > [role="slider"].px-zone { position: static; grid-row: 3; width: 100% !important; height: 100% !important; pointer-events: auto; }
 .instrument-workspace .px-screen .px-zone, .instrument-workspace .px-screen .px-zone[aria-pressed="true"] { background: transparent !important; border: 0 !important; color: transparent !important; outline-offset: 0; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; filter: none !important; mix-blend-mode: normal !important; }
 
 /* Module chassis: every section is a flat hardware module, no window chrome. */

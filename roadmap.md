@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Anchor Performance SET to TIME's shared layout column; verify alignment, clearances and interaction on phone and desktop
+
 - [x] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verified save/load, scrolling, Reset and desktop/mobile spacing
 
 - [x] Restore drum header values beside six tabs; verify knobs, resets, MIDI and phone/desktop framing
