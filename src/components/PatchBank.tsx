@@ -20,7 +20,7 @@ export default function PatchBank({ getPatch, applyPatch, locked }: { getPatch: 
   const chosen = list[sel];
   const store = (next: Patch[]) => { try { localStorage.setItem(PATCH_KEY, JSON.stringify(next)); setPatches(next); return true; } catch { setMsg("storage full"); return false; } };
   const names = () => patches.map(p => p.name);
-  const download = (data: unknown, fname: string) => { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url); };
+  const download = (data: object, fname: string) => { const url = URL.createObjectURL(new Blob([JSON.stringify({ ...data, origin: location.hostname }, null, 1)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url); };
   const pack = async (ps: Patch[]) => { try { return await packSamples(samplesOf(ps)); } catch { return {}; } };
   const select = (i: number) => { setSel(i); setConfirm(""); if (list[i]) setName(list[i].name); if (i < top) setTop(i); else if (i >= top + ROWS) setTop(i - ROWS + 1); };
 
