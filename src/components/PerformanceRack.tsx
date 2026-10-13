@@ -11,8 +11,8 @@ const CMODES = ["pad", "block", "strum", "arp"] as const;
 const DIVS: [number, string][] = [[1, "1/4"], [.5, "1/8"], [.25, "1/16"], [.125, "1/32"]];
 const LOOPS = [0, 1, 2, 4, 8];
 
-type PadInfo = { name: string; mute: boolean };
-export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, unmuteAll }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; unmuteAll: () => void }) {
+type PadInfo = { name: string; mute: boolean; solo?: boolean };
+export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, toggleSolo, unmuteAll }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; toggleSolo: (i: number) => void; unmuteAll: () => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
@@ -26,14 +26,23 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   // each finger toggles once on lift if it moved < 8px. preventDefault stops iOS from also synthesising a click;
   // mouse, keyboard and MIDI (el.click()) still go through onClick.
   const liveRef = useRef<HTMLDivElement>(null);
+  // Mute keys: SHIFT turns them into solo keys; a double-tap solos (undoing the first tap's mute).
+  const [shift, setShift] = useState(false);
+  const lastMute = useRef({ i: -1, t: 0 });
+  const muteKey = (i: number) => {
+    if (shift) { toggleSolo(i); return; }
+    const now = performance.now();
+    if (lastMute.current.i === i && now - lastMute.current.t < 320) { lastMute.current = { i: -1, t: 0 }; toggleMute(i); toggleSolo(i); return; }
+    lastMute.current = { i, t: now }; toggleMute(i);
+  };
   // One-tap drop: everything that builds tension snaps back to neutral (master/mix settings untouched).
   const reset = () => { set({ time: v.timeHome ?? 0, tension: 0, mode: 0, offset: 0, loop: 0, djSweep: 0, djRes: 1, echoSend: 0, echoFeedback: .45 }); setDropFlash(f => f + 1); };
-  const liveAct = useRef({ toggleMute, selectBank, unmuteAll, perfReset: reset });
-  liveAct.current = { toggleMute, selectBank, unmuteAll, perfReset: reset };
+  const liveAct = useRef({ toggleMute: muteKey, selectBank, unmuteAll, perfReset: reset, shift: () => setShift(x => !x) });
+  liveAct.current = { toggleMute: muteKey, selectBank, unmuteAll, perfReset: reset, shift: () => setShift(x => !x) };
   useEffect(() => {
     const el = liveRef.current; if (!el) return;
     const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
-    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset],[data-perfreset]") as HTMLElement | null;
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-mute],[data-bank],[data-mutereset],[data-perfreset],[data-shift]") as HTMLElement | null;
     const start = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); b.classList.add("touching"); }
     };
@@ -44,9 +53,10 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       for (const t of Array.from(e.changedTouches)) {
         const s = touches.get(t.identifier); if (!s) continue; touches.delete(t.identifier); s.b.classList.remove("touching");
         if (e.cancelable) e.preventDefault();
-        if (e.type !== "touchend") continue;
+        // MIDI learn picks the key as a target instead of pressing it.
+        if (e.type !== "touchend" || s.b.closest(".midi-learn")) continue;
         const { mute, bank: bk } = s.b.dataset;
-        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll(); else if (s.b.dataset.perfreset !== undefined) liveAct.current.perfReset();
+        if (mute !== undefined) liveAct.current.toggleMute(Number(mute)); else if (bk !== undefined) liveAct.current.selectBank(Number(bk)); else if (s.b.dataset.mutereset !== undefined) liveAct.current.unmuteAll(); else if (s.b.dataset.perfreset !== undefined) liveAct.current.perfReset(); else if (s.b.dataset.shift !== undefined) liveAct.current.shift();
       }
     };
     el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
@@ -152,9 +162,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
       <div className="gb-perf-mute-grid">
-        {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} title={`${pd.name || String(i + 1)} · ${pd.mute ? "muted" : "playing"}`} onClick={() => toggleMute(i)}>{i + 1}</button>)}
+        {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} className={pd.solo ? "solo" : undefined} title={`${pd.name || String(i + 1)} · ${pd.solo ? "solo" : pd.mute ? "muted" : "playing"} · double-tap to solo`} onClick={() => muteKey(i)}>{pd.solo ? `S${i + 1}` : i + 1}</button>)}
       </div>
-      <button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button>
+      <div className="gb-perf-side"><button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
     </div>
   </div>
   </div>;
