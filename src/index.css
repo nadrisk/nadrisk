@@ -995,4 +995,3 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-perf-side { display: flex; flex-direction: column; gap: 3px; flex: 0 0 44px; }
 .instrument-workspace .gb-perf-side .gb-perf-mutereset { flex: 1 1 0; aspect-ratio: auto; min-height: 0; }
 .instrument-workspace .gb-perf-mutes button.solo { outline: 1px dashed hsl(var(--foreground)); outline-offset: -4px; }
-/* Utility tabs stay usable during MIDI learn. */

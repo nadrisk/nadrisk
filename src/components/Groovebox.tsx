@@ -262,7 +262,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
         <div className="gb-desktop-views">
-          <nav className="gb-view-switch" aria-label="Desktop workspace view"><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
+          <nav className="gb-view-switch" aria-label="Desktop workspace view" data-midi-ui><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
           {desktop && desktopView === "devices" && <div className="gb-desktop-view active">{desktopDevices}</div>}
           {desktop && desktopView === "sequence" && <div className="gb-desktop-view active">{seqPerformancePanel}</div>}
         </div>
