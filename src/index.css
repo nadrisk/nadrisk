@@ -987,3 +987,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-scope, .gb-vis-screen { position: relative; overflow: hidden; min-width: 0; contain: layout size paint; }
 .gb-scope .scope-canvas, .gb-vis-screen .scope-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .px-wrap { min-width: 0; contain: layout paint; }
+
+/* Sampler: the sample name sits on its own line below the screen's knobs. */
+.gb-sample-name { font-family: Silkscreen, monospace; font-size: 10px; line-height: 14px; padding: 2px 4px 0; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
