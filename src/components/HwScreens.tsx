@@ -103,7 +103,7 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
   return <Panel name="MIDI" label="MIDI" pages={["MAP"]} deps={[devices?.join(), learn, target, mapCount, status, qwerty]} knobs={() => []}
     body={p => { drawKeys(p, ks); [msg.slice(0, 31), msg.slice(31, 62), (devices ?? []).join(" ").toUpperCase().slice(0, 31)].forEach((l, i) => p.text(l, 2, 26 + i * 8));
       // Compact keymap beside KEYS: pads, Shift = mute, Alt = solo, Z-V = patterns.
-      p.text(qwerty ? "1-8 Q-I PAD ZXCV A-D" : "TYPE TO PLAY PADS", 34, 55); if (qwerty) p.text("SHFT MUTE ALT SOLO", 34, 47); }}
+      p.text(qwerty ? "1-8 Q-I PAD ZXCV A-D" : "TYPE TO PLAY PADS", 34, 52); if (qwerty) p.text("SHFT MUTE ALT SOLO", 34, 58); }}
     extra={() => keyZones(ks)} />;
 }
 
