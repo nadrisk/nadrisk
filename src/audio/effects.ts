@@ -19,7 +19,7 @@ function curveComp(curve: Float32Array | null): number {
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
-  delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], send: [1, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], density: [0.6, 0.05, 1, 0.01], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
   chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
@@ -427,8 +427,9 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // wow + flutter wobble the tape, and a SPRING tank (allpass chirp cascade in a short lowpassed loop) drips over input + echoes.
     const heads = [0, 1, 2].map(() => { const d = ctx.createDelay(1.6), tap = ctx.createGain(); tap.gain.value = 0; nodes.push(d, tap); return { d, tap }; });
     const rec = ctx.createGain(), sum = ctx.createGain(), sat = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(), fb = ctx.createGain(), echoOut = ctx.createGain();
-    hp.type = "highpass"; hp.frequency.value = 140; hp.Q.value = .5; lp.Q.value = .4; sat.curve = warmCurve(2.2); sat.oversample = eco ? "none" : "2x"; nodes.push(rec, sum, sat, lp, hp, fb, echoOut);
-    input.connect(rec).connect(heads[0].d).connect(heads[1].d).connect(heads[2].d);
+    hp.type = "highpass"; hp.frequency.value = 140; hp.Q.value = .5; lp.Q.value = .4; sat.curve = warmCurve(2.2); sat.oversample = eco ? "none" : "2x"; const send = ctx.createGain(); nodes.push(rec, sum, sat, lp, hp, fb, echoOut, send);
+    // SEND feeds the tape loop only; at 0 the echoes go silent and the spring works on its own.
+    input.connect(send).connect(rec).connect(heads[0].d).connect(heads[1].d).connect(heads[2].d);
     heads.forEach(h => h.d.connect(h.tap).connect(sum));
     sum.connect(sat).connect(lp).connect(hp); hp.connect(echoOut).connect(wet); hp.connect(fb).connect(rec); echoOut.gain.value = 1 / curveComp(sat.curve);
     const wow = lfo(), flut = lfo(); wow.o.frequency.value = .55; flut.o.frequency.value = 6.3; heads.forEach(h => { wow.g.connect(h.d.delayTime); flut.g.connect(h.d.delayTime); });
@@ -444,7 +445,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       // Feedback is shared by every active head, so scale it down as heads are added to keep the loop stable.
       // Loop gain is normalised against the saturator and capped well below unity, so every tail decays on its own.
       set(fb.gain, Math.min(.95, p.feedback) * .72 * curveComp(sat.curve) / Math.sqrt(n)); set(lp.frequency, p.tone);
-      const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0); };
+      const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0);
+      const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
     input.connect(cv).connect(lp).connect(wet);

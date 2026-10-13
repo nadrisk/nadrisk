@@ -55,14 +55,16 @@ function acquireFilter(dest: AudioNode) {
 
 export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidParams, midi: number, t: number, gate: number, vel = 1): Voice {
   let p = params;
-  const osc = ctx.createOscillator(), shape = ctx.createBiquadFilter(), amp = ctx.createGain(), releaseGain = ctx.createGain();
+  const osc = ctx.createOscillator(), shape = ctx.createBiquadFilter(), amp = ctx.createGain(), releaseGain = ctx.createGain(), declick = ctx.createGain();
   const entry = acquireFilter(dest), filter = entry.node;
   const cut = filter.parameters.get("cutoff"), res = filter.parameters.get("res"), drive = filter.parameters.get("drive");
   const frequency = 440 * 2 ** ((midi - 69) / 12);
   osc.type = p.wave; osc.frequency.setValueAtTime(frequency, t);
   // AC coupling softens the square plateau into the hollow 303-like pulse.
   shape.type = "highpass"; shape.frequency.value = p.wave === "square" ? frequency * .42 : 20; shape.Q.value = .707;
-  osc.connect(shape).connect(filter).connect(amp).connect(releaseGain).connect(dest);
+  osc.connect(shape).connect(filter).connect(amp).connect(releaseGain).connect(declick).connect(dest);
+  // De-click: the saw starts at its zero crossing; a 2 ms fade-in also hides the square's first edge and the filter's startup step.
+  declick.gain.setValueAtTime(0, t); declick.gain.linearRampToValueAtTime(1, t + .002);
   const accented = vel > .8;
   const envelope = (at: number, elapsed: number) => {
     const dec = accented ? p.decay + (.18 - p.decay) * p.accent : p.decay;
@@ -80,15 +82,16 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
   const gateEnd = t + Math.max(.005, gate);
   releaseGain.gain.setValueAtTime(1, t); releaseGain.gain.setTargetAtTime(0, gateEnd, .018);
   let end = gateEnd + .14, cleaned = false;
-  const cleanup = () => { if (cleaned) return; cleaned = true; [osc, shape, filter, amp, releaseGain].forEach(n => n.disconnect()); entry.busy = false; };
+  const cleanup = () => { if (cleaned) return; cleaned = true; [osc, shape, filter, amp, releaseGain, declick].forEach(n => n.disconnect()); entry.busy = false; };
   osc.start(t); osc.stop(end); osc.onended = cleanup;
   const fade = (at: number, duration: number) => {
+    duration = Math.max(.003, duration);
     const nextEnd = at + duration + .03; if (nextEnd >= end) return;
     end = nextEnd; releaseGain.gain.cancelScheduledValues(at); releaseGain.gain.setTargetAtTime(0, at, Math.max(.001, duration / 4));
     try { osc.stop(end); } catch { /* already ended */ }
   };
   return {
-    stop: at => fade(at, .012), release: (at, r) => fade(at, Math.min(.1, r)),
+    stop: at => fade(at, .012), release: (at, r) => fade(at, Math.max(.003, Math.min(.1, r))),
     glide: (delta, at, duration) => { osc.frequency.cancelScheduledValues(at); osc.frequency.setTargetAtTime(frequency * 2 ** (delta / 12), at, Math.max(.003, duration / 3)); },
     update: patch => {
       const next = (patch as { acid?: Partial<AcidParams> }).acid; if (!next) return;
