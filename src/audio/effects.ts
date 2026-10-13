@@ -334,7 +334,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       src.connect(lfoSmooth); setRate(at); src.start(at);
     };
     const setRate = (at: number) => { const hz = Math.max(.01, rateOf(last));
-      if (src instanceof OscillatorNode) src.frequency.setValueAtTime(hz, at); else if (src) src.playbackRate.setValueAtTime(hz * 1024 / 16 / ctx.sampleRate * 16, at); };
+      if (src instanceof OscillatorNode) src.frequency.setValueAtTime(hz, at); else if (src) src.playbackRate.setValueAtTime(hz * 64 / ctx.sampleRate, at); };
     const makeup = (t: number, q: number) => { const base = [1, 1, 1.9, 1][t] ?? 1; return t === 2 ? Math.min(4, base * Math.sqrt(q) / 1.2) : base / (1 + Math.max(0, q - .7) * .14); };
     apply = p => {
       last = p; const ta = Math.round(p.typeA ?? 0), tb = Math.round(p.typeB ?? 2), q = Math.max(.5, p.res ?? 2), m = Math.max(0, Math.min(1, p.morph ?? 0));
