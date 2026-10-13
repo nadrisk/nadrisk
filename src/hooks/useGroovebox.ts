@@ -122,12 +122,12 @@ function syncChain(e: Engine, i: number, s: Slot) {
   const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
     out.filter.disconnect(); out.chain.forEach(f => f.dispose());
-    out.chain = live.map(f => createFx(e.ctx, f.type, { ...defaultFxParams(f.type), ...f.params }));
+    out.chain = live.map(f => { try { return createFx(e.ctx, f.type, { ...defaultFxParams(f.type), ...f.params }); } catch (err) { console.error("FX build failed", f.type, err); const g = e.ctx.createGain(); return { input: g, output: g, update: () => {}, dispose: () => g.disconnect() } as unknown as FxNode; } });
     let node: AudioNode = out.filter;
     out.chain.forEach(f => { node.connect(f.input); node = f.output; }); node.connect(out.pan);
     out.chain.forEach((f, k) => { if (f.keyInput) { const key = f.keyInput, source = e.outs[Math.max(0, Math.min(15, Math.round(live[k].params.source ?? 1) - 1))].tap; source.connect(key); const dispose = f.dispose; f.dispose = () => { try { source.disconnect(key); } catch { /* already detached */ } dispose(); }; } });
     out.sig = sig;
-  } else live.forEach((f, k) => out.chain[k].update({ ...Object.fromEntries(Object.entries(defaultFxParams(f.type))), ...f.params }));
+  } else live.forEach((f, k) => { try { out.chain[k].update({ ...Object.fromEntries(Object.entries(defaultFxParams(f.type))), ...f.params }); } catch (err) { console.error("FX update failed", f.type, err); } });
 }
 
 export function useGroovebox() {

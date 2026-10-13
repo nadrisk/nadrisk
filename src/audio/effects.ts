@@ -326,9 +326,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
     // S&H: 16 random steps of 64 samples, looped; playbackRate sets the step rate.
     const shBuf = ctx.createBuffer(1, 1024, ctx.sampleRate); { const d = shBuf.getChannelData(0); for (let i = 0; i < 16; i++) d.fill(Math.random() * 2 - 1, i * 64, i * 64 + 64); }
-    let src: OscillatorNode | AudioBufferSourceNode | null = null, wave = -1, last: Record<string, number> = {};
+    let src: OscillatorNode | AudioBufferSourceNode | null = null, builtAt = -1, wave = -1, last: Record<string, number> = {};
     const build = (at: number) => {
-      if (src) { try { src.stop(at); } catch { /* ended */ } const old = src; setTimeout(() => old.disconnect(), Math.max(0, (at - ctx.currentTime) * 1000) + 50); }
+      if (src && at === builtAt) return; builtAt = at;
+      if (src) { const old = src; try { old.stop(Math.max(at, ctx.currentTime)); } catch { /* ended */ } old.onended = () => { try { old.disconnect(); } catch { /* gone */ } }; }
       if (wave === 4) { const b = ctx.createBufferSource(); b.buffer = shBuf; b.loop = true; src = b; }
       else { const o = ctx.createOscillator(); o.type = (["sine", "triangle", "sawtooth", "square"] as const)[wave] ?? "sine"; src = o; }
       src.connect(lfoSmooth); setRate(at); src.start(at);
@@ -339,11 +340,13 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => {
       last = p; const ta = Math.round(p.typeA ?? 0), tb = Math.round(p.typeB ?? 2), q = Math.max(.5, p.res ?? 2), m = Math.max(0, Math.min(1, p.morph ?? 0));
       fa.type = TYPES[ta] ?? "lowpass"; fb.type = TYPES[tb] ?? "bandpass";
-      [fa, fb].forEach(f => { set(f.frequency, p.cutoff ?? 1200); set(f.Q, f.type === "notch" ? Math.min(q, 4) : q); });
+      const nyq = ctx.sampleRate * .45, fc = Math.max(40, Math.min(nyq, Number.isFinite(p.cutoff) ? p.cutoff : 1200));
+      [fa, fb].forEach(f => { set(f.frequency, fc); set(f.Q, f.type === "notch" ? Math.min(q, 4) : q); });
       set(ga.gain, Math.cos(m * Math.PI / 2) * makeup(ta, q)); set(gb.gain, Math.sin(m * Math.PI / 2) * makeup(tb, q));
-      set(lfoAmt.gain, (p.depth ?? 0) * 3600);
+      const dep = Math.max(0, Math.min(1, p.depth ?? 0)), up = Math.max(0, 1200 * Math.log2(nyq / fc)), down = Math.max(0, 1200 * Math.log2(fc / 30));
+      set(lfoAmt.gain, Math.min(dep * 3600, up, down));
       const hz = Math.max(.01, rateOf(p)); set(lfoSmooth.frequency, Math.max(hz * 3, 2 + 400 * (1 - (p.smooth ?? 0)) ** 2));
-      const w = Math.round(p.wave ?? 0); if (w !== wave) { wave = w; build(ctx.currentTime); } else setRate(ctx.currentTime);
+      const w = Math.max(0, Math.min(4, Math.round(p.wave ?? 0))); if (w !== wave) { wave = w; build(ctx.currentTime); } else setRate(ctx.currentTime);
     };
     trigger = at => { if ((last.retrig ?? 0) >= .5) build(at); };
     oscs.push({ stop: () => { try { src?.stop(); } catch { /* ended */ } } } as unknown as OscillatorNode);
