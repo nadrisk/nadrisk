@@ -90,7 +90,6 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
-        // SET key draws filled while a home is stored, and flashes on every tap so each press gives feedback.
         // SET sits directly above the T readout and flashes once per press; the * after T shows a stored home.
         if (flash > 0) { p.rect(103, 11, 21, 8); p.text("SET", 107, 12, false); }
         else { p.box(103, 11, 21, 8); p.text("SET", 107, 12); }
