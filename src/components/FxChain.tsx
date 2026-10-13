@@ -157,7 +157,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const mx = 3 + Math.round(Math.log(mf / 20) / Math.log(1000) * 121); d.line(mx, 42, mx, 44);
   } else if (type === "morph") {
     // Blended response of both filters (same math as the audio, magnitude only) plus the LFO sweep range dotted.
-    const T = ["LP", "HP", "BP", "NTCH"], ta = Math.round(pv(p, "typeA", 0)), tb = Math.round(pv(p, "typeB", 2)), fc = pv(p, "cutoff", 1200), q = pv(p, "res", 2), m = pv(p, "morph", 0), dep = pv(p, "depth", .4);
+    const T = ["LP", "HP", "BP", "NTCH"], cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a)), ta = Math.round(cl(pv(p, "typeA", 0), 0, 3)), tb = Math.round(cl(pv(p, "typeB", 2), 0, 3)), fc = cl(pv(p, "cutoff", 1200), 40, 16000), q = cl(pv(p, "res", 2), .5, 12), m = cl(pv(p, "morph", 0), 0, 1), dep = cl(pv(p, "depth", .4), 0, 1);
     const mag = (t: number, r: number) => { const a = 1 - r * r, b = r / q, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 0;
     for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * mag(ta, r) + Math.sin(m * Math.PI / 2) * mag(tb, r), db = 20 * Math.log10(Math.max(1e-4, g));
