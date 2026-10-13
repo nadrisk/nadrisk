@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verify desktop/mobile flows and spacing
+
 - [x] Restore drum header values beside six tabs; verify knobs, resets, MIDI and phone/desktop framing
 
 - [x] Add sixteen complete drum presets; browser-check all selections, preset resets and recall; offline renders finite with distinct tails
