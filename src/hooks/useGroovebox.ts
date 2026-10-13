@@ -135,9 +135,11 @@ export function useGroovebox() {
   const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);
-  const [slots, setSlots] = useState<Slot[]>(() => defaultSlots().map(migrateSlot));
+  const [slots, setSlots] = useState<Slot[]>(() => blankSlots());
+  const timeMod = useRef<number[]>(Array(16).fill(1));
+  const loadGen = useRef(0);
   // Two independent pattern banks (A/B) for live performance; switching waits for the next bar while playing.
-  const [banks, setBanks] = useState<Bank[]>(() => [defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]);
+  const [banks, setBanks] = useState<Bank[]>(() => Array.from({ length: NBANKS }, () => makeBank(emptyPattern())));
   const [bank, setBank] = useState(0);
   const [queued, setQueued] = useState<number | null>(null);
   const banksRef = useRef(banks); banksRef.current = banks;
@@ -230,7 +232,7 @@ export function useGroovebox() {
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
-    const factor = 2 ** (performanceRef.current.time * 2);
+    const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
     let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
@@ -445,9 +447,11 @@ export function useGroovebox() {
         const eng = engine.current, slot = slotsRef.current[i], lane = slot.mods?.[bankRef.current], v = row[st];
         // Mod row: each active step sets its parameter to the drawn fill (0-100%) on the audio clock.
         let semiAt = 0;
+        timeMod.current[i] = 1;
         if (eng && lane?.on && v !== 0) {
           const value = lane.values[st] ?? .5;
           if (lane.target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
+          else if (lane.target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
           else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value) - slot.note;
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
@@ -605,7 +609,8 @@ export function useGroovebox() {
     } catch { setError("Could not read that audio file. Try WAV or MP3."); }
   }, [setBuffer]);
   const loadById = useCallback(async (i: number, id: string, name: string) => {
-    try { const b = await getSampleBlob(id); if (!b) throw 0; await setBuffer(i, b, name, id); setError(""); return true; }
+    const gen = loadGen.current;
+    try { const b = await getSampleBlob(id); if (!b) throw 0; if (gen !== loadGen.current) return true; await setBuffer(i, b, name, id); setError(""); return true; }
     catch { setError(`Sample "${name}" not found on this device.`); return false; }
   }, [setBuffer]);
   const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
@@ -656,7 +661,7 @@ export function useGroovebox() {
   const applySet = useCallback((st: GrooveSet) => {
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
-    const d = defaultSlots(), old = (st.v ?? 1) < 2;
+    loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth ?? x.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: padMods(o.mods ?? x.mods), fx: o.fx ?? x.fx }; }).map((x, i) => acidTo808(old || !st.slots?.[i] ? migrateSlot(x) : x)));
     setHarmonyState({ ...defaultHarmony(), ...st.harmony });
     if (st.banks?.length) setBanks(Array.from({ length: NBANKS }, (_, i) => (st.banks![i] ? fixBank(st.banks![i]) : makeBank(emptyPattern()))));
@@ -694,9 +699,8 @@ export function useGroovebox() {
   };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
   const loadKitSamples = useCallback(() => { defaultSlots().forEach((x, i) => { if (x.engine === "sampler" && x.sampler.sampleId) void loadById(i, x.sampler.sampleId, x.sampler.sampleName); }); }, [loadById]);
-  useEffect(() => { loadKitSamples(); }, [loadKitSamples]);
-  const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
-  const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setSwing(50); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
+  const newBlank = () => { loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
+  const resetAll = newBlank;
 
   const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
   return { setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
