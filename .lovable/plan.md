@@ -9,6 +9,7 @@
    - DISP (theme change) is locked and shows `LOCK`.
    - Saving sets (SAVE, overwrite) and saving patches (SAVE, OVR, DUP, REN, import) are blocked with a short `NADRISK LOCK` message. Loading and exporting still work.
    - A heavy OTT squash sits on the master; the clipper uses a harder, nastier curve. Saturation and other effects still work normally.
+   - The effect limit is removed: any number of effects can be added to pads. Leaving the mode keeps effects already added (sets over budget already play), but new additions are limited again. On slow phones too many effects may cause crackles; that is part of the risk.
 6. Typing `nadrisk` again plays the same fade back, restores the previous theme, removes the master squash, and returns the clipper to normal.
 7. A reload always starts in normal mode (nothing is stored).
 
@@ -26,6 +27,7 @@
 - Page shells (`Index.tsx`, `NativeGroovebox.tsx`) own `malfunction` state plus the theme to restore; Groovebox receives `locked` to disable DISP.
 - `src/components/MalfunctionOverlay.tsx`: stepped opacity fade + shake, pixel-canvas NADRISK glitch, then fade in.
 - `SetBank.tsx` / `PatchBank.tsx`: `locked` prop blocks write actions.
+- FX budget: the FX_COST vs MAX_FX_LOAD check in the add-effect path is skipped while malfunction is active; the load meter shows `NAD` instead of a percentage.
 - Master chain: insert a pre-built OTT stage after Clipper, before Limiter, wet ramped by mode; clipper curve swaps to a cached hard/asymmetric curve. Master screen order shown unchanged except a `NAD` flag.
 - Record in AGENTS.md: malfunction mode is session-only and uses pre-built bypassed master stages.
 - Verify: typecheck/tests, browser run of typing the code (fade, overlay, theme, DISP lock, save blocked, toggle back), and a level check that output stays under the limiter ceiling.
