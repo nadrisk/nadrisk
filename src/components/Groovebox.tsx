@@ -221,7 +221,9 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   // NADRISK malfunction: session-only hidden mode toggled by typing the code (or 7 quick taps on the rack name).
   const [nad, setNad] = useState(false), [glitching, setGlitching] = useState(false);
   const prevTheme = useRef<DisplayTheme>(theme), nadNext = useRef(false);
-  const fireNad = useCallback(() => { if (glitching) return; nadNext.current = !nad; setGlitching(true); }, [nad, glitching]);
+  const [forcedNad] = useState(() => !isLicensedHost(location.hostname, location.protocol, Capacitor.isNativePlatform()));
+  useEffect(() => { if (forcedNad) { onThemeChange("nadrisk"); setNad(true); g.setMalfunction(true); } }, [forcedNad]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fireNad = useCallback(() => { if (glitching || forcedNad) return; nadNext.current = !nad; setGlitching(true); }, [nad, glitching, forcedNad]);
   const nadBlack = useCallback(() => { const on = nadNext.current; if (on) { prevTheme.current = theme === "nadrisk" ? "oled" : theme; onThemeChange("nadrisk"); } else onThemeChange(prevTheme.current); setNad(on); g.setMalfunction(on); }, [theme, onThemeChange, g.setMalfunction]);
   const fireRef = useRef(fireNad); fireRef.current = fireNad;
   useEffect(() => { let buf = ""; const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; if (e.key.length !== 1) return; buf = (buf + e.key.toLowerCase()).slice(-7); if (buf === "nadrisk") { buf = ""; fireRef.current(); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
@@ -285,6 +287,6 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         </PatchNode>
       </div>
     </div>
-    <div className="workspace-footer"><span><AudioLines size={13} />{g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
+    <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section></DisplayThemeContext.Provider></HarmonyContext.Provider>;
 }
