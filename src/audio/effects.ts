@@ -40,6 +40,7 @@ export const FX_DEFS = {
   gain: { label: "gain~", params: { level: [.55, 0, 1, 0.001] } },
   neurobox: { label: "neuro.box~", params: { reese: [0.35, 0, 1, 0.01], growl: [0.4, 0, 1, 0.01], squelch: [0.3, 0, 1, 0.01], disp: [0.25, 0, 1, 0.01] } },
   dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], q: [1.5, 0.3, 8, 0.1], gain: [6, 0, 15, 0.5], threshold: [-30, -60, 0, 1], dir: [0, 0, 1, 1], attack: [0.005, 0.001, 0.1, 0.001], release: [0.12, 0.02, 1, 0.01] } },
+  morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], depth: [0.4, 0, 1, 0.01], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -313,6 +314,39 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const [lo, mi, hi] = (["lowshelf", "peaking", "highshelf"] as const).map(t => { const b = ctx.createBiquadFilter(); b.type = t; nodes.push(b); return b; });
     input.connect(lo).connect(mi).connect(hi).connect(wet);
     apply = p => { set(lo.gain, p.low); set(lo.frequency, p.lowFreq); set(mi.gain, p.mid); set(mi.frequency, p.midFreq); set(mi.Q, p.q); set(hi.gain, p.high); set(hi.frequency, p.highFreq); };
+  } else if (type === "morph") {
+    // Morph filter: two parallel biquads (LP/HP/BP/NOTCH each) crossfaded equal-power by MRPH. One LFO
+    // (sine/tri/saw/square or stepped S&H, low-passed by SMTH) moves both cutoffs via detune (DPTH = up to +/-3 oct).
+    // Per-type makeup and a resonance-scaled trim keep the level steady; a gentle tanh catches resonant peaks.
+    const TYPES: BiquadFilterType[] = ["lowpass", "highpass", "bandpass", "notch"];
+    const fa = ctx.createBiquadFilter(), fb = ctx.createBiquadFilter(), ga = ctx.createGain(), gb = ctx.createGain(), sum = ctx.createGain(), clip = ctx.createWaveShaper();
+    const lfoSmooth = ctx.createBiquadFilter(), lfoAmt = ctx.createGain(); lfoSmooth.type = "lowpass"; lfoAmt.gain.value = 0; clip.curve = satCurve(1.3);
+    nodes.push(fa, fb, ga, gb, sum, clip, lfoSmooth, lfoAmt);
+    input.connect(fa).connect(ga).connect(sum); input.connect(fb).connect(gb).connect(sum); sum.connect(clip).connect(wet);
+    lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
+    // S&H: 16 random steps of 64 samples, looped; playbackRate sets the step rate.
+    const shBuf = ctx.createBuffer(1, 1024, ctx.sampleRate); { const d = shBuf.getChannelData(0); for (let i = 0; i < 16; i++) d.fill(Math.random() * 2 - 1, i * 64, i * 64 + 64); }
+    let src: OscillatorNode | AudioBufferSourceNode | null = null, wave = -1, last: Record<string, number> = {};
+    const build = (at: number) => {
+      if (src) { try { src.stop(at); } catch { /* ended */ } const old = src; setTimeout(() => old.disconnect(), Math.max(0, (at - ctx.currentTime) * 1000) + 50); }
+      if (wave === 4) { const b = ctx.createBufferSource(); b.buffer = shBuf; b.loop = true; src = b; }
+      else { const o = ctx.createOscillator(); o.type = (["sine", "triangle", "sawtooth", "square"] as const)[wave] ?? "sine"; src = o; }
+      src.connect(lfoSmooth); setRate(at); src.start(at);
+    };
+    const setRate = (at: number) => { const hz = Math.max(.01, rateOf(last));
+      if (src instanceof OscillatorNode) src.frequency.setValueAtTime(hz, at); else if (src) src.playbackRate.setValueAtTime(hz * 1024 / 16 / ctx.sampleRate * 16, at); };
+    const makeup = (t: number, q: number) => { const base = [1, 1, 1.9, 1][t] ?? 1; return t === 2 ? Math.min(4, base * Math.sqrt(q) / 1.2) : base / (1 + Math.max(0, q - .7) * .14); };
+    apply = p => {
+      last = p; const ta = Math.round(p.typeA ?? 0), tb = Math.round(p.typeB ?? 2), q = Math.max(.5, p.res ?? 2), m = Math.max(0, Math.min(1, p.morph ?? 0));
+      fa.type = TYPES[ta] ?? "lowpass"; fb.type = TYPES[tb] ?? "bandpass";
+      [fa, fb].forEach(f => { set(f.frequency, p.cutoff ?? 1200); set(f.Q, f.type === "notch" ? Math.min(q, 4) : q); });
+      set(ga.gain, Math.cos(m * Math.PI / 2) * makeup(ta, q)); set(gb.gain, Math.sin(m * Math.PI / 2) * makeup(tb, q));
+      set(lfoAmt.gain, (p.depth ?? 0) * 3600);
+      const hz = Math.max(.01, rateOf(p)); set(lfoSmooth.frequency, Math.max(hz * 3, 2 + 400 * (1 - (p.smooth ?? 0)) ** 2));
+      const w = Math.round(p.wave ?? 0); if (w !== wave) { wave = w; build(ctx.currentTime); } else setRate(ctx.currentTime);
+    };
+    trigger = at => { if ((last.retrig ?? 0) >= .5) build(at); };
+    oscs.push({ stop: () => { try { src?.stop(); } catch { /* ended */ } } } as unknown as OscillatorNode);
   } else if (type === "acid") {
     // Diode-style asymmetric clipper with a resonant "bite" peak and fizzy top, for 303-style leads and basses.
     const pre = ctx.createGain(), sh = ctx.createWaveShaper(), peak = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), comp = ctx.createGain();
@@ -516,12 +550,12 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 4, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 4, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, morph: 2, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
 // Only the targets that make an obvious difference per step are offered, so the MOD lane list stays short.
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["mix", "time"], metal: ["mix", "note"], eq: ["mid"], djfilter: ["sweep"], vibrato: ["depth"], tremolo: ["depth"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain"] };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["mix", "time"], metal: ["mix", "note"], eq: ["mid"], djfilter: ["sweep"], vibrato: ["depth"], tremolo: ["depth"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain"], morph: ["cutoff", "morph"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
 export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq" };
 /** Maps a 0..1 lane value onto the param's real range. */
