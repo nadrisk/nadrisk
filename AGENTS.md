@@ -28,3 +28,4 @@
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and shared 808/ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
+- NADRISK malfunction mode is session-only and toggles pre-built, bypassed master stages (hard clipper, OTT squash before the limiter), so entering it never builds audio nodes mid-play.
