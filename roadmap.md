@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verify desktop/mobile flows and spacing
+- [x] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verified save/load, scrolling, Reset and desktop/mobile spacing
 
 - [x] Restore drum header values beside six tabs; verify knobs, resets, MIDI and phone/desktop framing
 
