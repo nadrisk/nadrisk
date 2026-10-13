@@ -33,6 +33,12 @@ export function compactHeaderText(readout: string, width: number) {
 }
 
 type HeaderAction = { text: string; label: string; pressed?: boolean; onClick: () => void };
+type KnobAction = HeaderAction & { knobLabel: string };
+// Shared reference for drawn knobs, their hit containers and keys above them.
+export function knobLayout(knobs: Knob[]) {
+  return knobs.map((k, i) => ({ knob: k, x: knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i] }));
+}
+const KNOB_ACTION_TOP = 39, KNOB_ACTION_HEIGHT = 7;
 export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string, compactReadout = false, action?: HeaderAction) {
   p.invert(0, 0, 128, 9);
   const tabs = tabLayout(pages);
@@ -60,11 +66,18 @@ export function tabZones(pages: readonly string[], page: string, setPage: (p: st
 /** Frequency/pitch knobs (Hz readout over a wide positive range) move perceptually, so each turn covers an equal musical interval. */
 export const isLogKnob = (k: Knob) => k.log ?? (k.min > 0 && k.max / k.min >= 8 && /HZ$|\dK$/i.test(k.fmt(k.max)));
 export function drawKnobs(p: Px, knobs: Knob[]) {
-  knobs.forEach((k, i) => { const x = (knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]); p.knob(x, 51, isLogKnob(k) ? Math.log(k.value / k.min) / Math.log(k.max / k.min) : f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
+  knobLayout(knobs).forEach(({ knob: k, x }) => { p.knob(x, 51, isLogKnob(k) ? Math.log(k.value / k.min) / Math.log(k.max / k.min) : f01(k.value, k.min, k.max), 4); p.textC(k.short, x, 58); });
 }
 
-export function knobZones(knobs: Knob[], page: string, show: (s: string, knobLabel?: string) => void) {
-  return knobs.map((k, i) => <Zone key={page + k.label} x={(knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i]) - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={isLogKnob(k)} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`, k.label); }} />);
+export function knobZones(knobs: Knob[], page: string, show: (s: string, knobLabel?: string) => void, action?: KnobAction) {
+  return knobLayout(knobs).map(({ knob: k, x }) => {
+    const zone = <Zone key={page + k.label} x={x - 15} y={45} w={30} h={19} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} log={isLogKnob(k)} reset={k.reset} onChange={v => { k.set(v); show(k.short === "NOTE" || k.bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`, k.label); }} />;
+    if (!action || k.label !== action.knobLabel) return zone;
+    return <div key={page + k.label} className="px-knob-column" style={{ left: `${(x - 15) / 128 * 100}%`, top: `${KNOB_ACTION_TOP / 64 * 100}%`, width: `${30 / 128 * 100}%`, height: `${(64 - KNOB_ACTION_TOP) / 64 * 100}%` }}>
+      <Tap x={0} y={0} w={textWidth(action.text) + 4} h={KNOB_ACTION_HEIGHT} label={action.label} pressed={action.pressed} onClick={action.onClick} />
+      {zone}
+    </div>;
+  });
 }
 
 // Stepped ADSR breakpoint graph.
@@ -152,12 +165,13 @@ function ValueDialog({ title, value, parse, onClose, onSave }: { title: string; 
 }
 
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false, parseReadout, headerAction }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false, parseReadout, headerAction, knobAction }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
   body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined; compactReadout?: boolean;
   /** Opt-in: double-tapping the header readout of this knob opens typed entry. */
   parseReadout?: (k: Knob) => ((text: string) => number | null) | undefined;
   headerAction?: HeaderAction;
+  knobAction?: (page: string) => KnobAction | undefined;
 }) {
   const [page, setPage] = useState(pages[0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
@@ -177,11 +191,21 @@ export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, li
     if (compactReadout) armTimer();
   };
   const ks = knobs(page);
+  const action = knobAction?.(page);
   const editKnob = readout ? ks.find(k => k.label === readoutKnob) : undefined;
   const parser = editKnob && parseReadout?.(editKnob);
   const tabX = tabLayout(pages)[0]?.x ?? 128;
   return <div className="px-panel">
-    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, headerAction?.pressed, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page, compactReadout, headerAction); body(p, page); drawKnobs(p, ks); }}>
+    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, headerAction?.pressed, action?.pressed, ...deps]} draw={p => {
+      drawHeader(p, name, readout, pages, page, compactReadout, headerAction); body(p, page); drawKnobs(p, ks);
+      const anchor = action && knobLayout(ks).find(({ knob }) => knob.label === action.knobLabel);
+      if (action && anchor) {
+        const w = textWidth(action.text) + 4, x = anchor.x - w / 2;
+        if (action.pressed) p.rect(x, KNOB_ACTION_TOP, w, KNOB_ACTION_HEIGHT);
+        else p.box(x, KNOB_ACTION_TOP, w, KNOB_ACTION_HEIGHT);
+        p.textC(action.text, anchor.x, KNOB_ACTION_TOP + 1, !action.pressed);
+      }
+    }}>
       {tabZones(pages, page, setPage)}
       {headerAction && <Tap x={tabX - textWidth(headerAction.text) - 6} y={0} w={textWidth(headerAction.text) + 4} h={9} label={headerAction.label} pressed={headerAction.pressed} onClick={headerAction.onClick} />}
       {parser && <Tap x={0} y={0} w={tabX - 1} h={9} label="Type exact value" onClick={() => {
@@ -189,7 +213,7 @@ export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, li
         if (now - lastTap.current < 400) { lastTap.current = 0; clearTimeout(readoutTimer.current); setEditing(true); } else lastTap.current = now;
       }} />}
       {extra?.(page)}
-      {knobZones(ks, page, showReadout)}
+      {knobZones(ks, page, showReadout, action)}
     </PixelScreen>
     {editing && editKnob && parser && <ValueDialog title={editKnob.label} value={editKnob.fmt(editKnob.value)} parse={parser}
       onClose={() => { setEditing(false); armTimer(); }}
