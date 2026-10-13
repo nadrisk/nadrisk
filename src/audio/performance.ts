@@ -21,6 +21,8 @@ export type PerformanceParams = {
 export const ECHO_DIVS: [string, number][] = [["1/16", .25], ["1/8", .5], ["1/8T", 1 / 3], ["1/8.", .75], ["1/4", 1], ["1/4.", 1.5], ["1/2", 2]];
 export const defaultPerformance = (): PerformanceParams => ({ time: 0, tension: 0, style: "sweep", mode: 0, division: 0.25, offset: 0, loop: 0, clipOn: false, clipDrive: 6, limitOn: true, ceiling: -1, chordMode: "pad", djSweep: 0, djRes: 1, echoSend: 0, echoDiv: 3, echoFeedback: .45, echoTone: 2200, mEqOn: false, mHpf: 25, mLow: 0, mMud: 0, mPresence: 0, mAir: 0, glueOn: false, glueThresh: -12, glueRatio: 2, glueMakeup: 2 });
 // Cubic soft-knee clipper: linear-ish below the knee, flat at +/-1 (input beyond the curve clamps to the edges).
+// NADRISK hard clipper: asymmetric, folded edge for raw odd/even grit.
+const nadCurve = (() => { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1, y = Math.tanh(x * 4 + .25) - Math.tanh(.25); c[i] = Math.max(-.9, Math.min(.95, y + .12 * Math.sin(x * 9))); } return c; })();
 const clipCurve = (() => { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1; c[i] = 1.5 * x - .5 * x ** 3; } return c; })();
 export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const input = ctx.createGain(), output = ctx.createGain(), hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(); hp.type = "highpass";
@@ -44,7 +46,12 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   // Master stage: output -> [clipper | bypass] -> [limiter | bypass] -> final.
   const clipIn = ctx.createGain(), clipBy = ctx.createGain(), pre = ctx.createGain(), shaper = ctx.createWaveShaper(), post = ctx.createGain(), limIn = ctx.createGain(), limBy = ctx.createGain(), limOn = ctx.createGain(), final = ctx.createGain();
   shaper.curve = clipCurve; shaper.oversample = "2x"; clipIn.gain.value = 0; limBy.gain.value = 0;
-  mastered.connect(clipIn).connect(pre).connect(shaper).connect(post).connect(limIn); mastered.connect(clipBy).connect(limIn);
+  // NADRISK stages are built once and sit fully dry until malfunction mode ramps them in.
+  const nadShaper = ctx.createWaveShaper(), softOut = ctx.createGain(), hardOut = ctx.createGain(); nadShaper.curve = nadCurve; nadShaper.oversample = "2x"; hardOut.gain.value = 0;
+  const ottIn = ctx.createGain(), ottDry = ctx.createGain(), ottWet = ctx.createGain(), ott = ctx.createDynamicsCompressor(), ottMk = ctx.createGain(); ottWet.gain.value = 0;
+  ott.threshold.value = -42; ott.ratio.value = 14; ott.knee.value = 3; ott.attack.value = .001; ott.release.value = .05; ottMk.gain.value = 10 ** (16 / 20);
+  mastered.connect(clipIn).connect(pre); pre.connect(shaper).connect(softOut).connect(post); pre.connect(nadShaper).connect(hardOut).connect(post); post.connect(ottIn); mastered.connect(clipBy).connect(ottIn);
+  ottIn.connect(ottDry).connect(limIn); ottIn.connect(ott).connect(ottMk).connect(ottWet).connect(limIn);
   limIn.connect(limiter).connect(limOn).connect(final); limIn.connect(limBy).connect(final); final.connect(dest);
   // Parallel, non-audible standards meter taps: K-weighted full band and 20-120 Hz sub band.
   const kShelf = ctx.createBiquadFilter(), kHp = ctx.createBiquadFilter(), subHp = ctx.createBiquadFilter(), subLp = ctx.createBiquadFilter();
@@ -81,8 +88,10 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const gl = p.glueOn ?? false; set(glue.threshold, gl ? p.glueThresh ?? -12 : 0); set(glue.ratio, gl ? p.glueRatio ?? 2 : 1); set(glueMk.gain, gl ? db(p.glueMakeup ?? 2) : 1);
     set(limiter.threshold, p.ceiling ?? -1); set(limOn.gain, lim ? 1 : 0); set(limBy.gain, lim ? 0 : 1);
   };
+  const setNad = (on: boolean) => { const r = (g: AudioParam, v: number) => { g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, .015); };
+    r(ottWet.gain, on ? 1 : 0); r(ottDry.gain, on ? 0 : 1); r(hardOut.gain, on ? 1 : 0); r(softOut.gain, on ? 0 : 1); };
   // Tail kill: silence the dub echo return and loop until the line has emptied, then restore.
   const flush = () => { const t = ctx.currentTime, hold = eDelay.delayTime.value + .1;
     for (const g of [eRet.gain, eFb.gain]) { const v = g.value; g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0, t + .02); g.setValueAtTime(0, t + hold); g.linearRampToValueAtTime(g === eRet.gain ? 1 : v, t + hold + .02); } };
-  return { input, output: final, meter, dyn, update, flush, dispose: () => { noise.stop(); [input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); [nadShaper, softOut, hardOut, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
 }
