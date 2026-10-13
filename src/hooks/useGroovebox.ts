@@ -562,6 +562,8 @@ export function useGroovebox() {
     if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
     // A shorter release re-times tails that are still ringing (a held note keeps sounding until lift).
     const e = engine.current, old = slotsRef.current[i]; if (!e || !old) return;
+    // One-shot -> ADSR chokes the ringing sample immediately instead of letting it play out.
+    if (patch.sampler && old.sampler.mode === "one" && patch.sampler.mode === "adsr") { const now = e.ctx.currentTime; e.ring[i].forEach(x => x.stop(now)); return; }
     const r = relOf({ ...old, ...patch }); if (r >= relOf(old)) return;
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });

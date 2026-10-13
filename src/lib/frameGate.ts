@@ -3,6 +3,9 @@ const listeners = new Set<() => void>();
 let playing = false, recentUntil = 0, idleTimer: ReturnType<typeof setTimeout> | 0 = 0;
 const IDLE_MS = 4000; // tails/meters keep moving briefly after the last hit
 
+// Held pads (a sustained break) emit no new hits, so the idle timer asks before letting screens sleep.
+let sustainProbe: () => boolean = () => false;
+export function setSustainProbe(fn: () => boolean) { sustainProbe = fn; }
 const notify = () => listeners.forEach(l => l());
 export const audioActive = () => playing || performance.now() < recentUntil;
 
@@ -12,7 +15,7 @@ export function pokeAudio() {
   const was = audioActive();
   recentUntil = performance.now() + IDLE_MS;
   if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { idleTimer = 0; notify(); }, IDLE_MS + 20);
+  idleTimer = setTimeout(() => { idleTimer = 0; if (sustainProbe()) { pokeAudio(); return; } notify(); }, IDLE_MS + 20);
   if (!was) notify();
 }
 

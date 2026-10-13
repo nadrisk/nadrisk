@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Px } from "./draw";
 import { gatedLoop } from "@/lib/frameGate";
+import { ResetScope } from "@/components/ui/slider";
 
 export const W = 128, H = 64;
 export const DisplayThemeContext = createContext("oled");
