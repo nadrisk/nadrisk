@@ -13,6 +13,6 @@ export type DisplayTheme = typeof DISPLAY_THEMES[number][0] | "nadrisk";
 export const DEFAULT_DISPLAY_THEME: DisplayTheme = "oled";
 
 export const nextDisplayTheme = (theme: DisplayTheme): DisplayTheme => {
-  const themes = DISPLAY_THEMES.map(([value]) => value);
+  const themes: DisplayTheme[] = DISPLAY_THEMES.map(([value]) => value);
   return themes[(themes.indexOf(theme) + 1) % themes.length];
 };
