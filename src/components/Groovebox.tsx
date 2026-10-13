@@ -1,7 +1,7 @@
 import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import { fxLoad } from "@/audio/effects";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines } from "lucide-react";
