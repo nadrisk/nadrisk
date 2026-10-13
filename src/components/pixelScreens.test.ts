@@ -5,6 +5,19 @@ import type { Px } from "@/pixel/draw";
 
 const pages = ["SRC", "SHP", "PIT", "FLT", "ENV", "PRST"];
 describe("compact drum header", () => {
+  it("reserves a nonoverlapping header action before Performance tabs", () => {
+    const texts: { text: string; x: number }[] = [];
+    const p = { invert() {}, rect() {}, text(text: string, x: number) { texts.push({ text, x }); } } as unknown as Px;
+    const tabs = ["FX", "ECO", "SEQ", "HLD"];
+    drawHeader(p, "PERFORM", "TENS 100%", tabs, "FX", false, { text: "RESET", label: "Reset performance", onClick() {} });
+    const reset = texts.find(t => t.text === "RESET");
+    expect(reset).toBeDefined();
+    if (!reset) return;
+    expect(reset.x).toBeGreaterThan(2 + textWidth("PERFORM"));
+    expect(reset.x + textWidth(reset.text)).toBeLessThan(tabLayout(tabs)[0].x);
+    const readout = texts[1];
+    expect(readout.x + textWidth(readout.text)).toBeLessThan(reset.x);
+  });
   it("fits complete labelled values before six tabs", () => {
     const width = tabLayout(pages)[0].x - 4;
     for (const text of ["TUNE 1.2K", "CNTR 500MS", "AMT -48ST", "NDEC 1000MS", "FDEC 1000MS", "SPRD 2.00", "NTON 12.0K", "REL 3000MS", "ATK 2000MS", "SUS 100%", "BASE 8.0K"]) {

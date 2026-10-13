@@ -831,7 +831,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 
 /* Performance live strip: pattern keys + 16 square pad mute keys (lit = muted, matching the mixer). */
 .instrument-workspace .gb-perf-live { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.instrument-workspace .gb-perf-banks { display: grid; grid-template-columns: repeat(4, 1fr) .8fr; gap: 4px; }
+.instrument-workspace .gb-perf-banks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .instrument-workspace .gb-perf-mutes { display: flex; gap: 6px; align-items: stretch; }
 .instrument-workspace .gb-perf-mute-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; flex: 1; }
 @media (max-width: 640px) { .instrument-workspace .gb-perf-mute-grid { grid-template-columns: repeat(8, 1fr); } }
@@ -900,6 +900,11 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     border: var(--device-border) solid hsl(var(--foreground)); background: hsl(var(--background));
     box-sizing: border-box; overflow: auto; scrollbar-width: thin;
   }
+  .instrument-workspace .device-memory .device-panel-content { scrollbar-width: none; }
+  .instrument-workspace .device-memory .device-panel-content::-webkit-scrollbar { display: none; }
+  .instrument-workspace .device-memory .gb-memory-workspace { position: relative; z-index: 2; }
+  .instrument-workspace .gb-memory-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .instrument-workspace .gb-memory-tabs button { height: 24px; min-height: 24px; border-radius: 0; padding: 0 4px; }
   .instrument-workspace .device-panel-content::before {
     content: ""; position: absolute; inset: 0 0 auto;
     height: calc(9px * var(--device-scale)); background: hsl(var(--foreground));

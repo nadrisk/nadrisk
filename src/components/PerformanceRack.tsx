@@ -19,7 +19,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   const [flash, setFlash] = useState(0);
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(0), 160); return () => clearTimeout(t); }, [flash]);
   const tapSet = () => { set({ timeHome: v.time }); setFlash(f => f + 1); };
-  // DROP key in the live strip: same momentary flash so every tap gives feedback.
+  // Header Reset key retains the momentary drop flash.
   const [dropFlash, setDropFlash] = useState(0);
   useEffect(() => { if (!dropFlash) return; const t = setTimeout(() => setDropFlash(0), 160); return () => clearTimeout(t); }, [dropFlash]);
   // iPhone drops quick taps (double-tap detection, tiny finger slides), so the live strip reads raw touches:
@@ -71,6 +71,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   ] : [];
   return <div className="gb-perf">
   <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v), flash > 0]} knobs={knobs}
+    headerAction={{ text: "RESET", label: "Reset performance", pressed: dropFlash > 0, onClick: reset }}
     body={(p, page) => {
       if (page === "FX") {
         // Framed DJ filter response: LP slopes down right of cutoff, HP left of it, resonance bump at cutoff.
@@ -148,7 +149,6 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const active = bank === b, waiting = queued === b;
         return <button key={n} type="button" data-bank={b} aria-label={`Performance pattern ${n}`} aria-pressed={active} title={waiting ? "queued for next bar" : active ? "active" : undefined} className={`${active ? "active" : ""}${waiting ? " queued" : ""}`} onClick={() => selectBank(b)}>{waiting ? `${n}>` : n}</button>;
       })}
-      <button type="button" data-perfreset aria-label="Reset performance" aria-pressed={dropFlash > 0} title="drop: tension, holds, DJ filter and echo snap back" onClick={reset}>DROP</button>
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
       <div className="gb-perf-mute-grid">
