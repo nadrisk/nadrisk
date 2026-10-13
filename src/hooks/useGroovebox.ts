@@ -2,7 +2,7 @@ import { setSustainProbe } from "@/lib/frameGate";
 import { detectSlices } from "@/audio/slices";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
-import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
+import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
@@ -454,7 +454,7 @@ export function useGroovebox() {
           else if (lane.target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
           else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value) - slot.note;
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
-            if (idx >= 0) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
+            if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } else if (eng && (!lane?.on || lane.target !== "cutoff")) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
         if (v !== 1) return;
         if (skip.current.delete(`${i}:${tick}`)) return;
@@ -698,7 +698,6 @@ export function useGroovebox() {
     editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 ? gen() : v))) }));
   };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
-  const loadKitSamples = useCallback(() => { defaultSlots().forEach((x, i) => { if (x.engine === "sampler" && x.sampler.sampleId) void loadById(i, x.sampler.sampleId, x.sampler.sampleName); }); }, [loadById]);
   const newBlank = () => { loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
   const resetAll = newBlank;
 
