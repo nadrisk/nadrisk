@@ -84,7 +84,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-     void ready.node.schedule({ output: at, active: true, input: timing.start + (p.sliceAt ?? 0) * (timing.end - timing.start), rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
+     void ready.node.schedule({ output: at, active: true, input: timing.start + (p.sliceAt ?? 0) * (timing.end - timing.start), rate: timing.rate, semitones: p.pitch, ...(p.sliceAt !== undefined && p.sliceAt > 0 || p.sliceSens ? { loopStart: 0, loopEnd: 0 } : { loopStart: timing.start, loopEnd: timing.end }) });
     scheduleRelease();
   };
   // Fallback when the stretch engine can't load (some iPhones): bake the region with the vintage
@@ -100,7 +100,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     if (cancelled || ctx.currentTime >= endAt) { cleanup(); return; }
     const pitchFactor = 2 ** (p.pitch / 12), regionLen = Math.max(.001, timing.end - timing.start);
     const baked = stretchBuffer(ctx, sliceBuffer(timing.start, timing.end), Math.max(.05, timing.seconds * pitchFactor / regionLen), .05);
-    const src = ctx.createBufferSource(); src.buffer = baked; src.loop = true;
+    const src = ctx.createBufferSource(); src.buffer = baked; src.loop = !p.sliceSens;
     src.playbackRate.value = pitchFactor;
     src.connect(amp); const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
