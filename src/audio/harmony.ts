@@ -40,3 +40,9 @@ export function keyChord(h: Harmony, midi: number, size: number) {
   return scaleChordOffsets(h.scale, snapNote(h, midi) - h.key, size);
 }
 export const keyName = (h: Harmony) => `${NOTE_NAMES[h.key]} ${h.scale === "off" ? "OFF" : h.scale.toUpperCase()}`;
+
+/** Step pitch modulation: 0..1 maps to -12..+12 semitones around the pad note, snapped to the key like the NOTE knob. */
+export function modPitchNote(h: Harmony, padNote: number, value: number) {
+  const n = padNote + Math.round((Math.min(1, Math.max(0, value)) - .5) * 24);
+  return Math.min(padNote + 12, Math.max(padNote - 12, snapNote(h, n)));
+}

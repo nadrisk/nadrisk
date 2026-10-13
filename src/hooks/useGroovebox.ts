@@ -435,7 +435,7 @@ export function useGroovebox() {
         if (eng && lane?.on && v !== 0) {
           const value = lane.values[st] ?? .5;
           if (lane.target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
-          else if (lane.target === "pitch") semiAt = Math.round((value - .5) * 24);
+          else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value) - slot.note;
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } else if (eng && (!lane?.on || lane.target !== "cutoff")) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
