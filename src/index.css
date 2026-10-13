@@ -995,3 +995,15 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-perf-side { display: flex; flex-direction: column; gap: 3px; flex: 0 0 44px; }
 .instrument-workspace .gb-perf-side .gb-perf-mutereset { flex: 1 1 0; aspect-ratio: auto; min-height: 0; }
 .instrument-workspace .gb-perf-mutes button.solo { outline: 1px dashed hsl(var(--foreground)); outline-offset: -4px; }
+
+/* NADRISK malfunction: toxic acid green on black, still flat 1-bit. */
+.site-shell[data-lcd="nadrisk"], .native-groovebox-shell[data-lcd="nadrisk"], .instrument-workspace[data-lcd="nadrisk"] { --lcd-h: 96; --lcd-s: 100%; --background: 100 60% 2%; --foreground: 92 100% 55%; --muted: 100 40% 6%; --muted-foreground: 92 70% 38%; --secondary: 100 40% 10%; --accent: 92 100% 55%; --accent-foreground: 100 60% 2%; --border: 92 90% 40%; --input: 92 90% 40%; --ring: 92 100% 55%; --patch-surface: 100 60% 2%; --patch-header: 92 100% 55%; --patch-background: 100 40% 6%; --primary: 92 100% 55%; --destructive: 92 100% 70%; --chassis: 100 50% 4%; --chassis-edge: 92 80% 22%; --scope-line: hsl(92 100% 55%); --scope-grid: hsl(100 40% 12%); }
+.instrument-workspace[data-lcd="nadrisk"] .px-panel canvas { animation: nad-tear 3.7s steps(1) infinite; }
+.instrument-workspace[data-lcd="nadrisk"] .workspace-heading { animation: nad-blink 5.3s steps(1) infinite; }
+@keyframes nad-tear { 0%, 93%, 100% { transform: none; } 94% { transform: translateX(3px); } 96% { transform: translateX(-2px); } 98% { transform: translateY(1px); } }
+@keyframes nad-blink { 0%, 96%, 100% { filter: none; } 97% { filter: invert(1); } }
+.nad-overlay { position: fixed; inset: 0; z-index: 200; pointer-events: none; background: hsl(0 0% 0%); display: grid; place-items: center; }
+.nad-overlay canvas { image-rendering: pixelated; width: min(90vw, 768px); height: auto; }
+.nad-shake { animation: nad-shake .12s steps(2) infinite; }
+@keyframes nad-shake { 0% { transform: translate(2px, -1px); } 50% { transform: translate(-2px, 1px); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .instrument-workspace[data-lcd="nadrisk"] .px-panel canvas, .instrument-workspace[data-lcd="nadrisk"] .workspace-heading, .nad-shake { animation: none; } }

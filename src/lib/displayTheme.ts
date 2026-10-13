@@ -6,7 +6,8 @@ export const DISPLAY_THEMES = [
   ["amber", "AMBER"],
 ] as const;
 
-export type DisplayTheme = typeof DISPLAY_THEMES[number][0];
+/** "nadrisk" is the hidden malfunction theme: never in the DISP cycle, only reached by typing the code. */
+export type DisplayTheme = typeof DISPLAY_THEMES[number][0] | "nadrisk";
 
 // The site always boots on the 1-bit OLED display; DISP only changes it for the current visit.
 export const DEFAULT_DISPLAY_THEME: DisplayTheme = "oled";
