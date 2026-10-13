@@ -10,7 +10,9 @@ import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
+const MORPH_T = ["LP", "HP", "BP", "NTCH"], MORPH_W = ["SIN", "TRI", "SAW", "SQR", "S&H"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
+  k === "typeA" || k === "typeB" ? MORPH_T[Math.round(v)] ?? "LP" : k === "wave" ? MORPH_W[Math.round(v)] ?? "SIN" : k === "retrig" ? (v >= .5 ? "NOTE" : "FREE") : k === "morph" ? `${Math.round(v * 100)}%` : k === "res" ? v.toFixed(1) : k === "cutoff" ? (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`) :
   k === "shape" ? (v < .25 ? "SINE" : v < .75 ? "TRI" : "SQR") + Math.round(v * 100) : k === "focus" ? (Math.abs(v) < .02 ? "BOTH" : `${v > 0 ? "TRN" : "SUS"}${Math.round(Math.abs(v) * 100)}`) : k === "crush" ? `${Math.round(v * 100)}%` : k === "dir" ? (v >= .5 ? "BOOST" : "CUT") : k === "gain" && p.dir !== undefined ? `${v}DB` :
   k === "mode" ? `HEAD ${HEAD_NAMES[Math.round(v)] ?? "1"}` : k === "spring" ? `${Math.round(v * 100)}%` : k === "ping" ? (v >= .5 ? "ON" : "OFF") : k === "hp" ? `${Math.round(v)}HZ` : k === "thresh" ? `${Math.round(v)}DB` : k === "depth" && p.hp !== undefined ? `${Math.round(v * 100)}%` : k === "attack" && p.hp !== undefined ? `${Math.round(v * 1000)}MS` :
   k === "level" ? (() => { const d = gainPosToDb(v); return d === -Infinity ? "-INF" : `${d > 0 ? "+" : ""}${d.toFixed(1)}DB`; })() : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
@@ -24,7 +26,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "LOFI", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -153,6 +155,16 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
       const db = lg / (1 + Math.pow(fr / lf, 2)) + hg / (1 + Math.pow(hf / fr, 2)) + mg * Math.exp(-oc * oc * q * q * 1.5);
       const y = Math.max(22, Math.min(44, Math.round(33 - db * .65))); d.line(x - 1, py, x, y); py = y; }
     const mx = 3 + Math.round(Math.log(mf / 20) / Math.log(1000) * 121); d.line(mx, 42, mx, 44);
+  } else if (type === "morph") {
+    // Blended response of both filters (same math as the audio, magnitude only) plus the LFO sweep range dotted.
+    const T = ["LP", "HP", "BP", "NTCH"], ta = Math.round(pv(p, "typeA", 0)), tb = Math.round(pv(p, "typeB", 2)), fc = pv(p, "cutoff", 1200), q = pv(p, "res", 2), m = pv(p, "morph", 0), dep = pv(p, "depth", .4);
+    const mag = (t: number, r: number) => { const a = 1 - r * r, b = r / q, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
+    const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 0;
+    for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * mag(ta, r) + Math.sin(m * Math.PI / 2) * mag(tb, r), db = 20 * Math.log10(Math.max(1e-4, g));
+      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+    const cx = (f: number) => 3 + Math.round(Math.log(Math.max(20, Math.min(20000, f)) / 20) / Math.log(1000) * 121);
+    if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44); }
+    d.text(`${T[ta]}>${T[tb]}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
   } else if (type === "djfilter") {
     const sw = pv(p, "sweep", 0), w = Math.round(Math.abs(sw) * 58);
     d.text("LP", 4, 25); d.text("HP", 117, 25); d.line(64, 30, 64, 42);

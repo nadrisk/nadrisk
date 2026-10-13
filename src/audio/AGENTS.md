@@ -18,3 +18,5 @@
 - BRK pools Signalsmith Stretch WASM voices on the shared raw context, keeping pitch/duration independent and taps warm.
 - Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
+- Transient slices (src/audio/slices.ts) cache one onset curve per buffer; SLCE sensitivity only re-picks peaks, and sliced sampler pads are mono (chords become strum/arp slice sequences).
+- morph.flt~ moves both biquads with one LFO through detune and rebuilds the LFO source only on wave change or RTRG note triggers.

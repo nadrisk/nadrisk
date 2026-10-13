@@ -84,7 +84,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-     void ready.node.schedule({ output: at, active: true, input: timing.start, rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
+     void ready.node.schedule({ output: at, active: true, input: timing.start + (p.sliceAt ?? 0) * (timing.end - timing.start), rate: timing.rate, semitones: p.pitch, loopStart: timing.start, loopEnd: timing.end });
     scheduleRelease();
   };
   // Fallback when the stretch engine can't load (some iPhones): bake the region with the vintage
@@ -105,7 +105,7 @@ export function playBreak(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPara
     src.connect(amp); const at = Math.max(t, ctx.currentTime + .005);
     amp.gain.setValueAtTime(0, at); amp.gain.linearRampToValueAtTime(vel, at + Math.max(.003, p.env.a));
     amp.gain.setTargetAtTime(vel * p.env.s, at + Math.max(.003, p.env.a), p.env.d / 3 + .001);
-    src.start(at, 0);
+    src.start(at, Math.min(.999, p.sliceAt ?? 0) * baked.duration);
     const poll = () => {
       if (ctx.currentTime < endAt) { window.setTimeout(poll, 50); return; }
       try { src.stop(); } catch { /* already stopped */ } src.disconnect(); cleanup();
