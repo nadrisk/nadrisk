@@ -1,7 +1,7 @@
 import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import { fxLoad } from "@/audio/effects";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines } from "lucide-react";
@@ -17,7 +17,9 @@ import DevicePanel from "./DevicePanel";
 import FxChain from "./FxChain";
 import ArpEditor from "./ArpEditor";
 import { HarmonyContext } from "./harmonyKnob";
-import { HARMONY_SCALES, phraseSemi } from "@/audio/harmony";
+import { HARMONY_SCALES, phraseSemi, modPitchNote } from "@/audio/harmony";
+import { noteName } from "@/audio/arp";
+import { useQwerty } from "@/hooks/useQwerty";
 import { NOTE_NAMES } from "@/audio/arp";
 import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
@@ -89,8 +91,8 @@ const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ...(
   ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
 
 type View = "note" | "mod" | "vel" | "chance" | "roll";
-const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock }: {
-  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; offset: number; loop: number; onClearRow: (r: number) => void; lenLock: boolean; onLenLock: () => void; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onRow: (view: View, r: number, v: number) => void; onModTarget: (r: number, t: string) => void;
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock, onAudition }: {
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; offset: number; loop: number; onClearRow: (r: number) => void; onAudition: (r: number) => void; lenLock: boolean; onLenLock: () => void; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onRow: (view: View, r: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
   // Relative drag: tap sets the value at tap height, then the whole drag distance refines it (1% per 2px).
   const dragRef = useRef<{ r: number; c: number; y: number; v0: number } | null>(null);
@@ -100,8 +102,9 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 150) return; lastToggle.current = { k, t }; onToggle(r, c); };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const labelTap = useRef({ r: -1, t: 0 });
+  const harmony = useContext(HarmonyContext);
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
-  const fmtV = (r: number, v: number) => view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
+  const fmtV = (r: number, v: number) => view === "mod" && slots[r].mods?.[bank]?.target === "pitch" ? `PTCH ${noteName(modPitchNote(harmony, slots[r].note, v))}` : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
   const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const q = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
   const down = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => {
     const k = `${r}:${c}`, now = performance.now();
@@ -118,7 +121,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
     <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}><div className="gb-row gb-row-head"><span className="gb-row-label">LEN</span><button className="gb-cycle" aria-label="Lock loop lengths" aria-pressed={lenLock} onClick={onLenLock}>{lenLock ? "LCK" : "FREE"}</button></div>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
-    <button className="gb-row-label" aria-label={`${slots[r].name || r + 1} row, double-tap to clear`} onClick={() => { const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
+    <button className="gb-row-label" aria-label={`${slots[r].name || r + 1} row, tap to play, double-tap to clear`} onClick={() => { const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); onAudition(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
     <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
 {view === "vel" || view === "chance" || view === "roll" ? (() => { const lit = row.map((v, c) => (v ? c : -1)).filter(c => c >= 0), vals = lit.map(c => view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : (view === "vel" ? vel : chance)[r]?.[c] ?? 1), rv = vals.length ? Math.max(...vals) : 1;
       const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(0, (e.clientX - b.left) / b.width))); };
@@ -199,11 +202,16 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const rootRef = useRef<HTMLElement>(null);
   const gHit = g.hit;
   const hit = useCallback((...args: Parameters<typeof gHit>) => { pokeAudio(); return gHit(...args); }, [gHit]) as typeof gHit;
+  // Row-name audition: a short tap of the pad (held engines release after 250 ms).
+  const gRelease = g.release;
+  const audition = useCallback((i: number) => { hit(i); setTimeout(() => gRelease(i), 250); }, [hit, gRelease]);
   useEffect(() => { setTransportPlaying(g.playing); }, [g.playing]);
   // Mount only the layout actually shown, so hidden desktop/phone trees don't run duplicate monitors.
   const [desktop, setDesktop] = useState(() => window.matchMedia(DESKTOP_MQ).matches);
   useEffect(() => { const m = window.matchMedia(DESKTOP_MQ), on = () => setDesktop(m.matches); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
   const midi = useMidi(rootRef, hit, g.release);
+  const [qwerty, setQwerty] = useState(false);
+  useQwerty(qwerty, { hit, release: g.release, mute: g.toggleMute, solo: g.toggleSolo, bank: g.selectBank, pads: g.slots.length });
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
@@ -218,7 +226,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const [utility, setUtility] = useState<Utility>(() => { try { const v = localStorage.getItem("nadrisk.utility.v1") as Utility | null; return v && UTILITIES.includes(v) ? v : "fx"; } catch { return "fx"; } });
   useEffect(() => { try { localStorage.setItem("nadrisk.utility.v1", utility); } catch { /* private mode */ } }, [utility]);
 
-  const seqPerformancePanel = <div className="gb-seq-perf"><div className="gb-seq-controls"><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} /></div><div className="gb-seq-performance"><PerformanceRack value={g.performance} onChange={g.setPerformance} bank={g.bank} queued={g.queued} selectBank={g.selectBank} pads={g.slots.map(x => ({ name: x.name, mute: x.mute }))} toggleMute={g.toggleMute} unmuteAll={g.unmuteAll} /></div><div className="gb-seq-grid"><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} onClearRow={g.clearRow} lenLock={!!pf.lenLock} onLenLock={() => g.setPerformance(p => ({ ...p, lenLock: !p.lenLock }))} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></div></div>;
+  const seqPerformancePanel = <div className="gb-seq-perf"><div className="gb-seq-controls"><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} /></div><div className="gb-seq-performance"><PerformanceRack value={g.performance} onChange={g.setPerformance} bank={g.bank} queued={g.queued} selectBank={g.selectBank} pads={g.slots.map(x => ({ name: x.name, mute: x.mute, solo: x.solo }))} toggleMute={g.toggleMute} toggleSolo={g.toggleSolo} unmuteAll={g.unmuteAll} /></div><div className="gb-seq-grid"><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} onClearRow={g.clearRow} onAudition={audition} lenLock={!!pf.lenLock} onLenLock={() => g.setPerformance(p => ({ ...p, lenLock: !p.lenLock }))} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSelect={g.setSelected} /></div></div>;
   const utilityPanels: Record<Utility, JSX.Element> = {
     fx: <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} load={fxLoad(g.slots.map(x => x.fx))} />,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} {...(s.engine === "drum" || s.engine === "siren" ? {} : { note: s.note, onNote: (note: number) => g.updateSelected({ note }), noteOf: (deg: number) => s.note + phraseSemi(g.harmony, s.note, s.arp.scale, deg) })} />,
@@ -227,7 +235,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} swing={g.swing} setSwing={g.setSwing} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: seqPerformancePanel,
     tape: <TapeDeck getSource={tapSource} playing={g.playing} step={g.step} bpm={g.bpm} onPlay={g.togglePlay} />,
-    midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
+    midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} qwerty={qwerty} setQwerty={setQwerty} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
     sets: <SetBank getSet={g.getSet} applySet={g.applySet} />,
     patch: <PatchBank getPatch={g.getPatch} applyPatch={g.applyPatch} />,
   };
@@ -257,12 +265,12 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /></ResetScope.Provider>
         </PatchNode>
         <div className="gb-desktop-views">
-          <nav className="gb-view-switch" aria-label="Desktop workspace view"><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
+          <nav className="gb-view-switch" aria-label="Desktop workspace view" data-midi-ui><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQ / PERF</button></nav>
           {desktop && desktopView === "devices" && <div className="gb-desktop-view active">{desktopDevices}</div>}
           {desktop && desktopView === "sequence" && <div className="gb-desktop-view active">{seqPerformancePanel}</div>}
         </div>
         <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel gb-mobile-utility">
-          <nav className="gb-utility-nav" aria-label="Utility workspace">{UTILITIES.map(k => <button key={k} aria-pressed={utility === k} onClick={() => setUtility(k)}>{UTILITY_LABELS[k]}</button>)}</nav>
+          <nav className="gb-utility-nav" aria-label="Utility workspace" data-midi-ui>{UTILITIES.map(k => <button key={k} aria-pressed={utility === k} onClick={() => setUtility(k)}>{UTILITY_LABELS[k]}</button>)}</nav>
           {!desktop && <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>}
         </PatchNode>
       </div>

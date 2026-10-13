@@ -2,7 +2,7 @@ import { setSustainProbe } from "@/lib/frameGate";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
-import { defaultHarmony, harmonyOn, keyChord, phraseSemi, type Harmony } from "@/audio/harmony";
+import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
 import { reeseParams } from "@/audio/reese";
@@ -435,7 +435,7 @@ export function useGroovebox() {
         if (eng && lane?.on && v !== 0) {
           const value = lane.values[st] ?? .5;
           if (lane.target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
-          else if (lane.target === "pitch") semiAt = Math.round((value - .5) * 24);
+          else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value) - slot.note;
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } else if (eng && (!lane?.on || lane.target !== "cutoff")) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
