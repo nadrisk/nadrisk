@@ -1,4 +1,5 @@
 import { setSustainProbe } from "@/lib/frameGate";
+import { detectSlices } from "@/audio/slices";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
@@ -254,9 +255,14 @@ export function useGroovebox() {
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     // Breakbeats: WARP fits the loop to the tempo without changing pitch; SLICES plays one slice per note
     // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
+    // Sliced samplers are mono: one slice at a time, chords become sequences of slices (BLOCK plays the first only).
+    const sl = s.engine === "sampler" && !s.sampler.grain && (s.sampler.sliceSens ?? 0) > 0 ? detectSlices(raw, s.sampler.sliceSens!, s.sampler.start, s.sampler.end ?? 1) : [];
+    const sliced = sl.length > 1, sliceOf = (semi: number, offset: number) => sl[((Math.round(semi + offset) % sl.length) + sl.length) % sl.length];
     const samplerRun = (sm: SamplerParams, dur: number, semi: number, offset: number, factor: number): SamplerParams => {
       const base = { ...sm, env: scaledEnv(sm.env, factor), pitch: sp + semi + offset };
       const n = Math.round(sm.slices ?? 0);
+      // Transient slices: each note offset picks a hit; playback runs on from that hit to the sample END.
+      if (sl.length > 1) { const k = ((Math.round(semi + offset) % sl.length) + sl.length) % sl.length, s0 = sm.start, s1 = sm.end ?? 1; Object.assign(base, { start: s0 + sl[k] * (s1 - s0), loop: false, pitch: sp }); return base; }
       if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sp + offset }); }
       return base;
     };
@@ -266,11 +272,13 @@ export function useGroovebox() {
       if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       // 808 is mono: a new hit cuts the old tail so its envelope always restarts at full level.
       if (s.engine === "808") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; }
-      const ns = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
+      if (sliced) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
+      const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
+      const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const voices = ns.map((offset, k) => s.engine === "808" ? (s.bass.mode === "acid" ? playAcid(e.ctx, dest, (ap => ({ ...ap, decay: ap.decay * factor }))(acidParams(s.bass.acid)), pitch, t, gate, vel) : play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel))
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
-        : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: sp + semi + offset }, buf, at(k), gk(k), bpmRef.current, vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), vel / Math.sqrt(ns.length)))
+        : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: sliced ? sp : sp + semi + offset, sliceAt: sliced ? sliceOf(semi, offset) : 0 }, buf, at(k), sliced ? gk(k) : gk(k), bpmRef.current, sliced ? vel : vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), gk(k), sliced ? vel : vel / Math.sqrt(ns.length)))
         : s.engine === "poly" ? null
         : s.engine === "siren" ? playSiren(e.ctx, dest, { ...defaultSiren(), ...s.siren, release: (s.siren?.release ?? .4) * factor, sweepTime: (s.siren?.sweepTime ?? 1.5) * factor }, pitch, t, gate, vel, e.lfos[i])
         : playSynth(e.ctx, dest, { ...s.synth, env: scaledEnv(s.synth.env, factor), pitchEnv: s.synth.pitchEnv * factor, pitchDecay: s.synth.pitchDecay * factor, filterDecay: s.synth.filterDecay * factor }, pitch, t, gate, vel, e.lfos[i]));
@@ -280,6 +288,8 @@ export function useGroovebox() {
         voices.push(playPoly(e.ctx, dest, { ...s.poly, reese: { ...rv, env: scaledEnv(rv.env, factor) } }, [pitch], t, gate, vel, bpmRef.current, from));
         reeseLast.current[i] = { midi: pitch, until: Math.max(now0, t) + gate + rv.env.r }; }
       else if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
+      // Strummed slices cut each other: every next slice stops the one before it.
+      if (sliced) voices.forEach((v, k) => { if (k > 0) voices[k - 1]?.stop(at(k)); });
       const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
       e.mono[i] = { stop: st => voices.forEach(v => v?.stop(st)), release: rel, glide: (to, gt, tm) => voices.forEach(v => v?.glide?.(to - semi, gt, tm)), update: q => voices.forEach(v => v?.update?.(q)) };
       // Ring list: every live voice per pad, pruned when silent and capped at 6 so rapid rolls never overload the audio thread.
@@ -683,7 +693,8 @@ export function useGroovebox() {
   const newBlank = () => { const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
   const resetAll = () => { setPerformance(defaultPerformance()); setSlots(defaultSlots().map(migrateSlot)); setBanks([defaultBank(), makeBank(emptyPattern()), makeBank(emptyPattern()), makeBank(emptyPattern())]); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setBpm(124); setSwing(50); setVolume(60); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); loadKitSamples(); };
 
-  return { undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
+  return { getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
