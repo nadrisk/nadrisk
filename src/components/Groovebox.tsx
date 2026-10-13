@@ -23,6 +23,7 @@ import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 import PatchBank from "@/components/PatchBank";
 import SetBank from "./SetBank";
+import MemoryWorkspace from "./MemoryWorkspace";
 import PerformanceRack from "./PerformanceRack";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
 import type { StepVal } from "@/hooks/useGroovebox";
@@ -236,11 +237,10 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const desktopDevices = <div className="gb-device-surface">
     <DevicePanel className="gb-device-module device-fx" label="FX">{utilityPanels.fx}</DevicePanel>
     <DevicePanel className="gb-device-module device-master" label="Master">{utilityPanels.master}</DevicePanel>
-    <DevicePanel className="gb-device-module device-memory" label="Memory">{utilityPanels.sets}</DevicePanel>
+    <DevicePanel className="gb-device-module device-memory" label="Memory"><MemoryWorkspace sets={utilityPanels.sets} patches={utilityPanels.patch} /></DevicePanel>
     <DevicePanel className="gb-device-module device-phrase" label="Phrase">{utilityPanels.phrase}</DevicePanel>
     <DevicePanel className="gb-device-module device-tape" label="Tape">{utilityPanels.tape}</DevicePanel>
     <DevicePanel className="gb-device-module device-midi" label="MIDI">{utilityPanels.midi}</DevicePanel>
-    <DevicePanel className="gb-device-module device-patch" label="Patch">{utilityPanels.patch}</DevicePanel>
     <section className="gb-device-mixer">{utilityPanels.mixer}</section>
   </div>;
 

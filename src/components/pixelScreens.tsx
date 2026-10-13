@@ -32,16 +32,23 @@ export function compactHeaderText(readout: string, width: number) {
   return compact;
 }
 
-export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string, compactReadout = false) {
+type HeaderAction = { text: string; label: string; pressed?: boolean; onClick: () => void };
+export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string, compactReadout = false, action?: HeaderAction) {
   p.invert(0, 0, 128, 9);
   const tabs = tabLayout(pages);
+  const contentEnd = (tabs[0]?.x ?? 128) - (action ? textWidth(action.text) + 6 : 0);
   if (compactReadout) {
-    const width = (tabs[0]?.x ?? 128) - 4;
+    const width = contentEnd - 4;
     p.text(readout ? compactHeaderText(readout, width) : name.slice(0, Math.floor((width + 1) / 4)), 2, 2, false);
   } else {
     p.text(name.slice(0, 8), 2, 2, false);
-    const maxReadout = Math.max(0, Math.floor(((tabs[0]?.x ?? 128) - 40) / 4));
+    const maxReadout = Math.max(0, Math.floor((contentEnd - 40) / 4));
     p.text(readout.slice(0, maxReadout), 38, 2, false);
+  }
+  if (action) {
+    const w = textWidth(action.text) + 4;
+    p.rect(contentEnd, 1, w, 7, !!action.pressed);
+    p.text(action.text, contentEnd + 2, 2, !action.pressed);
   }
   tabs.forEach(({ pg, x, w }) => { if (pg === page) { p.rect(x, 1, w, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
 }
@@ -145,11 +152,12 @@ function ValueDialog({ title, value, parse, onClose, onSave }: { title: string; 
 }
 
 // Shared panel shell: screen with header tabs + knob row, body drawn per page.
-export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false, parseReadout }: {
+export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, live, compactReadout = false, parseReadout, headerAction }: {
   name: string; pages: readonly string[]; label: string; knobs: (page: string) => Knob[];
   body: (p: Px, page: string) => void; extra?: (page: string) => ReactNode; deps: unknown[]; onPage?: (page: string) => void; live?: (page: string) => (() => boolean) | undefined; compactReadout?: boolean;
   /** Opt-in: double-tapping the header readout of this knob opens typed entry. */
   parseReadout?: (k: Knob) => ((text: string) => number | null) | undefined;
+  headerAction?: HeaderAction;
 }) {
   const [page, setPage] = useState(pages[0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
@@ -173,8 +181,9 @@ export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, li
   const parser = editKnob && parseReadout?.(editKnob);
   const tabX = tabLayout(pages)[0]?.x ?? 128;
   return <div className="px-panel">
-    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page, compactReadout); body(p, page); drawKnobs(p, ks); }}>
+    <PixelScreen label={`${label} screen, page ${page}`} live={live?.(page)} deps={[page, readout, compactReadout, headerAction?.pressed, ...deps]} draw={p => { drawHeader(p, name, readout, pages, page, compactReadout, headerAction); body(p, page); drawKnobs(p, ks); }}>
       {tabZones(pages, page, setPage)}
+      {headerAction && <Tap x={tabX - textWidth(headerAction.text) - 6} y={0} w={textWidth(headerAction.text) + 4} h={9} label={headerAction.label} pressed={headerAction.pressed} onClick={headerAction.onClick} />}
       {parser && <Tap x={0} y={0} w={tabX - 1} h={9} label="Type exact value" onClick={() => {
         const now = performance.now();
         if (now - lastTap.current < 400) { lastTap.current = 0; clearTimeout(readoutTimer.current); setEditing(true); } else lastTap.current = now;
