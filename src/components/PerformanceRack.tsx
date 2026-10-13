@@ -92,7 +92,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
         // SET sits directly above the T readout and flashes once per press; the * after T shows a stored home.
         if (flash > 0) { p.rect(103, 11, 21, 8); p.text("SET", 107, 12, false); }
-        else { p.box(103, 11, 21, 8); p.text("SET", 107, 12); }
+        else { p.rect(103, 11, 21, 8, false); p.box(103, 11, 21, 8); p.text("SET", 107, 12); }
         p.rect(3, 37, Math.round(v.tension * 98), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
