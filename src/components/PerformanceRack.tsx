@@ -98,11 +98,11 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
           y = Math.round(Math.max(12, y)); p.line(x === x0 ? x : x - 1, x === x0 ? y : py, x, y); py = y;
         }
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
-        p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
+        p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 27);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
-        // SET sits directly above the T readout and flashes once per press; the * after T shows a stored home.
-        if (flash > 0) { p.rect(103, 11, 21, 8); p.text("SET", 107, 12, false); }
-        else { p.rect(103, 11, 21, 8, false); p.box(103, 11, 21, 8); p.text("SET", 107, 12); }
+        // SET sits in the TIME knob's column (left) and flashes once per press; the * after T shows a stored home.
+        if (flash > 0) { p.rect(3, 11, 21, 8); p.text("SET", 7, 12, false); }
+        else { p.rect(3, 11, 21, 8, false); p.box(3, 11, 21, 8); p.text("SET", 7, 12); }
         p.rect(3, 37, Math.round(v.tension * 98), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
