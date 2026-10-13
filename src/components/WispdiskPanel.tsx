@@ -115,7 +115,6 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
       { const one = sm.mode === "one"; p.box(44, 11, 21, 7); if (one) p.invert(45, 12, 19, 5); p.text(one ? "ONE" : "ADSR", one ? 48 : 46, 12, !one); }
-      p.text((sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "").slice(0, 5), 68, 12);
       p.box(96, 11, 30, 7); p.text(`SK ${NOTE_NAMES[sk]}`, 98, 12);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
     } else if (page === "ENV") {
@@ -176,7 +175,8 @@ function WispdiskPanel({ slot, peaks, onChange }: { slot: Slot; peaks: number[] 
       {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} reset={(k as { reset?: number }).reset} onChange={v => { k.set(v); show(k.short === "NOTE" || (k as { bare?: boolean }).bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
       {page === "BRK" && sm.warp && <Tap x={68} y={10} w={42} h={9} label="Type sample BPM" onClick={() => setBpmEdit(true)} />}
     </PixelScreen>
-    {bpmEdit && <BpmDialog value={sm.sampleBpm ?? 0} onClose={() => setBpmEdit(false)} onSave={sampleBpm => { M({ sampleBpm }); show(sampleBpm ? `${sampleBpm}BPM` : "AUTO"); }} />}
+    <div className="gb-sample-name" aria-label="Sample name" title={sm.sampleName || "No sample"}>{(sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "")}</div>
+    {bpmEdit && <BpmDialog value={sm.sampleBpm ?? 0} onClose={() => { (document.activeElement as HTMLElement | null)?.blur?.(); setBpmEdit(false); }} onSave={sampleBpm => { M({ sampleBpm }); show(sampleBpm ? `${sampleBpm}BPM` : "AUTO"); }} />}
   </div>;
 }
 export default memo(WispdiskPanel);

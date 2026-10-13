@@ -90,9 +90,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 20);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
-        // SET key draws filled while a home is stored, and flashes on every tap so each press gives feedback.
-        if (v.timeHome || flash > 0) { p.rect(104, 36, 20, 9); p.text("SET", 107, 38, false); }
-        else { p.box(104, 36, 20, 9); p.text("SET", 107, 38); }
+        // SET sits directly above the T readout and flashes once per press; the * after T shows a stored home.
+        if (flash > 0) { p.rect(103, 11, 21, 8); p.text("SET", 107, 12, false); }
+        else { p.rect(103, 11, 21, 8, false); p.box(103, 11, 21, 8); p.text("SET", 107, 12); }
         p.rect(3, 37, Math.round(v.tension * 98), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
@@ -131,7 +131,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         else p.textC("HOLD A KEY", 64, 54);
       }
     }}
-    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={24} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={104} y={36} w={20} h={9} label="Set time home" pressed={!!v.timeHome || flash > 0} onClick={tapSet} /></>
+    extra={page => page === "FX" ? <><Zone x={2} y={11} w={124} h={24} horizontal label="DJ filter sweep pad" value={dj} min={-1} max={1} step={.01} onChange={djSweep => set({ djSweep })} /><Tap x={103} y={11} w={21} h={8} label="Set time home" pressed={flash > 0} onClick={tapSet} /></>
     : page === "ECO" ? <Zone x={2} y={11} w={124} h={30} horizontal label="Echo time pad" value={v.echoDiv ?? 3} min={0} max={ECHO_DIVS.length - 1} step={1} onChange={echoDiv => set({ echoDiv })} />
     : page === "SEQ" ? <>
       {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}

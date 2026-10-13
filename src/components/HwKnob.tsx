@@ -1,12 +1,15 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useContext, useEffect, useRef } from "react";
+import { ResetScope } from "@/components/ui/slider";
+const knobHome = new Map<string, number>();
 
 type Props = { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void };
 
 // 1-bit hardware encoder: ring, needle, value readout. Vertical drag, wheel, arrows; double-click resets.
 function HwKnob({ label, value, min, max, step = 1, fmt, onChange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const key = `${useContext(ResetScope)}|${label}`; if (!knobHome.has(key)) knobHome.set(key, value);
   const st = useRef({ value, onChange, def: value, y: 0, v: 0 });
-  st.current.value = value; st.current.onChange = onChange;
+  st.current.def = knobHome.get(key)!; st.current.value = value; st.current.onChange = onChange;
   const q = (v: number) => { const c = Math.min(max, Math.max(min, v)); return Math.round((c - min) / step) * step + min; };
   const set = (v: number) => { const n = +q(v).toFixed(6); if (n !== st.current.value) st.current.onChange(n); };
   useEffect(() => {

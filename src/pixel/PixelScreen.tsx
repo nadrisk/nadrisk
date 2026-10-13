@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Px } from "./draw";
 import { gatedLoop } from "@/lib/frameGate";
+import { ResetScope } from "@/components/ui/slider";
 
 export const W = 128, H = 64;
 export const DisplayThemeContext = createContext("oled");
@@ -83,11 +84,14 @@ export function BarDraw({ x, y, w, h, values, onChange }: { x: number; y: number
     onPointerUp={() => { last.current = null; }} />;
 }
 
+const zoneHome = new Map<string, number>();
 // Invisible knob/fader hit-zone. Keeps the aria-label so MIDI learn, keys and double-click reset still work.
 export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, horizontal, log, reset }: { x: number; y: number; w: number; h: number; label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; horizontal?: boolean; log?: boolean; reset?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const st = useRef({ value, onChange, def: reset ?? value, p: 0, u: 0, fine: 1, hold: 0 as ReturnType<typeof setTimeout> | 0 });
-  st.current.value = value; st.current.onChange = onChange; if (reset !== undefined) st.current.def = reset;
+  // Without an explicit home, the first value seen per scope+label survives page switches (zones remount per page).
+  const key = `${useContext(ResetScope)}|${label}`; if (!zoneHome.has(key)) zoneHome.set(key, value);
+  const st = useRef({ value, onChange, def: reset ?? zoneHome.get(key)!, p: 0, u: 0, fine: 1, hold: 0 as ReturnType<typeof setTimeout> | 0 });
+  st.current.value = value; st.current.onChange = onChange; st.current.def = reset ?? zoneHome.get(key)!;
   // Log zones (filter cutoff) work in the same musical scale the curve is drawn in.
   const toU = (v: number) => log ? Math.log(Math.max(min, v) / min) / Math.log(max / min) : (v - min) / (max - min || 1);
   const fromU = (u: number) => { const c = Math.min(1, Math.max(0, u)); return log ? min * (max / min) ** c : min + c * (max - min); };

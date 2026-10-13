@@ -1,3 +1,4 @@
+import { setSustainProbe } from "@/lib/frameGate";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
@@ -334,6 +335,7 @@ export function useGroovebox() {
   const holds = useRef(new Map<number, Hold>());
   const timer = useRef<boolean>(false); // subscribed to the audio clock tick
   const pressed = useRef(new Set<number>());
+  useEffect(() => { setSustainProbe(() => pressed.current.size > 0); return () => setSustainProbe(() => false); }, []);
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
     const horizon = e.ctx.currentTime + 0.15, bpmNow = bpmRef.current;
@@ -562,6 +564,8 @@ export function useGroovebox() {
     if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
     // A shorter release re-times tails that are still ringing (a held note keeps sounding until lift).
     const e = engine.current, old = slotsRef.current[i]; if (!e || !old) return;
+    // One-shot -> ADSR chokes the ringing sample immediately instead of letting it play out.
+    if (patch.sampler && old.sampler.mode === "one" && patch.sampler.mode === "adsr") { const now = e.ctx.currentTime; e.ring[i].forEach(x => x.stop(now)); return; }
     const r = relOf({ ...old, ...patch }); if (r >= relOf(old)) return;
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });

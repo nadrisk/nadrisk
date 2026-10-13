@@ -11,7 +11,7 @@
 - MIDI learn binds CC/notes to controls by their aria-label and drives them via synthetic DOM events (src/hooks/useMidi.ts), so every labelled control is mappable without per-control wiring.
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
-- Slider double-click reset uses an explicit resetValue or the first value seen per ResetScope+label, and ignores synthetic (MIDI) events.
+- Double-click reset uses an explicit home or the first value seen per ResetScope+label (module map), so page switches never move it; MIDI events are ignored.
 - DevicePanel owns frames; PixelScreen owns headers/controls. Drum headers temporarily replace the name with width-fitted knob values so six tabs cannot hide feedback. Phones stack; VIS stays unmounted.
 - Desktop Memory uses a state-preserving Sets/Patches switch inside one frame; mobile keeps separate utilities. Panel header actions reserve measured pixel width before tabs, so Reset never overlaps pages.
 - Hardware knobs (src/components/HwKnob.tsx) expose data-midi-value and accept a 'midivalue' CustomEvent, so MIDI learn drives them without synthetic pointer drags.

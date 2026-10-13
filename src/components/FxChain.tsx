@@ -256,7 +256,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * 4, pi * 4 + 4).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k, f.type), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
-    fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
+    reset: k === "source" ? undefined : r[0], fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
   }));
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
