@@ -1,3 +1,4 @@
+import { setSustainProbe } from "@/lib/frameGate";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
@@ -334,6 +335,7 @@ export function useGroovebox() {
   const holds = useRef(new Map<number, Hold>());
   const timer = useRef<boolean>(false); // subscribed to the audio clock tick
   const pressed = useRef(new Set<number>());
+  useEffect(() => { setSustainProbe(() => pressed.current.size > 0); return () => setSustainProbe(() => false); }, []);
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
     const horizon = e.ctx.currentTime + 0.15, bpmNow = bpmRef.current;
