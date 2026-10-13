@@ -469,6 +469,13 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gb-heading-tools { display: inline-flex; align-items: center; gap: 8px; }
 .gb-heading-tools .arp-field { flex-direction: row; align-items: center; gap: 6px; }
 .gb-heading-tools .gb-mute { height: 24px; padding: 0 10px; }
+/* Top keys wrap within the chassis instead of stretching the phone viewport. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .instrument-workspace .workspace-heading { height: auto; min-height: 38px; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .instrument-workspace .workspace-heading .gb-heading-tools { display: flex; flex: 1 1 100%; min-width: 0; max-width: 100%; flex-wrap: wrap; gap: 4px; padding: 2px 0; }
+  .instrument-workspace .gb-heading-tools .gb-cycle { flex: 0 0 auto; min-height: 32px; white-space: nowrap; touch-action: manipulation; }
+  .instrument-workspace .workspace-index { display: none; }
+}
 .gb-layout { display: flex; flex-direction: column; gap: 8px; padding: 10px 18px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--patch-header) / .6); font-family: 'JetBrains Mono', monospace; }
 .gb-layout-presets, .gb-layout-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .gb-layout-presets .gb-mute { height: 26px; padding: 0 10px; }
