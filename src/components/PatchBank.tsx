@@ -10,7 +10,7 @@ const BTNS = ["SAVE", "OVR", "LOAD", "REN", "DUP", "DEL"] as const, BTNS2 = ["EX
 const ROWS = 4;
 
 // PATCH: per-pad sound + FX rack presets, as a 128x64 1-bit screen.
-export default function PatchBank({ getPatch, applyPatch }: { getPatch: () => Slot; applyPatch: (p: PatchSound) => void }) {
+export default function PatchBank({ getPatch, applyPatch, locked }: { getPatch: () => Slot; applyPatch: (p: PatchSound) => void; locked?: boolean }) {
   const [patches, setPatches] = useState(readPatches);
   const [sel, setSel] = useState(0), [top, setTop] = useState(0), [all, setAll] = useState(true);
   const [name, setName] = useState("PATCH"), [msg, setMsg] = useState(""), [confirm, setConfirm] = useState<"" | "OVR" | "DEL">("");
@@ -26,6 +26,7 @@ export default function PatchBank({ getPatch, applyPatch }: { getPatch: () => Sl
 
   const act = async (b: string) => {
     setMsg("");
+    if (locked && ["SAVE", "OVR", "REN", "DUP", "DEL", "IMP"].includes(b)) { setMsg("NADRISK LOCK"); return; }
     if (b === "SAVE") { const p = capturePatch(getPatch(), uniqueName(name.trim() || "PATCH", names())); if (store([...patches, p])) { setAll(true); select(patches.length); setName(p.name); setMsg("saved"); } return; }
     if (b === "IMP") { file.current?.click(); return; }
     if (b === "BANK") { if (!patches.length) return; download({ kind: "nad-patch-bank", v: 1, patches, samples: await pack(patches) }, "nadrisk-patch-bank.nadpatch.json"); setMsg("bank exported"); return; }

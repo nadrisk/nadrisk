@@ -20,3 +20,4 @@
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
 - Transient slices (src/audio/slices.ts) cache one onset curve per buffer; SLCE sensitivity only re-picks peaks, and sliced sampler pads are mono (chords become strum/arp slice sequences).
 - morph.flt~ moves both biquads with one LFO through detune and rebuilds the LFO source only on wave change or RTRG note triggers.
+- NADRISK malfunction mode is session-only and toggles pre-built, bypassed master stages in performance.ts (hard clipper, OTT before the limiter), so entering it never builds nodes mid-play.
