@@ -90,7 +90,7 @@ function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatPara
 }
 
 /** Targets a row can modulate: filter cutoff, pitch (for glides), and the params of each effect on that pad. */
-const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ...(slot.engine === "drum" || slot.engine === "poly" ? [] : [["pitch", "pitch"]]),
+const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ["time", "time"], ...(slot.engine === "drum" || slot.engine === "poly" ? [] : [["pitch", "pitch"]]),
   ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
 
 type View = "note" | "mod" | "vel" | "chance" | "roll";

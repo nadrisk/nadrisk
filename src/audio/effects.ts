@@ -555,8 +555,8 @@ export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
 // Only the targets that make an obvious difference per step are offered, so the MOD lane list stays short.
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["mix", "time"], metal: ["mix", "note"], eq: ["mid"], djfilter: ["sweep"], vibrato: ["depth"], tremolo: ["depth"], neurobox: ["reese", "growl", "squelch"], dyneq: ["gain"], morph: ["cutoff", "morph"] };
-export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [t === "ott" ? "depth" : "mix"];
-export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq" };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["send"], reverseDelay: ["mix"], saturation: ["drive"], acid: ["drive"], phaser: ["mix"], chorus: ["mix"], flanger: ["mix"], bitcrush: ["mix"], vibrato: ["depth"], tremolo: ["depth"], gate: ["mix"], morph: ["morph"], djfilter: ["sweep"], ott: ["depth"], metal: ["thresh"] };
+export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [];
+export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq", send: "send", drive: "drive", morph: "morph", sweep: "sweep", thresh: "thresh" };
 /** Maps a 0..1 lane value onto the param's real range. */
 export const modValue = (t: FxType, k: string, v: number) => { const r = (FX_DEFS[t].params as Record<string, Range>)[k]; return r ? r[1] + (r[2] - r[1]) * v : v; };
