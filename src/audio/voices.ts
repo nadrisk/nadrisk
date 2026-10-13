@@ -463,7 +463,7 @@ export function playPoly(ctx: BaseAudioContext, dest: AudioNode, p: PolyParams, 
     }
   });
   const v = finish(srcs, nodes, adsr(amp.gain, t, p.env, gate, vel * .25), amp);
-  const dets = srcs.filter((o): o is OscillatorNode => "detune" in o && "frequency" in o && o.detune.value !== 0 && Math.abs(o.detune.value) === p.detune);
+  const dets = srcs.filter((o): o is OscillatorNode => "detune" in o && "frequency" in o && (o as OscillatorNode).detune.value !== 0 && Math.abs((o as OscillatorNode).detune.value) === p.detune);
   v.update = q => { const n = ctx.currentTime, tc = .007;
     if (q.cutoff) { const c = 1200 * Math.log2(q.cutoff / p.cutoff); f1.detune.setTargetAtTime(c, n, tc); f2.detune.setTargetAtTime(c, n, tc); }
     if (q.res !== undefined) f1.Q.setTargetAtTime(q.res, n, tc);
