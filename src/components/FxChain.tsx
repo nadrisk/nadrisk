@@ -157,14 +157,23 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const mx = 3 + Math.round(Math.log(mf / 20) / Math.log(1000) * 121); d.line(mx, 42, mx, 44);
   } else if (type === "morph") {
     // Blended response of both filters (same math as the audio, magnitude only) plus the LFO sweep range dotted.
-    const T = ["LP", "HP", "BP", "NTCH"], cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a)), ta = Math.round(cl(pv(p, "typeA", 0), 0, 3)), tb = Math.round(cl(pv(p, "typeB", 2), 0, 3)), fc = cl(pv(p, "cutoff", 1200), 40, 16000), q = cl(pv(p, "res", 2), .5, 12), m = cl(pv(p, "morph", 0), 0, 1), dep = cl(pv(p, "depth", .4), 0, 1);
-    const mag = (t: number, r: number) => { const a = 1 - r * r, b = r / q, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
+    const T = ["LP", "HP", "BP", "NTCH"], MT = ["SCRM", "DECO", "FRAC", "VOID"], cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a)), ta = Math.round(cl(pv(p, "typeA", 0), 0, 3)), tb = Math.round(cl(pv(p, "typeB", 2), 0, 3)), fc = cl(pv(p, "cutoff", 1200), 40, 16000), q = cl(pv(p, "res", 2), .5, 12), m = cl(pv(p, "morph", 0), 0, 1), dep = cl(pv(p, "depth", .4), 0, 1), mu = cl(pv(p, "mutate", 0), 0, 1);
+    const mag = (t: number, r: number, qq = q) => { const a = 1 - r * r, b = r / qq, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
+    // Mutated twins drawn with the same character as the audio: SCRM jagged teeth on a hot peak, DECO scattered phase mist,
+    // FRAC a lattice of harmonic peaks, VOID stacked deep holes. MUT blends the clean curve into the twin.
+    const twin = (t: number, r: number, x: number) => t === 0 ? mag(0, r) * (1 + 2.5 * Math.exp(-((Math.log2(r)) ** 2) * 6)) * (r > .7 ? (x % 3 === 0 ? 1.8 : .7) : 1)
+      : t === 1 ? mag(1, r) * (r > .8 ? .5 + ((x * 37) % 11) / 8 : 1)
+      : t === 2 ? Math.max(...[1, 2.01, 3.03, 4.24].map(k => mag(2, r / k, q * 4))) * 1.4
+      : [.5, 1, 2].reduce((g, k) => g * mag(3, r / k, Math.min(4, q * .6)), 1);
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 0;
-    for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * mag(ta, r) + Math.sin(m * Math.PI / 2) * mag(tb, r), db = 20 * Math.log10(Math.max(1e-4, g));
-      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+    const one = (t: number, r: number, x: number) => (1 - mu) * mag(t, r) + mu * twin(t, r, x);
+    for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * one(ta, r, x) + Math.sin(m * Math.PI / 2) * one(tb, r, x), db = 20 * Math.log10(Math.max(1e-4, g));
+      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y;
+      if (mu > .3 && (ta === 1 || tb === 1) && (x * 13) % 7 === 0 && r > .8) d.dot(x, Math.max(21, y - 2 - ((x * 5) % 5))); }
     const cx = (f: number) => 3 + Math.round(Math.log(Math.max(20, Math.min(20000, f)) / 20) / Math.log(1000) * 121);
     if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44); }
-    d.text(`${T[ta]}>${T[tb]}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
+    const nm = (t: number) => mu >= .5 ? MT[t] : T[t];
+    d.text(`${nm(ta)}>${nm(tb)}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
   } else if (type === "djfilter") {
     const sw = pv(p, "sweep", 0), w = Math.round(Math.abs(sw) * 58);
     d.text("LP", 4, 25); d.text("HP", 117, 25); d.line(64, 30, 64, 42);
