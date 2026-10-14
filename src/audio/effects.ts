@@ -329,10 +329,13 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     input.connect(fb); fb.connect(cb).connect(gb); mb.connect(gb); gb.connect(sum); sum.connect(clip).connect(wet);
     lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
     const rectCurve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return .6 * x + .8 * Math.abs(x) - .4; });
-    type Twin = { t: number; ns: AudioNode[]; set: (fc: number, q: number, mu: number) => void };
+    type Twin = { t: number; ns: AudioNode[]; wg: GainNode; set: (fc: number, q: number, mu: number) => void };
+    // Each twin output passes through its own wrapper gain (wg) so type swaps fade instead of clicking.
     const mkTwin = (t: number, from: BiquadFilterNode, out: GainNode): Twin => {
       const ns: AudioNode[] = [], bq = (ty: BiquadFilterType) => { const b = ctx.createBiquadFilter(); b.type = ty; ns.push(b); lfoAmt.connect(b.detune); return b; };
       const g = () => { const n = ctx.createGain(); ns.push(n); return n; }, nyq = ctx.sampleRate * .45, cf = (f: number) => Math.max(20, Math.min(nyq, f));
+      const wg = g(); wg.gain.value = 0; wg.connect(out);
+      const done = (set: Twin["set"]): Twin => { set(wg.gain, 1); return { t, ns, wg, set }; };
       if (t === 0) { const pre = g(), pk = bq("peaking"), sh = ctx.createWaveShaper(), post = g(); ns.push(sh); sh.curve = satCurve(5); sh.oversample = eco ? "none" : "2x";
         from.connect(pk).connect(pre).connect(sh).connect(post).connect(out);
         return { t, ns, set: (fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); } };
