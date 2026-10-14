@@ -40,7 +40,7 @@ export const FX_DEFS = {
   gain: { label: "gain~", params: { level: [.55, 0, 1, 0.001] } },
   neurobox: { label: "neuro.box~", params: { reese: [0.35, 0, 1, 0.01], growl: [0.4, 0, 1, 0.01], squelch: [0.3, 0, 1, 0.01], disp: [0.25, 0, 1, 0.01] } },
   dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], q: [1.5, 0.3, 8, 0.1], gain: [6, 0, 15, 0.5], threshold: [-30, -60, 0, 1], dir: [0, 0, 1, 1], attack: [0.005, 0.001, 0.1, 0.001], release: [0.12, 0.02, 1, 0.01] } },
-  morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], depth: [0.4, 0, 1, 0.01], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
+  morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], mutate: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], depth: [0.4, 0, 1, 0.01], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -318,12 +318,39 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Morph filter: two parallel biquads (LP/HP/BP/NOTCH each) crossfaded equal-power by MRPH. One LFO
     // (sine/tri/saw/square or stepped S&H, low-passed by SMTH) moves both cutoffs via detune (DPTH = up to +/-3 oct).
     // Per-type makeup and a resonance-scaled trim keep the level steady; a gentle tanh catches resonant peaks.
+    // MUT crossfades each filter into its mutated twin: LP>SCRM (driven resonant scream), HP>DECO (allpass phase
+    // smear), BP>FRAC (harmonic band lattice), NTCH>VOID (stacked notches + rectified sub-octave). Twins rebuild only on type change.
     const TYPES: BiquadFilterType[] = ["lowpass", "highpass", "bandpass", "notch"];
     const fa = ctx.createBiquadFilter(), fb = ctx.createBiquadFilter(), ga = ctx.createGain(), gb = ctx.createGain(), sum = ctx.createGain(), clip = ctx.createWaveShaper();
+    const ca = ctx.createGain(), cb = ctx.createGain(), ma = ctx.createGain(), mb = ctx.createGain(); ma.gain.value = mb.gain.value = 0;
     const lfoSmooth = ctx.createBiquadFilter(), lfoAmt = ctx.createGain(); lfoSmooth.type = "lowpass"; lfoAmt.gain.value = 0; clip.curve = satCurve(1.3);
-    nodes.push(fa, fb, ga, gb, sum, clip, lfoSmooth, lfoAmt);
-    input.connect(fa).connect(ga).connect(sum); input.connect(fb).connect(gb).connect(sum); sum.connect(clip).connect(wet);
+    nodes.push(fa, fb, ga, gb, sum, clip, lfoSmooth, lfoAmt, ca, cb, ma, mb);
+    input.connect(fa); fa.connect(ca).connect(ga); ma.connect(ga); ga.connect(sum);
+    input.connect(fb); fb.connect(cb).connect(gb); mb.connect(gb); gb.connect(sum); sum.connect(clip).connect(wet);
     lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
+    const rectCurve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return .6 * x + .8 * Math.abs(x) - .4; });
+    type Twin = { t: number; ns: AudioNode[]; set: (fc: number, q: number, mu: number) => void };
+    const mkTwin = (t: number, from: BiquadFilterNode, out: GainNode): Twin => {
+      const ns: AudioNode[] = [], bq = (ty: BiquadFilterType) => { const b = ctx.createBiquadFilter(); b.type = ty; ns.push(b); lfoAmt.connect(b.detune); return b; };
+      const g = () => { const n = ctx.createGain(); ns.push(n); return n; }, nyq = ctx.sampleRate * .45, cf = (f: number) => Math.max(20, Math.min(nyq, f));
+      if (t === 0) { const pre = g(), pk = bq("peaking"), sh = ctx.createWaveShaper(), post = g(); ns.push(sh); sh.curve = satCurve(5); sh.oversample = eco ? "none" : "2x";
+        from.connect(pk).connect(pre).connect(sh).connect(post).connect(out);
+        return { t, ns, set: (fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); } };
+      }
+      if (t === 1) { const aps = [1, 1.6, 2.5, 3.9].map(() => bq("allpass")), post = g(); let n: AudioNode = from; aps.forEach(a => { n.connect(a); n = a; }); n.connect(post).connect(out);
+        return { t, ns, set: (fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); } };
+      }
+      if (t === 2) { const R = [1, 2.01, 3.03, 4.24], bs = R.map(() => bq("bandpass")), post = g(); bs.forEach(b => { from.connect(b); b.connect(post); }); post.connect(out);
+        return { t, ns, set: (fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); } };
+      }
+      const R = [.5, 1, 2], nt = R.map(() => bq("notch")), sh = ctx.createWaveShaper(), dc = bq("highpass"), post = g(); ns.push(sh); sh.curve = rectCurve; dc.frequency.value = 25;
+      let n: AudioNode = from; nt.forEach(a => { n.connect(a); n = a; }); n.connect(sh).connect(dc).connect(post).connect(out);
+      return { t, ns, set: (fc, q) => { nt.forEach((a, i) => { set(a.frequency, cf(fc * R[i])); set(a.Q, Math.min(4, q * .6)); }); set(post.gain, .9); } };
+    };
+    let twA: Twin | null = null, twB: Twin | null = null;
+    const twin = (cur: Twin | null, t: number, from: BiquadFilterNode, out: GainNode) => { if (cur && cur.t === t) return cur;
+      if (cur) { try { from.disconnect(cur.ns[0]); } catch { /* gone */ } cur.ns.forEach(n => { try { n.disconnect(); } catch { /* gone */ } }); }
+      const tw = mkTwin(t, from, out); nodes.push(...tw.ns); return tw; };
     // S&H: 16 random steps of 64 samples, looped; playbackRate sets the step rate.
     const shBuf = ctx.createBuffer(1, 1024, ctx.sampleRate); { const d = shBuf.getChannelData(0); for (let i = 0; i < 16; i++) d.fill(Math.random() * 2 - 1, i * 64, i * 64 + 64); }
     let src: OscillatorNode | AudioBufferSourceNode | null = null, builtAt = -1, wave = -1, last: Record<string, number> = {};
@@ -338,10 +365,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       if (src && "frequency" in src) src.frequency.setValueAtTime(hz, at); else if (src && "playbackRate" in src) src.playbackRate.setValueAtTime(hz * 64 / ctx.sampleRate, at); };
     const makeup = (t: number, q: number) => { const base = [1, 1, 1.9, 1][t] ?? 1; return t === 2 ? Math.min(4, base * Math.sqrt(q) / 1.2) : base / (1 + Math.max(0, q - .7) * .14); };
     apply = p => {
-      last = p; const ta = Math.round(p.typeA ?? 0), tb = Math.round(p.typeB ?? 2), q = Math.max(.5, p.res ?? 2), m = Math.max(0, Math.min(1, p.morph ?? 0));
-      fa.type = TYPES[ta] ?? "lowpass"; fb.type = TYPES[tb] ?? "bandpass";
+      last = p; const ta = Math.max(0, Math.min(3, Math.round(p.typeA ?? 0))), tb = Math.max(0, Math.min(3, Math.round(p.typeB ?? 2))), q = Math.max(.5, p.res ?? 2), m = Math.max(0, Math.min(1, p.morph ?? 0));
+      const mu = Math.max(0, Math.min(1, Number.isFinite(p.mutate) ? p.mutate : 0));
+      fa.type = TYPES[ta]; fb.type = TYPES[tb];
       const nyq = ctx.sampleRate * .45, fc = Math.max(40, Math.min(nyq, Number.isFinite(p.cutoff) ? p.cutoff : 1200));
       [fa, fb].forEach(f => { set(f.frequency, fc); set(f.Q, f.type === "notch" ? Math.min(q, 4) : q); });
+      twA = twin(twA, ta, fa, ma); twB = twin(twB, tb, fb, mb); twA.set(fc, q, mu); twB.set(fc, q, mu);
+      const cm = Math.cos(mu * Math.PI / 2), sm = Math.sin(mu * Math.PI / 2);
+      set(ca.gain, cm); set(cb.gain, cm); set(ma.gain, sm); set(mb.gain, sm);
       set(ga.gain, Math.cos(m * Math.PI / 2) * makeup(ta, q)); set(gb.gain, Math.sin(m * Math.PI / 2) * makeup(tb, q));
       const dep = Math.max(0, Math.min(1, p.depth ?? 0)), up = Math.max(0, 1200 * Math.log2(nyq / fc)), down = Math.max(0, 1200 * Math.log2(fc / 30));
       set(lfoAmt.gain, Math.min(dep * 3600, up, down));
@@ -558,8 +589,8 @@ export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
 // Only the targets that make an obvious difference per step are offered, so the MOD lane list stays short.
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["send"], reverseDelay: ["mix"], saturation: ["drive"], acid: ["drive"], phaser: ["mix"], chorus: ["mix"], flanger: ["mix"], bitcrush: ["mix"], vibrato: ["depth"], tremolo: ["depth"], gate: ["mix"], morph: ["morph"], djfilter: ["sweep"], ott: ["depth"], metal: ["thresh"] };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["send"], reverseDelay: ["mix"], saturation: ["drive"], acid: ["drive"], phaser: ["mix"], chorus: ["mix"], flanger: ["mix"], bitcrush: ["mix"], vibrato: ["depth"], tremolo: ["depth"], gate: ["mix"], morph: ["morph", "mutate"], djfilter: ["sweep"], ott: ["depth"], metal: ["thresh"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [];
-export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq", send: "send", drive: "drive", morph: "morph", sweep: "sweep", thresh: "thresh" };
+export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq", send: "send", drive: "drive", morph: "morph", mutate: "mutate", sweep: "sweep", thresh: "thresh" };
 /** Maps a 0..1 lane value onto the param's real range. */
 export const modValue = (t: FxType, k: string, v: number) => { const r = (FX_DEFS[t].params as Record<string, Range>)[k]; return r ? r[1] + (r[2] - r[1]) * v : v; };
