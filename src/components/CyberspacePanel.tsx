@@ -46,16 +46,18 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return base;
     }
     if (page === "FLT") return [
-      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: hz, set: cutoff => S({ cutoff }) },
+      { label: "Cutoff", short: "CUT", value: s.cutoff, min: 40, max: 16000, step: 1, log: true, fmt: v => v >= 9950 ? `${Math.round(v / 1000)}K` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`, set: cutoff => S({ cutoff }) },
       { label: "Resonance", short: "RES", value: s.res, min: .1, max: 20, step: .1, fmt: v => v.toFixed(1), set: res => S({ res }) },
       // FENV is 0-100% of a 4-octave sweep; FDEC was removed because the FLT ADSR owns the envelope shape.
       { label: "Filter env", short: "FENV", value: Math.max(0, s.filterEnv) / 4, min: 0, max: 1, step: .01, fmt: pct, set: v => S({ filterEnv: v * 4 }) },
+      // EFM: filter envelope drives FM amount on its own, independent of the cutoff depth.
+      { label: "Filter env to FM", short: "EFM", value: s.fenvFm ?? 0, min: 0, max: 1, step: .01, reset: 0, fmt: pct, set: fenvFm => S({ fenvFm }) },
+      { label: "Dry / wet", short: "WET", value: s.wet, min: 0, max: 1, step: .01, fmt: pct, set: wet => S({ wet }) },
     ];
     if (page === "LFO") return lfoPage === "SHP" ? [
       { label: "LFO rate", short: "RATE", value: s.lfo.rate, min: .05, max: 20, step: .05, fmt: v => `${v.toFixed(1)}HZ`, set: rate => S({ lfo: { ...s.lfo, rate } }) },
       { label: "LFO attack", short: "ATK", value: s.lfo.attack ?? 0, min: 0, max: 4, step: .01, fmt: ms, set: attack => S({ lfo: { ...s.lfo, attack } }) },
       { label: "LFO to volume", short: "VOL", value: ld.amp, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("amp", v) },
-      { label: "Dry / wet", short: "WET", value: s.wet, min: 0, max: 1, step: .01, fmt: pct, set: wet => S({ wet }) },
     ] : [
       { label: "LFO to pitch", short: "PIT", value: ld.pitch, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("pitch", v) },
       { label: "LFO to cutoff", short: "CUT", value: ld.cutoff, min: 0, max: 1, step: .01, fmt: pct, set: v => setDest("cutoff", v) },
