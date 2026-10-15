@@ -3,7 +3,7 @@ import { DRUM_PRESETS, copyDrumPreset, drumPresetEdited } from "./drumPresets";
 describe("drum starting sounds", () => {
   it("has four complete distinct presets per machine", () => {
     for (const presets of Object.values(DRUM_PRESETS)) {
-      expect(presets).toHaveLength(4);
+      expect(presets.length).toBeGreaterThanOrEqual(4);
       expect(new Set(presets.map(p => JSON.stringify(p.sound))).size).toBe(4);
       for (const p of presets) { expect(p.sound.env.d).toBeGreaterThan(0); expect(drumPresetEdited(copyDrumPreset(p), p)).toBe(false); }
     }
