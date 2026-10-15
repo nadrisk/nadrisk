@@ -1022,3 +1022,5 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-row { position: relative; }
 .gb-row-label.rnd-x { color: hsl(var(--muted-foreground)); text-decoration: line-through; }
 .gb-row-label.rnd-s { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.gb-row-label.gb-rnd-mode { font: inherit; padding: 0; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); color: hsl(var(--muted-foreground)); border-radius: 0; }
+.gb-row-label.gb-rnd-mode.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
