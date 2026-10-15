@@ -41,28 +41,37 @@ function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () =
     </div>, document.body);
 }
 
+// Pad copy/paste clipboard: one pad's whole sound (instrument, mode, sound, note/chord, EQ, FX rack).
+let padClip: Partial<Slot> | null = null;
+const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "chord", "eq", "fx"] as const;
 export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
   const [renaming, setRenaming] = useState(false);
+  const [clip, setClip] = useState(0);
+  const copy = () => { padClip = structuredClone(Object.fromEntries(PAD_SOUND.map(k => [k, slot[k]]))) as Partial<Slot>; setClip(c => c + 1); };
+  const paste = () => { if (padClip) onChange(structuredClone(padClip)); };
   const knobs: Knob[] = slot.engine === "sampler" ? [] : [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
   ];
   return <>
-    <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan]} knobs={() => knobs}
+    <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan, clip]} knobs={() => knobs}
     body={p => {
       ENG.forEach(([e, s], i) => key(p, s, 1 + i * 21, 11, 21, slot.engine === e));
       p.box(1, 22, 62, 9);
       p.text(name.trimEnd() || "—", 4, 24);
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
       key(p, slot.choke ? `CHK${slot.choke}` : "CHK-", 96, 22, 31, slot.choke > 0);
-      if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 36);
+      key(p, "COPY", 1, 32, 62, false); key(p, padClip ? "PASTE" : "PASTE -", 64, 32, 63, false);
+      if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 46);
     }}
     extra={() => <>
       {ENG.map(([e], i) => <Tap key={e} x={1 + i * 21} y={11} w={21} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e === "sampler" && slot.engine !== "sampler" ? { note: 60 } : {}) })} />)}
       <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
       <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
+      <Tap x={1} y={32} w={62} h={8} label="Copy pad sound" onClick={copy} />
+      <Tap x={64} y={32} w={63} h={8} label="Paste pad sound" disabled={!padClip} onClick={paste} />
     </>} />
     {renaming && <RenameDialog value={slot.name} onClose={() => setRenaming(false)} onSave={n => onChange({ name: n })} />}
   </>;

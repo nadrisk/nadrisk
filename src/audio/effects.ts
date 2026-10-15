@@ -24,7 +24,7 @@ export const FX_DEFS = {
   chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], lofi: [0, 0, 1, 1] } },
+  vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], lofi: [0, 0, 1, 1], bump: [0.5, 0, 1, 0.01], oxide: [0.4, 0, 1, 0.01] } },
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], shape: [0, 0, 1, 0.01] } },
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
   compressor: { label: "compress~", params: { threshold: [-24, -60, 0, 0.5], ratio: [4, 1, 20, 0.1], attack: [0.01, 0.001, 0.5, 0.001], release: [0.2, 0.02, 1, 0.01], makeup: [6, 0, 24, 0.5], mix: [1, 0, 1, 0.01] } },
@@ -40,7 +40,7 @@ export const FX_DEFS = {
   gain: { label: "gain~", params: { level: [.55, 0, 1, 0.001] } },
   neurobox: { label: "neuro.box~", params: { reese: [0.35, 0, 1, 0.01], growl: [0.4, 0, 1, 0.01], squelch: [0.3, 0, 1, 0.01], disp: [0.25, 0, 1, 0.01] } },
   dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], q: [1.5, 0.3, 8, 0.1], gain: [6, 0, 15, 0.5], threshold: [-30, -60, 0, 1], dir: [0, 0, 1, 1], attack: [0.005, 0.001, 0.1, 0.001], release: [0.12, 0.02, 1, 0.01] } },
-  morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], mutate: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], depth: [0.4, 0, 1, 0.01], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
+  morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], oppose: [0, 0, 1, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], mutate: [0, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], depth: [0.4, 0, 1, 0.01], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -327,12 +327,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     nodes.push(fa, fb, ga, gb, sum, clip, lfoSmooth, lfoAmt, ca, cb, ma, mb);
     input.connect(fa); fa.connect(ca).connect(ga); ma.connect(ga); ga.connect(sum);
     input.connect(fb); fb.connect(cb).connect(gb); mb.connect(gb); gb.connect(sum); sum.connect(clip).connect(wet);
-    lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
+    // OPPOSE flips filter B's modulation so the two cutoffs sweep in opposite directions through each other.
+    const lfoB = ctx.createGain(); nodes.push(lfoB);
+    lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(lfoB); lfoB.connect(fb.detune);
     const rectCurve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return .6 * x + .8 * (Math.abs(x) - .5 * x * x); });
     type Twin = { t: number; ns: AudioNode[]; wg: GainNode; set: (fc: number, q: number, mu: number) => void };
     // Each twin output passes through its own wrapper gain (wg) so type swaps fade instead of clicking.
     const mkTwin = (t: number, from: BiquadFilterNode, out: GainNode): Twin => {
-      const ns: AudioNode[] = [], bq = (ty: BiquadFilterType) => { const b = ctx.createBiquadFilter(); b.type = ty; ns.push(b); lfoAmt.connect(b.detune); return b; };
+      const ns: AudioNode[] = [], bq = (ty: BiquadFilterType) => { const b = ctx.createBiquadFilter(); b.type = ty; ns.push(b); (from === fb ? lfoB : lfoAmt).connect(b.detune); return b; };
       const g = () => { const n = ctx.createGain(); ns.push(n); return n; }, nyq = ctx.sampleRate * .45, cf = (f: number) => Math.max(20, Math.min(nyq, f));
       const wg = g(); wg.gain.value = 0; wg.connect(out);
       const done = (fn: Twin["set"]): Twin => { set(wg.gain, 1); return { t, ns, wg, set: fn }; };
@@ -378,7 +380,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       set(ca.gain, cm); set(cb.gain, cm); set(ma.gain, sm); set(mb.gain, sm);
       set(ga.gain, Math.cos(m * Math.PI / 2) * makeup(ta, q)); set(gb.gain, Math.sin(m * Math.PI / 2) * makeup(tb, q));
       const dep = Math.max(0, Math.min(1, p.depth ?? 0)), up = Math.max(0, 1200 * Math.log2(nyq / fc)), down = Math.max(0, 1200 * Math.log2(fc / 30));
-      set(lfoAmt.gain, Math.min(dep * 3600, up, down));
+      set(lfoAmt.gain, Math.min(dep * 3600, up, down)); set(lfoB.gain, (p.oppose ?? 0) >= .5 ? -1 : 1);
       const hz = Math.max(.01, rateOf(p)); set(lfoSmooth.frequency, Math.max(hz * 3, 2 + 400 * (1 - (p.smooth ?? 0)) ** 2));
       const w = Math.max(0, Math.min(4, Math.round(p.wave ?? 0))); if (w !== wave) { wave = w; build(ctx.currentTime); } else setRate(ctx.currentTime);
     };
@@ -531,14 +533,20 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Six true first-order allpass stages create three moving cancellation notches when summed with dry.
     const n = worklet("nad-phaser"); input.connect(n).connect(wet); apply = p => wp(n, { ...p, rate: rateOf(p) }, ["rate", "depth", "manual", "feedback", "env"]);
   } else if (type === "vibrato") {
-    // LOFI = cassette warble (ChowTape-style): slow wow + random flutter on the delay time, tape tone roll-off and soft saturation.
-    const d = ctx.createDelay(0.05), m = lfo(), wow = lfo(), lp = ctx.createBiquadFilter(), sh = ctx.createWaveShaper(); nodes.push(d, lp, sh); d.delayTime.value = 0.012;
-    const flutter = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), fg = ctx.createGain(); fg.gain.value = 0; fl.type = "lowpass"; fl.frequency.value = 9;
+    // MODE (lofi key): VIB = clean pitch vibrato. TAPE = cassette: slow motor wow (~0.8 Hz) + scrape flutter (~10 Hz sine + filtered
+    // noise) on the delay time, slow L/R azimuth drift, a 75 Hz head-bump peak (BUMP) and oxide softening: tone roll-off + saturation (OXIDE).
+    const d = ctx.createDelay(0.05), m = lfo(), wow = lfo(), fl10 = lfo(), az = lfo(), lp = ctx.createBiquadFilter(), sh = ctx.createWaveShaper(), bump = ctx.createBiquadFilter(), pan = ctx.createStereoPanner(), drv = ctx.createGain();
+    nodes.push(d, lp, sh, bump, pan, drv); d.delayTime.value = 0.012; bump.type = "peaking"; bump.frequency.value = 75; bump.Q.value = 1.1; bump.gain.value = 0;
+    const flutter = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), fg = ctx.createGain(); fg.gain.value = 0; fl.type = "lowpass"; fl.frequency.value = 12;
     const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), nd = nb.getChannelData(0); for (let k = 0; k < nd.length; k++) nd[k] = Math.random() * 2 - 1;
     flutter.buffer = nb; flutter.loop = true; flutter.connect(fl).connect(fg).connect(d.delayTime); flutter.start(); oscs.push(flutter as unknown as OscillatorNode); nodes.push(flutter, fl, fg);
-    sh.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh((i / 511.5 - 1) * 1.6) / Math.tanh(1.6)); lp.type = "lowpass";
-    input.connect(d).connect(lp).connect(sh).connect(wet); m.g.connect(d.delayTime); wow.g.connect(d.delayTime); wow.o.frequency.value = .6;
-    apply = p => { const lo = (p.lofi ?? 0) >= .5; set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * (lo ? 0.0015 : 0.005)); set(wow.g.gain, lo ? p.depth * .004 : 0); set(fg.gain, lo ? p.depth * .02 : 0); set(lp.frequency, lo ? 6500 : 20000); };
+    let oxKey = -1; lp.type = "lowpass";
+    input.connect(d).connect(bump).connect(lp).connect(drv).connect(sh).connect(pan).connect(wet); m.g.connect(d.delayTime); wow.g.connect(d.delayTime); fl10.g.connect(d.delayTime); az.g.connect(pan.pan);
+    wow.o.frequency.value = .8; fl10.o.frequency.value = 10; az.o.frequency.value = .13;
+    apply = p => { const lo = (p.lofi ?? 0) >= .5, dep = p.depth ?? .4, ox = Math.max(0, Math.min(1, p.oxide ?? .4)), bu = Math.max(0, Math.min(1, p.bump ?? .5));
+      const ok = lo ? Math.round(ox * 20) : -1; if (ok !== oxKey) { oxKey = ok; const k = lo ? 1 + ox * 2.5 : 1e-3; sh.curve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return lo ? Math.tanh(x * k) / Math.tanh(k) : x; }); }
+      set(m.o.frequency, rateOf(p)); set(m.g.gain, dep * (lo ? 0.0012 : 0.005)); set(wow.g.gain, lo ? dep * .0035 : 0); set(fl10.g.gain, lo ? dep * .00012 : 0); set(fg.gain, lo ? dep * .015 : 0);
+      set(az.g.gain, lo ? dep * .25 : 0); set(bump.gain, lo ? bu * 7 : 0); set(lp.frequency, lo ? 14000 - ox * 10000 : 20000); set(drv.gain, lo ? 1 + ox * .6 : 1); };
   } else if (type === "tremolo") {
     // SHAPE morphs the LFO: 0 sine -> .5 triangle -> 1 near-square chop. The gain swings between 1 and 1-DEPTH.
     const vca = ctx.createGain(), m = lfo(), sh = ctx.createWaveShaper(); nodes.push(vca, sh); m.o.disconnect(); m.o.connect(sh).connect(m.g);

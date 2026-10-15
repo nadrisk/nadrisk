@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 /** Computer-keyboard pads: 1-8 = pads 1-8, Q-I = pads 9-16; Shift+key mutes, Alt+key solos; Z X C V pick patterns A-D. */
 export const QWERTY_PADS = ["1", "2", "3", "4", "5", "6", "7", "8", "q", "w", "e", "r", "t", "y", "u", "i"];
 const BANK_KEYS = ["z", "x", "c", "v"];
-type Act = { hit: (i: number) => void; release: (i: number) => void; mute: (i: number) => void; solo: (i: number) => void; bank: (b: number) => void; pads: number };
+type Act = { hit: (i: number) => void; release: (i: number) => void; mute: (i: number) => void; solo: (i: number) => void; bank: (b: number) => void; play?: () => void; pads: number };
 
 export function useQwerty(on: boolean, act: Act) {
   const a = useRef(act); a.current = act;
@@ -15,6 +15,7 @@ export function useQwerty(on: boolean, act: Act) {
     const typing = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; return !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); };
     const down = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey) return;
+      if (e.code === "Space" && a.current.play) { e.preventDefault(); if (!e.repeat) a.current.play(); return; }
       const k = keyOf(e), pad = QWERTY_PADS.indexOf(k), bank = BANK_KEYS.indexOf(k);
       if (pad >= 0 && pad < a.current.pads) {
         e.preventDefault(); if (e.repeat) return;

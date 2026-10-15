@@ -36,7 +36,7 @@ type HeaderAction = { text: string; label: string; pressed?: boolean; onClick: (
 type KnobAction = HeaderAction & { knobLabel: string };
 // Shared reference for drawn knobs, their hit containers and keys above them.
 export function knobLayout(knobs: Knob[]) {
-  return knobs.map((k, i) => ({ knob: k, x: knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : KX[i] }));
+  return knobs.map((k, i) => ({ knob: k, x: knobs.length < 4 ? 64 - (knobs.length - 1) * 16 + i * 32 : knobs.length === 5 ? 13 + i * 25.5 : KX[i] }));
 }
 const KNOB_ACTION_TOP = 39, KNOB_ACTION_HEIGHT = 7;
 export function drawHeader(p: Px, name: string, readout: string, pages: readonly string[], page: string, compactReadout = false, action?: HeaderAction) {

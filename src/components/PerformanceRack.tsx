@@ -144,7 +144,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
     : page === "SEQ" ? <>
       {LOOPS.map((n, i) => <Tap key={n} x={2 + i * 25} y={11} w={24} h={9} label={n ? `Loop first ${n} steps` : "Loop full"} pressed={v.loop === n} onClick={() => set({ loop: n })} />)}
       {DIVS.map(([d, s], i) => <Tap key={s} x={2 + i * 31} y={22} w={30} h={9} label={`Repeat length ${s}`} pressed={v.division === d} onClick={() => set({ division: d })} />)}
-      <Zone x={8} y={32} w={112} h={8} horizontal label="Offset strip" value={v.offset} min={-8} max={8} step={1} onChange={offset => set({ offset })} />
+      {Array.from({ length: 16 }, (_, i) => <Tap key={`o${i}`} x={8 + i * 7} y={32} w={7} h={8} label={`Offset start step ${i + 1}`} pressed={((v.offset % 16) + 16) % 16 === i} onClick={() => set({ offset: i > 8 ? i - 16 : i })} />)}
     </> : page === "HLD" ? <>
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
