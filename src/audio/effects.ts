@@ -258,7 +258,7 @@ const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
 function warmCurve(k: number) { const c = new Float32Array(2048), norm = (v: number) => { const z = Math.max(-1, Math.min(1, v)); return z - z * z * z / 3; }, top = norm(k * .5) || 1;
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * k * .5; c[i] = (norm(x) + .06 * norm(x) * Math.abs(norm(x)) - .0) / (top * 1.06); } return c; }
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
-// Big Muff clipping stage: gain into a diode pair (soft knee, BIAS makes it asymmetric); cached per gain/bias step.
+// Asymmetric op-amp/diode clip stage: gain into a diode pair (soft knee, BIAS makes it asymmetric); cached per gain/bias step.
 const muffCache = new Map<string, Float32Array<ArrayBuffer>>();
 function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) / 2, b = Math.round(bias * 20) / 20, k = `${g}:${b}`; let c = muffCache.get(k); if (c) return c;
   c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
