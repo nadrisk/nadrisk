@@ -343,16 +343,16 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       if (t === 1) { const aps = [1, 1.6, 2.5, 3.9].map(() => bq("allpass")), post = g(); let n: AudioNode = from; aps.forEach(a => { n.connect(a); n = a; }); n.connect(post).connect(wg);
         return done((fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); } };
       }
-      if (t === 2) { const R = [1, 2.01, 3.03, 4.24], bs = R.map(() => bq("bandpass")), post = g(); bs.forEach(b => { from.connect(b); b.connect(post); }); post.connect(out);
-        return { t, ns, set: (fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); } };
+      if (t === 2) { const R = [1, 2.01, 3.03, 4.24], bs = R.map(() => bq("bandpass")), post = g(); bs.forEach(b => { from.connect(b); b.connect(post); }); post.connect(wg);
+        return done((fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); } };
       }
       const R = [.5, 1, 2], nt = R.map(() => bq("notch")), sh = ctx.createWaveShaper(), dc = bq("highpass"), post = g(); ns.push(sh); sh.curve = rectCurve; dc.frequency.value = 25;
-      let n: AudioNode = from; nt.forEach(a => { n.connect(a); n = a; }); n.connect(sh).connect(dc).connect(post).connect(out);
-      return { t, ns, set: (fc, q) => { nt.forEach((a, i) => { set(a.frequency, cf(fc * R[i])); set(a.Q, Math.min(4, q * .6)); }); set(post.gain, .9); } };
+      let n: AudioNode = from; nt.forEach(a => { n.connect(a); n = a; }); n.connect(sh).connect(dc).connect(post).connect(wg);
+      return done((fc, q) => { nt.forEach((a, i) => { set(a.frequency, cf(fc * R[i])); set(a.Q, Math.min(4, q * .6)); }); set(post.gain, .9); } };
     };
     let twA: Twin | null = null, twB: Twin | null = null;
     const twin = (cur: Twin | null, t: number, from: BiquadFilterNode, out: GainNode) => { if (cur && cur.t === t) return cur;
-      if (cur) { try { from.disconnect(cur.ns[0]); } catch { /* gone */ } cur.ns.forEach(n => { try { n.disconnect(); } catch { /* gone */ } }); }
+      if (cur) { const old = cur; set(old.wg.gain, 0); setTimeout(() => { try { from.disconnect(old.ns[0]); } catch { /* gone */ } old.ns.forEach(n => { try { n.disconnect(); } catch { /* gone */ } }); }, 120); }
       const tw = mkTwin(t, from, out); nodes.push(...tw.ns); return tw; };
     // S&H: 16 random steps of 64 samples, looped; playbackRate sets the step rate.
     const shBuf = ctx.createBuffer(1, 1024, ctx.sampleRate); { const d = shBuf.getChannelData(0); for (let i = 0; i < 16; i++) d.fill(Math.random() * 2 - 1, i * 64, i * 64 + 64); }
