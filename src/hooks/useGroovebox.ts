@@ -357,7 +357,7 @@ export function useGroovebox() {
   const stepCur = useRef({ pad: -1, col: 0, t: 0 });
   useEffect(() => { stepCur.current = { pad: -1, col: 0, t: 0 }; }, [rec]);
   const stepRecord = useCallback((i: number, v: number, semi: number) => {
-    const c = stepCur.current, now = performance.now(); if (now - c.t < 60 && c.pad === i) return;
+    const c = stepCur.current, now = window.performance.now(); if (now - c.t < 60 && c.pad === i) return;
     if (c.pad !== i) { c.pad = i; c.col = 0; }
     const len = banksRef.current[bankRef.current].lengths[i] || 16; writeStep(i, c.col % len, v, semi); c.col = (c.col + 1) % len; c.t = now;
   }, [writeStep]);
