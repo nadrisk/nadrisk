@@ -1011,11 +1011,10 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 @keyframes nad-shake { 0% { transform: translate(2px, -1px); } 50% { transform: translate(-2px, 1px); } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .instrument-workspace[data-lcd="nadrisk"] .px-panel canvas, .instrument-workspace[data-lcd="nadrisk"] .workspace-heading, .nad-shake { animation: none; } }
 
-/* ACID easter egg (type "acid"; again or Esc to exit): visual-only hue cycle with a mandala overlay on pads and screens. */
+/* ACID easter egg (type "acid"; again or Esc to exit): visual-only hue cycle, slow melt wobble and a full-device RGB mandala overlay. */
 @keyframes acid-hue { from { filter: hue-rotate(0deg) saturate(1.6); } to { filter: hue-rotate(360deg) saturate(1.6); } }
-@keyframes acid-spin { to { transform: rotate(360deg); } }
-.instrument-workspace.acid-trip canvas, .instrument-workspace.acid-trip .gb-pad { animation: acid-hue 6s linear infinite; }
-.instrument-workspace.acid-trip .gb-pad { position: relative; overflow: hidden; }
-.instrument-workspace.acid-trip .gb-pad::after { content: ""; position: absolute; inset: -50%; pointer-events: none; mix-blend-mode: screen; opacity: .45;
-  background: repeating-conic-gradient(from 0deg, hsl(300 100% 50%) 0 15deg, hsl(180 100% 50%) 15deg 30deg, hsl(60 100% 50%) 30deg 45deg); animation: acid-spin 9s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .instrument-workspace.acid-trip canvas, .instrument-workspace.acid-trip .gb-pad, .instrument-workspace.acid-trip .gb-pad::after { animation-duration: 40s; } }
+@keyframes acid-melt { 0%,100% { transform: skewY(0deg) scaleY(1); } 25% { transform: skewY(.6deg) scaleY(1.008); } 50% { transform: skewX(-.5deg) scaleY(.995); } 75% { transform: skewY(-.6deg) scaleY(1.01); } }
+.instrument-workspace.acid-trip { animation: acid-melt 7s ease-in-out infinite; transform-origin: 50% 0; }
+.instrument-workspace.acid-trip canvas:not(.acid-overlay), .instrument-workspace.acid-trip .gb-pad { animation: acid-hue 6s linear infinite; }
+.acid-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; mix-blend-mode: screen; opacity: .5; image-rendering: auto; }
+@media (prefers-reduced-motion: reduce) { .instrument-workspace.acid-trip, .instrument-workspace.acid-trip canvas, .instrument-workspace.acid-trip .gb-pad { animation-duration: 40s; } }
