@@ -51,5 +51,9 @@
 - [x] Siren/DUB joins 808, ACID, REESE, LASER mono tail cut
 - [x] acid.drive~ rebuilt as Da Funk drive + compressor (needs ear test)
 - [x] Live acid pedal, still LOFI cassette, live reverse arrows
-- [x] RND header mode replaces per-row ·/X/S keys (needs phone check)
+- [ ] Restore dedicated, aligned ·/X/S row keys and LEN header; verify phone/desktop RAND and editing flows
 - [ ] Factory patches (item 4 of earlier plan)
+
+## Destination labels and 303 pops (2026-10-15)
+- [ ] Destination-name instrument switches, preserving settings
+- [ ] Diagnose sequenced 303 pops with acid drive; targeted audio fix and regression checks

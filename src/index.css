@@ -1018,9 +1018,26 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace.acid-trip canvas:not(.acid-overlay), .instrument-workspace.acid-trip .gb-pad { animation: acid-hue 6s linear infinite; }
 .acid-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; mix-blend-mode: screen; opacity: .5; image-rendering: auto; }
 @media (prefers-reduced-motion: reduce) { .instrument-workspace.acid-trip, .instrument-workspace.acid-trip canvas, .instrument-workspace.acid-trip .gb-pad { animation-duration: 40s; } }
-/* RAND role key inside the row-name cell: · included, X excluded, S solo (RAND then touches only soloed rows). */
-.gb-row { position: relative; }
-.gb-row-label.rnd-x { color: hsl(var(--muted-foreground)); text-decoration: line-through; }
-.gb-row-label.rnd-s { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-.gb-row-label.gb-rnd-mode { font: inherit; padding: 0; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); color: hsl(var(--muted-foreground)); border-radius: 0; }
-.gb-row-label.gb-rnd-mode.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+/* RAND controls occupy a dedicated sticky column; all views share the same leading tracks. */
+.instrument-workspace .gb-seq-grid { --seq-name: 46px; --seq-rnd: 30px; --seq-length: 26px; --seq-value: 42px; --seq-gap: 3px; --seq-step: 24px; }
+.instrument-workspace .gb-row, .instrument-workspace .gb-desktop-view .gb-row {
+  grid-template-columns: var(--seq-name) var(--seq-rnd) var(--seq-length) var(--seq-value) repeat(16, minmax(var(--seq-step), 1fr));
+  gap: var(--seq-gap); width: max-content; min-width: 100%; position: relative;
+}
+.instrument-workspace .gb-row-label { width: var(--seq-name); background: hsl(var(--background)); z-index: 3; }
+.instrument-workspace .gb-row-head { min-height: 26px; }
+.instrument-workspace .gb-row-heading, .instrument-workspace .gb-rnd-heading { display: flex; align-items: center; font-size: 6px; }
+.instrument-workspace .gb-rnd-heading { justify-content: center; }
+.instrument-workspace .gb-rnd-key, .instrument-workspace .gb-rnd-heading {
+  position: sticky; left: calc(var(--seq-name) + var(--seq-gap)); z-index: 3;
+  width: var(--seq-rnd); height: 100%; min-height: 26px; padding: 0; border-radius: 0;
+  background: hsl(var(--background)); color: hsl(var(--foreground));
+}
+.instrument-workspace .gb-rnd-key { border: 1px solid hsl(var(--border)); font: 12px 'Silkscreen', monospace; }
+.instrument-workspace .gb-rnd-key.rnd-1 { color: hsl(var(--muted-foreground)); }
+.instrument-workspace .gb-rnd-key.rnd-2 { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.instrument-workspace .gb-row > :nth-child(3) { position: sticky; left: calc(var(--seq-name) + var(--seq-rnd) + 2 * var(--seq-gap)); z-index: 3; }
+@media (min-width: 901px) {
+  .instrument-workspace .gb-seq-grid { --seq-name: 58px; --seq-rnd: 32px; --seq-length: 30px; --seq-value: 50px; --seq-step: 28px; }
+  .instrument-workspace .gb-rnd-key { min-height: 32px; }
+}

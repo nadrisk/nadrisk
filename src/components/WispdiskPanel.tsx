@@ -117,7 +117,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices }: { slot: Slot; peaks
     if (page === "SMP") {
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
-      { const one = sm.mode === "one"; p.box(44, 11, 21, 7); if (one) p.invert(45, 12, 19, 5); p.text(one ? "ONE" : "ADSR", one ? 48 : 46, 12, !one); }
+      { const one = sm.mode === "one"; p.box(44, 11, 21, 7); if (one) p.invert(45, 12, 19, 5); p.text(one ? "ADSR" : "ONE", one ? 46 : 48, 12, !one); }
       p.box(96, 11, 30, 7); p.text(`SK ${NOTE_NAMES[sk]}`, 98, 12);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
     } else if (page === "ENV") {
@@ -166,7 +166,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices }: { slot: Slot; peaks
       {PAGES.map((pg, i) => <Tap key={pg} x={68 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />
-        <Tap x={44} y={10} w={21} h={9} label="Sampler one-shot or ADSR mode" pressed={sm.mode === "one"} onClick={() => M({ mode: sm.mode === "one" ? "adsr" : "one", warp: false, grain: false })} />
+        <Tap x={44} y={10} w={21} h={9} label={sm.mode === "one" ? "Switch sampler to ADSR" : "Switch sampler to ONE"} pressed={sm.mode === "one"} onClick={() => M({ mode: sm.mode === "one" ? "adsr" : "one", warp: false, grain: false })} />
         <Tap x={96} y={10} w={30} h={9} label="Sample key" onClick={() => { const n = (sk + 1) % 12; M({ sampleKey: n }); show(`SK ${NOTE_NAMES[n]}`); }} />
         <Tap x={21} y={10} w={21} h={9} label="Loop" pressed={sm.loop} onClick={() => M({ loop: !sm.loop, warp: false, grain: false })} />
       </>}

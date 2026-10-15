@@ -116,7 +116,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
   };
 
-  const modeKey = (p: import("@/pixel/draw").Px) => { p.box(96, 11, 30, 10); if (spec) p.invert(97, 12, 28, 8); p.textC(spec ? "SPEC" : "ADD", 111, 13, !spec); };
+  const modeKey = (p: import("@/pixel/draw").Px) => { p.box(96, 11, 30, 10); if (spec) p.invert(97, 12, 28, 8); p.textC(spec ? "ADD" : "SPEC", 111, 13, !spec); };
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "BND" || page === "SPC") {
       modeKey(p); p.text(page === "BND" ? "BANDS" : `GATE ${Math.round(sp.gate * 100)}`, 3, 13);
@@ -143,7 +143,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
         });
       }
       p.text(`${wname} >`, 28, 15);
-      if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "FM" : "MIX", 79, 13, s.osc2.mode !== "fm"); }
+      if (k === "osc2") { p.box(74, 12, 25, 7); if (s.osc2.mode === "fm") p.invert(75, 13, 23, 5); p.text(s.osc2.mode === "fm" ? "MIX" : "FM", 79, 13, s.osc2.mode !== "fm"); }
       // Native waves from older sets are represented by their matching harmonic recipe immediately,
       // so every oscillator page keeps the same additive editor before and after the first wave change.
       p.box(2, 25, 124, 19, true);
@@ -169,7 +169,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   };
 
   const extra = (page: string) => {
-    const mk = <Tap x={96} y={11} w={30} h={10} label={`Synth mode: ${spec ? "spectral" : "additive"}, tap to switch`} pressed={spec} onClick={toggleMode} />;
+    const mk = <Tap x={96} y={11} w={30} h={10} label={`Switch to ${spec ? "ADD" : "SPEC"}`} pressed={spec} onClick={toggleMode} />;
     if (page === "BND") return <>{mk}<BarDraw x={3} y={26} w={122} h={17} values={sp.bands} onChange={bands => SP({ bands })} /></>;
     if (page === "SPC") return mk;
     if (page === "O1" || page === "O2") {
@@ -182,7 +182,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       return <>
         {page === "O1" && mk}
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${name}, tap for next`} onClick={nextWave} />
-        {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
+        {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Switch Osc 2 to ${s.osc2.mode === "fm" ? "MIX" : "FM"}`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {/* Each oscillator owns its partial set; editing a legacy native wave converts that matching recipe to additive. */}
         <BarDraw x={3} y={26} w={122} h={17} values={pl.slice(0, 16)} onChange={setPartials} />
         {pl.slice(0, 16).map((v, i) => <Zone key={i} x={3 + i * 7.6} y={42} w={7} h={2} label={`${k} harmonic ${i + 1}`} value={v} min={0} max={1} step={.01} onChange={nv => { const partials = pl.slice(); partials[i] = nv; setPartials(partials); }} />)}
