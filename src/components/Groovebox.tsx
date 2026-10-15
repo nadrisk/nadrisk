@@ -215,7 +215,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   // Mount only the layout actually shown, so hidden desktop/phone trees don't run duplicate monitors.
   const [desktop, setDesktop] = useState(() => window.matchMedia(DESKTOP_MQ).matches);
   useEffect(() => { const m = window.matchMedia(DESKTOP_MQ), on = () => setDesktop(m.matches); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
-  const midi = useMidi(rootRef, hit, g.release);
+  const midi = useMidi(rootRef, hit, g.release, g.keyOn, g.keyOff);
   const [qwerty, setQwerty] = useState(false);
   useQwerty(qwerty, { hit, release: g.release, mute: g.toggleMute, solo: g.toggleSolo, bank: g.selectBank, play: g.togglePlay, pads: g.slots.length });
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
@@ -253,7 +253,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} swing={g.swing} setSwing={g.setSwing} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: seqPerformancePanel,
     tape: <TapeDeck getSource={tapSource} playing={g.playing} step={g.step} bpm={g.bpm} onPlay={g.togglePlay} />,
-    midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} qwerty={qwerty} setQwerty={setQwerty} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
+    midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} qwerty={qwerty} setQwerty={setQwerty} keys={midi.keys} setKeys={midi.setKeys} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
     sets: <SetBank getSet={g.getSet} applySet={g.applySet} locked={nad} />,
     patch: <PatchBank getPatch={g.getPatch} applyPatch={g.applyPatch} locked={nad} />,
   };

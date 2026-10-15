@@ -89,8 +89,8 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     extra={page => <>{keyZones(keys(page))}{page === "OUT" && <Tap x={58} y={10} w={42} h={12} label="Type tempo" onClick={typeBpm} />}</>} />;
 }
 
-export function MidiScreen({ devices, learn, target, mapCount, status, connect, setLearn, unmap, canUnmap, clear, qwerty, setQwerty }: {
-  qwerty: boolean; setQwerty: (v: boolean) => void; devices: string[] | null; learn: boolean; target: string | null; mapCount: number; status: string; connect: () => void; setLearn: (v: boolean) => void; unmap: () => void; canUnmap: boolean; clear: () => void;
+export function MidiScreen({ devices, learn, target, mapCount, status, connect, setLearn, unmap, canUnmap, clear, qwerty, setQwerty, keys, setKeys }: {
+  keys: boolean; setKeys: (v: boolean) => void; qwerty: boolean; setQwerty: (v: boolean) => void; devices: string[] | null; learn: boolean; target: string | null; mapCount: number; status: string; connect: () => void; setLearn: (v: boolean) => void; unmap: () => void; canUnmap: boolean; clear: () => void;
 }) {
   const ks: K[] = [
     { s: devices ? `${devices.length}DEV` : "CONN", label: "Connect MIDI", x: 1, y: 11, w: 30, on: !!devices?.length, fn: connect },
@@ -98,12 +98,13 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
     { s: "UNMAP", label: "Unmap", x: 65, y: 11, w: 30, on: false, fn: unmap, disabled: !canUnmap },
     { s: "CLR", label: "Clear all mappings", x: 97, y: 11, w: 30, on: false, fn: clear, disabled: !mapCount },
     { s: "KEYS", label: "Computer keyboard pads", x: 1, y: 53, w: 30, on: qwerty, fn: () => setQwerty(!qwerty) },
+    { s: keys ? "KBD" : "PADS", label: "MIDI notes play", x: 97, y: 53, w: 30, on: keys, fn: () => setKeys(!keys) },
   ];
-  const msg = (status || (learn ? (target ? `MOVE A KNOB FOR ${target}` : "TAP A CONTROL THEN MOVE A KNOB") : `${mapCount} MAPS  NOTES 36-51 PADS`)).toUpperCase();
-  return <Panel name="MIDI" label="MIDI" pages={["MAP"]} deps={[devices?.join(), learn, target, mapCount, status, qwerty]} knobs={() => []}
+  const msg = (status || (learn ? (target ? `MOVE A KNOB FOR ${target}` : "TAP A CONTROL THEN MOVE A KNOB") : keys ? `${mapCount} MAPS  KEYS PLAY SELECTED PAD C2-C6` : `${mapCount} MAPS  NOTES 36-51 PADS`)).toUpperCase();
+  return <Panel name="MIDI" label="MIDI" pages={["MAP"]} deps={[devices?.join(), learn, target, mapCount, status, qwerty, keys]} knobs={() => []}
     body={p => { drawKeys(p, ks); [msg.slice(0, 31), msg.slice(31, 62), (devices ?? []).join(" ").toUpperCase().slice(0, 31)].forEach((l, i) => p.text(l, 2, 26 + i * 8));
       // Compact keymap beside KEYS: pads, Shift = mute, Alt = solo, Z-V = patterns.
-      p.text(qwerty ? "1-8 Q-I PAD ZXCV A-D" : "TYPE TO PLAY PADS", 34, 52); if (qwerty) p.text("SHFT MUTE ALT SOLO", 34, 58); }}
+      p.text(qwerty ? "1-8 Q-I ZXCV" : "TYPE PADS", 34, 52); if (qwerty) p.text("SHFT MUT ALT SOL", 34, 58); }}
     extra={() => keyZones(ks)} />;
 }
 
