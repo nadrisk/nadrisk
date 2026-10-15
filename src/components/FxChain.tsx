@@ -171,7 +171,9 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
       const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y;
       if (mu > .3 && (ta === 1 || tb === 1) && (x * 13) % 7 === 0 && r > .8) d.dot(x, Math.max(21, y - 2 - ((x * 5) % 5))); }
     const cx = (f: number) => 3 + Math.round(Math.log(Math.max(20, Math.min(20000, f)) / 20) / Math.log(1000) * 121);
-    if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44); }
+    if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44);
+      // OPPOSE: arrowheads point both ways, A rising while B falls.
+      if (pv(p, "oppose", 0) >= .5) { const c = cx(fc), o = Math.round(Math.sin(TAU * ph) * (hi - lo) / 2); d.line(c + o, 41, c + o, 44); d.line(c - o, 41, c - o, 44); } }
     const nm = (t: number) => mu >= .5 ? MT[t] : T[t];
     d.text(`${nm(ta)}>${nm(tb)}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
   } else if (type === "djfilter") {
