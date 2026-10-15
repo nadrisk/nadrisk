@@ -345,13 +345,29 @@ export function useGroovebox() {
     trigger(i, t, c.vel * velMul, phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg) + semiAdd, gate); return true;
   }, [trigger]);
 
-  const recordHit = useCallback((i: number, at: number, v: number) => {
+  // Writes a hit at col with velocity, and (keyboard notes) its pitch into a two-octave pitch lane on the current bank.
+  const writeStep = useCallback((i: number, col: number, v: number, semi?: number) => {
+    setBanks(bs => bs.map((bk, j) => (j !== bankRef.current ? bk : { ...bk, pattern: bk.pattern.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? 1 : x)) : r)), vel: bk.vel.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? Math.round(v * 100) / 100 : x)) : r)) })));
+    if (semi === undefined) return;
+    setSlots(sl => sl.map((x, r) => { if (r !== i) return x; const bk = bankRef.current, idx = [0, 1, 2].map(l => bk + l * NBANKS);
+      const li = idx.find(k => x.mods[k]?.on && x.mods[k].target === "pitch") ?? idx.find(k => !x.mods[k]?.on); if (li === undefined) return x;
+      return { ...x, mods: x.mods.map((m, k) => k !== li ? m : { ...m, on: true, target: "pitch", range: 24, values: (m.target === "pitch" && m.range === 24 ? m.values : m.values.map(() => .5)).map((q, c) => c === col ? (Math.max(-24, Math.min(24, semi)) + 24) / 48 : q) }) }; }));
+  }, []);
+  // Crave-style step entry (REC on, transport stopped): each key fills the next step; keys within 60 ms of a write are one chord press.
+  const stepCur = useRef({ pad: -1, col: 0, t: 0 });
+  useEffect(() => { stepCur.current = { pad: -1, col: 0, t: 0 }; }, [rec]);
+  const stepRecord = useCallback((i: number, v: number, semi: number) => {
+    const c = stepCur.current, now = performance.now(); if (now - c.t < 60 && c.pad === i) return;
+    if (c.pad !== i) { c.pad = i; c.col = 0; }
+    const len = banksRef.current[bankRef.current].lengths[i] || 16; writeStep(i, c.col % len, v, semi); c.col = (c.col + 1) % len; c.t = now;
+  }, [writeStep]);
+  const recordHit = useCallback((i: number, at: number, v: number, semi?: number) => {
     const lt = lastTick.current; if (!recRef.current || !lt || Tone.getTransport().state !== "started") return;
     const six = 60 / bpmRef.current / 4, q = lt.tick + Math.round((at - lt.time) / six), qq = ((q % 55440) + 55440) % 55440;
     const b = banksRef.current[bankRef.current], pf = performanceRef.current, col = stepAt(qq, b.lengths[i], pf.loop, pf.offset ?? 0);
     if (q > lt.tick) skip.current.add(`${i}:${qq}`); // already heard live: don't play it again this pass
-    setBanks(bs => bs.map((bk, j) => (j !== bankRef.current ? bk : { ...bk, pattern: bk.pattern.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? 1 : x)) : r)), vel: bk.vel.map((r, ri) => (ri === i ? r.map((x, ci) => (ci === col ? Math.round(v * 100) / 100 : x)) : r)) })));
-  }, []);
+    writeStep(i, col, v, semi);
+  }, [writeStep]);
 
   // Pad holds: phrases, held chord arpeggios and pad repeat are booked ahead on the audio clock.
   type Hold = { next: number; idx: number; count: number; kind: "phrase" | "chord" | "repeat" };
@@ -462,7 +478,7 @@ export function useGroovebox() {
           const value = lane.values[st] ?? .5;
           if (lane.target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
           else if (lane.target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
-          else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value) - slot.note;
+          else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value, lane.range) - slot.note;
           else if (lane.target === "start") startMod.current[i] = Math.min(.98, value);
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
@@ -595,9 +611,9 @@ export function useGroovebox() {
     const e = engine.current; if (!e) return;
     const semi = Math.max(-24, Math.min(24, note - 60)), slot = slotsRef.current[i];
     keysDown.current.set(note, i); pressed.current.add(i);
-    recordHit(i, e.ctx.currentTime, v);
+    if (recRef.current && Tone.getTransport().state !== "started") stepRecord(i, v, semi); else recordHit(i, e.ctx.currentTime, v, semi);
     trigger(i, undefined, v, semi, heldEngine(slot) ? 60 : undefined); flash(i);
-  }, [ensure, trigger, recordHit]);
+  }, [ensure, trigger, recordHit, stepRecord]);
   const keyOff = useCallback((note: number) => {
     const i = keysDown.current.get(note); if (i === undefined) return; keysDown.current.delete(note);
     if ([...keysDown.current.values()].includes(i)) return; // other keys still hold this pad
