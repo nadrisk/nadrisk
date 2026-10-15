@@ -106,12 +106,26 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     d.line(3, 33, 124, 33, true); let py = 33, held = 0;
     for (let x = 3; x < 125; x++) { if ((x - 3) % hold === 0) held = Math.round(Math.sin((x - 3) / 121 * Math.PI * 4) * lv) / lv; const y = 33 - Math.round(held * 9); d.line(x - 1, py, x, y); py = y; }
     d.text(`${bits}B /${Math.round(pv(p, "reduce", 4))}`, 4, 23);
-  } else if (["saturation", "acid"].includes(type)) {
+  } else if (type === "acid") {
+    // Stompbox: clean wave in, fuzz out; knob dots follow DRV/BITE/TONE, LED lights with drive.
+    const drive = pv(p, "drive", 10), bias = pv(p, "bias", .35), k = Math.min(1, (drive - 1) / 39);
+    let py = 33; for (let x = 4; x <= 46; x++) { const y = 33 - Math.round(Math.sin((x - 4) / 42 * TAU * 2) * 7); if (x > 4) d.line(x - 1, py, x, y); py = y; }
+    py = 33; for (let x = 82; x <= 124; x++) { const v = Math.tanh(Math.sin((x - 82) / 42 * TAU * 2) * (1 + k * 12) + bias * .4) / Math.tanh(1 + k * 12), y = 33 - Math.round(v * 8); if (x > 82) d.line(x - 1, py, x, y); py = y; }
+    d.line(47, 33, 50, 33); d.line(78, 33, 81, 33);
+    d.box(51, 21, 27, 23);
+    const kf = [k, (pv(p, "bite", 1800) - 300) / 5700, (pv(p, "tone", 7000) - 800) / 15200];
+    kf.forEach((f, n) => { const cx = 56 + n * 8, a = (-135 + f * 270) * Math.PI / 180; d.box(cx - 1, 23, 3, 3); d.dot(cx + Math.round(Math.sin(a)), 24 - Math.round(Math.cos(a))); });
+    if (k > .05) d.rect(63, 29, 3, 2); else d.box(63, 29, 3, 2);
+    d.box(58, 35, 13, 6); d.rect(60, 37, 9, 2);
+  } else if (["saturation"].includes(type)) {
     const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
     for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "reverseDelay") {
-    const fb = pv(p, "feedback", .4), taps = 3 + Math.round(fb * 5), gap = Math.max(8, Math.min(20, Math.round(pv(p, "time", .25) * 35)));
-    for (let i = 0; i < taps; i++) { const x = type === "reverseDelay" ? 123 - i * gap : 4 + i * gap, h = Math.max(2, Math.round(18 * fb ** i)); d.line(x, 42, x, 42 - h); if (type === "reverseDelay") d.line(x - 3, 42 - h, x, 42); }
+    // Cassette-deck reverse arrows: spacing follows TIME, each repeat shrinks and turns dotted with FEEDBACK.
+    const fb = pv(p, "feedback", .3), gap = Math.max(10, Math.min(24, Math.round(pv(p, "time", .25) * 40))), taps = Math.min(8, 2 + Math.round(fb * 6));
+    for (let i = 0; i < taps; i++) { const h = Math.max(2, Math.round(9 * Math.max(fb, .25) ** (i * .6))), x = 112 - i * gap; if (x - h < 3) break;
+      for (let c = 0; c <= h; c++) { const half = Math.round(c * h / h); if (i === 0 || (c + i) % 2 === 0) d.line(x - h + c, 32 - half, x - h + c, 32 + half); else { d.dot(x - h + c, 32 - half); d.dot(x - h + c, 32 + half); } } }
+    if (pv(p, "ping", 0) >= .5) d.text("L<R", 100, 23);
   } else if (type === "reverb") {
     // Fixed reflection field: SIZE fills outward, DENS changes spacing, DAMP thins the high region, MIX is the wet bar.
     const size = Math.max(0, Math.min(1, (pv(p, "size", 2.5) - .2) / 7.8)), dens = pv(p, "density", .6), damp = pv(p, "damp", 6000) / 16000, mix = pv(p, "mix", .3);
@@ -128,7 +142,16 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     for (let x = 3; x < 125; x++) { const g = 1 - depth / 2 + depth / 2 * tremoloShape(Math.sin((x - 3) / 122 * Math.PI * 2 * cycles - TAU * ph), shape), y = 43 - Math.round(g * 20); if (x > 3) d.line(x - 1, py, x, y); py = y; }
   } else if (type === "vibrato") {
     // Pitch, not volume: a fixed-height wave whose cycles squeeze and stretch as RATE/DEPTH push the pitch up and down.
-    const depth = pv(p, "depth", .4); let acc = 0, py = 33;
+    const depth = pv(p, "depth", .4);
+    if (pv(p, "lofi", 0) >= .5) {
+      // LOFI: a cassette whose reels turn and whose shell wobbles with the wow depth.
+      const dy = Math.round(Math.sin(TAU * ph) * depth * 1.5);
+      d.box(30, 21 + dy, 68, 23); d.box(42, 25 + dy, 44, 11);
+      [52, 76].forEach((cx, n) => { d.circle(cx, 30 + dy, 4); const a = TAU * ph * (n ? 1.1 : 1); d.line(cx, 30 + dy, cx + Math.round(Math.cos(a) * 3), 30 + dy + Math.round(Math.sin(a) * 3)); });
+      d.line(56, 34 + dy, 72, 34 + dy); d.box(54, 39 + dy, 20, 4);
+      return;
+    }
+    let acc = 0, py = 33;
     for (let x = 3; x < 125; x++) { acc += .45 * (1 + depth * .7 * Math.sin(TAU * ph - (x - 3) * .05)); const y = 33 + Math.round(Math.sin(acc) * 8); if (x > 3) d.line(x - 1, py, x, y); py = y; }
   } else if (type === "chorus") {
     // Dry line plus two modulated copies, each drifting by DEPTH at RATE with its own phase.
@@ -254,7 +277,8 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const i = Math.min(sel, Math.max(0, fx.length - 1)), f = fx[i];
   const set = (p: Partial<FxUnit>) => onChange(fx.map((u, j) => (j === i ? { ...u, ...p } : u)));
   const move = (d: number) => { const j = i + d; if (!f || j < 0 || j >= fx.length) return; const n = [...fx]; [n[i], n[j]] = [n[j], n[i]]; onChange(n); setSel(j); };
-  const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask") as [string, number[]][] : [];
+  const lofiOn = f?.type === "vibrato" && (f.params.lofi ?? 0) >= .5;
+  const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask" && !(f.type === "vibrato" && (k === "lofi" || (!lofiOn && (k === "bump" || k === "oxide"))))) as [string, number[]][] : [];
   const pages = Math.max(1, Math.ceil(params.length / 4)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
   const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal"].includes(f.type);
@@ -294,6 +318,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
+          if (f.type === "vibrato") { if (lofiOn) p.rect(72, 10, 26, 9); else p.box(72, 10, 26, 9); p.textC(lofiOn ? "LOFI" : "VIB", 85, 12, !lofiOn); }
           drawFxVisual(p, f, levels, hist.current, now);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
@@ -307,6 +332,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
       </> : page === "EDT" ? <>
         {f?.type === "noisegate" && <Zone x={1} y={21} w={126} h={24} label="Gate threshold line" value={f.params.threshold ?? -40} min={-80} max={0} step={1} onChange={v => set({ params: { ...f.params, threshold: v } })} />}
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
+        {f?.type === "vibrato" && <Tap x={72} y={10} w={26} h={9} label="Vibrato LOFI mode" pressed={lofiOn} onClick={() => { setPg(0); set({ params: { ...f.params, lofi: lofiOn ? 0 : 1 } }); }} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>
         {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 5) * 25} y={10 + Math.floor(k / 5) * 9} w={24} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
