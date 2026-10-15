@@ -205,7 +205,7 @@ export function useGroovebox() {
 
   const ctxOf = () => Tone.getContext().rawContext as unknown as BaseAudioContext;
   const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
-  useEffect(() => { const p = peaksOf(fallbackBuf()); setPeaks(Array(16).fill(p)); }, []);
+  
 
   // Phones (iOS especially) only allow audio to start on a tap/click "end" event, not on pointer-down.
   useEffect(() => {
@@ -280,7 +280,8 @@ export function useGroovebox() {
       // every ringing voice in the same group immediately, and never touch other groups.
       if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       // 808 is mono: a new hit cuts the old tail so its envelope always restarts at full level.
-      if (s.engine === "808") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; }
+      // LASER is mono too, so long releases never pile up on fast runs.
+      if (s.engine === "808" || (s.engine === "siren" && s.siren?.mode === "laser")) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       if (sliced) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
@@ -679,7 +680,7 @@ export function useGroovebox() {
     undoRef.current = []; redoRef.current = []; setHist(h => h + 1);
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
     setBpm(st.bpm ?? 124); setSwing(st.swing ?? 50); setTune(st.tune ?? 0); setVolume(st.volume ?? 60);
-    buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf())));
+    buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null));
     // Restore every sample, then report all the missing ones together instead of only the last.
     const jobs = (st.slots ?? []).map((o, i) => (o?.sampler?.sampleId ? loadById(i, o.sampler.sampleId, o.sampler.sampleName).then(ok => (ok ? null : o.sampler.sampleName)) : Promise.resolve(null)));
     void Promise.all(jobs).then(r => { const miss = r.filter((x): x is string => !!x); if (miss.length > 1) setError(`${miss.length} samples not found on this device: ${miss.slice(0, 3).join(", ")}${miss.length > 3 ? "…" : ""}`); });
@@ -698,7 +699,15 @@ export function useGroovebox() {
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
   const canUndo = hist >= 0 && undoRef.current.length > 0, canRedo = hist >= 0 && redoRef.current.length > 0;
-  const clearPattern = () => setPattern(emptyPattern());
+  // CLR follows the page in view: NOTE wipes notes plus every per-step lane; other pages wipe only their own data.
+  const clearPattern = (view = "note") => {
+    snap(); const bk = bankRef.current, mi = bk + modLaneRef.current * NBANKS;
+    const resetMods = (lanes: number[]) => setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, b) => (lanes.includes(b) ? { ...m, values: m.values.map(() => .5) } : m)) })));
+    if (view === "mod") { resetMods([mi]); return; }
+    if (view === "vel" || view === "chance" || view === "roll") { const kind = view === "roll" ? "ratchet" : view; editBank(b => ({ ...b, [kind]: ones() })); return; }
+    editBank(b => ({ ...b, pattern: emptyPattern(), vel: ones(), chance: ones(), ratchet: ones() }));
+    resetMods(Array.from({ length: MOD_LANES }, (_, l) => bk + l * NBANKS));
+  };
   // RAND acts on the page in view: NOTE writes hits; VEL/CHNC/ROLL/MOD only reshape existing hits in the current bank.
   const randomizePattern = (view = "note") => {
     const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2), may = (r: number) => anySolo ? sl0[r]?.rnd === 2 : sl0[r]?.rnd !== 1;
@@ -711,7 +720,7 @@ export function useGroovebox() {
     editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 && may(r) ? gen() : v))) }));
   };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
-  const newBlank = () => { loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(peaksOf(fallbackBuf()))); };
+  const newBlank = () => { loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
   const resetAll = newBlank;
 
   const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
