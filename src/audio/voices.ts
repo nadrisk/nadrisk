@@ -28,7 +28,7 @@ export const defaultPoly = (): PolyParams => ({ cutoff: 2200, res: 1.5, detune: 
 
 const clampF = (f: number) => Math.min(20000, Math.max(20, f));
 let noiseCache: { ctx: BaseAudioContext; buf: AudioBuffer } | null = null;
-function noiseBuffer(ctx: BaseAudioContext) {
+export function noiseBuffer(ctx: BaseAudioContext) {
   if (noiseCache?.ctx === ctx) return noiseCache.buf;
   const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -36,7 +36,7 @@ function noiseBuffer(ctx: BaseAudioContext) {
 }
 
 /** Schedules an ADSR on a param; returns the time the voice is silent. */
-function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
+export function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
   p.setValueAtTime(0, t);
   p.linearRampToValueAtTime(peak, t + e.a);
   p.setTargetAtTime(peak * e.s, t + e.a, e.d / 3 + 0.001);
@@ -55,13 +55,13 @@ function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, ba
 /** Holds the gain where it is at `at`, then fades to silence with release r; returns when the voice is silent. */
 /** Every voice's amp feeds a dedicated release stage, so fading out never reads or cancels the envelope
  *  (Safari can report stale AudioParam values mid-envelope, which made release jump to silence or full). */
-function link(amp: GainNode, dest: AudioNode) { const rg = amp.context.createGain(); rg.gain.value = 1; amp.connect(rg).connect(dest); (amp as GainNode & { __rg?: GainNode }).__rg = rg; }
+export function link(amp: GainNode, dest: AudioNode) { const rg = amp.context.createGain(); rg.gain.value = 1; amp.connect(rg).connect(dest); (amp as GainNode & { __rg?: GainNode }).__rg = rg; }
 function fadeOut(amp: GainNode, at: number, r: number) {
   const rg = (amp as GainNode & { __rg?: GainNode }).__rg, g = rg ? rg.gain : amp.gain;
   g.cancelScheduledValues(at); g.setTargetAtTime(0, at, Math.max(.001, r) / 3 + .001);
   return at + Math.max(.001, r) * 1.5 + .06;
 }
-function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void): Voice {
+export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void): Voice {
   srcs.forEach(s => { s.start(Math.max(0, (s as unknown as { _t?: number })._t ?? 0)); s.stop(end); });
   let cleaned = false;
   const cleanup = () => { if (cleaned) return; cleaned = true; nodes.forEach(n => n.disconnect()); onClean?.(); };
@@ -71,7 +71,7 @@ function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: numbe
   return { stop: at => { endT = at; amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
     release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, at, r); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
 }
-const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
+export const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
 
 function filterWithEnv(ctx: BaseAudioContext, t: number, kind: FilterKind, cutoff: number, res: number, envOct: number, decay: number) {
   const f = ctx.createBiquadFilter(); f.type = kind; f.Q.value = res;
@@ -83,7 +83,7 @@ function filterWithEnv(ctx: BaseAudioContext, t: number, kind: FilterKind, cutof
 /** Full ADSR on a filter's frequency: attack sweeps to cutoff*2^envOct, decays toward the sustain
  *  octave point, releases back to cutoff. Scheduled directly on frequency (not detune) so every
  *  fresh voice retriggers cleanly, including rapid repeated and overlapping notes. */
-function filterEnvAdsr(f: AudioParam, t: number, e: ADSR | undefined, gate: number, cutoff: number, envOct: number) {
+export function filterEnvAdsr(f: AudioParam, t: number, e: ADSR | undefined, gate: number, cutoff: number, envOct: number) {
   e ??= { a: .001, d: .2, s: 0, r: .02 };
   const base = clampF(cutoff), peak = clampF(cutoff * 2 ** envOct), sus = clampF(cutoff * 2 ** (envOct * e.s));
   f.setValueAtTime(base, t);
