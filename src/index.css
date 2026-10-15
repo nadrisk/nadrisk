@@ -1020,6 +1020,5 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 @media (prefers-reduced-motion: reduce) { .instrument-workspace.acid-trip, .instrument-workspace.acid-trip canvas, .instrument-workspace.acid-trip .gb-pad { animation-duration: 40s; } }
 /* RAND role key inside the row-name cell: · included, X excluded, S solo (RAND then touches only soloed rows). */
 .gb-row { position: relative; }
-.gb-row-rnd { position: absolute; left: 62px; top: 0; bottom: 0; width: 16px; z-index: 2; font: 9px 'Silkscreen', monospace; padding: 0; background: hsl(var(--card)); color: hsl(var(--muted-foreground)); border: 1px solid hsl(var(--border)); border-radius: 0; }
-.gb-row-rnd.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-@media (max-width: 640px) { .gb-row-rnd { left: 41px; } }
+.gb-row-label.rnd-x { color: hsl(var(--muted-foreground)); text-decoration: line-through; }
+.gb-row-label.rnd-s { background: hsl(var(--foreground)); color: hsl(var(--background)); }
