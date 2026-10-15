@@ -173,7 +173,11 @@ export function Panel({ name, pages, label, knobs, body, extra, deps, onPage, li
   headerAction?: HeaderAction;
   knobAction?: (page: string) => KnobAction | undefined;
 }) {
-  const [page, setPage] = useState(pages[0]);
+  const [page0, setPage] = useState(pages[0]);
+  // A mode switch can swap the page set; keep the same tab position instead of showing a page that no longer exists.
+  const lastPages = useRef(pages), prevIdx = lastPages.current.indexOf(page0); lastPages.current = pages;
+  const page = pages.includes(page0) ? page0 : pages[Math.max(0, prevIdx)] ?? pages[0];
+  useEffect(() => { if (page !== page0) setPage(page); }, [page, page0]);
   useEffect(() => { onPage?.(page); }, [page, onPage]);
   const [readout, setReadout] = useState("");
   const [readoutKnob, setReadoutKnob] = useState("");
