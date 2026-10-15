@@ -109,7 +109,7 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
 
 const BANK_NAMES = ["A", "B", "C", "D"];
 export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo }: {
-  bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: () => void; reset: () => void;
+  bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: (view: string) => void; reset: () => void;
   playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
 }) {
   const views = ["note", "vel", "chance", "roll", "mod"];
@@ -118,7 +118,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 1 + i * 25, y: 22, w: i === 4 ? 26 : 24, h: 10, on: view === v, fn: () => setView(v) })),
     { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 33, w: 24, h: 10, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 26, y: 33, w: 24, h: 10, on: false, fn: () => random(view) },
-    { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: clear },
+    { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: () => clear(view) },
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 76, y: 33, w: 25, h: 10, on: playing, fn: onPlay },
     { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 102, y: 33, w: 25, h: 10, on: paused, fn: onPause },
     { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 44, w: 62, h: 10, on: false, disabled: !canUndo, fn: undo },

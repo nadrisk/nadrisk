@@ -699,7 +699,15 @@ export function useGroovebox() {
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
   const canUndo = hist >= 0 && undoRef.current.length > 0, canRedo = hist >= 0 && redoRef.current.length > 0;
-  const clearPattern = () => setPattern(emptyPattern());
+  // CLR follows the page in view: NOTE wipes notes plus every per-step lane; other pages wipe only their own data.
+  const clearPattern = (view = "note") => {
+    snap(); const bk = bankRef.current, mi = bk + modLaneRef.current * NBANKS;
+    const resetMods = (lanes: number[]) => setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, b) => (lanes.includes(b) ? { ...m, values: m.values.map(() => .5) } : m)) })));
+    if (view === "mod") { resetMods([mi]); return; }
+    if (view === "vel" || view === "chance" || view === "roll") { const kind = view === "roll" ? "ratchet" : view; editBank(b => ({ ...b, [kind]: ones() })); return; }
+    editBank(b => ({ ...b, pattern: emptyPattern(), vel: ones(), chance: ones(), ratchet: ones() }));
+    resetMods(Array.from({ length: MOD_LANES }, (_, l) => bk + l * NBANKS));
+  };
   // RAND acts on the page in view: NOTE writes hits; VEL/CHNC/ROLL/MOD only reshape existing hits in the current bank.
   const randomizePattern = (view = "note") => {
     const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2), may = (r: number) => anySolo ? sl0[r]?.rnd === 2 : sl0[r]?.rnd !== 1;
