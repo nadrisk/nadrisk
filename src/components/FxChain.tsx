@@ -31,7 +31,7 @@ const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
 
-const ANIM: FxType[] = ["tremolo", "vibrato", "chorus", "flanger", "phaser", "reverb", "metal"];
+const ANIM: FxType[] = ["acid", "reverseDelay", "tremolo", "vibrato", "chorus", "flanger", "phaser", "reverb", "metal"];
 const TAU = Math.PI * 2;
 /** Fixed pseudo-random sequence so dot clouds stay put between frames. */
 const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -107,25 +107,31 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     for (let x = 3; x < 125; x++) { if ((x - 3) % hold === 0) held = Math.round(Math.sin((x - 3) / 121 * Math.PI * 4) * lv) / lv; const y = 33 - Math.round(held * 9); d.line(x - 1, py, x, y); py = y; }
     d.text(`${bits}B /${Math.round(pv(p, "reduce", 4))}`, 4, 23);
   } else if (type === "acid") {
-    // Stompbox: clean wave in, fuzz out; knob dots follow DRV/BITE/TONE, LED lights with drive.
+    // Stompbox fed by the real signal: the input wave scrolls in at its live level, the fuzz exits
+    // squared off by SUST and squashed flat by the compressor; LED flashes on loud output.
     const drive = pv(p, "drive", 12), bias = pv(p, "bias", .2), k = Math.min(1, (drive - 1) / 39);
-    let py = 33; for (let x = 4; x <= 46; x++) { const y = 33 - Math.round(Math.sin((x - 4) / 42 * TAU * 2) * 7); if (x > 4) d.line(x - 1, py, x, y); py = y; }
-    py = 33; for (let x = 82; x <= 124; x++) { const v = Math.tanh(Math.sin((x - 82) / 42 * TAU * 2) * (1 + k * 12) + bias * .4) / Math.tanh(1 + k * 12), y = 33 - Math.round(v * 8); if (x > 82) d.line(x - 1, py, x, y); py = y; }
-    d.line(47, 33, 50, 33); d.line(78, 33, 81, 33);
-    d.box(51, 21, 27, 23);
-    const kf = [k, pv(p, "blend", .5), pv(p, "mid", .5)];
-    kf.forEach((f, n) => { const cx = 56 + n * 8, a = (-135 + f * 270) * Math.PI / 180; d.box(cx - 1, 23, 3, 3); d.dot(cx + Math.round(Math.sin(a)), 24 - Math.round(Math.cos(a))); });
-    if (k > .05) d.rect(63, 29, 3, 2); else d.box(63, 29, 3, 2);
-    d.box(58, 35, 13, 6); d.rect(60, 37, 9, 2);
+    const lvl = (db: number) => Math.max(0, Math.min(1, (db + 54) / 54)), li = Math.max(.12, lvl(levels?.input ?? -80)), lo = lvl(levels?.output ?? -80);
+    const sc = t * 5;
+    let py = 33; for (let x = 4; x <= 46; x++) { const y = 33 - Math.round(Math.sin((x - 4) / 42 * TAU * 2 - sc) * 8 * li); if (x > 4) d.line(x - 1, py, x, y); py = y; }
+    const g = 1 + k * 14, amp = 4 + Math.max(.15, lo) * 5;
+    py = 33; for (let x = 82; x <= 124; x++) { const v = Math.tanh(Math.sin((x - 82) / 42 * TAU * 2 - sc) * g * li + bias * .5) / Math.tanh(g), y = 33 - Math.round(v * amp); if (x > 82) d.line(x - 1, py, x, y); py = y; }
+    for (let x = 47; x <= 50; x += 2) d.dot(x, 33); for (let x = 78; x <= 81; x += 2) d.dot(x, 33);
+    d.box(51, 21, 27, 23); d.box(52, 22, 25, 21, true);
+    [k, pv(p, "blend", .5), pv(p, "mid", .5)].forEach((f, n) => { const cx = 56 + n * 8, a = (-135 + f * 270) * Math.PI / 180; d.box(cx - 1, 24, 3, 3); d.dot(cx + Math.round(Math.sin(a)), 25 - Math.round(Math.cos(a))); });
+    if (lo > .55) { d.rect(62, 30, 5, 3); d.dot(61, 31); d.dot(67, 31); } else if (k > .05) d.rect(63, 30, 3, 2); else d.box(63, 30, 3, 2);
+    d.box(58, 36, 13, 5); d.rect(60, 37, 9, lo > .2 ? 3 : 2);
   } else if (["saturation"].includes(type)) {
     const drive = pv(p, "drive", 4), bias = pv(p, "bias", 0); let py = 42;
     for (let x = 3; x < 125; x++) { const input = (x - 64) / 60; const shaped = Math.tanh(input * drive * .35 + bias * .5); const y = 33 - Math.round(shaped * 9); d.line(x - 1, py, x, y); py = y; }
   } else if (type === "reverseDelay") {
-    // Cassette-deck reverse arrows: spacing follows TIME, each repeat shrinks and turns dotted with FEEDBACK.
-    const fb = pv(p, "feedback", .3), gap = Math.max(10, Math.min(24, Math.round(pv(p, "time", .25) * 40))), taps = Math.min(8, 2 + Math.round(fb * 6));
-    for (let i = 0; i < taps; i++) { const h = Math.max(2, Math.round(9 * Math.max(fb, .25) ** (i * .6))), x = 112 - i * gap; if (x - h < 3) break;
-      for (let c = 0; c <= h; c++) { const half = Math.round(c * h / h); if (i === 0 || (c + i) % 2 === 0) d.line(x - h + c, 32 - half, x - h + c, 32 + half); else { d.dot(x - h + c, 32 - half); d.dot(x - h + c, 32 + half); } } }
-    if (pv(p, "ping", 0) >= .5) d.text("L<R", 100, 23);
+    // Reverse arrows march backward at TIME's pace; the lead arrow swells with the live input and each
+    // repeat shrinks and dots out with FEEDBACK, fading as the echo level drops.
+    const fb = pv(p, "feedback", .3), time = Math.max(.05, pv(p, "time", .25)), gap = Math.max(10, Math.min(24, Math.round(time * 40))), taps = Math.min(8, 2 + Math.round(fb * 6));
+    const lvl = (db: number) => Math.max(0, Math.min(1, (db + 54) / 54)), li = lvl(levels?.input ?? -80), lo = lvl(levels?.output ?? -80), shift = Math.round(((t / time) % 1) * gap);
+    for (let i = 0; i < taps; i++) { const base = 9 * Math.max(fb, .25) ** (i * .6) * (i === 0 ? .55 + li * .45 : .4 + lo * .6), h = Math.max(2, Math.round(base)), x = 116 - i * gap - (i ? shift : 0); if (x - h < 3) break;
+      for (let c = 0; c <= h; c++) { if (i === 0 || (c + i) % 2 === 0) d.line(x - h + c, 32 - c, x - h + c, 32 + c); else { d.dot(x - h + c, 32 - c); d.dot(x - h + c, 32 + c); } } }
+    d.rect(120, 32 - Math.round(li * 9), 2, Math.max(1, Math.round(li * 18)));
+    if (pv(p, "ping", 0) >= .5) d.text("L<R", 4, 23);
   } else if (type === "reverb") {
     // Fixed reflection field: SIZE fills outward, DENS changes spacing, DAMP thins the high region, MIX is the wet bar.
     const size = Math.max(0, Math.min(1, (pv(p, "size", 2.5) - .2) / 7.8)), dens = pv(p, "density", .6), damp = pv(p, "damp", 6000) / 16000, mix = pv(p, "mix", .3);
@@ -144,11 +150,14 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     // Pitch, not volume: a fixed-height wave whose cycles squeeze and stretch as RATE/DEPTH push the pitch up and down.
     const depth = pv(p, "depth", .4);
     if (pv(p, "lofi", 0) >= .5) {
-      // LOFI: a cassette whose reels turn and whose shell wobbles with the wow depth.
-      const dy = Math.round(Math.sin(TAU * ph) * depth * 1.5);
-      d.box(30, 21 + dy, 68, 23); d.box(42, 25 + dy, 44, 11);
-      [52, 76].forEach((cx, n) => { d.circle(cx, 30 + dy, 4); const a = TAU * ph * (n ? 1.1 : 1); d.line(cx, 30 + dy, cx + Math.round(Math.cos(a) * 3), 30 + dy + Math.round(Math.sin(a) * 3)); });
-      d.line(56, 34 + dy, 72, 34 + dy); d.box(54, 39 + dy, 20, 4);
+      // LOFI: a still cassette; wow makes the reels turn unevenly, the tape between them wavers,
+      // and OXID sprinkles dropout specks across the window.
+      const lvl = Math.max(0, Math.min(1, ((levels?.output ?? -80) + 54) / 54)), wow = depth * Math.sin(TAU * ph), ox = pv(p, "oxide", .3);
+      d.box(30, 21, 68, 23); d.box(42, 25, 44, 11);
+      [52, 76].forEach((cx, n) => { d.circle(cx, 30, 4); const a = TAU * (t * (.6 + lvl * .4) * (n ? 1.08 : 1)) + wow * 1.5; for (const o of [0, TAU / 3, TAU * 2 / 3]) d.dot(cx + Math.round(Math.cos(a + o) * 2), 30 + Math.round(Math.sin(a + o) * 2)); d.dot(cx, 30); });
+      let py = 34; for (let x = 56; x <= 72; x++) { const y = 34 + Math.round(Math.sin(x * .5 + t * 7) * depth * 1.4); if (x > 56) d.line(x - 1, py, x, y); py = y; }
+      const fr = Math.floor(t * 12); for (let n = 0; n < Math.round(ox * 10); n++) d.dot(43 + Math.floor(rnd(fr * 13 + n) * 42), 26 + Math.floor(rnd(fr * 7 + n * 3) * 9), rnd(fr + n * 5) > .5);
+      d.box(54, 39, 20, 4);
       return;
     }
     let acc = 0, py = 33;
@@ -281,7 +290,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const params = f ? Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask" && !(f.type === "vibrato" && (k === "lofi" || (!lofiOn && (k === "bump" || k === "oxide"))))) as [string, number[]][] : [];
   const pages = Math.max(1, Math.ceil(params.length / 4)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
-  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal"].includes(f.type);
+  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal", "acid", "reverseDelay", "vibrato"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
     hist.current = []; let last = 0, smooth: FxLevels = { input: -60, output: -60 };
