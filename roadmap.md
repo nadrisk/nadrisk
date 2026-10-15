@@ -46,3 +46,10 @@
 - [x] E: Phrase TRANCE mode (TRNC page)
 - [ ] F: Trippy acid visual
 - [ ] G: factory patches, NADRISK failure, MIDI keyboard, SPEC mode
+
+## Mono release, FX screens, Da Funk drive, sequencer RND (2026-10-15)
+- [x] Siren/DUB joins 808, ACID, REESE, LASER mono tail cut
+- [x] acid.drive~ rebuilt as Da Funk drive + compressor (needs ear test)
+- [x] Live acid pedal, still LOFI cassette, live reverse arrows
+- [x] RND header mode replaces per-row ·/X/S keys (needs phone check)
+- [ ] Factory patches (item 4 of earlier plan)
