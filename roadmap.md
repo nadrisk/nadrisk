@@ -37,3 +37,12 @@
 - [ ] Cyberspace SPEC mode (next turn)
 - [ ] NADRISK Failure stage (next turn)
 - [ ] MIDI keyboard on selected pad, STEP REC, chord grouping (next turn)
+
+## Master plan (2026-10-15, grouped by size)
+- [x] A: drum DRV 0, blank empty sampler, 808/ACID + Siren mode keys, Siren knob tidy, tap wave key
+- [x] B: LASER mono, page-aware CLEAR, 4 kick/4 snare presets from uploaded patches
+- [ ] C: VIB/LOFI key + cassette, reverse-delay arrows, acid pedal screen
+- [ ] D: Big Muff fuzz sound
+- [ ] E: Phrase TRANCE mode
+- [ ] F: Trippy acid visual
+- [ ] G: factory patches, NADRISK failure, MIDI keyboard, SPEC mode
