@@ -337,11 +337,11 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       const wg = g(); wg.gain.value = 0; wg.connect(out);
       const done = (set: Twin["set"]): Twin => { set(wg.gain, 1); return { t, ns, wg, set }; };
       if (t === 0) { const pre = g(), pk = bq("peaking"), sh = ctx.createWaveShaper(), post = g(); ns.push(sh); sh.curve = satCurve(5); sh.oversample = eco ? "none" : "2x";
-        from.connect(pk).connect(pre).connect(sh).connect(post).connect(out);
-        return { t, ns, set: (fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); } };
+        from.connect(pk).connect(pre).connect(sh).connect(post).connect(wg);
+        return done((fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); } };
       }
-      if (t === 1) { const aps = [1, 1.6, 2.5, 3.9].map(() => bq("allpass")), post = g(); let n: AudioNode = from; aps.forEach(a => { n.connect(a); n = a; }); n.connect(post).connect(out);
-        return { t, ns, set: (fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); } };
+      if (t === 1) { const aps = [1, 1.6, 2.5, 3.9].map(() => bq("allpass")), post = g(); let n: AudioNode = from; aps.forEach(a => { n.connect(a); n = a; }); n.connect(post).connect(wg);
+        return done((fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); } };
       }
       if (t === 2) { const R = [1, 2.01, 3.03, 4.24], bs = R.map(() => bq("bandpass")), post = g(); bs.forEach(b => { from.connect(b); b.connect(post); }); post.connect(out);
         return { t, ns, set: (fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); } };
