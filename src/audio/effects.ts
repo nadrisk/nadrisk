@@ -328,7 +328,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     input.connect(fa); fa.connect(ca).connect(ga); ma.connect(ga); ga.connect(sum);
     input.connect(fb); fb.connect(cb).connect(gb); mb.connect(gb); gb.connect(sum); sum.connect(clip).connect(wet);
     lfoSmooth.connect(lfoAmt); lfoAmt.connect(fa.detune); lfoAmt.connect(fb.detune);
-    const rectCurve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return .6 * x + .8 * Math.abs(x) - .4; });
+    const rectCurve = Float32Array.from({ length: 1024 }, (_, i) => { const x = i / 511.5 - 1; return .6 * x + .8 * (Math.abs(x) - .5 * x * x); });
     type Twin = { t: number; ns: AudioNode[]; wg: GainNode; set: (fc: number, q: number, mu: number) => void };
     // Each twin output passes through its own wrapper gain (wg) so type swaps fade instead of clicking.
     const mkTwin = (t: number, from: BiquadFilterNode, out: GainNode): Twin => {
