@@ -254,8 +254,8 @@ export function useGroovebox() {
     const pitch = s.note + semi + (s.engine === "drum" ? 0 : tuneRef.current);
     // Sampler: NOTE relative to the sample's own key (S-KEY), plus FINE cents; C4 with S-KEY C plays the file as recorded.
     const sp = s.note + (s.engine === "drum" ? 0 : tuneRef.current) - 60 - (s.sampler.sampleKey ?? 0) + Math.max(-50, Math.min(50, s.sampler.fine ?? 0)) / 100;
-    if (!buffers.current[i]) return; // empty sampler pads stay silent until a sample is loaded
-    const raw = buffers.current[i]!, buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
+    if (s.engine === "sampler" && !buffers.current[i]) return; // empty sampler pads stay silent until a sample is loaded
+    const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     // Breakbeats: WARP fits the loop to the tempo without changing pitch; SLICES plays one slice per note
     // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
     // Sliced samplers are mono: one slice at a time, chords become sequences of slices (BLOCK plays the first only).
