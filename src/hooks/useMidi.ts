@@ -16,14 +16,16 @@ function fire(el: HTMLElement, type: string, x: number, y: number) {
 const isSlider = (el: HTMLElement) => el.hasAttribute("data-orientation") && !!el.querySelector('[role="slider"]');
 const isHold = (el: HTMLElement) => el.classList.contains("gb-pad") || /^Hold /.test(el.getAttribute("aria-label") ?? "");
 
-export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, release: (i: number) => void) {
+export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, release: (i: number) => void, keyOn?: (note: number, v: number) => void, keyOff?: (note: number) => void) {
+  const [keys, setKeys] = useState(() => localStorage.getItem(KEY + ".keys") === "1");
   const [maps, setMaps] = useState<Maps>(() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } });
   const [learn, setLearn] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
   const [devices, setDevices] = useState<string[] | null>(null);
   const [status, setStatus] = useState("");
-  const st = useRef({ maps, learn, target, hit, release, last: {} as Record<string, number> });
-  st.current = { ...st.current, maps, learn, target, hit, release };
+  const st = useRef({ maps, learn, target, hit, release, keys, keyOn, keyOff, last: {} as Record<string, number> });
+  st.current = { ...st.current, maps, learn, target, hit, release, keys, keyOn, keyOff };
+  useEffect(() => { localStorage.setItem(KEY + ".keys", keys ? "1" : "0"); }, [keys]);
   useEffect(() => { localStorage.setItem(KEY, JSON.stringify(maps)); }, [maps]);
 
   // Learn mode: tapping a control selects it instead of using it.
@@ -79,6 +81,7 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
     if (c.learn) { if (c.target && (cc || on)) { const t = c.target; setMaps(m => ({ ...m, [key]: t })); setTarget(null); setStatus(`${t} → ${cc ? "CC" : "note"} ${d1}`); } return; }
     const label = c.maps[key];
     if (label) return act(label, cc ? "cc" : on ? "on" : "off", cc ? d2 : on ? d2 : 0, key);
+    if (!cc && c.keys && c.keyOn) { if (on) c.keyOn(d1, d2 / 127); else c.keyOff?.(d1); return; }
     if (!cc && d1 >= 36 && d1 <= 51) { if (on) c.hit(d1 - 36); else c.release(d1 - 36); }
   }, [act]);
 
@@ -93,5 +96,5 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
   }, [onMsg]);
 
   const unmap = useCallback((label: string) => setMaps(m => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== label))), []);
-  return { maps, learn, setLearn: (v: boolean) => { setLearn(v); setTarget(null); }, target, devices, status, connect, clear: () => setMaps({}), unmap };
+  return { keys, setKeys, maps, learn, setLearn: (v: boolean) => { setLearn(v); setTarget(null); }, target, devices, status, connect, clear: () => setMaps({}), unmap };
 }

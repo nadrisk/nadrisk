@@ -588,6 +588,23 @@ export function useGroovebox() {
     try { await ensure(); if (Tone.getContext().state !== "running") return; play(i); } catch { setError("Audio unavailable."); }
   }, [ensure, play]);
 
+  // External MIDI keyboard: notes play the selected pad chromatically, two octaves around middle C, with velocity; chords just stack notes.
+  const keysDown = useRef(new Map<number, number>());
+  const keyOn = useCallback(async (note: number, v: number) => {
+    const i = selectedRef.current; if (!engine.current || Tone.getContext().state !== "running") { try { await ensure(); } catch { return; } }
+    const e = engine.current; if (!e) return;
+    const semi = Math.max(-24, Math.min(24, note - 60)), slot = slotsRef.current[i];
+    keysDown.current.set(note, i); pressed.current.add(i);
+    recordHit(i, e.ctx.currentTime, v);
+    trigger(i, undefined, v, semi, heldEngine(slot) ? 60 : undefined); flash(i);
+  }, [ensure, trigger, recordHit]);
+  const keyOff = useCallback((note: number) => {
+    const i = keysDown.current.get(note); if (i === undefined) return; keysDown.current.delete(note);
+    if ([...keysDown.current.values()].includes(i)) return; // other keys still hold this pad
+    pressed.current.delete(i);
+    const slot = slotsRef.current[i], e = engine.current; if (!e) return;
+    if (heldEngine(slot)) { const now = e.ctx.currentTime, r = relOf(slot); e.mono[i]?.release?.(now, r); e.ring[i].forEach(x => x.release(now, r)); }
+  }, []);
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
   const resetCursor = (i: number, patch: Partial<Slot>) => {
     if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
@@ -724,7 +741,7 @@ export function useGroovebox() {
   const resetAll = newBlank;
 
   const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
-  return { modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
