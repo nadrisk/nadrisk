@@ -1,3 +1,4 @@
+import { playSpec, type SpecParams } from "./spectral";
 import { reeseParams, type ReeseParams } from "./reese";
 import type { AcidParams } from "./acid";
 import { laserParams, laserEnvelopeAt, type LaserParams } from "./laser";
@@ -11,7 +12,7 @@ export type DrumMachine = { gain?: number; grit?: number; pAtk?: number; pCurve?
 export type DrumParams = DrumMachine & { preset?: string; kind: DrumKind; pitch: number; pitchEnv: number; pitchDecay: number; env: ADSR; noise: number; fm: number; fmRatio: number; ring: number; ringFreq: number; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number };
 export type OscParams = { wave: Wave | "additive"; gain: number; coarse: number; fine: number };
 /** partials2 gives oscillator 2 its own additive shape; older sets without it fall back to partials. */
-export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: SynthLfo; /** Filter envelope -> FM index, 0-1. */ fenvFm?: number };
+export type SynthParams = { osc1: OscParams; osc2: OscParams & { mode: "mix" | "fm"; fmAmount: number }; partials: number[]; partials2?: number[]; noise: number; env: ADSR; pitchEnvShape: ADSR; filterEnvShape: ADSR; filter: FilterKind; cutoff: number; res: number; filterEnv: number; filterDecay: number; wet: number; pitchEnv: number; pitchDecay: number; lfo: SynthLfo; /** Filter envelope -> FM index, 0-1. */ fenvFm?: number; /** SPEC = spectral-band synth with its own saved bands; absent = additive. */ mode?: "add" | "spec"; spec?: Partial<SpecParams> };
 /** dests/attack are optional so older sets (single depth + target) still load; lfoDests() fills them. */
 export type LfoDests = { pitch: number; cutoff: number; amp: number; osc1: number; osc2: number };
 export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch" | "cutoff" | "amp"; attack?: number; dests?: LfoDests; /** true = restart on every note; default free-running per pad. */ retrig?: boolean };
@@ -197,6 +198,7 @@ export function partialWaveInfo(ctx: BaseAudioContext, partials: number[]) {
 export const partialWave = (ctx: BaseAudioContext, partials: number[]) => partialWaveInfo(ctx, partials).wave;
 
 export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
+  if (p.mode === "spec") return playSpec(ctx, dest, p, midi, t, gate, vel);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const base = 440 * 2 ** ((midi - 69) / 12);
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
