@@ -338,17 +338,17 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       const done = (set: Twin["set"]): Twin => { set(wg.gain, 1); return { t, ns, wg, set }; };
       if (t === 0) { const pre = g(), pk = bq("peaking"), sh = ctx.createWaveShaper(), post = g(); ns.push(sh); sh.curve = satCurve(5); sh.oversample = eco ? "none" : "2x";
         from.connect(pk).connect(pre).connect(sh).connect(post).connect(wg);
-        return done((fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); } };
+        return done((fc, q, mu) => { set(pk.frequency, cf(fc)); set(pk.Q, Math.min(12, q * 1.5)); set(pk.gain, 6 + q * 1.2); set(pre.gain, 1 + mu * 7); set(post.gain, .55 / (1 + mu * 1.5)); });
       }
       if (t === 1) { const aps = [1, 1.6, 2.5, 3.9].map(() => bq("allpass")), post = g(); let n: AudioNode = from; aps.forEach(a => { n.connect(a); n = a; }); n.connect(post).connect(wg);
-        return done((fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); } };
+        return done((fc, q) => { aps.forEach((a, i) => { set(a.frequency, cf(fc * [1, 1.6, 2.5, 3.9][i])); set(a.Q, Math.min(20, q * 2.5)); }); set(post.gain, 1); });
       }
       if (t === 2) { const R = [1, 2.01, 3.03, 4.24], bs = R.map(() => bq("bandpass")), post = g(); bs.forEach(b => { from.connect(b); b.connect(post); }); post.connect(wg);
-        return done((fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); } };
+        return done((fc, q) => { bs.forEach((b, i) => { set(b.frequency, cf(fc * R[i])); set(b.Q, Math.min(30, q * 4)); }); set(post.gain, Math.min(3, .9 * Math.sqrt(q))); });
       }
       const R = [.5, 1, 2], nt = R.map(() => bq("notch")), sh = ctx.createWaveShaper(), dc = bq("highpass"), post = g(); ns.push(sh); sh.curve = rectCurve; dc.frequency.value = 25;
       let n: AudioNode = from; nt.forEach(a => { n.connect(a); n = a; }); n.connect(sh).connect(dc).connect(post).connect(wg);
-      return done((fc, q) => { nt.forEach((a, i) => { set(a.frequency, cf(fc * R[i])); set(a.Q, Math.min(4, q * .6)); }); set(post.gain, .9); } };
+      return done((fc, q) => { nt.forEach((a, i) => { set(a.frequency, cf(fc * R[i])); set(a.Q, Math.min(4, q * .6)); }); set(post.gain, .9); });
     };
     let twA: Twin | null = null, twB: Twin | null = null;
     const twin = (cur: Twin | null, t: number, from: BiquadFilterNode, out: GainNode) => { if (cur && cur.t === t) return cur;
