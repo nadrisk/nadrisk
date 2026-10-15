@@ -20,6 +20,6 @@
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
 - Transient slices (src/audio/slices.ts) cache one onset curve per buffer; SLCE sensitivity only re-picks peaks, and sliced sampler pads are mono (chords become strum/arp slice sequences).
 - morph.flt~ moves both biquads with one LFO through detune and rebuilds the LFO source only on wave change or RTRG note triggers.
-- NADRISK malfunction mode is session-only and toggles pre-built, bypassed master stages in performance.ts (hard clipper, OTT before the limiter), plus a pre-built failure gain after the master whose dropouts/stutters are booked ~1 s ahead on the audio clock, so entering it never builds nodes mid-play.
+- NADRISK malfunction mode is session-only and crossfades pre-built, dry master stages in performance.ts (OTT, then the nad-failure worklet: loudness-reactive sub-octaves, diode drive, slow pump) before the limiter, so entering it never builds nodes or cuts audio.
 - Unlicensed hosts (src/lib/origin.ts allowlist) force a permanent NADRISK lock for the session; add every new domain to that allowlist before connecting it.
 - acid.drive~ is a Big Muff model (two cascaded cached diode curves + LP/HP tone stack); it keeps the "drive" key as SUST and derives TONE from old "tone" Hz values, so older sets and sequencer mods still load.

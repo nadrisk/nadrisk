@@ -47,12 +47,15 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const clipIn = ctx.createGain(), clipBy = ctx.createGain(), pre = ctx.createGain(), shaper = ctx.createWaveShaper(), post = ctx.createGain(), limIn = ctx.createGain(), limBy = ctx.createGain(), limOn = ctx.createGain(), final = ctx.createGain();
   shaper.curve = clipCurve; shaper.oversample = "2x"; clipIn.gain.value = 0; limBy.gain.value = 0;
   // NADRISK stages are built once and sit fully dry until malfunction mode ramps them in.
-  const nadShaper = ctx.createWaveShaper(), softOut = ctx.createGain(), hardOut = ctx.createGain(); nadShaper.curve = nadCurve; nadShaper.oversample = "2x"; hardOut.gain.value = 0;
   const ottIn = ctx.createGain(), ottDry = ctx.createGain(), ottWet = ctx.createGain(), ott = ctx.createDynamicsCompressor(), ottMk = ctx.createGain(); ottWet.gain.value = 0;
-  ott.threshold.value = -42; ott.ratio.value = 14; ott.knee.value = 3; ott.attack.value = .001; ott.release.value = .05; ottMk.gain.value = 10 ** (16 / 20);
-  mastered.connect(clipIn).connect(pre); pre.connect(shaper).connect(softOut).connect(post); pre.connect(nadShaper).connect(hardOut).connect(post); post.connect(ottIn); mastered.connect(clipBy).connect(ottIn);
-  ottIn.connect(ottDry).connect(limIn); ottIn.connect(ott).connect(ottMk).connect(ottWet).connect(limIn);
-  limIn.connect(limiter).connect(limOn).connect(final); limIn.connect(limBy).connect(final); const failG = ctx.createGain(); final.connect(failG).connect(dest);
+  ott.threshold.value = -36; ott.ratio.value = 8; ott.knee.value = 6; ott.attack.value = .003; ott.release.value = .08; ottMk.gain.value = 10 ** (10 / 20);
+  mastered.connect(clipIn).connect(pre).connect(shaper).connect(post).connect(ottIn); mastered.connect(clipBy).connect(ottIn);
+  // Failure stage (loudness-reactive sub-harmonics, diode drive, sluggish pump) in parallel, dry until NADRISK.
+  const nadPre = ctx.createGain(), nadDry = ctx.createGain(), nadWet = ctx.createGain(); nadWet.gain.value = 0;
+  const failure = Tone.getContext().createAudioWorkletNode("nad-failure", { outputChannelCount: [2] }) as unknown as AudioWorkletNode;
+  ottIn.connect(ottDry).connect(nadPre); ottIn.connect(ott).connect(ottMk).connect(ottWet).connect(nadPre);
+  nadPre.connect(nadDry).connect(limIn); nadPre.connect(failure).connect(nadWet).connect(limIn);
+  limIn.connect(limiter).connect(limOn).connect(final); limIn.connect(limBy).connect(final); final.connect(dest);
   // Parallel, non-audible standards meter taps: K-weighted full band and 20-120 Hz sub band.
   const kShelf = ctx.createBiquadFilter(), kHp = ctx.createBiquadFilter(), subHp = ctx.createBiquadFilter(), subLp = ctx.createBiquadFilter();
   kShelf.type = "highshelf"; kShelf.frequency.value = 1682; kShelf.gain.value = 4; kShelf.Q.value = .707;
@@ -88,20 +91,10 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const gl = p.glueOn ?? false; set(glue.threshold, gl ? p.glueThresh ?? -12 : 0); set(glue.ratio, gl ? p.glueRatio ?? 2 : 1); set(glueMk.gain, gl ? db(p.glueMakeup ?? 2) : 1);
     set(limiter.threshold, p.ceiling ?? -1); set(limOn.gain, lim ? 1 : 0); set(limBy.gain, lim ? 0 : 1);
   };
-  // NADRISK failure: random dropouts and stutter chops on a pre-built gain, booked ~1 s ahead on the audio clock.
-  let failT: number | undefined, failAt = 0;
-  const book = () => { const g = failG.gain, now = ctx.currentTime; let t = Math.max(failAt, now + .05);
-    while (t < now + 1.2) { t += .8 + Math.random() * 2.6; const k = Math.random();
-      if (k < .45) { const d = .03 + Math.random() * .12; g.setValueAtTime(1, t); g.linearRampToValueAtTime(0, t + .004); g.setValueAtTime(0, t + d); g.linearRampToValueAtTime(1, t + d + .004); t += d; }
-      else if (k < .8) { const n = 3 + Math.floor(Math.random() * 6), c = .025 + Math.random() * .04; for (let j = 0; j < n; j++) { const a = t + j * c * 2; g.setValueAtTime(1, a); g.linearRampToValueAtTime(.05, a + .003); g.setValueAtTime(.05, a + c); g.linearRampToValueAtTime(1, a + c + .003); } t += n * c * 2; }
-      else { g.setValueAtTime(1, t); g.linearRampToValueAtTime(.35, t + .01); g.setValueAtTime(.35, t + .25); g.linearRampToValueAtTime(1, t + .3); t += .3; } }
-    failAt = t; };
-  const setFail = (on: boolean) => { clearInterval(failT); failT = undefined; const g = failG.gain; g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(1, ctx.currentTime, .01); failAt = 0;
-    if (on) { book(); failT = window.setInterval(book, 500); } };
-  const setNad = (on: boolean) => { setFail(on); const r = (g: AudioParam, v: number) => { g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, .015); };
-    r(ottWet.gain, on ? 1 : 0); r(ottDry.gain, on ? 0 : 1); r(hardOut.gain, on ? 1 : 0); r(softOut.gain, on ? 0 : 1); };
+  const setNad = (on: boolean) => { const r = (g: AudioParam, v: number) => { g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, .015); };
+    r(ottWet.gain, on ? 1 : 0); r(ottDry.gain, on ? 0 : 1); r(nadWet.gain, on ? 1 : 0); r(nadDry.gain, on ? 0 : 1); };
   // Tail kill: silence the dub echo return and loop until the line has emptied, then restore.
   const flush = () => { const t = ctx.currentTime, hold = eDelay.delayTime.value + .1;
     for (const g of [eRet.gain, eFb.gain]) { const v = g.value; g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0, t + .02); g.setValueAtTime(0, t + hold); g.linearRampToValueAtTime(g === eRet.gain ? 1 : v, t + hold + .02); } };
-  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { clearInterval(failT); failG.disconnect(); noise.stop(); [nadShaper, softOut, hardOut, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); [nadPre, nadDry, nadWet, failure, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
 }
