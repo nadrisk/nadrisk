@@ -8,6 +8,9 @@ import { defaultSiren, type Wave } from "@/audio/voices";
 
 const PAGES = ["OSC", "LFO", "SWP"] as const;
 const WAVES: Wave[] = ["sine", "triangle", "sawtooth", "square"];
+const OSC_CYCLE: Wave[] = ["square", "sine", "sawtooth"];
+const waveName = (w: Wave) => w === "square" ? "SQR" : w === "sawtooth" ? "SAW" : w === "triangle" ? "TRI" : "SINE";
+const nextWave = (w: Wave) => OSC_CYCLE[(OSC_CYCLE.indexOf(w) + 1) % OSC_CYCLE.length];
 
 // SIREN: the dub siren editor as a 128x64 1-bit hardware screen.
 function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
@@ -37,7 +40,7 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
       return envKnobs(l.env, env => L({ env }), home.env).map(k => ({ ...k, label: `Laser amp ${k.label}`, log: k.short !== "SUS" }));
     };
     const laserBody = (p: import("@/pixel/draw").Px, page: string) => {
-      p.box(96, 11, 30, 10); p.textC("LASER", 111, 14);
+      p.box(96, 11, 30, 10); p.textC("SIREN", 111, 14);
       if (page === "OSC") {
         drawWaveIcon(p, l.wave, 2, 11, 22, 10); p.text(l.wave === "square" ? "SQR" : "SAW", 28, 14);
         p.box(2, 23, 124, 19);
@@ -75,14 +78,10 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
     if (page === "LFO") return [
       { label: "LFO rate", short: "RATE", value: z.rate, min: .1, max: 20, step: .1, fmt: v => `${v.toFixed(1)}HZ`, set: rate => Z({ rate }) },
       { label: "LFO depth", short: "DPTH", value: z.depth, min: 0, max: 24, step: .5, fmt: st, set: depth => Z({ depth }) },
-      { label: "Tone", short: "TONE", value: z.tone, min: 300, max: 12000, step: 10, fmt: hz, set: tone => Z({ tone }) },
-      { label: "Siren release", short: "REL", value: z.release, min: .02, max: 3, step: .01, fmt: ms, set: release => Z({ release }) },
     ];
     return [
       { label: "Sweep", short: "SWP", value: z.sweep, min: -24, max: 24, step: 1, fmt: st, set: sweep => Z({ sweep }) },
       { label: "Sweep time", short: "TIME", value: z.sweepTime, min: .05, max: 6, step: .05, fmt: v => `${v.toFixed(1)}S`, set: sweepTime => Z({ sweepTime }) },
-      { label: "Siren release", short: "REL", value: z.release, min: .02, max: 3, step: .01, fmt: ms, set: release => Z({ release }) },
-      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     ];
   };
 
@@ -110,8 +109,8 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
     if (page === "OSC" || page === "LFO") {
       const w = page === "OSC" ? z.wave : z.lfoWave;
       drawWaveIcon(p, w, 2, 11, 22, 12);
-      p.text(page === "OSC" ? w.slice(0, 5).toUpperCase() : `${w.slice(0, 3).toUpperCase()} ${z.rate.toFixed(1)}HZ`, 28, 15);
-      p.box(96, 11, 30, 10); p.textC("DUB", 111, 14);
+      p.text(page === "OSC" ? waveName(w) : `${waveName(w)} ${z.rate.toFixed(1)}HZ`, 28, 15);
+      p.box(96, 11, 30, 10); p.textC("LASER", 111, 14);
       scope(p, page === "LFO");
     } else {
       // Sweep arrow graph: pitch rises or falls over sweep time, edge to edge.
@@ -121,13 +120,13 @@ function SirenPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot
       p.line(3, y0, 3 + len, y1); p.line(3 + len, y1, 124, y1);
       p.rect(3, y0 - 1, 3, 3); p.rect(2 + len, y1 - 1, 3, 3);
       p.text(`${z.sweep > 0 ? "+" : ""}${Math.round(z.sweep)}ST`, 3, 14);
-      p.box(96, 11, 30, 10); p.textC("DUB", 111, 14);
+      p.box(96, 11, 30, 10); p.textC("LASER", 111, 14);
     }
   };
 
   const extra = (page: string) => {
-    if (page === "OSC") return <Zone x={2} y={11} w={22} h={12} label="Siren wave" value={WAVES.indexOf(z.wave)} min={0} max={3} step={1} onChange={v => Z({ wave: WAVES[Math.round(v)] })} />;
-    if (page === "LFO") return <Zone x={2} y={11} w={22} h={12} label="Siren LFO wave" value={WAVES.indexOf(z.lfoWave)} min={0} max={3} step={1} onChange={v => Z({ lfoWave: WAVES[Math.round(v)] })} />;
+    if (page === "OSC") return <Tap x={2} y={11} w={60} h={12} label="Siren wave" onClick={() => Z({ wave: nextWave(z.wave) })} />;
+    if (page === "LFO") return <Tap x={2} y={11} w={22} h={12} label="Siren LFO wave" onClick={() => Z({ lfoWave: WAVES[(WAVES.indexOf(z.lfoWave) + 1) % WAVES.length] })} />;
     if (page === "SWP") return <Zone x={2} y={23} w={124} h={19} horizontal label="Sweep time" value={z.sweepTime} min={.05} max={6} step={.05} onChange={sweepTime => Z({ sweepTime })} />;
     return null;
   };

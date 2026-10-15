@@ -38,11 +38,11 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
         k("cutoff", "CUT", "cutoff", 40, 8000, 1, hz, true), k("resonance", "RES", "res", 0, 1, .01, pct),
         k("envelope", "ENV", "envMod", 0, 5, .01, v => `${v.toFixed(1)}OC`), k("decay", "DEC", "decay", .06, 1.5, .001, ms),
       ] : [noteK, k("accent", "ACC", "accent", 0, 1, .01, pct), k("drive", "DRV", "drive", 0, 1, .01, pct)]}
-      body={(p, page) => { if (page === "303") { p.box(2, 11, 124, 34); drawAcidDisplay(p, a, visual.current.bucket / 12); }
+      body={(p, page) => { if (page === "303") { p.box(2, 11, 124, 34); drawAcidDisplay(p, a, visual.current.bucket / 12); drawMode(p); }
         else { p.box(2, 11, 124, 34); p.textC(noteK.fmt(slot.note), 48, 17);
           const pc = ((slot.note % 12) + 12) % 12; for (let i = 0; i < 12; i++) { const x = 9 + i * 9; p.box(x, 29, 7, 11); if (i === pc) p.rect(x + 1, 30, 5, 9); }
-          drawMode(p); p.rect(3, 12, 30, 10, false); p.box(3, 12, 30, 10); p.textC(a.wave === "square" ? "SQR" : "SAW", 18, 15); } }}
-      extra={page => page === "SET" ? <>{modeKey}<Tap x={3} y={12} w={30} h={10} label="Acid waveform" pressed={a.wave === "square"} onClick={() => A({ wave: a.wave === "square" ? "sawtooth" : "square" })} /></> : null} />;
+          p.rect(3, 12, 30, 10, false); p.box(3, 12, 30, 10); p.textC(a.wave === "square" ? "SQR" : "SAW", 18, 15); } }}
+      extra={page => page === "303" ? modeKey : page === "SET" ? <><Tap x={3} y={12} w={30} h={10} label="Acid waveform" pressed={a.wave === "square"} onClick={() => A({ wave: a.wave === "square" ? "sawtooth" : "square" })} /></> : null} />;
   }
 
   const knobs = (page: string): Knob[] => {
