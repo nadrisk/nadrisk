@@ -8,7 +8,6 @@
 - Chords, choke assignments and A/B modulation lanes belong to each slot and are captured in sets, so recall restores performance routing without changing the original note grids.
 - Master performance processing sits after the summed pads and before a safety limiter; transient capture buttons are never restored held from a saved set.
 - Step-sequencer modulation is stored per slot per pattern bank (slot.mods[bank].values indexed by step) and applied only on lit steps, so the note grid stays the single place where rhythm lives.
-- MIDI learn binds CC/notes to controls by their aria-label and drives them via synthetic DOM events (src/hooks/useMidi.ts), so every labelled control is mappable without per-control wiring.
 - Master loudness and sub metering run as a silent parallel tap from the final output in that shared AudioWorklet bundle, so measurements reflect every master stage without changing audible routing.
 - Step banks carry per-step vel and chance arrays beside the note grid; loop crops use stepAt() so the scheduler, recorder and grid playhead agree on which column plays.
 - Double-click reset uses an explicit home or the first value seen per ResetScope+label (module map), so page switches never move it; MIDI events are ignored.
@@ -26,6 +25,5 @@
 - Pad pitch comes from slot.note (also the phrase root); a global Harmony (src/audio/harmony.ts) snaps NOTE knobs, walks phrases and picks chord quality in key, and sampler pitch is note relative to its sampleKey (sets v<2 migrate PTCH to NOTE), so one root drives every pitched path.
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and shared 808/ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
-
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
-- MIDI KBD mode (useMidi keys flag) routes every note to the selected pad via keyOn/keyOff in useGroovebox (semi = note-60, ±24), so pad mapping and keyboard play never share notes at once.
+- src/hooks has its own AGENTS.md; read it before changing files there.
