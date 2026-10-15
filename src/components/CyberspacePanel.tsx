@@ -4,9 +4,11 @@ import { synthPreviewColumns } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
+import { specParams, gateOn, N_BANDS, type SpecParams } from "@/audio/spectral";
 import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
 const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
+const SPEC_PAGES = ["BND", "SPC", "FLT", "LFO", "ENV"] as const;
 
 // Classic harmonic recipes (bar = perceived level): saw = all harmonics 1/n, square = odd 1/n, organ drawbars, bell-ish.
 const H = (f: (n: number) => number) => Array.from({ length: 16 }, (_, i) => Math.min(1, Math.sqrt(Math.max(0, f(i + 1)))));
@@ -31,7 +33,18 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const setSelectedEnv = (env: typeof s.env) => envPage === "AMP" ? S({ env }) : envPage === "PIT" ? S({ pitchEnvShape: env }) : S({ filterEnvShape: env });
 
   const noteK = useNoteKnob(slot, onChange);
+  const spec = s.mode === "spec", sp = specParams(s.spec);
+  const SP = (q: Partial<SpecParams>) => S({ spec: { ...sp, ...q } });
+  const toggleMode = () => S({ mode: spec ? "add" : "spec", spec: sp });
   const knobs = (page: string): Knob[] => {
+    if (page === "BND") return [noteK,
+      { label: "Spectral shift", short: "SHFT", value: sp.shift, min: -1, max: 1, step: .01, reset: 0, fmt: v => `${v >= 0 ? "+" : ""}${(v * 2).toFixed(1)}O`, set: shift => SP({ shift }) },
+      { label: "Spectral fine", short: "FINE", value: Math.max(-50, Math.min(50, s.osc1.fine)), min: -50, max: 50, step: 1, bare: true, reset: 0, fmt: v => `F${fineSt(v)}`, set: fine => S({ osc1: { ...s.osc1, fine } }) }];
+    if (page === "SPC") return [
+      { label: "Spectral gate", short: "GATE", value: sp.gate, min: 0, max: 1, step: .01, reset: 0, fmt: pct, set: gate => SP({ gate }) },
+      { label: "Spectral tight", short: "TGHT", value: sp.tight, min: 0, max: 1, step: .01, fmt: pct, set: tight => SP({ tight }) },
+      { label: "Spectral blur", short: "BLUR", value: sp.blur, min: 0, max: 1, step: .01, fmt: pct, set: blur => SP({ blur }) },
+      { label: "Spectral bite", short: "BITE", value: sp.bite, min: 0, max: 1, step: .01, fmt: pct, set: bite => SP({ bite }) }];
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       const set = (p: Partial<typeof o>) => S({ [k]: { ...o, ...p } } as Partial<typeof s>);
@@ -103,7 +116,18 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       if (prev) p.line(prev[0], prev[1], pt[0], pt[1]); prev = pt; }
   };
 
+  const modeKey = (p: import("@/pixel/draw").Px) => { p.box(96, 11, 30, 10); if (spec) p.invert(97, 12, 28, 8); p.textC(spec ? "SPEC" : "ADD", 111, 13, !spec); };
   const body = (p: import("@/pixel/draw").Px, page: string) => {
+    if (page === "BND" || page === "SPC") {
+      modeKey(p); p.text(page === "BND" ? "BANDS" : `GATE ${Math.round(sp.gate * 100)}`, 3, 13);
+      p.box(2, 25, 124, 19, true);
+      for (let i = 0; i < N_BANDS; i++) { const v = sp.bands[i], bh = Math.round(v * 15), x = 4 + i * 7.6;
+        if (page === "BND") p.rect(x, 42 - bh, 4, bh);
+        else for (let st2 = 0; st2 < 16; st2++) { const on = gateOn(i, st2) || sp.gate < .05; if (on && v > .01) p.dot(4 + st2 * 7.6 + 1, 42 - Math.round(i * 15 / 15)); } }
+      if (page === "SPC") { const w = Math.round(8 + sp.blur * 40), tl = Math.round(4 + (1 - sp.tight) * 40); p.text(`T${Math.round(sp.tight * 100)} B${Math.round(sp.blur * 100)}`, 3, 19); p.line(70, 22, 70 + tl, 22); p.line(70, 24, 70 + w, 24); }
+      return;
+    }
+    if (page === "O1") modeKey(p);
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       const stored = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
@@ -145,6 +169,9 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   };
 
   const extra = (page: string) => {
+    const mk = <Tap x={96} y={11} w={30} h={10} label={`Synth mode: ${spec ? "spectral" : "additive"}, tap to switch`} pressed={spec} onClick={toggleMode} />;
+    if (page === "BND") return <>{mk}<BarDraw x={3} y={26} w={122} h={17} values={sp.bands} onChange={bands => SP({ bands })} /></>;
+    if (page === "SPC") return mk;
     if (page === "O1" || page === "O2") {
       const k = page === "O1" ? "osc1" : "osc2", o = s[k];
       const stored = k === "osc2" ? (s.partials2 ?? s.partials) : s.partials;
@@ -153,6 +180,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       const setPartials = (partials: number[]) => S({ [k]: { ...o, wave: "additive" }, ...(k === "osc2" ? { partials2: partials } : { partials }) } as Partial<typeof s>);
       const nextWave = () => { const cur = PRESETS.findIndex(([n]) => n === name), nx = PRESETS[(cur + 1) % PRESETS.length][1]; S({ [k]: { ...o, wave: "additive" }, ...(k === "osc2" ? { partials2: nx } : { partials: nx }) } as Partial<typeof s>); };
       return <>
+        {page === "O1" && mk}
         <Tap x={2} y={11} w={60} h={12} label={`${k} waveform: ${name}, tap for next`} onClick={nextWave} />
         {k === "osc2" && <Tap x={72} y={10} w={30} h={11} label={`Osc 2 mode: ${s.osc2.mode}, tap to switch`} pressed={s.osc2.mode === "fm"} onClick={() => S({ osc2: { ...s.osc2, mode: s.osc2.mode === "fm" ? "mix" : "fm" } })} />}
         {/* Each oscillator owns its partial set; editing a legacy native wave converts that matching recipe to additive. */}
@@ -176,6 +204,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     return null;
   };
 
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage, lfoPage]} />;
+  return <Panel name={slot.name || "SYN"} pages={spec ? SPEC_PAGES : PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage, lfoPage]} />;
 }
 export default memo(CyberspacePanel);
