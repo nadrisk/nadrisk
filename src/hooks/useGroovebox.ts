@@ -280,7 +280,8 @@ export function useGroovebox() {
       // every ringing voice in the same group immediately, and never touch other groups.
       if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       // 808 is mono: a new hit cuts the old tail so its envelope always restarts at full level.
-      if (s.engine === "808") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; }
+      // LASER is mono too, so long releases never pile up on fast runs.
+      if (s.engine === "808" || (s.engine === "siren" && s.siren?.mode === "laser")) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       if (sliced) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
