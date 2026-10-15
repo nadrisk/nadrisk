@@ -214,7 +214,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   useEffect(() => { const m = window.matchMedia(DESKTOP_MQ), on = () => setDesktop(m.matches); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
   const midi = useMidi(rootRef, hit, g.release);
   const [qwerty, setQwerty] = useState(false);
-  useQwerty(qwerty, { hit, release: g.release, mute: g.toggleMute, solo: g.toggleSolo, bank: g.selectBank, pads: g.slots.length });
+  useQwerty(qwerty, { hit, release: g.release, mute: g.toggleMute, solo: g.toggleSolo, bank: g.selectBank, play: g.togglePlay, pads: g.slots.length });
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
