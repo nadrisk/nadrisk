@@ -92,7 +92,7 @@ export function trancePhrase(scale: ScaleName, t: TranceParams): ArpStep[] {
   const pat: (number | null)[] = [
     [null, 0, 0, o, null, 0, 0, o, null, 0, 0, o, null, 0, 0, o],
     [0, null, third, fifth, null, 0, third, null, 0, third, null, fifth, 0, null, third, fifth],
-    [0, o, fifth, o, third, o, fifth, o, 0, o, fifth + n > o + fifth ? fifth : fifth, o, third, o, fifth, o + third],
+    [0, o, fifth, o, third, o, fifth, o, 0, o, fifth, o, third, o, fifth, o + third],
     [0, null, null, o, null, null, fifth, null, 0, null, null, o, null, null, o + third, fifth],
   ][Math.max(0, Math.min(3, Math.round(t.pattern)))];
   // Weakest positions go first as density falls: odd 16ths, then off-8ths, then off-beats.
