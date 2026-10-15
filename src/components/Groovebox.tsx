@@ -10,6 +10,7 @@ import { memo, useCallback, useContext, useEffect, useRef, useState } from "reac
 import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Slider, ResetScope } from "@/components/ui/slider";
 import TapeDeck from "./TapeDeck";
 import { RATES, type RateName } from "@/audio/arp";
@@ -107,8 +108,6 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 150) return; lastToggle.current = { k, t }; onToggle(r, c); };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const labelTap = useRef({ r: -1, t: 0 });
-  // RND mode: row names become the include / exclude / solo switch for RAND, so rows need no extra keys.
-  const [rndMode, setRndMode] = useState(false);
   const harmony = useContext(HarmonyContext);
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
   const fmtV = (r: number, v: number) => view === "mod" && slots[r].mods?.[bank + modLane * 4]?.target === "pitch" ? `PTCH ${noteName(modPitchNote(harmony, slots[r].note, v))}` : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
@@ -125,10 +124,11 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const up = () => { dragRef.current = null; setTimeout(() => setReadout(null), 600); };
   return <div className="gb-seq-workspace">
     {readout && <div className="gb-step-readout" style={{ left: readout.x, top: readout.y }}>{readout.text}</div>}
-    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}><div className="gb-row gb-row-head"><button className={`gb-row-label gb-rnd-mode ${rndMode ? "on" : ""}`} aria-label="RAND row select mode: tap row names to include, exclude or solo them" aria-pressed={rndMode} onClick={() => setRndMode(m => !m)}>RND</button><button className="gb-cycle" aria-label="Lock loop lengths" aria-pressed={lenLock} onClick={onLenLock}>{lenLock ? "LCK" : "FREE"}</button>{view === "mod" && <button className="gb-cycle on" aria-label={`Modulation lane ${modLane + 1} of 3, tap for next`} onClick={onModLane}>{`M${modLane + 1}`}</button>}</div>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank + modLane * 4], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    <div className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}><div className="gb-row gb-row-head"><span className="gb-row-label gb-row-heading">LEN</span><span className="gb-rnd-heading" aria-hidden>RND</span><button className="gb-cycle" aria-label="Lock loop lengths" aria-pressed={lenLock} onClick={onLenLock}>{lenLock ? "LCK" : "FREE"}</button>{view === "mod" ? <button className="gb-cycle on" aria-label={`Modulation lane ${modLane + 1} of 3, tap for next`} onClick={onModLane}>{`M${modLane + 1}`}</button> : <span aria-hidden />}</div>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank + modLane * 4], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
-    <button className={`gb-row-label ${["", "rnd-x", "rnd-s"][slots[r].rnd ?? 0]}`} aria-label={rndMode ? `${slots[r].name} randomise: ${["included", "excluded", "solo"][slots[r].rnd ?? 0]}, tap to change` : `${slots[r].name || r + 1} row, tap to play, double-tap to clear`} onClick={() => { if (rndMode) { onRnd(r); return; } const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); onAudition(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
+    <button className="gb-row-label" aria-label={`${slots[r].name || r + 1} row, tap to play, double-tap to clear`} onClick={() => { const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); onAudition(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
+    <Button variant="ghost" size="icon" className={`gb-rnd-key rnd-${slots[r].rnd ?? 0}`} aria-label={`${slots[r].name || r + 1} randomise: ${["included", "excluded", "solo"][slots[r].rnd ?? 0]}, tap to change`} aria-pressed={(slots[r].rnd ?? 0) === 2} title="RAND: included / excluded / solo" onClick={() => onRnd(r)}>{["·", "X", "S"][slots[r].rnd ?? 0]}</Button>
     <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % 16) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : 16); }}>{len}</button>
 {view === "vel" || view === "chance" || view === "roll" ? (() => { const lit = row.map((v, c) => (v ? c : -1)).filter(c => c >= 0), vals = lit.map(c => view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : (view === "vel" ? vel : chance)[r]?.[c] ?? 1), rv = vals.length ? Math.max(...vals) : 1;
       const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(0, (e.clientX - b.left) / b.width))); };

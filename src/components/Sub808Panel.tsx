@@ -25,8 +25,8 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
     const bucket = Math.round(v.level * 12), changed = bucket !== v.bucket; v.bucket = bucket; return changed;
   };
   const acid = b.mode === "acid";
-  const modeKey = <Tap x={96} y={11} w={30} h={10} label="808 mode" pressed={acid} onClick={() => onChange({ bass: { ...b, mode: acid ? "808" : "acid", ...(!acid && !b.acid ? { acid: defaultAcid() } : {}) } })} />;
-  const drawMode = (p: import("@/pixel/draw").Px) => { if (acid) { p.rect(96, 11, 30, 10); p.textC("ACID", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("808", 111, 14); } };
+  const modeKey = <Tap x={96} y={11} w={30} h={10} label={acid ? "Switch to 808" : "Switch to ACID"} pressed={acid} onClick={() => onChange({ bass: { ...b, mode: acid ? "808" : "acid", ...(!acid && !b.acid ? { acid: defaultAcid() } : {}) } })} />;
+  const drawMode = (p: import("@/pixel/draw").Px) => { if (acid) { p.rect(96, 11, 30, 10); p.textC("808", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("ACID", 111, 14); } };
   if (acid) {
     const a = acidParams(b.acid), init = defaultAcid();
     const A = (patch: Partial<AcidParams>) => onChange({ bass: { ...b, acid: { ...a, ...patch } } });

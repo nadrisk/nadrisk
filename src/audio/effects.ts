@@ -397,12 +397,15 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Low-cut, mid push before the clipper (so resonance and squelch drive it hardest), one asymmetric
     // clip stage, TONE lowpass, MID presence peak, then fast heavy compression for the chewy, pumping bass.
     const hp0 = ctx.createBiquadFilter(), pre = ctx.createBiquadFilter(), s1 = ctx.createWaveShaper(), tone = ctx.createBiquadFilter(), midEq = ctx.createBiquadFilter(),
-      comp = ctx.createDynamicsCompressor(), out = ctx.createGain();
+      comp = ctx.createDynamicsCompressor(), dc = ctx.createBiquadFilter(), out = ctx.createGain();
     hp0.type = "highpass"; hp0.frequency.value = 45; pre.type = "peaking"; pre.frequency.value = 850; pre.Q.value = .7; pre.gain.value = 7;
     tone.type = "lowpass"; tone.Q.value = .6; midEq.type = "peaking"; midEq.frequency.value = 1400; midEq.Q.value = .9;
     comp.threshold.value = -26; comp.ratio.value = 12; comp.knee.value = 6; comp.attack.value = .004; comp.release.value = .12;
-    s1.oversample = eco ? "2x" : "4x"; nodes.push(hp0, pre, s1, tone, midEq, comp, out);
-    input.connect(hp0).connect(pre).connect(s1).connect(tone).connect(midEq).connect(comp).connect(out).connect(wet);
+    // Asymmetric clipping generates DC even from an AC-coupled input. Remove it after compression
+    // so stopping/retriggering the pattern cannot turn a changing offset into a speaker pop.
+    dc.type = "highpass"; dc.frequency.value = 10; dc.Q.value = .707;
+    s1.oversample = eco ? "2x" : "4x"; nodes.push(hp0, pre, s1, tone, midEq, comp, dc, out);
+    input.connect(hp0).connect(pre).connect(s1).connect(tone).connect(midEq).connect(comp).connect(dc).connect(out).connect(wet);
     let key = "";
     apply = p => { const drv = Math.max(1, p.drive ?? 12), bias = p.bias ?? .2, k = `${Math.round(drv * 2)}:${Math.round(bias * 20)}`;
       if (k !== key) { key = k; s1.curve = muffCurve(1 + drv * 1.3, bias); }

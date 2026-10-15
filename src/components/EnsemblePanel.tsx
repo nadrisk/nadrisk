@@ -33,11 +33,11 @@ function EnsemblePanel({ slot, index = 0, getWave, onChange }: { slot: Slot; ind
   const noteK = useNoteKnob(slot, onChange);
   const reese = y.mode === "reese", r = reeseParams(y.reese), home = defaultReese();
   const R = (q: Partial<ReeseParams>) => onChange({ poly: { ...y, reese: { ...r, ...q } } });
-  const modeKey = <Tap x={96} y={11} w={30} h={10} label="Poly mode" pressed={reese} onClick={() => {
+  const modeKey = <Tap x={96} y={11} w={30} h={10} label={reese ? "Switch to POLY" : "Switch to REESE"} pressed={reese} onClick={() => {
     const mode = reese ? "poly" : "reese";
     onChange({ poly: { ...y, mode, ...(mode === "reese" && !y.reese ? { reese: defaultReese() } : {}) } });
   }} />;
-  const drawMode = (p: import("@/pixel/draw").Px) => { if (reese) { p.rect(96, 11, 30, 10); p.textC("REESE", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("POLY", 111, 14); } };
+  const drawMode = (p: import("@/pixel/draw").Px) => { if (reese) { p.rect(96, 11, 30, 10); p.textC("POLY", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("REESE", 111, 14); } };
   const pitBody = (p: import("@/pixel/draw").Px) => {
     p.box(2, 11, 124, 34); p.textC(noteK.fmt(slot.note), 48, 17);
     const pc = ((slot.note % 12) + 12) % 12; for (let i = 0; i < 12; i++) { const x = 9 + i * 9; p.box(x, 29, 7, 11); if (i === pc) p.rect(x + 1, 30, 5, 9); }
