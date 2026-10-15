@@ -64,10 +64,10 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "PRST") {
       DRUM_PRESETS[d.kind].forEach((preset, i) => {
-        const y = 12 + i * 12, selected = preset.id === d0.preset;
-        p.box(2, y, 124, 10);
-        if (selected) p.rect(3, y + 1, 122, 8);
-        p.text(preset.name + (selected && drumPresetEdited(d0, preset) ? " *" : ""), 7, y + 3, !selected);
+        const two = DRUM_PRESETS[d.kind].length > 4, x = two ? 2 + (i % 2) * 63 : 2, w = two ? 61 : 124, y = 12 + (two ? Math.floor(i / 2) : i) * 12, selected = preset.id === d0.preset;
+        p.box(x, y, w, 10);
+        if (selected) p.rect(x + 1, y + 1, w - 2, 8);
+        p.text((two ? preset.name.slice(0, 11) : preset.name) + (selected && drumPresetEdited(d0, preset) ? "*" : ""), x + 3, y + 3, !selected);
       });
       return;
     }
@@ -96,7 +96,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   };
 
   const extra = (page: string) => {
-    if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={2} y={12 + i * 12} w={124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ drum: copyDrumPreset(preset) })} />);
+    if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={DRUM_PRESETS[d.kind].length > 4 ? 2 + (i % 2) * 63 : 2} y={12 + (DRUM_PRESETS[d.kind].length > 4 ? Math.floor(i / 2) : i) * 12} w={DRUM_PRESETS[d.kind].length > 4 ? 61 : 124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ drum: copyDrumPreset(preset) })} />);
     if (page === "SRC" || page === "SHP") return <>
       {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => k !== d.kind && onChange({ drum: { kind: k, ...DRUM_INIT[k], env: { ...DRUM_INIT[k].env } } })} />)}
       {d.kind === "clap"
