@@ -33,7 +33,7 @@ export const FX_DEFS = {
   sidechain: { label: "sidechain~", params: { source: [1, 1, 16, 1], hp: [80, 20, 1000, 5], depth: [0.8, 0, 1, 0.01], attack: [0.005, 0.001, 0.1, 0.001], release: [0.2, 0.02, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   djfilter: { label: "dj.filter~", params: { sweep: [0, -1, 1, 0.01], resonance: [0.7, 0.1, 8, 0.1], mix: [1, 0, 1, 0.01] } },
   reverseDelay: { label: "reverse.delay~", params: { time: [0.25, 0.02, 1.5, 0.005], sync: [4, 0, 10, 1], feedback: [0.3, 0, 0.85, 0.01], ping: [0, 0, 1, 1], mix: [0.35, 0, 1, 0.01] } },
-  acid: { label: "acid.drive~", params: { drive: [10, 1, 40, 0.1], bias: [0.35, 0, 0.9, 0.01], bite: [1800, 300, 6000, 10], tone: [7000, 800, 16000, 10], mix: [1, 0, 1, 0.01] } },
+  acid: { label: "acid.drive~", params: { drive: [12, 1, 40, 0.1], blend: [0.5, 0, 1, 0.01], mid: [0.5, 0, 1, 0.01], bias: [0.2, 0, 0.9, 0.01], mix: [1, 0, 1, 0.01], vol: [0.8, 0, 1.5, 0.01] } },
   eq: { label: "channel.eq~", params: { low: [0, -15, 15, 0.5], lowFreq: [100, 30, 400, 1], mid: [0, -15, 15, 0.5], midFreq: [1000, 200, 8000, 10], q: [1, 0.3, 8, 0.1], high: [0, -15, 15, 0.5], highFreq: [9000, 2000, 16000, 10] } },
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
   drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
@@ -257,6 +257,12 @@ const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
 function warmCurve(k: number) { const c = new Float32Array(2048), norm = (v: number) => { const z = Math.max(-1, Math.min(1, v)); return z - z * z * z / 3; }, top = norm(k * .5) || 1;
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * k * .5; c[i] = (norm(x) + .06 * norm(x) * Math.abs(norm(x)) - .0) / (top * 1.06); } return c; }
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
+// Big Muff clipping stage: gain into a diode pair (soft knee, BIAS makes it asymmetric); cached per gain/bias step.
+const muffCache = new Map<string, Float32Array<ArrayBuffer>>();
+function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) / 2, b = Math.round(bias * 20) / 20, k = `${g}:${b}`; let c = muffCache.get(k); if (c) return c;
+  c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
+  for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * g; c[i] = (x >= 0 ? Math.tanh(x) : Math.tanh(x * (1 - b * .6)) * (1 - b * .35)) / n; }
+  muffCache.set(k, c); return c; }
 function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
 // Cache misses fill in deferred chunks so SIZE/DENS changes never block pad input.
 const impulses = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
@@ -387,12 +393,21 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     trigger = at => { if ((last.retrig ?? 0) >= .5) build(at); };
     oscs.push({ stop: () => { try { src?.stop(); } catch { /* ended */ } } } as unknown as OscillatorNode);
   } else if (type === "acid") {
-    // Diode-style asymmetric clipper with a resonant "bite" peak and fizzy top, for 303-style leads and basses.
-    const pre = ctx.createGain(), sh = ctx.createWaveShaper(), peak = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), comp = ctx.createGain();
-    peak.type = "peaking"; peak.Q.value = 1.4; peak.gain.value = 7; sh.oversample = eco ? "none" : "4x"; nodes.push(pre, sh, peak, lp, comp);
-    input.connect(pre).connect(sh).connect(peak).connect(lp).connect(comp).connect(wet); let key = "";
-    apply = p => { const k = `${p.drive}:${p.bias}`; if (k !== key) { key = k; sh.curve = acidCurve(p.drive, p.bias); }
-      set(pre.gain, 1); set(peak.frequency, p.bite); set(lp.frequency, p.tone); set(comp.gain, curveComp(sh.curve)); };
+    // Big Muff Pi model: input pre-emphasis, two cascaded diode clipping stages with interstage filtering
+    // (the singing sustain), then the passive tone stack: LP and HP blended by TONE, which scoops the mids; MID refills them.
+    const hp0 = ctx.createBiquadFilter(), s1 = ctx.createWaveShaper(), lp1 = ctx.createBiquadFilter(), hp1 = ctx.createBiquadFilter(), s2 = ctx.createWaveShaper(),
+      tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), gl = ctx.createGain(), gh = ctx.createGain(), sum = ctx.createGain(), midEq = ctx.createBiquadFilter(), out = ctx.createGain();
+    hp0.type = "highpass"; hp0.frequency.value = 110; lp1.type = "lowpass"; lp1.frequency.value = 4800; hp1.type = "highpass"; hp1.frequency.value = 70;
+    tl.type = "lowpass"; tl.frequency.value = 720; tl.Q.value = .5; th.type = "highpass"; th.frequency.value = 1500; th.Q.value = .5; midEq.type = "peaking"; midEq.frequency.value = 1000; midEq.Q.value = .8;
+    s1.oversample = s2.oversample = eco ? "2x" : "4x"; nodes.push(hp0, s1, lp1, hp1, s2, tl, th, gl, gh, sum, midEq, out);
+    input.connect(hp0).connect(s1).connect(lp1).connect(hp1).connect(s2); s2.connect(tl).connect(gl).connect(sum); s2.connect(th).connect(gh).connect(sum); sum.connect(midEq).connect(out).connect(wet);
+    let key = "";
+    apply = p => { const drv = Math.max(1, p.drive ?? 12), bias = p.bias ?? .2, k = `${Math.round(drv * 2)}:${Math.round(bias * 20)}`;
+      if (k !== key) { key = k; s1.curve = muffCurve(1 + drv * .9, bias); s2.curve = muffCurve(1.5 + drv * .35, bias * .5); }
+      const blend = Math.max(0, Math.min(1, p.blend ?? (p.tone && p.tone > 1 ? (p.tone - 800) / 15200 : .5))), mid = p.mid ?? .5;
+      set(gl.gain, Math.cos(blend * Math.PI / 2) * 1.6); set(gh.gain, Math.sin(blend * Math.PI / 2) * 1.6); set(midEq.gain, (mid - .5) * 20);
+      // Clipped output is already near full scale, so level only follows VOL and the tone/mid settings, not SUST.
+      set(out.gain, (p.vol ?? .8) * .55 / (1 + Math.max(0, mid - .5) * 1.4)); };
   } else if (type === "metal") {
     // Roar-style tuned feedback: a stereo pair of combs pitched by NOTE (+FINE, optionally tracking the played note),
     // allpass dispersion (METL) for inharmonic clang, TONE lowpass and DRIVE saturation inside the loop.

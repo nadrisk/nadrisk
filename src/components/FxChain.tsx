@@ -26,7 +26,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -108,12 +108,12 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     d.text(`${bits}B /${Math.round(pv(p, "reduce", 4))}`, 4, 23);
   } else if (type === "acid") {
     // Stompbox: clean wave in, fuzz out; knob dots follow DRV/BITE/TONE, LED lights with drive.
-    const drive = pv(p, "drive", 10), bias = pv(p, "bias", .35), k = Math.min(1, (drive - 1) / 39);
+    const drive = pv(p, "drive", 12), bias = pv(p, "bias", .2), k = Math.min(1, (drive - 1) / 39);
     let py = 33; for (let x = 4; x <= 46; x++) { const y = 33 - Math.round(Math.sin((x - 4) / 42 * TAU * 2) * 7); if (x > 4) d.line(x - 1, py, x, y); py = y; }
     py = 33; for (let x = 82; x <= 124; x++) { const v = Math.tanh(Math.sin((x - 82) / 42 * TAU * 2) * (1 + k * 12) + bias * .4) / Math.tanh(1 + k * 12), y = 33 - Math.round(v * 8); if (x > 82) d.line(x - 1, py, x, y); py = y; }
     d.line(47, 33, 50, 33); d.line(78, 33, 81, 33);
     d.box(51, 21, 27, 23);
-    const kf = [k, (pv(p, "bite", 1800) - 300) / 5700, (pv(p, "tone", 7000) - 800) / 15200];
+    const kf = [k, pv(p, "blend", .5), pv(p, "mid", .5)];
     kf.forEach((f, n) => { const cx = 56 + n * 8, a = (-135 + f * 270) * Math.PI / 180; d.box(cx - 1, 23, 3, 3); d.dot(cx + Math.round(Math.sin(a)), 24 - Math.round(Math.cos(a))); });
     if (k > .05) d.rect(63, 29, 3, 2); else d.box(63, 29, 3, 2);
     d.box(58, 35, 13, 6); d.rect(60, 37, 9, 2);
