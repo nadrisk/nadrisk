@@ -29,7 +29,7 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   for (let k = 0; k < N_BANDS; k++) { const lv = sp.bands[k]; if (lv < .01) continue;
     const f = base * bandRatio(k, sp.shift); if (f > nyq || f < 20) continue;
     const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
-    const g = ctx.createGain(), peak = lv * Math.sqrt(q) * .35, A = .002 + (1 - tight) * (.04 + sp.blur * .5) + k * .004 * (1 - tight);
+    const g = ctx.createGain(), peak = lv * Math.sqrt(q) * .2, A = .002 + (1 - tight) * (.04 + sp.blur * .5) + k * .004 * (1 - tight);
     const D = tight > 0 ? (.05 + (1 - tight) * 2.5) / (1 + k * .08 * tight) : 4, S = peak * (1 - tight * .85);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + A); g.gain.setTargetAtTime(S, t + A, D / 3);
     src.connect(bp).connect(g); nodes.push(bp, g);
