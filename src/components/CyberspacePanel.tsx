@@ -2,7 +2,7 @@ import { useNoteKnob } from "@/components/harmonyKnob";
 import { memo, useState } from "react";
 import { synthPreviewColumns } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, hz, ms, pct, st, type Knob } from "./pixelScreens";
+import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
