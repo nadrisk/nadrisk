@@ -13,7 +13,7 @@ s.lp+=this.k*(x-s.lp);s.lp2+=this.k*(s.lp-s.lp2);const a=Math.abs(s.lp2);s.amp=a
 const sg=s.lp2>=0?1:-1;if(sg>0&&s.last<0){s.f1=-s.f1;if(s.f1>0)s.f2=-s.f2;}s.last=sg;
 s.sub+=this.ks*((s.f1*.65+s.f2*.45)*s.amp-s.sub);
 const d=(1+lv*7)*x,y=d>=0?1-Math.exp(-d):-.7*(1-Math.exp(d/.7)),nrm=1-Math.exp(-(1+lv*7));
-o[c][t]=(x*(1-lv)*.0+y/nrm+s.sub*1.4*lv)*this.g;}
+o[c][t]=(y/nrm+s.sub*1.4*lv)*this.g;}
 const mo=Math.max(Math.abs(o[0][t]),o[1]?Math.abs(o[1][t]):0);this.pe=mo>this.pe?mo+this.pA*(this.pe-mo):mo+this.pR*(this.pe-mo);
 const tg=1/(1+Math.max(0,this.pe-.35)*3.5)*(1+.25*(1-lv));this.g=tg+this.gS*(this.g-tg);}
 return true;}}
