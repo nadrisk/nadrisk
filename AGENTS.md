@@ -28,3 +28,4 @@
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and shared 808/ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
+- MIDI KBD mode (useMidi keys flag) routes every note to the selected pad via keyOn/keyOff in useGroovebox (semi = note-60, ±24), so pad mapping and keyboard play never share notes at once.
