@@ -43,6 +43,6 @@
 - [x] B: LASER mono, page-aware CLEAR, 4 kick/4 snare presets from uploaded patches
 - [x] C: VIB/LOFI key + cassette, reverse-delay arrows, acid pedal screen
 - [x] D: Big Muff fuzz sound (needs ear test)
-- [ ] E: Phrase TRANCE mode
+- [x] E: Phrase TRANCE mode (TRNC page)
 - [ ] F: Trippy acid visual
 - [ ] G: factory patches, NADRISK failure, MIDI keyboard, SPEC mode

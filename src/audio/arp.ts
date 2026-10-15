@@ -19,7 +19,7 @@ export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
 export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop };
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean } };
 /** Repeat the first or last `len` steps `times` times before moving on (times 1 = off). */
 export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
 
@@ -77,3 +77,28 @@ export function scaleChordOffsets(scale: ScaleName, semi: number, size: number):
 }
 /** True when every interval of `shape`, built on `semi`, lands on a note of the scale. */
 export const shapeInScale = (scale: ScaleName, semi: number, shape: readonly number[]) => shape.every(o => degreeOf(scale, semi + o) !== null);
+
+/** TRANCE generator settings stored with the phrase; writing cells keeps the scheduler unchanged. */
+export type TranceParams = { pattern: number; density: number; spread: number; gate: number };
+export const TRANCE_PATTERNS = ["ROLL", "GATE", "ARP", "PLCK"] as const;
+export const defaultTrance = (): TranceParams => ({ pattern: 0, density: 1, spread: 1, gate: .5 });
+/**
+ * Classic trance 16th phrases in scale degrees (oct = one octave up):
+ * ROLL off-beat rolling bass (rest on each downbeat), GATE chopped chord-tone stabs,
+ * ARP root/octave/fifth jumping arp, PLCK uplifting 3-3-2 pluck figure. DENS drops weak steps first.
+ */
+export function trancePhrase(scale: ScaleName, t: TranceParams): ArpStep[] {
+  const n = SCALES[scale].length, o = n * Math.max(0, Math.min(2, Math.round(t.spread))), fifth = Math.min(4, n - 1), third = Math.min(2, n - 1);
+  const pat: (number | null)[] = [
+    [null, 0, 0, o, null, 0, 0, o, null, 0, 0, o, null, 0, 0, o],
+    [0, null, third, fifth, null, 0, third, null, 0, third, null, fifth, 0, null, third, fifth],
+    [0, o, fifth, o, third, o, fifth, o, 0, o, fifth, o, third, o, fifth, o + third],
+    [0, null, null, o, null, null, fifth, null, 0, null, null, o, null, null, o + third, fifth],
+  ][Math.max(0, Math.min(3, Math.round(t.pattern)))];
+  // Weakest positions go first as density falls: odd 16ths, then off-8ths, then off-beats.
+  const weight = (i: number) => i % 4 === 0 ? 1 : i % 2 === 0 ? .66 : .33;
+  return Array.from({ length: 16 }, (_, i) => {
+    const d = pat[i], on = d !== null && weight(i) > 1 - t.density - .01;
+    return { on, deg: Math.max(0, d ?? 0), vel: i % 4 === 0 ? 1 : i % 2 ? .7 : .85, gate: t.gate, slide: false };
+  });
+}
