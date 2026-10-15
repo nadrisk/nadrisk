@@ -20,7 +20,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
-  : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "density" || k === "feedback" || k === "wow" || k === "env" ? `${Math.round(v * 100)}%`
+  : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "density" || k === "feedback" || k === "wow" || k === "env" || k === "blend" || k === "mid" || k === "vol" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.

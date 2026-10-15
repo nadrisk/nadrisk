@@ -263,7 +263,6 @@ function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) 
   c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * g; c[i] = (x >= 0 ? Math.tanh(x) : Math.tanh(x * (1 - b * .6)) * (1 - b * .35)) / n; }
   muffCache.set(k, c); return c; }
-function acidCurve(drive: number, bias: number) { const c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * drive; c[i] = x >= 0 ? 1 - Math.exp(-x) : -(1 - Math.exp(x * (1 - bias))) * (1 - bias * .5); } return c; }
 // Cache misses fill in deferred chunks so SIZE/DENS changes never block pad input.
 const impulses = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
 const pendingImpulses = new WeakMap<BaseAudioContext, Map<string, ((buffer: AudioBuffer) => void)[]>>();
