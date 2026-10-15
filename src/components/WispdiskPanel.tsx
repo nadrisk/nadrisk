@@ -90,6 +90,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices }: { slot: Slot; peaks
   ];
 
   const wave = (p: Px, x0: number, y0: number, w: number, h: number) => {
+    if (!peaks) return;
     const lane = Math.floor(h / 2);
     for (let x = 0; x < w; x++) {
       // Reverse mirrors the display so it matches the actual playback direction.
@@ -152,10 +153,10 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices }: { slot: Slot; peaks
       p.box(25, 11, 21, 7, !sm.grain); if (sm.freeze) p.invert(26, 12, 19, 5); p.text("FRZ", 29, 12, !sm.freeze);
       p.box(48, 11, 21, 7); if (lfoView) p.invert(49, 12, 19, 5); p.text("LFO", 52, 12, !lfoView);
       p.box(2, 19, 124, 26); wave(p, 3, 20, 122, 24);
-      const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
+      if (peaks) { const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
       p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 125 - Math.max(3, gx - sp)), 24, true);
       // LFO sweep range drawn as a bracket under the grain window.
-      const la = Math.round((sm.gLfoAmt ?? 0) * 61); if (la > 0 && (sm.gLfoRate ?? 0) > 0) { const l0 = Math.max(3, gx - la), l1 = Math.min(124, gx + la); p.line(l0, 43, l1, 43); p.line(l0, 41, l0, 43); p.line(l1, 41, l1, 43); }
+      const la = Math.round((sm.gLfoAmt ?? 0) * 61); if (la > 0 && (sm.gLfoRate ?? 0) > 0) { const l0 = Math.max(3, gx - la), l1 = Math.min(124, gx + la); p.line(l0, 43, l1, 43); p.line(l0, 41, l0, 43); p.line(l1, 41, l1, 43); } }
     }
     knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 58); });
   };
