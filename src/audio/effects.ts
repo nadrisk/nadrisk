@@ -258,7 +258,7 @@ const meterDb = (analyser: AnalyserNode, data: Float32Array<ArrayBuffer>) => {
 function warmCurve(k: number) { const c = new Float32Array(2048), norm = (v: number) => { const z = Math.max(-1, Math.min(1, v)); return z - z * z * z / 3; }, top = norm(k * .5) || 1;
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * k * .5; c[i] = (norm(x) + .06 * norm(x) * Math.abs(norm(x)) - .0) / (top * 1.06); } return c; }
 function satCurve(k: number) { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
-// Big Muff clipping stage: gain into a diode pair (soft knee, BIAS makes it asymmetric); cached per gain/bias step.
+// Asymmetric op-amp/diode clip stage: gain into a diode pair (soft knee, BIAS makes it asymmetric); cached per gain/bias step.
 const muffCache = new Map<string, Float32Array<ArrayBuffer>>();
 function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) / 2, b = Math.round(bias * 20) / 20, k = `${g}:${b}`; let c = muffCache.get(k); if (c) return c;
   c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
@@ -393,21 +393,23 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     trigger = at => { if ((last.retrig ?? 0) >= .5) build(at); };
     oscs.push({ stop: () => { try { src?.stop(); } catch { /* ended */ } } } as unknown as OscillatorNode);
   } else if (type === "acid") {
-    // Big Muff Pi model: input pre-emphasis, two cascaded diode clipping stages with interstage filtering
-    // (the singing sustain), then the passive tone stack: LP and HP blended by TONE, which scoops the mids; MID refills them.
-    const hp0 = ctx.createBiquadFilter(), s1 = ctx.createWaveShaper(), lp1 = ctx.createBiquadFilter(), hp1 = ctx.createBiquadFilter(), s2 = ctx.createWaveShaper(),
-      tl = ctx.createBiquadFilter(), th = ctx.createBiquadFilter(), gl = ctx.createGain(), gh = ctx.createGain(), sum = ctx.createGain(), midEq = ctx.createBiquadFilter(), out = ctx.createGain();
-    hp0.type = "highpass"; hp0.frequency.value = 110; lp1.type = "lowpass"; lp1.frequency.value = 4800; hp1.type = "highpass"; hp1.frequency.value = 70;
-    tl.type = "lowpass"; tl.frequency.value = 720; tl.Q.value = .5; th.type = "highpass"; th.frequency.value = 1500; th.Q.value = .5; midEq.type = "peaking"; midEq.frequency.value = 1000; midEq.Q.value = .8;
-    s1.oversample = s2.oversample = eco ? "2x" : "4x"; nodes.push(hp0, s1, lp1, hp1, s2, tl, th, gl, gh, sum, midEq, out);
-    input.connect(hp0).connect(s1).connect(lp1).connect(hp1).connect(s2); s2.connect(tl).connect(gl).connect(sum); s2.connect(th).connect(gh).connect(sum); sum.connect(midEq).connect(out).connect(wet);
+    // "Da Funk" chain: 303 through a hot op-amp distortion pedal into a hard-squashing compressor.
+    // Low-cut, mid push before the clipper (so resonance and squelch drive it hardest), one asymmetric
+    // clip stage, TONE lowpass, MID presence peak, then fast heavy compression for the chewy, pumping bass.
+    const hp0 = ctx.createBiquadFilter(), pre = ctx.createBiquadFilter(), s1 = ctx.createWaveShaper(), tone = ctx.createBiquadFilter(), midEq = ctx.createBiquadFilter(),
+      comp = ctx.createDynamicsCompressor(), out = ctx.createGain();
+    hp0.type = "highpass"; hp0.frequency.value = 45; pre.type = "peaking"; pre.frequency.value = 850; pre.Q.value = .7; pre.gain.value = 7;
+    tone.type = "lowpass"; tone.Q.value = .6; midEq.type = "peaking"; midEq.frequency.value = 1400; midEq.Q.value = .9;
+    comp.threshold.value = -26; comp.ratio.value = 12; comp.knee.value = 6; comp.attack.value = .004; comp.release.value = .12;
+    s1.oversample = eco ? "2x" : "4x"; nodes.push(hp0, pre, s1, tone, midEq, comp, out);
+    input.connect(hp0).connect(pre).connect(s1).connect(tone).connect(midEq).connect(comp).connect(out).connect(wet);
     let key = "";
     apply = p => { const drv = Math.max(1, p.drive ?? 12), bias = p.bias ?? .2, k = `${Math.round(drv * 2)}:${Math.round(bias * 20)}`;
-      if (k !== key) { key = k; s1.curve = muffCurve(1 + drv * .9, bias); s2.curve = muffCurve(1.5 + drv * .35, bias * .5); }
+      if (k !== key) { key = k; s1.curve = muffCurve(1 + drv * 1.3, bias); }
       const blend = Math.max(0, Math.min(1, p.blend ?? (p.tone && p.tone > 1 ? (p.tone - 800) / 15200 : .5))), mid = p.mid ?? .5;
-      set(gl.gain, Math.cos(blend * Math.PI / 2) * 1.6); set(gh.gain, Math.sin(blend * Math.PI / 2) * 1.6); set(midEq.gain, (mid - .5) * 20);
-      // Clipped output is already near full scale, so level only follows VOL and the tone/mid settings, not SUST.
-      set(out.gain, (p.vol ?? .8) * .55 / (1 + Math.max(0, mid - .5) * 1.4)); };
+      set(tone.frequency, 1200 * 2 ** (blend * 3.3)); set(midEq.gain, (mid - .5) * 16);
+      // Clipper + compressor hold the level, so SUST adds grit without getting louder; VOL sets output.
+      set(out.gain, (p.vol ?? .8) * 1.1 / (1 + Math.max(0, mid - .5) * 1.2)); };
   } else if (type === "metal") {
     // Roar-style tuned feedback: a stereo pair of combs pitched by NOTE (+FINE, optionally tracking the played note),
     // allpass dispersion (METL) for inharmonic clang, TONE lowpass and DRIVE saturation inside the loop.
