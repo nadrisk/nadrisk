@@ -1022,4 +1022,4 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-row { position: relative; }
 .gb-row-rnd { position: absolute; left: 62px; top: 0; bottom: 0; width: 16px; z-index: 2; font: 9px 'Silkscreen', monospace; padding: 0; background: hsl(var(--card)); color: hsl(var(--muted-foreground)); border: 1px solid hsl(var(--border)); border-radius: 0; }
 .gb-row-rnd.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-@media (max-width: 767px) { .gb-row-rnd { left: 41px; } }
+@media (max-width: 640px) { .gb-row-rnd { left: 41px; } }
