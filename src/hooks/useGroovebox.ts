@@ -37,7 +37,7 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 /** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
-const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "built-in tone", ...o });
+const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", ...o });
 
 const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: [defaultMod(), defaultMod(), defaultMod(), defaultMod()], bass: default808(), eq: defaultEQ(), siren: defaultSiren(), ...extra });
 // Default kit: modern IDM palette — clicky drums, FM metal, glitch chops, rubbery bass, glassy chords and textures.
@@ -254,7 +254,8 @@ export function useGroovebox() {
     const pitch = s.note + semi + (s.engine === "drum" ? 0 : tuneRef.current);
     // Sampler: NOTE relative to the sample's own key (S-KEY), plus FINE cents; C4 with S-KEY C plays the file as recorded.
     const sp = s.note + (s.engine === "drum" ? 0 : tuneRef.current) - 60 - (s.sampler.sampleKey ?? 0) + Math.max(-50, Math.min(50, s.sampler.fine ?? 0)) / 100;
-    const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
+    if (!buffers.current[i]) return; // empty sampler pads stay silent until a sample is loaded
+    const raw = buffers.current[i]!, buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     // Breakbeats: WARP fits the loop to the tempo without changing pitch; SLICES plays one slice per note
     // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
     // Sliced samplers are mono: one slice at a time, chords become sequences of slices (BLOCK plays the first only).
