@@ -31,3 +31,10 @@ describe("ADA flanger", () => {
     expect(diff(w.l, w.r)).toBeGreaterThan(.005); expect(diff(m.l, m.r)).toBeLessThan(1e-6);
   });
 });
+describe("ADA envelope follower", () => {
+  it("ENV moves the sweep with RATE 0", () => {
+    const sig = (n: number) => (Math.floor(n / 12000) % 2 ? saw(n) : saw(n) * .05);
+    const a = run("nad-ada", { rate: 0, depth: 0, manual: 8, feedback: .6, env: 0, width: 0 }, sig), b = run("nad-ada", { rate: 0, depth: 0, manual: 8, feedback: .6, env: 1, width: 0 }, sig);
+    expect(diff(a.l, b.l)).toBeGreaterThan(.01);
+  });
+});
