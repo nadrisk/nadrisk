@@ -70,22 +70,30 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
   // AC coupling softens the square plateau into the hollow 303-like pulse.
   shape.type = "highpass"; shape.frequency.value = p.wave === "square" ? frequency * .42 : 20; shape.Q.value = .707;
   osc.connect(shape).connect(filter).connect(amp).connect(releaseGain).connect(declick).connect(dest);
-  // De-click: the saw starts at its zero crossing; a 2 ms fade-in also hides the square's first edge and the filter's startup step.
+   // Keep the existing de-click separate from the accent's short charging slope.
   declick.gain.setValueAtTime(0, t); declick.gain.linearRampToValueAtTime(1, t + .002);
   const accented = vel > .8;
-  const envelope = (at: number, elapsed: number) => {
+   const accentRise = accented ? p.accent * .003 : 0;
+   const ampRise = .002 + (accented ? p.accent * .0015 : 0);
+   const envelope = (at: number, elapsed: number, onset = false) => {
     const dec = accented ? p.decay + (.18 - p.decay) * p.accent : p.decay;
     const amount = p.envMod + (accented ? p.accent * 1.5 : 0);
     const oct = amount * Math.exp(-elapsed / (dec / 3));
     cut?.cancelScheduledValues(at);
-    cut?.setValueAtTime(Math.min(18000, p.cutoff * 2 ** oct), at);
+     const peakCutoff = Math.min(18000, p.cutoff * 2 ** oct);
+     if (onset && accentRise > 0) {
+       cut?.setValueAtTime(p.cutoff, at);
+       cut?.exponentialRampToValueAtTime(peakCutoff, at + accentRise);
+     } else {
+       cut?.setValueAtTime(peakCutoff, at);
+     }
     cut?.exponentialRampToValueAtTime(p.cutoff, at + Math.max(.01, dec - elapsed));
     res?.setTargetAtTime(p.res, at, .007); drive?.setTargetAtTime(p.drive, at, .007);
   };
-  envelope(t, 0);
+   envelope(t, 0, true);
   const peak = vel * .48 * (1 + (accented ? p.accent * .45 : 0));
-  amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + .002);
-  amp.gain.setTargetAtTime(peak * .65, t + .002, .18);
+   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + ampRise);
+   amp.gain.setTargetAtTime(peak * .65, t + ampRise, .18);
   const gateEnd = t + Math.max(.005, gate);
   releaseGain.gain.setValueAtTime(1, t); releaseGain.gain.setTargetAtTime(0, gateEnd, .018);
   let end = gateEnd + .14, cleaned = false, cancelled = false;

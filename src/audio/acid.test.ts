@@ -41,7 +41,27 @@ describe("acid", () => {
     }
     expect(osc.stop).toHaveBeenLastCalledWith(cancelAt);
   });
-  it("provides finite bounded defaults and clamps unsafe settings", () => {
+   it.each([0, .65, 1])("charges accented cutoff and VCA over a short slope (accent %s)", accent => {
+     const param = () => ({ value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), cancelScheduledValues: vi.fn() });
+     const node = () => ({ connect: vi.fn().mockReturnThis(), disconnect: vi.fn() });
+     const cutoff = param(), res = param(), drive = param();
+     createWorklet.mockReturnValue({ ...node(), parameters: new Map([['cutoff', cutoff], ['res', res], ['drive', drive], ['generation', param()]]) });
+     const gains = Array.from({ length: 3 }, () => ({ ...node(), gain: param() }));
+     const osc = { ...node(), frequency: param(), start: vi.fn(), stop: vi.fn(), onended: null };
+     const ctx = { currentTime: 0, createOscillator: () => osc, createBiquadFilter: () => ({ ...node(), frequency: param(), Q: param() }), createGain: vi.fn() };
+     gains.forEach(n => ctx.createGain.mockReturnValueOnce(n));
+     const p = { ...defaultAcid(), accent };
+     const voice = playAcid(ctx as unknown as BaseAudioContext, node() as unknown as AudioNode, p, 36, .1, .15, 1);
+     const peak = Math.min(18000, p.cutoff * 2 ** (p.envMod + accent * 1.5));
+     expect(cutoff.setValueAtTime).toHaveBeenCalledWith(accent > 0 ? p.cutoff : peak, .1);
+     if (accent > 0) expect(cutoff.exponentialRampToValueAtTime).toHaveBeenCalledWith(peak, .1 + accent * .003);
+     expect(gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledWith(.48 * (1 + accent * .45), .1 + .002 + accent * .0015);
+     // Ordinary velocities retain the existing 2 ms attack, and live edits do not restart the slope.
+     cutoff.setValueAtTime.mockClear();
+     voice.update?.({ acid: { cutoff: 400 } } as Parameters<NonNullable<typeof voice.update>>[0]);
+     expect(cutoff.setValueAtTime).toHaveBeenCalledWith(Math.min(18000, 400 * 2 ** (p.envMod + accent * 1.5)), 0);
+   });
+   it("provides finite bounded defaults and clamps unsafe settings", () => {
     expect(defaultAcid().cutoff).toBe(320);
     expect(acidParams({ cutoff: Infinity, res: 9, decay: -1 })).toMatchObject({ cutoff: 40, res: 1, decay: .06 });
   });
