@@ -277,6 +277,8 @@ export function useGroovebox() {
       // Transient slices: each note offset picks a hit; playback runs on from that hit to the sample END.
       if (sl.length > 1) { const k = ((Math.round(semi + offset) % sl.length) + sl.length) % sl.length, s0 = sm.start, s1 = sm.end ?? 1; Object.assign(base, { start: s0 + sl[k] * (s1 - s0), loop: false, pitch: sp }); return base; }
       if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sp + offset }); }
+      // VNT LOCK: notes still pick slices, but playback stays at the file's original pitch (FINE only).
+      if (sm.stretch && !sm.warp && sm.pitchLock) base.pitch = Math.max(-50, Math.min(50, sm.fine ?? 0)) / 100;
       return base;
     };
     const run = (t: number, gate: number, idx?: number) => {
