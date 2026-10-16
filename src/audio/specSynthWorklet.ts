@@ -5,7 +5,7 @@
 export const SPEC_GATE_CAL: [number, number][] = [[0, -60], [.25, -40], [.5, -25], [.75, -12], [1, -3]];
 export const thrDb = (g: number) => { const c = SPEC_GATE_CAL; if (g <= 0) return c[0][1]; for (let i = 1; i < c.length; i++) if (g <= c[i][0]) { const [a, da] = c[i - 1], [b, db] = c[i]; return da + (db - da) * (g - a) / (b - a); } return c[c.length - 1][1]; };
 export const SPEC_SYNTH_WORKLET = `
-const NAD_SPECGATE_CAL = ${JSON.stringify(SPEC_GATE_NAD_SPECGATE_CAL)};
+const NAD_SPECGATE_CAL = ${JSON.stringify(SPEC_GATE_CAL)};
 function nadSpecGateThrDb(g) { if (g <= 0) return NAD_SPECGATE_CAL[0][1]; for (let i = 1; i < NAD_SPECGATE_CAL.length; i++) if (g <= NAD_SPECGATE_CAL[i][0]) { const a = NAD_SPECGATE_CAL[i-1][0], da = NAD_SPECGATE_CAL[i-1][1], b = NAD_SPECGATE_CAL[i][0], db = NAD_SPECGATE_CAL[i][1]; return da + (db - da) * (g - a) / (b - a); } return NAD_SPECGATE_CAL[NAD_SPECGATE_CAL.length-1][1]; }
 class SpecSynthGate extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'gate', defaultValue: 0, minValue: 0, maxValue: 1 }, { name: 'release', defaultValue: .1, minValue: .005, maxValue: 2 }]; }
