@@ -385,6 +385,8 @@ export function useGroovebox() {
   const holds = useRef(new Map<number, Hold>());
   const timer = useRef<boolean>(false); // subscribed to the audio clock tick
   const pressed = useRef(new Set<number>());
+  // KBD phrase transpose: the last held key sets each phrase pad's root offset (90s keyboard style); pads reset it.
+  const keyRoot = useRef<number[]>(Array(16).fill(0));
   useEffect(() => { setSustainProbe(() => pressed.current.size > 0); return () => setSustainProbe(() => false); }, []);
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
@@ -398,7 +400,7 @@ export function useGroovebox() {
         let fired = true;
         if (h.kind === "repeat") { const v = padVel.current[i], g = Math.min(dur * .95, 60 / bpmNow / 4); if (a.on && a.mode === "step") fired = stepHit(i, h.next, v, g); else trigger(i, h.next, v, 0, g); recordHit(i, h.next, v); }
         else if (h.kind === "chord") trigger(i, h.next, 1, 0, dur * .9, h.idx);
-        else { const ord = phraseOrder(a); fired = phraseStep(i, a, ord[h.idx % ord.length], h.next, dur, Infinity, 1, h.count === 0); }
+        else { const ord = phraseOrder(a); fired = phraseStep(i, a, ord[h.idx % ord.length], h.next, dur, Infinity, 1, h.count === 0, keyRoot.current[i] ?? 0); }
         if (fired) { const ft = h.next; Tone.getDraw().schedule(() => flash(i), ft); }
         h.next += dur; h.idx = h.kind === "phrase" ? (h.idx + 1) % phraseOrder(a).length : h.idx + 1; h.count++;
       }
@@ -426,6 +428,7 @@ export function useGroovebox() {
     const slot = slotsRef.current[i], e = engine.current;
     if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
     if (e) recordHit(i, e.ctx.currentTime, 1);
+    keyRoot.current[i] = 0;
     if (slot.arp.on && slot.arp.mode === "step") { const lg = heldEngine(slot) ? 60 : undefined; if (stepHit(i, undefined, 1, lg)) flash(i); }
     else if (slot.arp.on) startHold(i, "phrase");
     else if (isChordArp(slot)) startHold(i, "chord");
@@ -623,15 +626,20 @@ export function useGroovebox() {
     const semi = Math.max(-24, Math.min(24, note - 60)), slot = slotsRef.current[i];
     keysDown.current.set(note, i); pressed.current.add(i);
     if (recRef.current && Tone.getTransport().state !== "started") stepRecord(i, v, semi); else recordHit(i, e.ctx.currentTime, v, semi);
+    // Phrase pads: keys transpose the running phrase instead of playing single notes; the first key starts it.
+    if (slot.arp.on) { keyRoot.current[i] = semi;
+      if (slot.arp.mode === "step") { if (stepHit(i, undefined, v, heldEngine(slot) ? 60 : undefined, semi)) flash(i); } else startHold(i, "phrase");
+      return; }
     trigger(i, undefined, v, semi, heldEngine(slot) ? 60 : undefined); flash(i);
-  }, [ensure, trigger, recordHit, stepRecord]);
+  }, [ensure, trigger, recordHit, stepRecord, stepHit, startHold]);
   const keyOff = useCallback((note: number) => {
     const i = keysDown.current.get(note); if (i === undefined) return; keysDown.current.delete(note);
     if ([...keysDown.current.values()].includes(i)) return; // other keys still hold this pad
     pressed.current.delete(i);
+    if (holds.current.get(i)?.kind === "phrase") { stopHold(i); return; }
     const slot = slotsRef.current[i], e = engine.current; if (!e) return;
     if (heldEngine(slot)) { const now = e.ctx.currentTime, r = relOf(slot); e.mono[i]?.release?.(now, r); e.ring[i].forEach(x => x.release(now, r)); }
-  }, []);
+  }, [stopHold]);
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
   const resetCursor = (i: number, patch: Partial<Slot>) => {
     if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
