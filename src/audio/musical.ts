@@ -15,5 +15,5 @@ export function arpIndex(mode: ChordArp, k: number, n: number) {
   return k % n;
 }
 export type ModLane = { on: boolean; target: string; steps: number; values: number[]; /** Pitch lanes: 24 = two octaves, exact notes (keyboard step recording). */ range?: number };
-export const defaultMod = (): ModLane => ({ on: false, target: "cutoff", steps: 16, values: Array(16).fill(.5) });
+export const defaultMod = (): ModLane => ({ on: false, target: "cutoff", steps: 16, values: Array(32).fill(.5) });
 export const scaledEnv = (e: ADSR, factor: number): ADSR => ({ a: Math.max(.001, e.a * factor), d: Math.max(.001, e.d * factor), s: e.s, r: Math.max(.005, e.r * factor) });
