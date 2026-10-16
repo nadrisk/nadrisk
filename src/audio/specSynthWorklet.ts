@@ -5,8 +5,8 @@
 export const SPEC_GATE_CAL: [number, number][] = [[0, -60], [.25, -40], [.5, -25], [.75, -12], [1, -3]];
 export const thrDb = (g: number) => { const c = SPEC_GATE_CAL; if (g <= 0) return c[0][1]; for (let i = 1; i < c.length; i++) if (g <= c[i][0]) { const [a, da] = c[i - 1], [b, db] = c[i]; return da + (db - da) * (g - a) / (b - a); } return c[c.length - 1][1]; };
 export const SPEC_SYNTH_WORKLET = `
-const CAL = ${JSON.stringify(SPEC_GATE_CAL)};
-function thrDb(g) { if (g <= 0) return CAL[0][1]; for (let i = 1; i < CAL.length; i++) if (g <= CAL[i][0]) { const a = CAL[i-1][0], da = CAL[i-1][1], b = CAL[i][0], db = CAL[i][1]; return da + (db - da) * (g - a) / (b - a); } return CAL[CAL.length-1][1]; }
+const NAD_SPECGATE_CAL = ${JSON.stringify(SPEC_GATE_NAD_SPECGATE_CAL)};
+function nadSpecGateThrDb(g) { if (g <= 0) return NAD_SPECGATE_CAL[0][1]; for (let i = 1; i < NAD_SPECGATE_CAL.length; i++) if (g <= NAD_SPECGATE_CAL[i][0]) { const a = NAD_SPECGATE_CAL[i-1][0], da = NAD_SPECGATE_CAL[i-1][1], b = NAD_SPECGATE_CAL[i][0], db = NAD_SPECGATE_CAL[i][1]; return da + (db - da) * (g - a) / (b - a); } return NAD_SPECGATE_CAL[NAD_SPECGATE_CAL.length-1][1]; }
 class SpecSynthGate extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'gate', defaultValue: 0, minValue: 0, maxValue: 1 }, { name: 'release', defaultValue: .1, minValue: .005, maxValue: 2 }]; }
   constructor() { super(); const N = 1024, B = N / 2 + 1; this.N = N; this.H = 256; this.blk = 0; this.fr = 0;
@@ -23,7 +23,7 @@ class SpecSynthGate extends AudioWorkletProcessor {
     const gate = p.gate[0], rel = Math.exp(-H / (sampleRate * Math.max(.005, p.release[0]))), re = this.re, im = this.im;
     for (let i = 0; i < N; i++) { re[i] = this.inb[i] * this.win[i]; im[i] = 0; } this.fft(re, im, false);
     let peak = 0; for (let k = 0; k < B; k++) { const m = re[k] * re[k] + im[k] * im[k]; if (m > peak) peak = m; }
-    this.thr += (thrDb(gate) - this.thr) * .5; const bypass = gate < .001 || peak < 1e-14, pdb = 10 * Math.log10(peak + 1e-30);
+    this.thr += (nadSpecGateThrDb(gate) - this.thr) * .5; const bypass = gate < .001 || peak < 1e-14, pdb = 10 * Math.log10(peak + 1e-30);
     this.mask.fill(0);
     for (let k = 0; k < B; k++) { let tg = 1;
       if (!bypass) { const d = 10 * Math.log10(re[k] * re[k] + im[k] * im[k] + 1e-30) - pdb - this.thr, u = Math.min(1, Math.max(0, (d + 3) / 6)); tg = u * u * (3 - 2 * u); }

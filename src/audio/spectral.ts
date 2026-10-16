@@ -10,13 +10,15 @@ export const specParams = (s?: Partial<SpecParams>): SpecParams => { const d = d
 export const bandRatio = (k: number, shift: number) => 2 ** (k * 7 / (N_BANDS - 1) + shift * 2);
 /** GATE: pooled FFT spectral gates (nad-specsynth, peak-relative threshold) so notes never build processors that run forever. */
 let warned = false;
+/** Latest retained-bin mask (64 log-spaced bins, 0..1) reported by any live SPEC gate, for the SPC screen. */
+export const specGateMask = { bins: new Float32Array(64), at: 0 };
 const gatePools = new WeakMap<BaseAudioContext, { n: AudioWorkletNode; busy: number }[]>();
 function takeGate(ctx: BaseAudioContext, until: number): AudioWorkletNode | null {
   const pool = gatePools.get(ctx) ?? []; gatePools.set(ctx, pool);
   let e = pool.find(x => x.busy <= ctx.currentTime);
   if (!e) { if (pool.length >= 12) return null;
     // The raw context is a wrapped context: native new AudioWorkletNode() throws, so use Tone's factory like the FX do.
-    try { e = { n: Tone.getContext().createAudioWorkletNode("nad-specsynth", { outputChannelCount: [2] }) as unknown as AudioWorkletNode, busy: 0 }; }
+    try { e = { n: Tone.getContext().createAudioWorkletNode("nad-specsynth", { outputChannelCount: [2] }) as unknown as AudioWorkletNode, busy: 0 }; e.n.port.onmessage = (m: MessageEvent<Float32Array>) => { specGateMask.bins = m.data; specGateMask.at = performance.now(); }; }
     catch (err) { if (!warned) { warned = true; console.warn("SPEC gate unavailable", err); } return null; } pool.push(e); }
   e.n.disconnect(); e.busy = until + .3; return e.n;
 }
@@ -47,8 +49,8 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   const end = adsr(amp.gain, t, p.env, gate, vel * .5);
   // GATE: true FFT spectral gate — each bin opens/closes against a threshold relative to the loudest partial, so lowered
   // bars thin out, chatter and fragment first; full bars stay solid.
-  const sg = sp.gate > .01 ? takeGate(ctx, end) : null, mk = ctx.createGain(); mk.gain.value = 1 + sp.gate * 1.5; nodes.push(mk);
-  const setGate = (gv: number, at0: number) => { if (!sg) return; sg.parameters.get("gate")?.setTargetAtTime(gv, at0, .02); sg.parameters.get("release")?.setTargetAtTime(.25 - gv * .2, at0, .02); mk.gain.setTargetAtTime(1 + gv * 1.5, at0, .02); };
+  const sg = sp.gate > .01 ? takeGate(ctx, end) : null, mk = ctx.createGain(); nodes.push(mk);
+  const setGate = (gv: number, at0: number) => { if (!sg) return; sg.parameters.get("gate")?.setTargetAtTime(gv, at0, .02); sg.parameters.get("release")?.setTargetAtTime(.12 - gv * .07, at0, .02); };
   if (sg) { setGate(sp.gate, ctx.currentTime); sum.connect(sg).connect(mk).connect(post); } else sum.connect(post);
   // LFO: the pad's free-running LFO (TRIG = per-note) moves pitch, cutoff, level, and OSC1/OSC2 targets map to band SHIFT/BLUR depth.
   const ld = lfoDests(p.lfo); let unhook: (() => void) | undefined;
