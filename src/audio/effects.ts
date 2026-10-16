@@ -20,11 +20,11 @@ function curveComp(curve: Float32Array | null): number {
 export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
-  delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], send: [1, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
+  delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], send: [1, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], width: [0.6, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], density: [0.6, 0.05, 1, 0.01], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
-  chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], lofi: [0, 0, 1, 1], bump: [0.5, 0, 1, 0.01], oxide: [0.4, 0, 1, 0.01] } },
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], shape: [0, 0, 1, 0.01] } },
   gate: { label: "trance.gate~", params: { rate: [8, 0.5, 32, 0.01], sync: [5, 0, 11, 1], preset: [0, 0, 7, 1], tight: [0, 0, 1, 0.01], depth: [1, 0, 1, 0.01], smooth: [0.3, 0, 1, 0.01], mask: [21845, 0, 65535, 1], steps: [16, 1, 16, 1], mix: [1, 0, 1, 0.01] } },
@@ -315,6 +315,13 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   const lfo = () => { const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0; o.connect(g); o.start(); oscs.push(o); nodes.push(o, g); return { o, g }; };
   const follower = () => { const f = Tone.getContext().createAudioWorkletNode("nad-follow", { outputChannelCount: [1] }) as unknown as AudioNode, g = ctx.createGain(); g.gain.value = 0; input.connect(f).connect(g); nodes.push(f, g); return g; };
   let apply: (p: Record<string, number>) => void;
+  // WIDTH: mid/side from two decorrelated signals; the side is highpassed at 150 Hz so bass stays centred. Returns the side gain.
+  const widen = (a: AudioNode, b: AudioNode) => { const mid = ctx.createGain(), sa = ctx.createGain(), sb = ctx.createGain(), hp = ctx.createBiquadFilter(), sw = ctx.createGain(), inv = ctx.createGain(), mg = ctx.createChannelMerger(2);
+    mid.gain.value = .5; sa.gain.value = .5; sb.gain.value = -.5; hp.type = "highpass"; hp.frequency.value = 150; sw.gain.value = 0; inv.gain.value = -1;
+    [mid, sa, sb, hp, sw, inv].forEach(n => { n.channelCount = 1; n.channelCountMode = "explicit"; }); nodes.push(mid, sa, sb, hp, sw, inv, mg);
+    a.connect(mid); b.connect(mid); a.connect(sa).connect(hp); b.connect(sb).connect(hp); hp.connect(sw);
+    mid.connect(mg, 0, 0); mid.connect(mg, 0, 1); sw.connect(mg, 0, 0); sw.connect(inv).connect(mg, 0, 1); mg.connect(wet); return sw.gain; };
+  const haas = (src: AudioNode, sec: number) => { const d = ctx.createDelay(.05); d.delayTime.value = sec; nodes.push(d); src.connect(d); return widen(src, d); };
 
   if (type === "eq") {
     const [lo, mi, hi] = (["lowshelf", "peaking", "highshelf"] as const).map(t => { const b = ctx.createBiquadFilter(); b.type = t; nodes.push(b); return b; });
@@ -524,14 +531,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // SEND feeds the tape loop only; at 0 the echoes go silent and the spring works on its own.
     input.connect(send).connect(rec).connect(heads[0].d).connect(heads[1].d).connect(heads[2].d);
     heads.forEach(h => h.d.connect(h.tap).connect(sum));
-    sum.connect(sat).connect(lp).connect(hp); hp.connect(echoOut).connect(wet); hp.connect(fb).connect(rec); echoOut.gain.value = 1 / curveComp(sat.curve);
+    sum.connect(sat).connect(lp).connect(hp); hp.connect(echoOut); const ew = haas(echoOut, .013); hp.connect(fb).connect(rec); echoOut.gain.value = 1 / curveComp(sat.curve);
     const wow = lfo(), flut = lfo(); wow.o.frequency.value = .55; flut.o.frequency.value = 6.3; heads.forEach(h => { wow.g.connect(h.d.delayTime); flut.g.connect(h.d.delayTime); });
     // Spring tank.
     const spIn = ctx.createGain(), spD = ctx.createDelay(.1), spFb = ctx.createGain(), spLp = ctx.createBiquadFilter(), spHp = ctx.createBiquadFilter(), spOut = ctx.createGain();
     spD.delayTime.value = .043; spFb.gain.value = .5; spLp.frequency.value = 3800; spHp.type = "highpass"; spHp.frequency.value = 220; spOut.gain.value = 0; nodes.push(spIn, spD, spFb, spLp, spHp, spOut);
     const chirp = Array.from({ length: 6 }, (_, i) => { const a = ctx.createBiquadFilter(); a.type = "allpass"; a.frequency.value = 900 + i * 260; a.Q.value = 6; nodes.push(a); return a; });
     input.connect(spIn); echoOut.connect(spIn); spIn.connect(chirp[0]); chirp.reduce((a, b) => (a.connect(b), b)).connect(spHp).connect(spD).connect(spLp);
-    spLp.connect(spFb).connect(chirp[0]); spLp.connect(spOut).connect(wet);
+    spLp.connect(spFb).connect(chirp[0]); spLp.connect(spOut); const sw2 = haas(spOut, .023);
     const HEADS = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]];
     apply = p => { const b = beatsOf(p), t = Math.min(b ? b * 60 / fxBpm : p.time, 1.5), on = HEADS[Math.round(p.mode ?? 0)] ?? HEADS[0], n = on.reduce((a, v) => a + v, 0) || 1;
       heads.forEach((h, i) => { set(h.d.delayTime, i === 0 ? t : Math.min(1.5, t)); set(h.tap.gain, on[i] / Math.sqrt(n)); });
@@ -539,7 +546,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       // Loop gain is normalised against the saturator and capped well below unity, so every tail decays on its own.
       set(fb.gain, Math.min(.95, p.feedback) * .72 * curveComp(sat.curve) / Math.sqrt(n)); set(lp.frequency, p.tone);
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0);
-      const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
+      const wd = p.width ?? 0; set(ew, wd * 1.6); set(sw2, wd * 1.6); const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
   } else if (type === "reverb") {
     const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
     input.connect(cv).connect(lp).connect(wet);
@@ -547,11 +554,16 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       if (next !== shape) { shape = next; const own = ++request; requestImpulse(ctx, sec, density, buffer => { if (own === request) cv.buffer = buffer; }); } set(lp.frequency, p.damp); };
   } else if (type === "chorus" || type === "flanger") {
     const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
-    input.connect(d).connect(wet); d.connect(fb).connect(d); m.g.connect(d.delayTime); env.connect(d.delayTime);
-    apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
+    // R side: a second delay line swept by the inverted LFO, so the two sides move in opposite phase.
+    const d2 = ctx.createDelay(0.1), fb2 = ctx.createGain(), mi = ctx.createGain(); mi.gain.value = -1; nodes.push(d2, fb2, mi);
+    input.connect(d); input.connect(d2); d.connect(fb).connect(d); d2.connect(fb2).connect(d2); m.g.connect(d.delayTime); m.g.connect(mi).connect(d2.delayTime); env.connect(d.delayTime); env.connect(d2.delayTime);
+    const cw = widen(d, d2);
+    apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(d2.delayTime, base); set(fb2.gain, type === "flanger" ? p.feedback : 0); set(cw, (p.width ?? 0) * 1.4); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
   } else if (type === "phaser") {
     // Six true first-order allpass stages create three moving cancellation notches when summed with dry.
-    const n = worklet("nad-phaser"); input.connect(n).connect(wet); apply = p => wp(n, { ...p, rate: rateOf(p) }, ["rate", "depth", "manual", "feedback", "env"]);
+    const n = worklet("nad-phaser"), n2 = worklet("nad-phaser"); input.connect(n); input.connect(n2); const pw = widen(n, n2);
+    // R side: a second chain with its notches offset, so the sweeps differ per side.
+    apply = p => { wp(n, { ...p, rate: rateOf(p) }, ["rate", "depth", "manual", "feedback", "env"]); wp(n2, { ...p, rate: rateOf(p) * 1.07, manual: p.manual * 1.6 }, ["rate", "depth", "manual", "feedback", "env"]); set(pw, (p.width ?? 0) * 1.4); };
   } else if (type === "vibrato") {
     // MODE (lofi key): VIB = clean pitch vibrato. TAPE = cassette: slow motor wow (~0.8 Hz) + scrape flutter (~10 Hz sine + filtered
     // noise) on the delay time, slow L/R azimuth drift, a 75 Hz head-bump peak (BUMP) and oxide softening: tone roll-off + saturation (OXIDE).
@@ -615,7 +627,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 4, reverb: 6, chorus: 2, flanger: 2, phaser: 3, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, morph: 2, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 5, reverb: 6, chorus: 3, flanger: 3, phaser: 4, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, morph: 2, gain: 1, neurobox: 4, dyneq: 2 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
