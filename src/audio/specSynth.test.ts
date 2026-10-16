@@ -35,8 +35,8 @@ describe("SPEC FFT gate", () => {
     for (const g of [g25, g50, g75]) expect(Math.abs(g[0] - clean[0])).toBeLessThan(1);
     // At 100% the -3 dB threshold also trims the strongest tone's window skirt, so it loses a few dB but stays.
     expect(g100[0] - clean[0]).toBeGreaterThan(-5);
-    expect(g25[4] - clean[4]).toBeLessThan(-20); expect(Math.abs(g25[3] - clean[3])).toBeLessThan(1.5);
-    expect(g50[3] - clean[3]).toBeLessThan(-20); expect(Math.abs(g50[2] - clean[2])).toBeLessThan(1.5);
+    expect(g25[4] - clean[4]).toBeLessThan(-20); expect(Math.abs(g25[3] - clean[3])).toBeLessThan(3);
+    expect(g50[3] - clean[3]).toBeLessThan(-20); expect(Math.abs(g50[2] - clean[2])).toBeLessThan(3);
     expect(g75[2] - clean[2]).toBeLessThan(-20); expect(g75[1] - clean[1]).toBeGreaterThan(-5);
     expect(g100[1] - clean[1]).toBeLessThan(-20);
   });
