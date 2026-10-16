@@ -5,6 +5,7 @@ import { TAPE_WORKLET } from "./tapeWorklet";
 import { SPEC_SYNTH_WORKLET } from "./specSynthWorklet";
 import { METER_WORKLET } from "./meterWorklet";
 import { ACID_WORKLET } from "./acid";
+import { MOD_WORKLETS } from "./modWorklets";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
@@ -23,8 +24,8 @@ export const FX_DEFS = {
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
   delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], send: [1, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], width: [0.6, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
   reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], density: [0.6, 0.05, 1, 0.01], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
-  chorus: { label: "chorus~", params: { rate: [0.8, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.5, 0, 1, 0.01], manual: [15, 5, 30, 0.1], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
-  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, 0, 0.95, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  chorus: { label: "chorus~", params: { mode: [0, 0, 2, 1], depth: [0.5, 0, 1, 0.01], manual: [3.5, 1, 15, 0.1], env: [0, 0, 1, 0.01], noise: [0.2, 0, 1, 0.01], width: [0.8, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
+  flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, -0.95, 0.95, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   vibrato: { label: "vibrato~", params: { rate: [5, 0.1, 14, 0.01], sync: [0, 0, 10, 1], depth: [0.4, 0, 1, 0.01], lofi: [0, 0, 1, 1], bump: [0.5, 0, 1, 0.01], oxide: [0.4, 0, 1, 0.01] } },
   tremolo: { label: "tremolo~", params: { rate: [4, 0.1, 20, 0.01], sync: [5, 0, 10, 1], depth: [0.6, 0, 1, 0.01], shape: [0, 0, 1, 0.01] } },
@@ -226,7 +227,7 @@ registerProcessor('nad-dyneq', DynEq);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS], { type: "application/javascript" }))));
 
 let eco = false;
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
@@ -553,13 +554,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     input.connect(cv).connect(lp).connect(wet);
     apply = p => { const sec = eco ? Math.min(p.size * .5, 1.5) : p.size, density = p.density ?? .6, next = `${Math.round(sec * 4)}:${Math.round(density * 20)}`;
       if (next !== shape) { shape = next; const own = ++request; requestImpulse(ctx, sec, density, buffer => { if (own === request) cv.buffer = buffer; }); } set(lp.frequency, p.damp); };
-  } else if (type === "chorus" || type === "flanger") {
-    const d = ctx.createDelay(0.1), fb = ctx.createGain(), m = lfo(), env = follower(); nodes.push(d, fb);
-    // R side: a second delay line swept by the inverted LFO, so the two sides move in opposite phase.
-    const d2 = ctx.createDelay(0.1), fb2 = ctx.createGain(), mi = ctx.createGain(); mi.gain.value = -1; nodes.push(d2, fb2, mi);
-    input.connect(d); input.connect(d2); d.connect(fb).connect(d); d2.connect(fb2).connect(d2); m.g.connect(d.delayTime); m.g.connect(mi).connect(d2.delayTime); env.connect(d.delayTime); env.connect(d2.delayTime);
-    const cw = widen(d, d2);
-    apply = p => { const base = p.manual / 1000; set(d.delayTime, base); set(d2.delayTime, base); set(fb2.gain, type === "flanger" ? p.feedback : 0); set(cw, (p.width ?? 0) * 1.4); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * base * 0.9); set(env.gain, p.env * (type === "chorus" ? 0.02 : 0.008)); set(fb.gain, type === "flanger" ? p.feedback : 0); };
+  } else if (type === "chorus") {
+    // Juno-60 BBD chorus (nad-juno): MODE I / II / I+II, DEPTH .5 = authentic swing, MAN = centre delay, ENV pushes the delay.
+    const n = worklet("nad-juno"); input.connect(n).connect(wet);
+    apply = p => wp(n, { ...p, mode: p.mode ?? 0, noise: p.noise ?? .2, width: p.width ?? 0 }, ["mode", "depth", "manual", "env", "noise", "width"]);
+  } else if (type === "flanger") {
+    // ADA-style BBD flanger (nad-ada): ~35:1 sweep below MAN, ENH (feedback) -.95..+.95 with a tanh-limited loop.
+    const n = worklet("nad-ada"); input.connect(n).connect(wet);
+    apply = p => wp(n, { ...p, rate: rateOf(p), width: p.width ?? 0 }, ["rate", "depth", "manual", "feedback", "env", "width"]);
   } else if (type === "phaser") {
     // Six true first-order allpass stages create three moving cancellation notches when summed with dry.
     const n = worklet("nad-phaser"), n2 = worklet("nad-phaser"); input.connect(n); input.connect(n2); const pw = widen(n, n2);
