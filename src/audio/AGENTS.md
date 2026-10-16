@@ -24,5 +24,5 @@
 - Unlicensed hosts (src/lib/origin.ts allowlist) force a permanent NADRISK lock for the session; add every new domain to that allowlist before connecting it.
 - acid.drive~ is a "Da Funk" chain (mid push → one cached asymmetric clip curve → TONE lowpass → MID peak → heavy fast compressor); it keeps the "drive" key as SUST and derives TONE from old "tone" Hz values, so older sets and sequencer mods still load.
 - Synth SPEC mode (src/audio/spectral.ts) is a separate voice path chosen by synth.mode with its own saved spec params, so additive sounds and old sets are untouched.
-- SPEC GATE uses pooled nad-specgate worklet nodes (max 12 per context, reused after a voice ends) because worklet processors never self-terminate.
+- SPEC GATE is the nad-specsynth FFT gate (src/audio/specSynthWorklet.ts, threshold relative to each frame's peak bin, hysteresis + release) in pooled nodes (max 12 per context, reused after a voice ends) because worklet processors never self-terminate.
 - Chorus, flanger, phaser and tape delay WIDTH is a shared mid/side stage (side highpassed at 150 Hz) fed by two decorrelated signals; a missing width param means 0 so older sets stay mono.

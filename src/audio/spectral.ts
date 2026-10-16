@@ -25,15 +25,14 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   const wet = ctx.createGain(), dry = ctx.createGain(), sum = ctx.createGain(); wet.gain.value = p.wet; dry.gain.value = 1 - p.wet;
   const post = ctx.createGain(); post.connect(filt).connect(wet).connect(trem); post.connect(dry).connect(trem);
   // Source: two detuned saws (detune widens with BLUR) plus noise for the blurred haze.
-  const src = ctx.createGain(), oscs: OscillatorNode[] = [], bps: BiquadFilterNode[] = []; const det = 6 + sp.blur * 22;
+  const src = ctx.createGain(), oscs: OscillatorNode[] = [], bps: BiquadFilterNode[] = [], bk: number[] = []; const det = 6 + sp.blur * 22;
   [-det, det].forEach(d => { const o = at(ctx.createOscillator(), t); o.type = "sawtooth"; o.frequency.value = base; o.detune.value = d + p.osc1.fine; o.connect(src); oscs.push(o); srcs.push(o); nodes.push(o); });
   const nz = at(ctx.createBufferSource(), t); nz.buffer = noiseBuffer(ctx); nz.loop = true; const ng = ctx.createGain(); ng.gain.value = .15 + sp.blur * 1.6; nz.connect(ng).connect(src); srcs.push(nz); nodes.push(nz, ng);
-  // TIGHT: short per-band plucks (highs faster) vs slow watery swells; BLUR widens bands and slows attacks.
   // TIGHT = band width: high = thin focused strips, low = wide bands that catch more of the source. BLUR widens a little more.
   const qOf = (s: SpecParams) => 2 * 20 ** s.tight * (1 - s.blur * .5), q = qOf(sp);
   for (let k = 0; k < N_BANDS; k++) { const lv = sp.bands[k]; if (lv < .01) continue;
     const f = base * bandRatio(k, sp.shift); if (f > nyq || f < 20) continue;
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; bps.push(bp);
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; bps.push(bp); bk.push(k);
     const g = ctx.createGain(); g.gain.value = lv * Math.sqrt(q) * .2;
     src.connect(bp).connect(g); nodes.push(bp, g);
     g.connect(sum);
@@ -64,9 +63,9 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   const v = finish(srcs, nodes, end, amp, () => unhook?.());
   // Held-note tweaks: SHIFT glides the band focus, TIGHT/BLUR the width, GATE the threshold.
   let cur = sp;
-  v.update = qq => { if (!qq.spec) return; const n = ctx.currentTime, nx = specParams({ ...cur, ...qq.spec }); cur = nx; let bi = 0;
-    for (let k = 0; k < N_BANDS; k++) { if (sp.bands[k] < .01) continue; const b = bps[bi++]; if (!b) break; const f = base * bandRatio(k, nx.shift);
-      if (f < nyq && f > 20) b.frequency.setTargetAtTime(f, n, .03); b.Q.setTargetAtTime(qOf(nx), n, .03); }
+  v.update = qq => { if (!qq.spec) return; const n = ctx.currentTime, nx = specParams({ ...cur, ...qq.spec }); cur = nx; 
+    bps.forEach((b, j) => { const f = base * bandRatio(bk[j], nx.shift);
+      if (f < nyq && f > 20) b.frequency.setTargetAtTime(f, n, .03); b.Q.setTargetAtTime(qOf(nx), n, .03); });
     setGate(nx.gate, n); };
   return v;
 }
