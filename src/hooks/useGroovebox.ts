@@ -631,7 +631,7 @@ export function useGroovebox() {
       if (slot.arp.mode === "step") { if (stepHit(i, undefined, v, heldEngine(slot) ? 60 : undefined, semi)) flash(i); } else startHold(i, "phrase");
       return; }
     trigger(i, undefined, v, semi, heldEngine(slot) ? 60 : undefined); flash(i);
-  }, [ensure, trigger, recordHit, stepRecord]);
+  }, [ensure, trigger, recordHit, stepRecord, stepHit, startHold]);
   const keyOff = useCallback((note: number) => {
     const i = keysDown.current.get(note); if (i === undefined) return; keysDown.current.delete(note);
     if ([...keysDown.current.values()].includes(i)) return; // other keys still hold this pad
@@ -639,7 +639,7 @@ export function useGroovebox() {
     if (holds.current.get(i)?.kind === "phrase") { stopHold(i); return; }
     const slot = slotsRef.current[i], e = engine.current; if (!e) return;
     if (heldEngine(slot)) { const now = e.ctx.currentTime, r = relOf(slot); e.mono[i]?.release?.(now, r); e.ring[i].forEach(x => x.release(now, r)); }
-  }, []);
+  }, [stopHold]);
   // Stable callbacks so memoized panels (pads, editor, fx, sequencer) skip re-renders while playing.
   const resetCursor = (i: number, patch: Partial<Slot>) => {
     if (patch.arp && patch.arp.mode !== slotsRef.current[i]?.arp.mode) cursor.current[i] = 0;
