@@ -14,12 +14,14 @@ export function acidParams(p?: Partial<AcidParams>): AcidParams {
 // Two integration steps/sample bound high-cutoff feedback; saturation lives inside the loop.
 export const ACID_WORKLET = `
 class NadAcidFilter extends AudioWorkletProcessor {
- static get parameterDescriptors(){return [{name:'cutoff',defaultValue:320,minValue:40,maxValue:18000},{name:'res',defaultValue:.72,minValue:0,maxValue:1,automationRate:'k-rate'},{name:'drive',defaultValue:.24,minValue:0,maxValue:1,automationRate:'k-rate'}];}
-  constructor(){super();this.z=new Float64Array(4);this.prev=0;if(this.port)this.port.onmessage=()=>{this.z.fill(0);this.prev=0;};}
+ static get parameterDescriptors(){return [{name:'cutoff',defaultValue:320,minValue:40,maxValue:18000},{name:'res',defaultValue:.72,minValue:0,maxValue:1,automationRate:'k-rate'},{name:'drive',defaultValue:.24,minValue:0,maxValue:1,automationRate:'k-rate'},{name:'generation',defaultValue:0,minValue:0,maxValue:16777215}];}
+ constructor(){super();this.z=new Float64Array(4);this.prev=0;this.generation=0;}
  process(ins,outs,p){const input=ins[0]?.[0],out=outs[0]?.[0];if(!out)return true;
   if(!input){out.fill(0);return true;}
  const k=p.res[0]*3.85,drive=1+p.drive[0]*4;
  for(let n=0;n<out.length;n++){
+ const generation=p.generation?.[p.generation.length===1?0:n]??0;
+ if(generation!==this.generation){this.z.fill(0);this.prev=0;this.generation=generation;}
  const x=input?.[n]||0,fc=Math.min(sampleRate*.19,Math.max(40,p.cutoff.length===1?p.cutoff[0]:p.cutoff[n]));
  const g=Math.tan(Math.PI*fc/(sampleRate*2)),G=g/(1+g),G2=G*G,G3=G2*G,G4=G2*G2;let sum=0;
  for(let sub=0;sub<2;sub++){
@@ -39,24 +41,29 @@ registerProcessor('nad-acid-filter',NadAcidFilter);
 
 // Reuse processors across hits: construction/registration work is not repeated
 // for every sequencer note. A pad's previous voice is released before acquisition.
-const filterPools = new WeakMap<AudioNode, { node: AudioWorkletNode; busy: boolean }[]>();
+const filterPools = new WeakMap<AudioNode, { node: AudioWorkletNode; busy: boolean; generation: number }[]>();
 function acquireFilter(dest: AudioNode) {
   let pool = filterPools.get(dest);
   if (!pool) { pool = []; filterPools.set(dest, pool); }
   let entry = pool.find(e => !e.busy);
   if (!entry) {
-    entry = { node: Tone.getContext().createAudioWorkletNode("nad-acid-filter", { outputChannelCount: [1], channelCount: 1 }) as unknown as AudioWorkletNode, busy: false };
+    entry = { node: Tone.getContext().createAudioWorkletNode("nad-acid-filter", { outputChannelCount: [1], channelCount: 1 }) as unknown as AudioWorkletNode, busy: false, generation: 0 };
     pool.push(entry);
   }
   entry.busy = true;
-  entry.node.port.postMessage("reset");
+  entry.generation = entry.generation % 16777215 + 1;
   return entry;
 }
 
 export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidParams, midi: number, t: number, gate: number, vel = 1): Voice {
   let p = params;
   const osc = ctx.createOscillator(), shape = ctx.createBiquadFilter(), amp = ctx.createGain(), releaseGain = ctx.createGain(), declick = ctx.createGain();
+  // Pooled processors may still contain energy before the scheduled start.
+  amp.gain.value = releaseGain.gain.value = declick.gain.value = 0;
   const entry = acquireFilter(dest), filter = entry.node;
+  const generation = filter.parameters.get("generation");
+  generation?.cancelScheduledValues(t);
+  generation?.setValueAtTime(entry.generation, t);
   const cut = filter.parameters.get("cutoff"), res = filter.parameters.get("res"), drive = filter.parameters.get("drive");
   const frequency = 440 * 2 ** ((midi - 69) / 12);
   osc.type = p.wave; osc.frequency.setValueAtTime(frequency, t);
@@ -81,10 +88,23 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
   amp.gain.setTargetAtTime(peak * .65, t + .002, .18);
   const gateEnd = t + Math.max(.005, gate);
   releaseGain.gain.setValueAtTime(1, t); releaseGain.gain.setTargetAtTime(0, gateEnd, .018);
-  let end = gateEnd + .14, cleaned = false;
+  let end = gateEnd + .14, cleaned = false, cancelled = false;
   const cleanup = () => { if (cleaned) return; cleaned = true; [osc, shape, filter, amp, releaseGain, declick].forEach(n => n.disconnect()); entry.busy = false; };
   osc.start(t); osc.stop(end); osc.onended = cleanup;
   const fade = (at: number, duration: number) => {
+    if (cleaned || cancelled) return;
+    // An ahead-booked note cancelled at/before its start must never play its attack.
+    if (at <= t) {
+      cancelled = true;
+      const silenceAt = Math.max(ctx.currentTime, at);
+      for (const node of [amp, releaseGain, declick]) {
+        node.gain.cancelScheduledValues(silenceAt);
+        node.gain.setValueAtTime(0, silenceAt);
+      }
+      end = silenceAt;
+      try { osc.stop(end); } catch { /* already ended */ }
+      return;
+    }
     duration = Math.max(.003, duration);
     const nextEnd = at + duration + .03; if (nextEnd >= end) return;
     end = nextEnd; releaseGain.gain.cancelScheduledValues(at); releaseGain.gain.setTargetAtTime(0, at, Math.max(.001, duration / 4));
@@ -94,6 +114,7 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
     stop: at => fade(at, .012), release: (at, r) => fade(at, Math.max(.003, Math.min(.1, r))),
     glide: (delta, at, duration) => { osc.frequency.cancelScheduledValues(at); osc.frequency.setTargetAtTime(frequency * 2 ** (delta / 12), at, Math.max(.003, duration / 3)); },
     update: patch => {
+      if (cancelled || cleaned) return;
       const next = (patch as { acid?: Partial<AcidParams> }).acid; if (!next) return;
       p = acidParams({ ...p, ...next }); const now = ctx.currentTime;
       osc.type = p.wave; shape.frequency.setTargetAtTime(p.wave === "square" ? frequency * .42 : 20, now, .007);

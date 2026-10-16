@@ -26,4 +26,5 @@
 - Effects needing fresh note state use FxNode.trigger on the audio-clock path, keeping pads, phrases and sequencer hits aligned.
 - Gate visible loops in frameGate; defer reverb impulses and sync only changed FX. REESE contours and shared 808/ACID digits reuse the slot meter via capped PixelScreen redraws, never React audio-frame updates.
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
-- src/hooks has its own AGENTS.md; read it before changing files there.
+- src/hooks and src/audio have scoped AGENTS.md rules; read them before edits.
+- ACID uses clocked pool resets and silent pre-start cancellation to prevent note blips.
