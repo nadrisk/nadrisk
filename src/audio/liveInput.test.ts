@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { encodeWav, trimStart, barsSec, concat } from "./liveInput";
+import { wavBytes, trimStart, barsSec, concat } from "./liveInput";
 
 describe("live input helpers", () => {
-  it("encodes a WAV with the right size and header", async () => {
-    const b = encodeWav([new Float32Array([0, .5, -1]), new Float32Array([0, .5, 1])], 48000);
-    const v = new DataView(await new Response(b).arrayBuffer());
-    expect(b.size).toBe(44 + 12);
+  it("encodes a WAV with the right size and header", () => {
+    const b = wavBytes([new Float32Array([0, .5, -1]), new Float32Array([0, .5, 1])], 48000);
+    const v = new DataView(b);
+    expect(b.byteLength).toBe(44 + 12);
     expect(v.getUint32(24, true)).toBe(48000);
     expect(v.getInt16(44 + 4 * 2, true)).toBe(-32768);
   });

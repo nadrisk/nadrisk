@@ -20,13 +20,14 @@ export const trimStart = (d: Float32Array, sec: number, sr: number) => d.subarra
 /** Seconds for `bars` bars of 4/4 at bpm. */
 export const barsSec = (bars: number, bpm: number) => bars * 4 * 60 / bpm;
 
-export function encodeWav(chs: Float32Array[], sr: number): Blob {
+export const encodeWav = (chs: Float32Array[], sr: number) => new Blob([wavBytes(chs, sr)], { type: "audio/wav" });
+export function wavBytes(chs: Float32Array[], sr: number): ArrayBuffer {
   const n = chs[0]?.length ?? 0, c = chs.length, buf = new ArrayBuffer(44 + n * c * 2), v = new DataView(buf);
   const s = (o: number, t: string) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   s(0, "RIFF"); v.setUint32(4, 36 + n * c * 2, true); s(8, "WAVE"); s(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, c, true);
   v.setUint32(24, sr, true); v.setUint32(28, sr * c * 2, true); v.setUint16(32, c * 2, true); v.setUint16(34, 16, true); s(36, "data"); v.setUint32(40, n * c * 2, true);
   let o = 44; for (let i = 0; i < n; i++) for (let k = 0; k < c; k++) { const x = Math.max(-1, Math.min(1, chs[k][i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); o += 2; }
-  return new Blob([buf], { type: "audio/wav" });
+  return buf;
 }
 
 export type LiveStatus = { armed: number; rec: "off" | "wait" | "on"; peak: number; error: string };
