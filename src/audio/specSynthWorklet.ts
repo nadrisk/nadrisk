@@ -6,7 +6,7 @@ export const SPEC_GATE_CAL: [number, number][] = [[0, -60], [.25, -40], [.5, -25
 export const thrDb = (g: number) => { const c = SPEC_GATE_CAL; if (g <= 0) return c[0][1]; for (let i = 1; i < c.length; i++) if (g <= c[i][0]) { const [a, da] = c[i - 1], [b, db] = c[i]; return da + (db - da) * (g - a) / (b - a); } return c[c.length - 1][1]; };
 export const SPEC_SYNTH_WORKLET = `
 const CAL = ${JSON.stringify(SPEC_GATE_CAL)};
-const thrDb = ${thrDb.toString()};
+function thrDb(g) { if (g <= 0) return CAL[0][1]; for (let i = 1; i < CAL.length; i++) if (g <= CAL[i][0]) { const a = CAL[i-1][0], da = CAL[i-1][1], b = CAL[i][0], db = CAL[i][1]; return da + (db - da) * (g - a) / (b - a); } return CAL[CAL.length-1][1]; }
 class SpecSynthGate extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'gate', defaultValue: 0, minValue: 0, maxValue: 1 }, { name: 'release', defaultValue: .1, minValue: .005, maxValue: 2 }]; }
   constructor() { super(); const N = 1024, B = N / 2 + 1; this.N = N; this.H = 256; this.blk = 0; this.fr = 0;
