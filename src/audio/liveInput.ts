@@ -1,13 +1,13 @@
 // Sampler INPUT mode: one shared mic/instrument stream routed into a pad's insert chain, with audio-clock capture.
 export const REC_WORKLET = `class NadRec extends AudioWorkletProcessor {
-  constructor(){super();this.t0=-1;this.t1=-1;this.on=false;this.buf=[[],[]];this.n=0;this.pk=0;this.k=0;
-    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.buf=[[],[]];this.n=0;}if(d.stop!==undefined&&d.start===undefined)this.t1=d.stop;if(d.cancel){this.t0=-1;this.t1=-1;this.on=false;}};}
-  process(inp){const i=inp[0];if(!i||!i[0])return true;const L=i[0],R=i[1]||i[0],now=currentTime,end=now+L.length/sampleRate;
-    for(let j=0;j<L.length;j++){const a=Math.abs(L[j]);if(a>this.pk)this.pk=a;}
+  constructor(){super();this.t0=-1;this.t1=-1;this.on=false;this.buf=[[],[]];this.n=0;this.pk=0;this.k=0;this.thr=0;this.env=0;this.g=1;
+    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.buf=[[],[]];this.n=0;}if(d.stop!==undefined&&d.start===undefined)this.t1=d.stop;if(d.thr!==undefined)this.thr=d.thr;if(d.cancel){this.t0=-1;this.t1=-1;this.on=false;}};}
+  process(inp,out){const i=inp[0];if(!i||!i[0])return true;const L=i[0],R=i[1]||i[0],o=out[0],now=currentTime,end=now+L.length/sampleRate;
+    for(let j=0;j<L.length;j++){const a=Math.max(Math.abs(L[j]),Math.abs(R[j]));if(a>this.pk)this.pk=a;this.env=a>this.env?a:this.env*0.9995;const tg=this.thr<=0||this.env>this.thr?1:0;this.g+=(tg-this.g)*(tg?0.01:0.0005);if(o[0])o[0][j]=L[j]*this.g;if(o[1])o[1][j]=R[j]*this.g;}
     if(++this.k>=6){this.port.postMessage({peak:this.pk,rec:this.on});this.pk=0;this.k=0;}
     if(this.t0>=0&&!this.on&&end>this.t0){this.on=true;this.port.postMessage({started:true});}
     if(this.on){let a=0,b=L.length;if(now<this.t0)a=Math.floor((this.t0-now)*sampleRate);if(this.t1>=0&&end>this.t1)b=Math.max(a,Math.floor((this.t1-now)*sampleRate));
-      this.buf[0].push(L.slice(a,b));this.buf[1].push(R.slice(a,b));this.n+=b-a;
+      const oL=o[0]||L,oR=o[1]||oL;this.buf[0].push(oL.slice(a,b));this.buf[1].push(oR.slice(a,b));this.n+=b-a;
       const cap=this.n>=sampleRate*30;if((this.t1>=0&&end>=this.t1)||cap){this.on=false;this.t0=-1;this.t1=-1;this.port.postMessage({done:true,l:this.buf[0],r:this.buf[1],n:this.n});this.buf=[[],[]];this.n=0;}}
     return true;}
 }
@@ -33,16 +33,14 @@ export type LiveStatus = { armed: number; rec: "off" | "wait" | "on"; peak: numb
 
 export class LiveInput {
   stream: MediaStream | null = null; src: MediaStreamAudioSourceNode | null = null;
-  gain: GainNode; gate: DynamicsCompressorNode; mon: GainNode; rec: AudioWorkletNode; sink: GainNode;
+  gain: GainNode; mon: GainNode; rec: AudioWorkletNode; sink: GainNode;
   dest: AudioNode | null = null; peak = 0; recording: LiveStatus["rec"] = "off";
   onTake: (l: Float32Array, r: Float32Array, sr: number) => void = () => {};
   onState: () => void = () => {};
   constructor(public ctx: AudioContext, make: (name: string) => AudioWorkletNode) {
-    this.gain = ctx.createGain(); this.gate = ctx.createDynamicsCompressor(); this.mon = ctx.createGain(); this.mon.gain.value = 0;
-    // Downward-expander-ish gate: a hard 1:1 pass with the threshold handled by gain riding in setGate.
-    this.gate.ratio.value = 1; this.gate.threshold.value = 0;
+    this.gain = ctx.createGain(); this.mon = ctx.createGain(); this.mon.gain.value = 0;
     this.rec = make("nad-rec"); this.sink = ctx.createGain(); this.sink.gain.value = 0;
-    this.gain.connect(this.mon); this.gain.connect(this.rec); this.rec.connect(this.sink); this.sink.connect(ctx.destination);
+    this.gain.connect(this.rec); this.rec.connect(this.mon); this.rec.connect(this.sink); this.sink.connect(ctx.destination);
     this.rec.port.onmessage = (e: MessageEvent<{ peak?: number; started?: boolean; done?: boolean; l?: Float32Array[]; r?: Float32Array[]; n?: number }>) => {
       const d = e.data;
       if (d.peak !== undefined) { this.peak = d.peak; this.onState(); }
@@ -59,6 +57,8 @@ export class LiveInput {
   latency() { const c = this.ctx as AudioContext & { outputLatency?: number }; const tr = this.stream?.getAudioTracks()[0]?.getSettings() as { latency?: number } | undefined; return (c.baseLatency || 0) + (c.outputLatency || 0) + (tr?.latency ?? 0.01); }
   route(dest: AudioNode | null) { try { this.mon.disconnect(); } catch { /* none */ } this.dest = dest; if (dest) this.mon.connect(dest); }
   setGain(v: number) { this.gain.gain.setTargetAtTime(v, this.ctx.currentTime, .02); }
+  /** GATE 0..1 → threshold up to about -20 dBFS. */
+  setGate(v: number) { this.rec.port.postMessage({ thr: v > 0 ? 10 ** ((-70 + v * 50) / 20) : 0 }); }
   setMon(v: number) { this.mon.gain.setTargetAtTime(v, this.ctx.currentTime, .03); }
   start(at: number, stop?: number) { this.recording = "wait"; this.rec.port.postMessage({ start: at, stop: stop ?? -1 }); this.onState(); }
   stop(at = this.ctx.currentTime) { this.rec.port.postMessage({ stop: at }); }
