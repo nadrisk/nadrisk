@@ -677,7 +677,7 @@ export function useGroovebox() {
       L.onTake = (l, r, sr) => { const k = liveTarget.current, o = liveOptsRef.current; applyLive(); if (k < 0) return;
         const t = o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
-        void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => setSlots(s => s.map((x, j) => j === k ? { ...x, sampler: { ...x.sampler, start: 0, end: 1, loop: o.sync ? x.sampler.loop : x.sampler.loop } } : x)));
+        void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => setSlots(s => s.map((x, j) => j === k ? { ...x, sampler: { ...x.sampler, start: 0, end: 1 } } : x)));
       };
       live.current = L;
     }
@@ -688,7 +688,7 @@ export function useGroovebox() {
     const L = live.current; if (!L || liveTarget.current < 0) return;
     if (L.recording !== "off") { if (L.recording === "wait") L.cancel(); else L.stop(); applyLive(); return; }
     const o = liveOptsRef.current, t = Tone.getTransport(), now = L.ctx.currentTime;
-    if (o.sync) { const len = barsSec(o.bars, bpmRef.current), at = t.state === "started" ? Tone.getContext().immediate() + Math.max(0, Tone.Time(t.nextSubdivision("1m")).toSeconds() - t.seconds) : now + .02; L.start(at, at + len); }
+    if (o.sync) { const len = barsSec(o.bars, bpmRef.current), at = t.state === "started" ? t.nextSubdivision("1m") : now + .02; L.start(at, at + len); }
     else L.start(now + .01);
     applyLive();
   }, []);
@@ -739,6 +739,7 @@ export function useGroovebox() {
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
   const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
+    disarmInput();
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
