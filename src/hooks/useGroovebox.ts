@@ -270,12 +270,17 @@ export function useGroovebox() {
     // (each semitone away from the pad's root moves one slice), so phrases and pads can re-sequence a break.
     // Sliced samplers are mono: one slice at a time, chords become sequences of slices (BLOCK plays the first only).
     const sl = s.engine === "sampler" && !s.sampler.grain && (s.sampler.sliceSens ?? 0) > 0 ? detectSlices(raw, s.sampler.sliceSens!, s.sampler.start, s.sampler.end ?? 1) : [];
-    const sliced = sl.length > 1, sliceOf = (semi: number, offset: number) => sl[((Math.round(semi + offset) % sl.length) + sl.length) % sl.length];
+    // Slice index = played key (one semitone, one slice); chord offsets are taken relative to the chord's first note so
+    // key-snapped chord voicings never shift or collapse the slice a key picks.
+    const sIdx = (semi: number, offset: number) => { const k = Math.round(semi + offset - (notes[0] ?? 0)); return ((k % sl.length) + sl.length) % sl.length; };
+    const sliced = sl.length > 1, sliceOf = (semi: number, offset: number) => sl[sIdx(semi, offset)];
     const samplerRun = (sm: SamplerParams, dur: number, semi: number, offset: number, factor: number): SamplerParams => {
       const base = { ...sm, env: scaledEnv(sm.env, factor), pitch: sp + semi + offset };
       const n = Math.round(sm.slices ?? 0);
       // Transient slices: each note offset picks a hit; playback runs on from that hit to the sample END.
-      if (sl.length > 1) { const k = ((Math.round(semi + offset) % sl.length) + sl.length) % sl.length, s0 = sm.start, s1 = sm.end ?? 1; Object.assign(base, { start: s0 + sl[k] * (s1 - s0), loop: false, pitch: sp }); return base; }
+      if (sl.length > 1) { const k = sIdx(semi, offset), s0 = sm.start, s1 = sm.end ?? 1;
+        // VNT unlocked: slices follow the played pitch; LOCK (and plain slicing) keep the original pitch.
+        const vnt = sm.stretch && !sm.warp; Object.assign(base, { start: s0 + sl[k] * (s1 - s0), loop: false, pitch: vnt && !sm.pitchLock ? sp + semi + offset - (notes[0] ?? 0) : vnt ? Math.max(-50, Math.min(50, sm.fine ?? 0)) / 100 : sp }); return base; }
       if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sp + offset }); }
       // VNT LOCK: notes still pick slices, but playback stays at the file's original pitch (FINE only).
       if (sm.stretch && !sm.warp && sm.pitchLock) base.pitch = Math.max(-50, Math.min(50, sm.fine ?? 0)) / 100;
