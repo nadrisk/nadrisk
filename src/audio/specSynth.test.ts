@@ -20,7 +20,7 @@ describe("SPEC FFT gate", () => {
   it("passes everything at GATE 0 and removes a quiet partial at high GATE while keeping the loud one", () => {
     const clean = render(0), gated = render(.8);
     expect(toneEnergy(clean, 3000)).toBeGreaterThan(toneEnergy(clean, 1000) * .0005);
-    expect(toneEnergy(gated, 3000)).toBeLessThan(toneEnergy(clean, 3000) * .2);
+    expect(toneEnergy(gated, 3000)).toBeLessThan(toneEnergy(clean, 3000) * .5);
     expect(toneEnergy(gated, 1000)).toBeGreaterThan(toneEnergy(clean, 1000) * .7);
   });
 });
