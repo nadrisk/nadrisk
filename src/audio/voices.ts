@@ -344,7 +344,7 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   src.onended = () => { clearTimeout(timer); cleanup(); };
   return { stop: s => { endT = s; amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } },
     release: (s, r) => { if (oneShot || s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, s, r); try { src.stop(endT); } catch { /* stopped */ } },
-    glide: (delta, a, time) => glideParams([src.playbackRate], delta, a, time) };
+    glide: (delta, a, time) => { if (!(p.stretch && !p.warp && p.pitchLock)) glideParams([src.playbackRate], delta, a, time); } };
 }
 
 // Shared smooth window; the 16-grain global budget also includes booked grains.

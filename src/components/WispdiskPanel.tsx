@@ -154,6 +154,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       if (sm.warp) { p.box(49, 11, 17, 7); if (sm.breakDouble) p.invert(50, 12, 15, 5); p.text("X2", 52, 12, !sm.breakDouble); }
       p.text(sm.warp ? `${sm.sampleBpm ? sm.sampleBpm.toFixed(1) : "A"}BPM` : `X${amt.toFixed(2)}`, 70, 12);
       if (sm.warp && breakEngine) p.text(breakEngine, 112, 12);
+      if (!sm.warp) { const lk = !!sm.pitchLock; p.box(100, 11, 26, 7, !sm.stretch); if (lk) p.invert(101, 12, 24, 5); p.text("LOCK", 104, 12, !lk); }
       p.box(2, 19, 124, 26);
       // WARP / slicing view the whole loop; vintage stretch shows its new length (full width = x4).
       // BRK and slicing fill the frame; VNT draws 1x at full width, shorter below 1x, and marks the original length above 1x.
@@ -199,6 +200,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       {page === "BRK" && <>
         <Tap x={2} y={10} w={21} h={9} label="Vintage stretch" pressed={!!sm.stretch && !sm.warp} onClick={() => M({ stretch: !sm.stretch, warp: false })} />
         <Tap x={25} y={10} w={21} h={9} label="Break mode" pressed={!!sm.warp} onClick={() => M({ warp: !sm.warp, grain: false, stretch: false })} />
+        {!sm.warp && <Tap x={100} y={10} w={26} h={9} label={sm.pitchLock ? "Unlock sample pitch" : "Lock sample pitch"} pressed={!!sm.pitchLock} disabled={!sm.stretch} onClick={() => { M({ pitchLock: !sm.pitchLock }); show(sm.pitchLock ? "FREE" : "LOCK"); }} />}
         {sm.warp && <Tap x={49} y={10} w={17} h={9} label="Double break length" pressed={!!sm.breakDouble} onClick={() => M({ breakDouble: !sm.breakDouble })} />}
       </>}
       {page === "GRN" && <>
