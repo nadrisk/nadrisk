@@ -198,7 +198,7 @@ export function partialWaveInfo(ctx: BaseAudioContext, partials: number[]) {
 export const partialWave = (ctx: BaseAudioContext, partials: number[]) => partialWaveInfo(ctx, partials).wave;
 
 export function playSynth(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
-  if (p.mode === "spec") return playSpec(ctx, dest, p, midi, t, gate, vel);
+  if (p.mode === "spec") return playSpec(ctx, dest, p, midi, t, gate, vel, freeLfo);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const base = 440 * 2 ** ((midi - 69) / 12);
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);

@@ -1,4 +1,4 @@
-import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type SynthParams, type Voice } from "./voices";
+import { adsr, at, filterEnvAdsr, finish, lfoDests, link, noiseBuffer, type SynthParams, type Voice } from "./voices";
 
 /** SPEC mode: the synth's 16 bars are spectral bands carved from a rich saw+noise source. */
 export type SpecParams = { bands: number[]; gate: number; tight: number; blur: number; shift: number; bite: number };
@@ -17,22 +17,22 @@ function takeGate(ctx: BaseAudioContext, until: number): AudioWorkletNode | null
   e.n.disconnect(); e.busy = until + .3; return e.n;
 }
 
-export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1): Voice {
+export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams, midi: number, t: number, gate: number, vel = 1, freeLfo?: AudioNode): Voice {
   const sp = specParams(p.spec), nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const base = 440 * 2 ** ((midi - 69) / 12), nyq = ctx.sampleRate * .45;
-  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
+  const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest); const trem = ctx.createGain(); trem.connect(amp);
   const filt = ctx.createBiquadFilter(); filt.type = p.filter; filt.Q.value = p.res; filterEnvAdsr(filt.frequency, t, p.filterEnvShape, gate, p.cutoff, Math.max(0, p.filterEnv));
   const wet = ctx.createGain(), dry = ctx.createGain(), sum = ctx.createGain(); wet.gain.value = p.wet; dry.gain.value = 1 - p.wet;
-  const post = ctx.createGain(); post.connect(filt).connect(wet).connect(amp); post.connect(dry).connect(amp);
+  const post = ctx.createGain(); post.connect(filt).connect(wet).connect(trem); post.connect(dry).connect(trem);
   // Source: two detuned saws (detune widens with BLUR) plus noise for the blurred haze.
-  const src = ctx.createGain(); const det = 6 + sp.blur * 22;
-  [-det, det].forEach(d => { const o = at(ctx.createOscillator(), t); o.type = "sawtooth"; o.frequency.value = base; o.detune.value = d + p.osc1.fine; o.connect(src); srcs.push(o); nodes.push(o); });
+  const src = ctx.createGain(), oscs: OscillatorNode[] = [], bps: BiquadFilterNode[] = []; const det = 6 + sp.blur * 22;
+  [-det, det].forEach(d => { const o = at(ctx.createOscillator(), t); o.type = "sawtooth"; o.frequency.value = base; o.detune.value = d + p.osc1.fine; o.connect(src); oscs.push(o); srcs.push(o); nodes.push(o); });
   const nz = at(ctx.createBufferSource(), t); nz.buffer = noiseBuffer(ctx); nz.loop = true; const ng = ctx.createGain(); ng.gain.value = .15 + sp.blur * 1.6; nz.connect(ng).connect(src); srcs.push(nz); nodes.push(nz, ng);
   // TIGHT: short per-band plucks (highs faster) vs slow watery swells; BLUR widens bands and slows attacks.
   const q = 26 - sp.blur * 22, tight = sp.tight;
   for (let k = 0; k < N_BANDS; k++) { const lv = sp.bands[k]; if (lv < .01) continue;
     const f = base * bandRatio(k, sp.shift); if (f > nyq || f < 20) continue;
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; bps.push(bp);
     const g = ctx.createGain(), peak = lv * Math.sqrt(q) * .2, A = .002 + (1 - tight) * (.04 + sp.blur * .5) + k * .004 * (1 - tight);
     const D = tight > 0 ? (.05 + (1 - tight) * 2.5) / (1 + k * .08 * tight) : 4, S = peak * (1 - tight * .85);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + A); g.gain.setTargetAtTime(S, t + A, D / 3);
@@ -50,6 +50,19 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
     P("focus")?.setValueAtTime(-.2 * g, ctx.currentTime); P("crush")?.setValueAtTime(0, ctx.currentTime);
     const mk = ctx.createGain(); mk.gain.value = 1 + g * 1.5; sum.connect(sg).connect(mk).connect(post); nodes.push(mk);
   } else sum.connect(post);
-  nodes.push(src, sum, post, filt, wet, dry, amp);
-  return finish(srcs, nodes, end, amp);
+  // LFO: the pad's free-running LFO (TRIG = per-note) moves pitch, cutoff, level, and OSC1/OSC2 targets map to band SHIFT/BLUR depth.
+  const ld = lfoDests(p.lfo); let unhook: (() => void) | undefined;
+  if (ld.pitch || ld.cutoff || ld.amp || ld.osc1 || ld.osc2) { const fade = ctx.createGain();
+    if (freeLfo && !p.lfo.retrig) { freeLfo.connect(fade); unhook = () => { try { freeLfo.disconnect(fade); } catch { /* gone */ } }; }
+    else { const l = at(ctx.createOscillator(), t); l.type = p.lfo.wave; l.frequency.value = p.lfo.rate; l.connect(fade); srcs.push(l); nodes.push(l); }
+    const atk = Math.max(0, p.lfo.attack ?? 0); if (atk > .001) { fade.gain.setValueAtTime(0, t); fade.gain.linearRampToValueAtTime(1, t + atk); } else fade.gain.value = 1;
+    const send = (amt: number, ...to: AudioParam[]) => { const g = ctx.createGain(); g.gain.value = amt; fade.connect(g); to.forEach(a => g.connect(a)); nodes.push(g); };
+    if (ld.pitch) send(ld.pitch * 1200, ...oscs.map(o => o.detune), ...bps.map(b => b.detune));
+    if (ld.cutoff) send(ld.cutoff * 2400, filt.detune);
+    if (ld.amp) { trem.gain.value = 1 - ld.amp / 2; send(ld.amp / 2, trem.gain); }
+    if (ld.osc1) send(ld.osc1 * 1200, ...bps.map(b => b.detune));
+    if (ld.osc2) send(ld.osc2 * .5, ng.gain);
+    nodes.push(fade); }
+  nodes.push(src, sum, post, filt, wet, dry, trem, amp);
+  return finish(srcs, nodes, end, amp, () => unhook?.());
 }

@@ -16,7 +16,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   k === "shape" ? (v < .25 ? "SINE" : v < .75 ? "TRI" : "SQR") + Math.round(v * 100) : k === "focus" ? (Math.abs(v) < .02 ? "BOTH" : `${v > 0 ? "TRN" : "SUS"}${Math.round(Math.abs(v) * 100)}`) : k === "crush" ? `${Math.round(v * 100)}%` : k === "dir" ? (v >= .5 ? "BOOST" : "CUT") : k === "gain" && p.dir !== undefined ? `${v}DB` :
   k === "mode" ? `HEAD ${HEAD_NAMES[Math.round(v)] ?? "1"}` : k === "spring" ? `${Math.round(v * 100)}%` : k === "ping" ? (v >= .5 ? "ON" : "OFF") : k === "hp" ? `${Math.round(v)}HZ` : k === "thresh" ? `${Math.round(v)}DB` : k === "depth" && p.hp !== undefined ? `${Math.round(v * 100)}%` : k === "attack" && p.hp !== undefined ? `${Math.round(v * 1000)}MS` :
   k === "level" ? (() => { const d = gainPosToDb(v); return d === -Infinity ? "-INF" : `${d > 0 ? "+" : ""}${d.toFixed(1)}DB`; })() : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
-  k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "TAPE" : "VIB") : k === "oppose" ? (v >= .5 ? "OPP" : "SAME") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
+  k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "VIB" : "LOFI") : k === "oppose" ? (v >= .5 ? "OPP" : "SAME") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
   : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
@@ -327,7 +327,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
-          if (f.type === "vibrato") { if (lofiOn) p.rect(72, 10, 26, 9); else p.box(72, 10, 26, 9); p.textC(lofiOn ? "LOFI" : "VIB", 85, 12, !lofiOn); }
+          if (f.type === "vibrato") { if (lofiOn) p.rect(72, 10, 26, 9); else p.box(72, 10, 26, 9); p.textC(lofiOn ? "VIB" : "LOFI", 85, 12, !lofiOn); }
           drawFxVisual(p, f, levels, hist.current, now);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
@@ -341,7 +341,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
       </> : page === "EDT" ? <>
         {f?.type === "noisegate" && <Zone x={1} y={21} w={126} h={24} label="Gate threshold line" value={f.params.threshold ?? -40} min={-80} max={0} step={1} onChange={v => set({ params: { ...f.params, threshold: v } })} />}
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
-        {f?.type === "vibrato" && <Tap x={72} y={10} w={26} h={9} label="Vibrato LOFI mode" pressed={lofiOn} onClick={() => { setPg(0); set({ params: { ...f.params, lofi: lofiOn ? 0 : 1 } }); }} />}
+        {f?.type === "vibrato" && <Tap x={72} y={10} w={26} h={9} label={lofiOn ? "Switch vibrato to VIB mode" : "Switch vibrato to LOFI mode"} pressed={lofiOn} onClick={() => { setPg(0); set({ params: { ...f.params, lofi: lofiOn ? 0 : 1 } }); }} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>
         {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 5) * 25} y={10 + Math.floor(k / 5) * 9} w={24} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}

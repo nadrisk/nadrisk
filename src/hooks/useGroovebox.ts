@@ -240,7 +240,7 @@ export function useGroovebox() {
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
-    let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler") ? chordNotes(s.chord) : [0];
+    let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
     if (kc) {
@@ -410,7 +410,7 @@ export function useGroovebox() {
     if (!h) { const slot = slotsRef.current[i], e = engine.current; if (e && heldEngine(slot)) e.mono[i]?.release?.(e.ctx.currentTime, relOf(slot)); return; }
     stopHold(i);
   }, [stopHold]);
-  const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "poly" || s.engine === "sampler") && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
+  const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
   const play = useCallback((i: number) => {
     const slot = slotsRef.current[i], e = engine.current;
     if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
