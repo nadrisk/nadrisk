@@ -31,7 +31,7 @@ describe("SPEC FFT gate", () => {
   });
   it("removes weak components in order of level while the strongest stays", () => {
     const lvl = (g: number) => { const o = render(g); return TONES.map(([f]) => db(amp(o, f))); };
-    const clean, g25 = lvl(.25), g50 = lvl(.5), g75 = lvl(.75), g100 = lvl(1);
+    const clean = lvl(0), g25 = lvl(.25), g50 = lvl(.5), g75 = lvl(.75), g100 = lvl(1);
     for (const g of [g25, g50, g75]) expect(Math.abs(g[0] - clean[0])).toBeLessThan(1);
     // At 100% the -3 dB threshold also trims the strongest tone's window skirt, so it loses a few dB but stays.
     expect(g100[0] - clean[0]).toBeGreaterThan(-5);
