@@ -61,3 +61,4 @@
 ## Accent onset check (2026-10-16)
 - [ ] Test short accent-scaled cutoff/VCA rises, preserving ordinary attacks and Da Funk drive
 - [ ] User listening comparison of accented sequencer playback with acid drive (waiting on user)
+- [x] SPEC synth: true FFT GATE (peak-relative), TIGHT = band width, SHIFT glides live

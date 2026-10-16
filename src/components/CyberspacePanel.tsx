@@ -123,7 +123,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.box(2, 25, 124, 19, true);
       for (let i = 0; i < N_BANDS; i++) { const v = sp.bands[i], bh = Math.round(v * 15), x = 4 + i * 7.6;
         if (page === "BND") p.rect(x, 42 - bh, 4, bh);
-        else for (let st2 = 0; st2 < 16; st2++) { const on = sp.gate < .05 || v >= sp.gate * .8 || (st2 & 3) === 0; if (on && v > .01) p.dot(4 + st2 * 7.6 + 1, 42 - Math.round(i * 15 / 15)); } }
+        else if (v > .01) { // SPC: band vs FFT gate threshold — solid above, dotted near it, a floor tick when gated out.
+          const mx = Math.max(...sp.bands, .01), db = 20 * Math.log10(v / mx), thr = -(1 - sp.gate) * 60;
+          if (sp.gate < .01 || db > thr + 6) p.rect(x, 42 - bh, 4, bh); else if (db > thr - 3) { for (let yy = 42 - bh; yy < 42; yy += 2) p.dot(x + 1 + ((yy >> 1) & 1), yy); } else p.line(x, 42, x + 3, 42); } }
+        if (page === "SPC" && sp.gate > .01) { const ty = 42 - Math.round(15 * 10 ** (-(1 - sp.gate) * 3)); for (let xx = 3; xx < 125; xx += 3) p.dot(xx, ty); }
       if (page === "SPC") { const w = Math.round(8 + sp.blur * 40), tl = Math.round(4 + (1 - sp.tight) * 40); p.text(`T${Math.round(sp.tight * 100)} B${Math.round(sp.blur * 100)}`, 3, 19); p.line(70, 22, 70 + tl, 22); p.line(70, 24, 70 + w, 24); }
       return;
     }

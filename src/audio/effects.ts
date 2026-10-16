@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import { FAILURE_WORKLET } from "./failureWorklet";
 import { ADVANCED_WORKLETS } from "./advanced";
 import { TAPE_WORKLET } from "./tapeWorklet";
+import { SPEC_SYNTH_WORKLET } from "./specSynthWorklet";
 import { METER_WORKLET } from "./meterWorklet";
 import { ACID_WORKLET } from "./acid";
 
@@ -225,7 +226,7 @@ registerProcessor('nad-dyneq', DynEq);
 registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, ACID_WORKLET, FAILURE_WORKLET], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET], { type: "application/javascript" }))));
 
 let eco = false;
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
