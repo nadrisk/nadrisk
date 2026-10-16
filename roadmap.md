@@ -62,3 +62,7 @@
 - [ ] Test short accent-scaled cutoff/VCA rises, preserving ordinary attacks and Da Funk drive
 - [ ] User listening comparison of accented sequencer playback with acid drive (waiting on user)
 - [x] SPEC synth: true FFT GATE (peak-relative), TIGHT = band width, SHIFT glides live
+
+## Chorus/flanger rebuild (2026-10-16)
+- [x] Juno-60 chorus (MODE I/II/I+II, MAN, ENV, NOIS, WDTH) and ADA flanger (MAN, RNGE, ENH ±, ENV, WDTH)
+- [ ] Ear test (waiting on user)
