@@ -66,3 +66,5 @@
 ## Chorus/flanger rebuild (2026-10-16)
 - [x] Juno-60 chorus (MODE I/II/I+II, MAN, ENV, NOIS, WDTH) and ADA flanger (MAN, RNGE, ENH ±, ENV, WDTH)
 - [ ] Ear test (waiting on user)
+
+- [x] Sampler IN page: arm mic/instrument through pad FX, FREE/SYNC recording into the pad
