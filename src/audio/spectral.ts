@@ -1,3 +1,4 @@
+import * as Tone from "tone";
 import { adsr, at, filterEnvAdsr, finish, lfoDests, link, noiseBuffer, type SynthParams, type Voice } from "./voices";
 
 /** SPEC mode: the synth's 16 bars are spectral bands carved from a rich saw+noise source. */
@@ -8,12 +9,15 @@ export const specParams = (s?: Partial<SpecParams>): SpecParams => { const d = d
 /** Band centre as a multiple of the note's fundamental: bands span ~7 octaves, moved by SHIFT (±2 oct). */
 export const bandRatio = (k: number, shift: number) => 2 ** (k * 7 / (N_BANDS - 1) + shift * 2);
 /** GATE: pooled FFT spectral gates (nad-specsynth, peak-relative threshold) so notes never build processors that run forever. */
+let warned = false;
 const gatePools = new WeakMap<BaseAudioContext, { n: AudioWorkletNode; busy: number }[]>();
 function takeGate(ctx: BaseAudioContext, until: number): AudioWorkletNode | null {
   const pool = gatePools.get(ctx) ?? []; gatePools.set(ctx, pool);
   let e = pool.find(x => x.busy <= ctx.currentTime);
   if (!e) { if (pool.length >= 12) return null;
-    try { e = { n: new AudioWorkletNode(ctx, "nad-specsynth", { outputChannelCount: [2] }), busy: 0 }; } catch { return null; } pool.push(e); }
+    // The raw context is a wrapped context: native new AudioWorkletNode() throws, so use Tone's factory like the FX do.
+    try { e = { n: Tone.getContext().createAudioWorkletNode("nad-specsynth", { outputChannelCount: [2] }) as unknown as AudioWorkletNode, busy: 0 }; }
+    catch (err) { if (!warned) { warned = true; console.warn("SPEC gate unavailable", err); } return null; } pool.push(e); }
   e.n.disconnect(); e.busy = until + .3; return e.n;
 }
 
