@@ -465,7 +465,7 @@ export function useGroovebox() {
       const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
       const sixteenth = 60 / bpmRef.current / 4;
       const time = gridTime + (tick % 2 ? (Math.max(50, Math.min(75, swingRef.current)) - 50) / 50 * sixteenth : 0);
-      if (queuedRef.current != null && tick % 16 === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
+      if (queuedRef.current != null && tick % (banksRef.current[bankRef.current].steps ?? 16) === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
       const cb = banksRef.current[bankRef.current];
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
