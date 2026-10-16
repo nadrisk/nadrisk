@@ -1,4 +1,3 @@
-import * as Tone from "tone";
 import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type SynthParams, type Voice } from "./voices";
 
 /** SPEC mode: the synth's 16 bars are spectral bands carved from a rich saw+noise source. */
@@ -45,7 +44,7 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
     bg.gain.setValueAtTime(sp.bite * .9, t); bg.gain.setTargetAtTime(0, t, .006); b.connect(hp).connect(bg).connect(sum); srcs.push(b); nodes.push(b, hp, bg); }
   const end = adsr(amp.gain, t, p.env, gate, vel * .5);
   // GATE: magnitude-threshold gating in the frequency domain — quiet partials and noise fade out, leaving glassy partials.
-  const sg = sp.gate > .01 ? takeGate(ctx, typeof end === "number" ? end : t + gate + 4) : null;
+  const sg = sp.gate > .01 ? takeGate(ctx, end) : null;
   if (sg) { const g = sp.gate, P = (k: string) => sg.parameters.get(k);
     P("thresh")?.setValueAtTime(-72 + g * 52, ctx.currentTime); P("release")?.setValueAtTime(.35 - g * .25, ctx.currentTime);
     P("focus")?.setValueAtTime(-.2 * g, ctx.currentTime); P("crush")?.setValueAtTime(0, ctx.currentTime);
