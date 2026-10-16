@@ -1,30 +1,30 @@
-# Spectral synth: GATE, TIGHT, SHIFT redesign
+# Spectral synth: true FFT GATE, TIGHT width, SHIFT focus
 
-Yes, that makes sense. Each band's bar height becomes its "stability": a full bar is clear and steady, a lowered bar sounds thin and unstable, and a very low bar breaks into spectral fragments. GATE sets how strongly that happens.
+The synth becomes a modern, controlled FFT spectral synth. GATE is a real frequency-domain spectral gate, like the spectral~ effect. Each band's bar height decides how far its partials sit above the gate, so lowered bars are the first to turn thin, unstable and then into spectral fragments.
 
-## GATE: lower bars break apart
-- GATE at 0: the bars only set loudness, like now (clean).
-- As GATE rises, each band gets more unstable the lower its bar is:
-  - **Full bar:** stays solid.
-  - **Mid bar:** thins and shimmers (fast random level flutter, small pitch wobble).
-  - **Low bar:** chops into short random spectral fragments that flicker in and out, with crystalline decay.
-- The spectral gate stays on the whole voice. Its threshold follows GATE, so the weakest bands fall below it and break up first.
-- The fragments are random and never lock to the tempo, so it can't sound like an arpeggiator again.
+## GATE: real FFT spectral gate
+- Every note runs through an FFT (frequency analysis) gate. Each frequency bin opens or closes on its own, depending on its magnitude.
+- The gate threshold is relative to the note's own loudest partial, so GATE behaves the same at any volume or pitch.
+  - GATE 0: nothing is gated (clean).
+  - Mid GATE: quiet partials and noise flicker at the edge of the threshold, sounding thin and unstable with that glassy FFT shimmer.
+  - High GATE: only the strongest partials survive, leaving spectral fragments with crystalline decay.
+- Bars set band loudness before the gate, so a full bar stays stable and clear while a lowered bar fragments first. You "play" the spectrum by drawing bars.
+- No rhythm and no random choppers: every effect comes from the FFT gate reacting to magnitude.
 
 ## TIGHT: band width
-- High TIGHT: each band is a thin, focused strip, so only frequencies right at the band come through (glassy, whistling).
-- Low TIGHT: bands are wide, so more of the source's frequencies are caught (thick, noisy, full).
-- TIGHT no longer changes the per-band pluck/swell shaping. Note shape comes only from the ENV page, so the two don't fight.
+- High TIGHT: each band is a thin, focused strip, so only frequencies right at the band pass (glassy, whistling).
+- Low TIGHT: bands are wide, so more frequencies are caught (thick and full).
+- TIGHT no longer shapes per-band plucks or swells; note shape comes only from the ENV page.
 
 ## SHIFT: move the focus
-- SHIFT already moves all bands together up or down (±2 octaves). It will glide smoothly while a note is held, so you can sweep the focus point live.
+- SHIFT moves every band together (±2 octaves) and glides live while a note is held.
 
 ## Screen
-- The BND bars draw solid when full and break into dotted, flickering pixels as GATE makes them unstable, so you can see which bands are fragmenting.
+- The BND bars show where each band sits against the gate threshold: solid above it, dotted near it, gone below it.
 
 ## Technical details
-- `src/audio/spectral.ts`: per band, add an instability amount `u = gate * (1 - level)`. Pre-baked noise is lowpassed per band (rate rises with u) and fed into the band's gain (flutter depth ∝ u) and its bandpass detune (±20 cents · u). When u > 0.6, a hard-gated noise drives the level to make fragments. Shared noise buffers only; nothing new is built per hit beyond the band's own nodes.
-- Specgate threshold becomes `-70 + gate * 40`, release `0.3 - gate * 0.2`.
-- TIGHT maps to bandpass Q, 2 to 40 logarithmic. BLUR keeps its detune/noise role and also widens Q slightly. Remove the tight-based A/D/S per band.
-- The voice `update()` glides SHIFT, TIGHT (Q) and GATE live. Older sets load unchanged with the same parameter keys.
-- Tests: offline render checks that GATE 0 equals the clean output, and that GATE 1 with low bars yields a fluctuating band envelope.
+- Add `nad-specsynth` to the shared worklet bundle: 1024-point FFT, hop 256. Per frame it finds the peak bin magnitude and sets threshold = peak · 10^(-(1 - gate) · 60 / 20) (GATE 0 bypasses). Per-bin gain uses a fast open and a release of 0.25 − 0.2·gate s, with ±3 dB hysteresis so bins near the threshold chatter. That chatter is the "unstable" sound. Same pooling as now (max 12 per context, reused after the voice ends).
+- `spectral.ts`: TIGHT → bandpass Q 2–40 (log), BLUR keeps its detune/noise role. Remove the tight-based attack/decay/sustain. Use a makeup gain that follows the energy removed. `update()` glides SHIFT, Q and the gate parameter.
+- Older sets load unchanged (same keys).
+- Tests: GATE 0 output ≈ ungated; at GATE 1 a quiet band is gated out while a full band remains (offline FFT check).
+- Record the worklet in `src/audio/AGENTS.md`, replacing the old SPEC GATE rule. Add this task to roadmap.md.
