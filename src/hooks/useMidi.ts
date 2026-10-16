@@ -81,7 +81,7 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
     if (c.learn) { if (c.target && (cc || on)) { const t = c.target; setMaps(m => ({ ...m, [key]: t })); setTarget(null); setStatus(`${t} → ${cc ? "CC" : "note"} ${d1}`); } return; }
     const label = c.maps[key];
     if (label) return act(label, cc ? "cc" : on ? "on" : "off", cc ? d2 : on ? d2 : 0, key);
-    if (!cc && c.keys && c.keyOn) { if (on) c.keyOn(d1, d2 / 127); else c.keyOff?.(d1); return; }
+    if (!cc && c.keys && c.keyOn) { if (on) c.keyOn(d1, 1); else c.keyOff?.(d1); return; }
     if (!cc && d1 >= 36 && d1 <= 51) { if (on) c.hit(d1 - 36); else c.release(d1 - 36); }
   }, [act]);
 
