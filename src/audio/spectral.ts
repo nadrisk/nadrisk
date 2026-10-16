@@ -7,13 +7,13 @@ export const defaultSpec = (): SpecParams => ({ bands: Array.from({ length: N_BA
 export const specParams = (s?: Partial<SpecParams>): SpecParams => { const d = defaultSpec(); return { ...d, ...s, bands: Array.from({ length: N_BANDS }, (_, i) => s?.bands?.[i] ?? d.bands[i]) }; };
 /** Band centre as a multiple of the note's fundamental: bands span ~7 octaves, moved by SHIFT (±2 oct). */
 export const bandRatio = (k: number, shift: number) => 2 ** (k * 7 / (N_BANDS - 1) + shift * 2);
-/** GATE: pooled FFT spectral gates (the spectral~ effect's nad-specgate worklet) so notes never build processors that run forever. */
+/** GATE: pooled FFT spectral gates (nad-specsynth, peak-relative threshold) so notes never build processors that run forever. */
 const gatePools = new WeakMap<BaseAudioContext, { n: AudioWorkletNode; busy: number }[]>();
 function takeGate(ctx: BaseAudioContext, until: number): AudioWorkletNode | null {
   const pool = gatePools.get(ctx) ?? []; gatePools.set(ctx, pool);
   let e = pool.find(x => x.busy <= ctx.currentTime);
   if (!e) { if (pool.length >= 12) return null;
-    try { e = { n: new AudioWorkletNode(ctx, "nad-specgate", { outputChannelCount: [2] }), busy: 0 }; } catch { return null; } pool.push(e); }
+    try { e = { n: new AudioWorkletNode(ctx, "nad-specsynth", { outputChannelCount: [2] }), busy: 0 }; } catch { return null; } pool.push(e); }
   e.n.disconnect(); e.busy = until + .3; return e.n;
 }
 
@@ -29,13 +29,12 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   [-det, det].forEach(d => { const o = at(ctx.createOscillator(), t); o.type = "sawtooth"; o.frequency.value = base; o.detune.value = d + p.osc1.fine; o.connect(src); oscs.push(o); srcs.push(o); nodes.push(o); });
   const nz = at(ctx.createBufferSource(), t); nz.buffer = noiseBuffer(ctx); nz.loop = true; const ng = ctx.createGain(); ng.gain.value = .15 + sp.blur * 1.6; nz.connect(ng).connect(src); srcs.push(nz); nodes.push(nz, ng);
   // TIGHT: short per-band plucks (highs faster) vs slow watery swells; BLUR widens bands and slows attacks.
-  const q = 26 - sp.blur * 22, tight = sp.tight;
+  // TIGHT = band width: high = thin focused strips, low = wide bands that catch more of the source. BLUR widens a little more.
+  const qOf = (s: SpecParams) => 2 * 20 ** s.tight * (1 - s.blur * .5), q = qOf(sp);
   for (let k = 0; k < N_BANDS; k++) { const lv = sp.bands[k]; if (lv < .01) continue;
     const f = base * bandRatio(k, sp.shift); if (f > nyq || f < 20) continue;
     const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; bps.push(bp);
-    const g = ctx.createGain(), peak = lv * Math.sqrt(q) * .2, A = .002 + (1 - tight) * (.04 + sp.blur * .5) + k * .004 * (1 - tight);
-    const D = tight > 0 ? (.05 + (1 - tight) * 2.5) / (1 + k * .08 * tight) : 4, S = peak * (1 - tight * .85);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + A); g.gain.setTargetAtTime(S, t + A, D / 3);
+    const g = ctx.createGain(); g.gain.value = lv * Math.sqrt(q) * .2;
     src.connect(bp).connect(g); nodes.push(bp, g);
     g.connect(sum);
   }
@@ -43,13 +42,11 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
   if (sp.bite > .01) { const b = at(ctx.createBufferSource(), t); b.buffer = noiseBuffer(ctx); const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2500; const bg = ctx.createGain();
     bg.gain.setValueAtTime(sp.bite * .9, t); bg.gain.setTargetAtTime(0, t, .006); b.connect(hp).connect(bg).connect(sum); srcs.push(b); nodes.push(b, hp, bg); }
   const end = adsr(amp.gain, t, p.env, gate, vel * .5);
-  // GATE: magnitude-threshold gating in the frequency domain — quiet partials and noise fade out, leaving glassy partials.
-  const sg = sp.gate > .01 ? takeGate(ctx, end) : null;
-  if (sg) { const g = sp.gate, P = (k: string) => sg.parameters.get(k);
-    P("thresh")?.setValueAtTime(-72 + g * 52, ctx.currentTime); P("release")?.setValueAtTime(.35 - g * .25, ctx.currentTime);
-    P("focus")?.setValueAtTime(-.2 * g, ctx.currentTime); P("crush")?.setValueAtTime(0, ctx.currentTime);
-    const mk = ctx.createGain(); mk.gain.value = 1 + g * 1.5; sum.connect(sg).connect(mk).connect(post); nodes.push(mk);
-  } else sum.connect(post);
+  // GATE: true FFT spectral gate — each bin opens/closes against a threshold relative to the loudest partial, so lowered
+  // bars thin out, chatter and fragment first; full bars stay solid.
+  const sg = sp.gate > .01 ? takeGate(ctx, end) : null, mk = ctx.createGain(); mk.gain.value = 1 + sp.gate * 1.5; nodes.push(mk);
+  const setGate = (gv: number, at0: number) => { if (!sg) return; sg.parameters.get("gate")?.setTargetAtTime(gv, at0, .02); sg.parameters.get("release")?.setTargetAtTime(.25 - gv * .2, at0, .02); mk.gain.setTargetAtTime(1 + gv * 1.5, at0, .02); };
+  if (sg) { setGate(sp.gate, ctx.currentTime); sum.connect(sg).connect(mk).connect(post); } else sum.connect(post);
   // LFO: the pad's free-running LFO (TRIG = per-note) moves pitch, cutoff, level, and OSC1/OSC2 targets map to band SHIFT/BLUR depth.
   const ld = lfoDests(p.lfo); let unhook: (() => void) | undefined;
   if (ld.pitch || ld.cutoff || ld.amp || ld.osc1 || ld.osc2) { const fade = ctx.createGain();
@@ -64,5 +61,12 @@ export function playSpec(ctx: BaseAudioContext, dest: AudioNode, p: SynthParams,
     if (ld.osc2) send(ld.osc2 * .5, ng.gain);
     nodes.push(fade); }
   nodes.push(src, sum, post, filt, wet, dry, trem, amp);
-  return finish(srcs, nodes, end, amp, () => unhook?.());
+  const v = finish(srcs, nodes, end, amp, () => unhook?.());
+  // Held-note tweaks: SHIFT glides the band focus, TIGHT/BLUR the width, GATE the threshold.
+  let cur = sp;
+  v.update = qq => { if (!qq.spec) return; const n = ctx.currentTime, nx = specParams({ ...cur, ...qq.spec }); cur = nx; let bi = 0;
+    for (let k = 0; k < N_BANDS; k++) { if (sp.bands[k] < .01) continue; const b = bps[bi++]; if (!b) break; const f = base * bandRatio(k, nx.shift);
+      if (f < nyq && f > 20) b.frequency.setTargetAtTime(f, n, .03); b.Q.setTargetAtTime(qOf(nx), n, .03); }
+    setGate(nx.gate, n); };
+  return v;
 }
