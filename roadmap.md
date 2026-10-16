@@ -57,3 +57,7 @@
 ## Destination labels and 303 pops (2026-10-15)
 - [ ] Destination-name instrument switches, preserving settings
 - [ ] Diagnose sequenced 303 pops with acid drive; targeted audio fix and regression checks
+
+## Accent onset check (2026-10-16)
+- [ ] Test short accent-scaled cutoff/VCA rises, preserving ordinary attacks and Da Funk drive
+- [ ] User listening comparison of accented sequencer playback with acid drive (waiting on user)
