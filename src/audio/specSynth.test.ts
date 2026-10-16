@@ -31,7 +31,8 @@ describe("SPEC FFT gate", () => {
   });
   it("removes weak components in order of level while the strongest stays", () => {
     const lvl = (g: number) => { const o = render(g); return TONES.map(([f]) => db(amp(o, f))); };
-    const clean = lvl(0), g25 = lvl(.25), g50 = lvl(.5), g75 = lvl(.75), g100 = lvl(1);
+    const clean = lvl(0), all = [lvl(.25), lvl(.5), lvl(.75), lvl(1)]; console.log(JSON.stringify([clean, ...all].map(r => r.map(v => Math.round(v)))));
+    const _x = clean, g25 = lvl(.25), g50 = lvl(.5), g75 = lvl(.75), g100 = lvl(1);
     for (const g of [g25, g50, g75, g100]) expect(Math.abs(g[0] - clean[0])).toBeLessThan(1);
     expect(g25[4] - clean[4]).toBeLessThan(-20); expect(Math.abs(g25[3] - clean[3])).toBeLessThan(1.5);
     expect(g50[3] - clean[3]).toBeLessThan(-20); expect(Math.abs(g50[2] - clean[2])).toBeLessThan(1.5);

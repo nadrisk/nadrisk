@@ -11,7 +11,7 @@ export const bandRatio = (k: number, shift: number) => 2 ** (k * 7 / (N_BANDS - 
 /** GATE: pooled FFT spectral gates (nad-specsynth, peak-relative threshold) so notes never build processors that run forever. */
 let warned = false;
 /** Latest retained-bin mask (64 log-spaced bins, 0..1) reported by any live SPEC gate, for the SPC screen. */
-export const specGateMask = { bins: new Float32Array(64), at: 0 };
+export const specGateMask = { bins: new Float32Array(64) as Float32Array<ArrayBufferLike>, at: 0 };
 const gatePools = new WeakMap<BaseAudioContext, { n: AudioWorkletNode; busy: number }[]>();
 function takeGate(ctx: BaseAudioContext, until: number): AudioWorkletNode | null {
   const pool = gatePools.get(ctx) ?? []; gatePools.set(ctx, pool);
