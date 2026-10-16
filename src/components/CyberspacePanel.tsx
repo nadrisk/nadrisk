@@ -4,7 +4,7 @@ import { synthPreviewColumns } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { specParams, gateOn, N_BANDS, type SpecParams } from "@/audio/spectral";
+import { specParams, N_BANDS, type SpecParams } from "@/audio/spectral";
 import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
 const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
@@ -123,7 +123,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.box(2, 25, 124, 19, true);
       for (let i = 0; i < N_BANDS; i++) { const v = sp.bands[i], bh = Math.round(v * 15), x = 4 + i * 7.6;
         if (page === "BND") p.rect(x, 42 - bh, 4, bh);
-        else for (let st2 = 0; st2 < 16; st2++) { const on = gateOn(i, st2) || sp.gate < .05; if (on && v > .01) p.dot(4 + st2 * 7.6 + 1, 42 - Math.round(i * 15 / 15)); } }
+        else for (let st2 = 0; st2 < 16; st2++) { const on = sp.gate < .05 || v >= sp.gate * .8 || (st2 & 3) === 0; if (on && v > .01) p.dot(4 + st2 * 7.6 + 1, 42 - Math.round(i * 15 / 15)); } }
       if (page === "SPC") { const w = Math.round(8 + sp.blur * 40), tl = Math.round(4 + (1 - sp.tight) * 40); p.text(`T${Math.round(sp.tight * 100)} B${Math.round(sp.blur * 100)}`, 3, 19); p.line(70, 22, 70 + tl, 22); p.line(70, 24, 70 + w, 24); }
       return;
     }
