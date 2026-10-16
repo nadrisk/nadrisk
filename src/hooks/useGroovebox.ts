@@ -5,7 +5,8 @@ import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
-import { cacheFile, getSampleBlob, cacheId } from "@/audio/sampleStore";
+import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
+import { LiveInput, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
 import type { PatchSound } from "@/audio/patchStore";
@@ -658,6 +659,40 @@ export function useGroovebox() {
     try { const b = await getSampleBlob(id); if (!b) throw 0; if (gen !== loadGen.current) return true; await setBuffer(i, b, name, id); setError(""); return true; }
     catch { setError(`Sample "${name}" not found on this device.`); return false; }
   }, [setBuffer]);
+  // Sampler INPUT mode (session-only): one armed pad hears the mic/instrument through its own insert chain.
+  const live = useRef<LiveInput | null>(null), liveTarget = useRef(-1), takeNo = useRef(0);
+  const [liveState, setLiveState] = useState<LiveStatus>({ armed: -1, rec: "off", peak: 0, error: "" });
+  const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: 0, mon: .5, bars: 2, sync: false, monRec: true, trim: -1 });
+  const liveOptsRef = useRef(liveOpts); liveOptsRef.current = liveOpts;
+  const pushLive = (p: Partial<LiveStatus> = {}) => setLiveState(x => ({ ...x, armed: liveTarget.current, rec: live.current?.recording ?? "off", peak: live.current?.peak ?? 0, ...p }));
+  const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
+  const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
+  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
+  const armInput = useCallback(async (i: number) => {
+    if (liveTarget.current === i) { disarmInput(); return; }
+    const e = await ensure();
+    if (!live.current) {
+      const L = new LiveInput(e.ctx as AudioContext, n => Tone.getContext().createAudioWorkletNode(n, { outputChannelCount: [2] }) as unknown as AudioWorkletNode);
+      L.onState = () => pushLive();
+      L.onTake = (l, r, sr) => { const k = liveTarget.current, o = liveOptsRef.current; applyLive(); if (k < 0) return;
+        const t = o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
+        const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
+        void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => setSlots(s => s.map((x, j) => j === k ? { ...x, sampler: { ...x.sampler, start: 0, end: 1 } } : x)));
+      };
+      live.current = L;
+    }
+    try { await live.current.open(); } catch { pushLive({ error: "NO INPUT" }); return; }
+    live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushLive({ error: "" });
+  }, [ensure, disarmInput, setBuffer]);
+  const recInput = useCallback(() => {
+    const L = live.current; if (!L || liveTarget.current < 0) return;
+    if (L.recording !== "off") { if (L.recording === "wait") L.cancel(); else L.stop(); applyLive(); return; }
+    const o = liveOptsRef.current, t = Tone.getTransport(), now = L.ctx.currentTime;
+    if (o.sync) { const len = barsSec(o.bars, bpmRef.current), at = t.state === "started" ? t.nextSubdivision("1m") : now + .02; L.start(at, at + len); }
+    else L.start(now + .01);
+    applyLive();
+  }, []);
+  useEffect(() => () => live.current?.close(), []);
   const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
   // Folder load: cache everything; files whose name contains a pad name go onto that pad.
   const loadFolder = useCallback(async (files: File[]) => {
@@ -704,6 +739,7 @@ export function useGroovebox() {
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
   const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
+    disarmInput();
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
@@ -753,11 +789,11 @@ export function useGroovebox() {
     editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 && may(r) ? gen() : v))) }));
   };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
-  const newBlank = () => { loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
+  const newBlank = () => { disarmInput(); loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
   const resetAll = newBlank;
 
   const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
-  return { keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
