@@ -38,19 +38,21 @@ class NadJuno extends AudioWorkletProcessor {
 }
 class NadAda extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{name:'rate',defaultValue:.25},{name:'depth',defaultValue:.6},{name:'manual',defaultValue:2},{name:'feedback',defaultValue:.6},{name:'env',defaultValue:0},{name:'width',defaultValue:.7}]; }
-  constructor() { super(); this.cap = Math.ceil(sampleRate * .03); this.b = [new Float32Array(this.cap), new Float32Array(this.cap)]; this.w = 0; this.ph = 0; this.e = 0; this.lp = [0, 0]; this.out = [0, 0]; this.hx = 0; }
+  constructor() { super(); this.cap = Math.ceil(sampleRate * .03); this.b = [new Float32Array(this.cap), new Float32Array(this.cap)]; this.w = 0; this.ph = 0; this.e = 0; this.lp = [0, 0]; this.out = [0, 0]; this.hx = 0; this.pk = .05; }
   process(ins, outs, p) {
     const x = ins[0], y = outs[0]; if (!y || !y[0]) return true;
+    const ka = lp1(1 / (2 * Math.PI * .004)), kr = lp1(1 / (2 * Math.PI * .18));
     const rate = Math.max(0, p.rate[0]), R = 1 + 34 * Math.max(0, Math.min(1, p.depth[0])), man = Math.max(.2, Math.min(10, p.manual[0])) / 1000;
     const fb = Math.max(-.95, Math.min(.95, p.feedback[0])), envAmt = p.env[0], wd = p.width[0], kL = lp1(7000), kH = lp1(150);
     for (let n = 0; n < y[0].length; n++) {
       const l = x && x[0] ? x[0][n] || 0 : 0, r = x && x[1] ? x[1][n] || 0 : l, m = (l + r) * .5;
-      const pk = Math.abs(m); this.e += (pk - this.e) * (pk > this.e ? .01 : .0002);
+      const pk = Math.abs(m); this.pk = Math.max(pk, this.pk * .99998, .02); const en = Math.min(1, pk / this.pk); this.e += (en - this.e) * (en > this.e ? ka : kr);
       this.ph = (this.ph + rate / sampleRate) % 1;
       for (let c = 0; c < 2; c++) {
         const ph = (this.ph + c * .5 * wd) % 1, tri = 1 - 2 * Math.abs(2 * ph - 1), sn = .5 - .5 * Math.cos(2 * Math.PI * ph);
-        let u = rate > 0 ? tri * .7 + sn * .3 : 0; u = Math.min(1, u + this.e * envAmt * 3);
-        const d = Math.max(.00005, man / Math.pow(R, u));
+        const u = rate > 0 ? tri * .7 + sn * .3 : 0;
+        /* ENV sweeps on its own full ADA range (normalised to recent peaks), so it works at any RNGE, RATE or level. */
+        const d = Math.max(.00005, man / Math.pow(R, u) / Math.pow(35, this.e * envAmt));
         const v = rd(this.b[c], this.w, d, this.cap);
         this.lp[c] += (v - this.lp[c]) * kL;
         this.b[c][this.w] = Math.tanh((c ? r : l) * .8 + this.lp[c] * fb);
