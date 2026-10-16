@@ -4,7 +4,8 @@ import { synthPreviewColumns } from "@/pixel/synthPreview";
 import { BarDraw, Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, drawWaveIcon, EnvZones, envKnobs, fineSt, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { specParams, N_BANDS, type SpecParams } from "@/audio/spectral";
+import { specParams, specGateMask, N_BANDS, type SpecParams } from "@/audio/spectral";
+const gateFresh = () => performance.now() - specGateMask.at < 400;
 import { lfoDests, type LfoDests, type Wave } from "@/audio/voices";
 
 const PAGES = ["O1", "O2", "FLT", "LFO", "ENV"] as const;
@@ -123,10 +124,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.box(2, 25, 124, 19, true);
       for (let i = 0; i < N_BANDS; i++) { const v = sp.bands[i], bh = Math.round(v * 15), x = 4 + i * 7.6;
         if (page === "BND") p.rect(x, 42 - bh, 4, bh);
-        else if (v > .01) { // SPC: band vs FFT gate threshold — solid above, dotted near it, a floor tick when gated out.
-          const mx = Math.max(...sp.bands, .01), db = 20 * Math.log10(v / mx), thr = -(1 - sp.gate) * 60;
-          if (sp.gate < .01 || db > thr + 6) p.rect(x, 42 - bh, 4, bh); else if (db > thr - 3) { for (let yy = 42 - bh; yy < 42; yy += 2) p.dot(x + 1 + ((yy >> 1) & 1), yy); } else p.line(x, 42, x + 3, 42); } }
-        if (page === "SPC" && sp.gate > .01) { const ty = 42 - Math.round(15 * 10 ** (-(1 - sp.gate) * 3)); for (let xx = 3; xx < 125; xx += 3) p.dot(xx, ty); }
+        else if (sp.gate < .01 || !gateFresh()) p.rect(x, 42 - bh, 4, bh); }
+        // SPC: the gate's real retained/suppressed bins (64 log-spaced), solid = kept, floor tick = gated out.
+        if (page === "SPC" && sp.gate > .01 && gateFresh()) { const m = specGateMask.bins;
+          for (let b = 0; b < 64; b++) { const x = 4 + Math.round(b * 1.9), h = Math.round(m[b] * 15); if (h > 0) p.rect(x, 42 - h, 1, h); else p.dot(x, 42); } }
       if (page === "SPC") { const w = Math.round(8 + sp.blur * 40), tl = Math.round(4 + (1 - sp.tight) * 40); p.text(`T${Math.round(sp.tight * 100)} B${Math.round(sp.blur * 100)}`, 3, 19); p.line(70, 22, 70 + tl, 22); p.line(70, 24, 70 + w, 24); }
       return;
     }
@@ -207,6 +208,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     return null;
   };
 
-  return <Panel name={slot.name || "SYN"} pages={spec ? SPEC_PAGES : PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, s, envPage, lfoPage]} />;
+  return <Panel name={slot.name || "SYN"} pages={spec ? SPEC_PAGES : PAGES} label="Cyberspace synth" knobs={knobs} body={body} extra={extra} live={pg => pg === "SPC" && spec ? gateFresh : undefined} deps={[slot.name, s, envPage, lfoPage]} />;
 }
 export default memo(CyberspacePanel);
