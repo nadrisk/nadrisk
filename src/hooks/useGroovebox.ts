@@ -462,7 +462,7 @@ export function useGroovebox() {
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; input.connect(gain); gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
     const loop = Tone.getTransport().scheduleRepeat(gridTime => {
-      const tick = cur; cur = (cur + 1) % 55440; // divisible by every length 1-16
+      const tick = cur; cur = cur + 1; // unbounded so every length 1-32 wraps cleanly
       const sixteenth = 60 / bpmRef.current / 4;
       const time = gridTime + (tick % 2 ? (Math.max(50, Math.min(75, swingRef.current)) - 50) / 50 * sixteenth : 0);
       if (queuedRef.current != null && tick % (banksRef.current[bankRef.current].steps ?? 16) === 0) { const nb = queuedRef.current; bankRef.current = nb; queuedRef.current = null; Tone.getDraw().schedule(() => { setBank(nb); setQueued(null); }, time); }
