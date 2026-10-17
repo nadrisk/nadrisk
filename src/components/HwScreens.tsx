@@ -32,7 +32,7 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     // LITE = eco mode: lighter processing and slower screens for older devices.
     { s: "LITE", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
     // Buffer key names the mode it switches to (LIVE = smallest buffer, PROD = large buffer for busy songs).
-    { s: buffer === "live" ? "PROD" : "LIVE", label: buffer === "live" ? "Switch to large production buffer" : "Switch to low-latency live buffer", x: 57, y: 11, w: 22, on: buffer === "prod", fn: () => setBuffer?.(buffer === "live" ? "prod" : "live") },
+    { s: buffer === "live" ? "PROD" : "LIVE", label: buffer === "live" ? "Switch to large production buffer" : "Switch to low-latency live buffer", x: 2, y: 40, w: 24, on: buffer === "prod", fn: () => setBuffer?.(buffer === "live" ? "prod" : "live") },
     { s: "-", label: "Tempo down", x: 103, y: 11, w: 11, on: false, fn: () => bump(-1) },
     { s: "+", label: "Tempo up", x: 116, y: 11, w: 11, on: false, fn: () => bump(1) },
   ] : page === "DYN" ? [
