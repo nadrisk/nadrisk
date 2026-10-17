@@ -50,13 +50,13 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "AIR", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
-  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, swing, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
+  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, swing, volume, eco, buffer, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
         p.text(`${bpm}`, 60, 11, true, 2); p.text("BPM", 86, 16);
         for (let i = 0; i < 16; i++) { const x = 2 + i * 8, cur = step >= 0 && step % 16 === i; if (cur) p.rect(x, 23, 6, 5); else p.box(x, 23, 6, 5); }
-        p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
+        p.text(`${buffer === "prod" ? "PROD" : "LIVE"} LAT ${latency == null ? "--" : latency}MS`, 2, 32);
         p.text(`LU ${fmt(meter.m)}`, 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(Math.max(0, (db(meter.m) + 36) / 36) * 12)) p.rect(x, 40, 3, 5); else p.box(x, 40, 3, 5, true); }
       } else if (page === "DYN") {
         // Transfer curve in audio order: glue bends above threshold, clip drive pushes into the clipper, limiter caps at ceiling.
