@@ -12,9 +12,9 @@ const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w,
 const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={k.h ?? 9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
-export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwing, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
+export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwing, volume, setVolume, eco, setEco, buffer = "live", setBuffer, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
   playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; swing: number; setSwing: (v: number) => void; volume: number; setVolume: (v: number) => void;
-  eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
+  eco: boolean; setEco: (v: boolean) => void; buffer?: "live" | "prod"; setBuffer?: (m: "live" | "prod") => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
   getMasterDyn?: () => { gr: number; out: number } | null;
 }) {
   // Live dynamics readout: true gain reduction from the glue/limiter nodes and post-chain output level.
@@ -31,6 +31,8 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
     // LITE = eco mode: lighter processing and slower screens for older devices.
     { s: "LITE", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
+    // Buffer key names the mode it switches to (LIVE = smallest buffer, PROD = large buffer for busy songs).
+    { s: buffer === "live" ? "PROD" : "LIVE", label: buffer === "live" ? "Switch to large production buffer" : "Switch to low-latency live buffer", x: 57, y: 11, w: 22, on: buffer === "prod", fn: () => setBuffer?.(buffer === "live" ? "prod" : "live") },
     { s: "-", label: "Tempo down", x: 103, y: 11, w: 11, on: false, fn: () => bump(-1) },
     { s: "+", label: "Tempo up", x: 116, y: 11, w: 11, on: false, fn: () => bump(1) },
   ] : page === "DYN" ? [
