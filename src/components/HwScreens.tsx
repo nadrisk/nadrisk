@@ -12,9 +12,9 @@ const drawKeys = (p: Px, ks: K[]) => ks.forEach(k => pkey(p, k.s, k.x, k.y, k.w,
 const keyZones = (ks: K[]) => ks.map(k => <Tap key={k.label} x={k.x} y={k.y} w={k.w} h={k.h ?? 9} label={k.label} pressed={k.on} disabled={k.disabled} onClick={k.fn} />);
 const kn = (label: string, short: string, value: number, min: number, max: number, step: number, unit: string, set: (v: number) => void): Knob => ({ label, short, value, min, max, step, fmt: v => `${+v.toFixed(1)}${unit}`, set });
 
-export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwing, volume, setVolume, eco, setEco, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
+export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwing, volume, setVolume, eco, setEco, buffer = "live", setBuffer, latency, pf, setPf, meter, resetMeter, getMasterDyn }: {
   playing: boolean; step: number; onPlay: () => void; bpm: number; setBpm: (v: number) => void; swing: number; setSwing: (v: number) => void; volume: number; setVolume: (v: number) => void;
-  eco: boolean; setEco: (v: boolean) => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
+  eco: boolean; setEco: (v: boolean) => void; buffer?: "live" | "prod"; setBuffer?: (m: "live" | "prod") => void; latency: number | null; pf: PerformanceParams; setPf: (p: Partial<PerformanceParams>) => void; meter: MasterMeter; resetMeter: () => void;
   getMasterDyn?: () => { gr: number; out: number } | null;
 }) {
   // Live dynamics readout: true gain reduction from the glue/limiter nodes and post-chain output level.
@@ -31,6 +31,8 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 11, w: 30, on: playing, fn: onPlay },
     // LITE = eco mode: lighter processing and slower screens for older devices.
     { s: "LITE", label: "Eco mode", x: 33, y: 11, w: 22, on: eco, fn: () => setEco(!eco) },
+    // Buffer key names the mode it switches to (LIVE = smallest buffer, PROD = large buffer for busy songs).
+    { s: buffer === "live" ? "PROD" : "LIVE", label: buffer === "live" ? "Switch to large production buffer" : "Switch to low-latency live buffer", x: 2, y: 40, w: 24, on: buffer === "prod", fn: () => setBuffer?.(buffer === "live" ? "prod" : "live") },
     { s: "-", label: "Tempo down", x: 103, y: 11, w: 11, on: false, fn: () => bump(-1) },
     { s: "+", label: "Tempo up", x: 116, y: 11, w: 11, on: false, fn: () => bump(1) },
   ] : page === "DYN" ? [
@@ -48,13 +50,13 @@ export function MasterScreen({ playing, step, onPlay, bpm, setBpm, swing, setSwi
     kn("Master Presence 3k", "3K", pf.mPresence ?? 0, -6, 6, .5, "DB", mPresence => setPf({ mPresence })), kn("Master Air 12k", "AIR", pf.mAir ?? 0, -6, 6, .5, "DB", mAir => setPf({ mAir })),
   ] : [];
   const db = (v: number) => Number.isFinite(v) ? v : -60, fmt = (v: number) => Number.isFinite(v) ? v.toFixed(1) : "--";
-  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, swing, volume, eco, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
+  return <Panel name="MASTER" label="Master" pages={["OUT", "EQ", "DYN", "MTR"]} deps={[playing, step, bpm, swing, volume, eco, buffer, latency, JSON.stringify(pf), JSON.stringify(meter), dyn.gr, dyn.out]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       if (page === "OUT") {
         p.text(`${bpm}`, 60, 11, true, 2); p.text("BPM", 86, 16);
         for (let i = 0; i < 16; i++) { const x = 2 + i * 8, cur = step >= 0 && step % 16 === i; if (cur) p.rect(x, 23, 6, 5); else p.box(x, 23, 6, 5); }
-        p.text(`LAT ${latency == null ? "--" : latency}MS`, 2, 32);
+        p.text(`${buffer === "prod" ? "PROD" : "LIVE"} LAT ${latency == null ? "--" : latency}MS`, 2, 32);
         p.text(`LU ${fmt(meter.m)}`, 62, 32); for (let i = 0; i < 12; i++) { const x = 76 + i * 4; if (i < Math.round(Math.max(0, (db(meter.m) + 36) / 36) * 12)) p.rect(x, 40, 3, 5); else p.box(x, 40, 3, 5, true); }
       } else if (page === "DYN") {
         // Transfer curve in audio order: glue bends above threshold, clip drive pushes into the clipper, limiter caps at ceiling.

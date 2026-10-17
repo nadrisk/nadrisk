@@ -69,3 +69,5 @@
 
 - [x] Sampler IN page: arm mic/instrument through pad FX, FREE/SYNC recording into the pad
 - [x] Sequencer X2: per-bank 16/32 steps with half paging
+
+- [x] LIVE/PROD buffer key on MASTER OUT (needs ear test on laptop)
