@@ -1,5 +1,10 @@
 # Roadmap
 
+## Recording and input fixes (2026-10-18)
+- [ ] Preserve tape recording across Devices / SEQ / PERF and utility switches
+- [ ] Verify performance routing and enforce the enabled master limiter's peak ceiling
+- [ ] Harden sampler microphone arming and show actionable failures; verify input recording
+
 - [x] Allow nadrisk.com and www.nadrisk.com without weakening unknown-host copy protection; covered by origin regression tests
 
 - [x] Anchor Performance SET to TIME's shared layout column; verified matching centers, clearances and SET interaction at 320/393/768/1280px
