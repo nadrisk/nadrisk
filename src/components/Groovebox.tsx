@@ -13,6 +13,7 @@ import { AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider, ResetScope } from "@/components/ui/slider";
 import TapeDeck from "./TapeDeck";
+import { useTapeRecorder } from "@/hooks/useTapeRecorder";
 import { RATES, type RateName } from "@/audio/arp";
 import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
@@ -250,6 +251,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const onRow = useCallback((v: View, r: number, x: number) => { if (v === "roll") g.setRowValue("ratchet", r, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setRowValue(v, r, Math.round(x * 100) / 100); }, [g.setRowValue]);
   const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "roll") g.setStepValue("ratchet", r, c, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "vel" || v === "chance") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
   const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: e.performance.output }; }, [g.ensure]);
+  const tapeRecorder = useTapeRecorder(tapSource, g.playing, g.step, g.bpm, g.togglePlay);
   const [utility, setUtility] = useState<Utility>(() => { try { const v = localStorage.getItem("nadrisk.utility.v1") as Utility | null; return v && UTILITIES.includes(v) ? v : "fx"; } catch { return "fx"; } });
   useEffect(() => { try { localStorage.setItem("nadrisk.utility.v1", utility); } catch { /* private mode */ } }, [utility]);
 
@@ -261,7 +263,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} swing={g.swing} setSwing={g.setSwing} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} buffer={g.buffer} setBuffer={g.setBufferMode} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     perf: seqPerformancePanel,
-    tape: <TapeDeck getSource={tapSource} playing={g.playing} step={g.step} bpm={g.bpm} onPlay={g.togglePlay} />,
+    tape: <TapeDeck recorder={tapeRecorder} />,
     midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} qwerty={qwerty} setQwerty={setQwerty} keys={midi.keys} setKeys={midi.setKeys} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
     sets: <SetBank getSet={g.getSet} applySet={g.applySet} locked={nad} />,
     patch: <PatchBank getPatch={g.getPatch} applyPatch={g.applyPatch} locked={nad} />,
@@ -302,6 +304,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         </PatchNode>
       </div>
     </div>
+    {tapeRecorder.url && <audio ref={tapeRecorder.audio} src={tapeRecorder.url} onEnded={tapeRecorder.ended} hidden />}
     <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section></DisplayThemeContext.Provider></HarmonyContext.Provider>;
 }

@@ -55,7 +55,8 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const failure = Tone.getContext().createAudioWorkletNode("nad-failure", { outputChannelCount: [2] }) as unknown as AudioWorkletNode;
   ottIn.connect(ottDry).connect(nadPre); ottIn.connect(ott).connect(ottMk).connect(ottWet).connect(nadPre);
   nadPre.connect(nadDry).connect(limIn); nadPre.connect(failure).connect(nadWet).connect(limIn);
-  limIn.connect(limiter).connect(limOn).connect(final); limIn.connect(limBy).connect(final); final.connect(dest);
+  const peakGuard = Tone.getContext().createAudioWorkletNode("nad-peak-limit", { outputChannelCount: [2] }) as unknown as AudioWorkletNode;
+  limIn.connect(limiter).connect(peakGuard).connect(limOn).connect(final); limIn.connect(limBy).connect(final); final.connect(dest);
   // Parallel, non-audible standards meter taps: K-weighted full band and 20-120 Hz sub band.
   const kShelf = ctx.createBiquadFilter(), kHp = ctx.createBiquadFilter(), subHp = ctx.createBiquadFilter(), subLp = ctx.createBiquadFilter();
   kShelf.type = "highshelf"; kShelf.frequency.value = 1682; kShelf.gain.value = 4; kShelf.Q.value = .707;
@@ -89,6 +90,7 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const eq = p.mEqOn ?? false;
     set(mHp.frequency, eq ? p.mHpf ?? 25 : 10); set(mLow.gain, eq ? p.mLow ?? 0 : 0); set(mMud.gain, eq ? p.mMud ?? 0 : 0); set(mPres.gain, eq ? p.mPresence ?? 0 : 0); set(mAir.gain, eq ? p.mAir ?? 0 : 0);
     const gl = p.glueOn ?? false; set(glue.threshold, gl ? p.glueThresh ?? -12 : 0); set(glue.ratio, gl ? p.glueRatio ?? 2 : 1); set(glueMk.gain, gl ? db(p.glueMakeup ?? 2) : 1);
+    set(peakGuard.parameters.get("ceiling"), p.ceiling ?? -1);
     set(limiter.threshold, p.ceiling ?? -1); set(limOn.gain, lim ? 1 : 0); set(limBy.gain, lim ? 0 : 1);
   };
   const setNad = (on: boolean) => { const r = (g: AudioParam, v: number) => { g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(v, ctx.currentTime, .015); };
@@ -96,5 +98,5 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   // Tail kill: silence the dub echo return and loop until the line has emptied, then restore.
   const flush = () => { const t = ctx.currentTime, hold = eDelay.delayTime.value + .1;
     for (const g of [eRet.gain, eFb.gain]) { const v = g.value; g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0, t + .02); g.setValueAtTime(0, t + hold); g.linearRampToValueAtTime(g === eRet.gain ? 1 : v, t + hold + .02); } };
-  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); [nadPre, nadDry, nadWet, failure, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); [nadPre, nadDry, nadWet, failure, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, peakGuard, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
 }

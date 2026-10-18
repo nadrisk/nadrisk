@@ -6,7 +6,7 @@ import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, mo
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
-import { LiveInput, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
+import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
 import type { PatchSound } from "@/audio/patchStore";
@@ -218,7 +218,7 @@ export function useGroovebox() {
   useEffect(() => {
     const unlock = () => {
       const nav = navigator as Navigator & { audioSession?: { type: string } };
-      if (nav.audioSession) nav.audioSession.type = "playback"; // plays even with the iPhone silent switch on
+      if (nav.audioSession && nav.audioSession.type !== "play-and-record") nav.audioSession.type = "playback"; // never override an active microphone session
       void Tone.start();
       if (Tone.getContext().state === "running") ["touchend", "click", "keydown"].forEach(ev => window.removeEventListener(ev, unlock, true));
     };
@@ -682,6 +682,7 @@ export function useGroovebox() {
   }, [setBuffer]);
   // Sampler INPUT mode (session-only): one armed pad hears the mic/instrument through its own insert chain.
   const live = useRef<LiveInput | null>(null), liveTarget = useRef(-1), takeNo = useRef(0);
+  const liveOpening = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatus>({ armed: -1, rec: "off", peak: 0, error: "" });
   const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: 0, mon: .5, bars: 2, sync: false, monRec: true, trim: -1 });
   const liveOptsRef = useRef(liveOpts); liveOptsRef.current = liveOpts;
@@ -690,7 +691,14 @@ export function useGroovebox() {
   const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
   const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
   const armInput = useCallback(async (i: number) => {
+    if (liveOpening.current) return;
     if (liveTarget.current === i) { disarmInput(); return; }
+    liveOpening.current = true;
+    let stream: MediaStream | undefined;
+    try {
+    pushLive({ error: "" });
+    // Begin permission/capture in the user gesture, before asynchronous worklet setup.
+    if (!live.current?.stream) stream = await requestInputStream();
     const e = await ensure();
     if (!live.current) {
       const L = new LiveInput(e.ctx as AudioContext, n => Tone.getContext().createAudioWorkletNode(n, { outputChannelCount: [2] }) as unknown as AudioWorkletNode);
@@ -702,8 +710,17 @@ export function useGroovebox() {
       };
       live.current = L;
     }
-    try { await live.current.open(); } catch { pushLive({ error: "NO INPUT" }); return; }
+    await live.current.open(stream);
     live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushLive({ error: "" });
+    } catch (error) {
+      stream?.getTracks().forEach(t => t.stop());
+      live.current?.close(); liveTarget.current = -1;
+      const nav = navigator as Navigator & { audioSession?: { type: string } };
+      if (nav.audioSession?.type === "play-and-record") nav.audioSession.type = "playback";
+      const message = inputError(error);
+      pushLive({ armed: -1, error: message });
+      setError(message === "MIC BLOCKED" ? "Allow microphone access for this address in browser settings." : message === "MIC BUSY" ? "Microphone is busy. Close other recording apps and tap ARM again." : message === "NO MIC FOUND" ? "Connect a microphone or audio interface, then tap ARM again." : "Input could not start. Open the site directly in Safari or Chrome and retry ARM.");
+    } finally { liveOpening.current = false; }
   }, [ensure, disarmInput, setBuffer]);
   const recInput = useCallback(() => {
     const L = live.current; if (!L || liveTarget.current < 0) return;

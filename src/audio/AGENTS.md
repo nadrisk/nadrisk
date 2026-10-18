@@ -1,4 +1,6 @@
 # Audio
+- Enabled master limiting ends with a stereo-linked lookahead peak guard after the compressor, before the shared final output and tape/meter taps; bypass remains explicit.
+- Sampler ARM requests capture before asynchronous engine setup and uses Safari's play-and-record session; disarm restores playback, and errors distinguish permission, device and setup failures.
 - Per-slot effects live in src/audio/effects.ts as rebuildable chains whose order is the audio order; custom DSP (bitcrush, envelope follower) runs in inline AudioWorklets so no extra files need hosting.
 - Advanced rhythmic, ducking, multiband and buffer-capture processing uses inline AudioWorklets on the shared audio context, so effects remain audio-clock driven without hosted DSP files.
 - Tone registers only one AudioWorklet module per context, so NAD processors (including the tape recorder in src/audio/tapeWorklet.ts) must be concatenated into the single loadWorklets bundle; Signalsmith Stretch is the exception and registers its self-contained WASM module directly on the raw context.
