@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Recording and input fixes (2026-10-18)
-- [ ] Preserve tape recording across Devices / SEQ / PERF and utility switches
-- [ ] Verify performance routing and enforce the enabled master limiter's peak ceiling
-- [ ] Harden sampler microphone arming and show actionable failures; verify input recording
+- [x] Preserve tape recording across Devices / SEQ / PERF and utility switches; browser capture survives switching and WAV remains available
+- [x] Verify performance routing and enforce the enabled master limiter's peak ceiling; stereo peak guard regression tests pass
+- [x] Harden sampler microphone arming and show actionable failures; simulated microphone arms and saves REC 01 in the browser
+- [ ] Confirm microphone arming on user's iPhone (requires the user's device)
 
 - [x] Allow nadrisk.com and www.nadrisk.com without weakening unknown-host copy protection; covered by origin regression tests
 
