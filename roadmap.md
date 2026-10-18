@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Allow nadrisk.com and www.nadrisk.com without weakening unknown-host copy protection; covered by origin regression tests
+
 - [x] Anchor Performance SET to TIME's shared layout column; verified matching centers, clearances and SET interaction at 320/393/768/1280px
 
 - [x] Combine desktop Memory/Patches, hide Memory scrollbar and relocate Performance Reset; verified save/load, scrolling, Reset and desktop/mobile spacing
