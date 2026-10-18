@@ -32,6 +32,29 @@ export function wavBytes(chs: Float32Array[], sr: number): ArrayBuffer {
 
 export type LiveStatus = { armed: number; rec: "off" | "wait" | "on"; peak: number; error: string };
 
+type AudioSessionNavigator = Navigator & { audioSession?: { type: string } };
+export function inputError(error: unknown): string {
+  const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "MIC BLOCKED";
+  if (name === "NotFoundError") return "NO MIC FOUND";
+  if (name === "NotReadableError" || name === "AbortError") return "MIC BUSY";
+  if (name === "NotSupportedError") return "MIC UNAVAILABLE";
+  return "INPUT SETUP FAILED";
+}
+/** Request on the ARM gesture, before awaiting engine/worklet startup. */
+export async function requestInputStream(): Promise<MediaStream> {
+  const nav = navigator as AudioSessionNavigator;
+  if (!nav.mediaDevices?.getUserMedia) throw new DOMException("Microphone needs a secure browser context", "NotSupportedError");
+  const previous = nav.audioSession?.type;
+  try {
+    if (nav.audioSession) nav.audioSession.type = "play-and-record";
+    return await nav.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (error) {
+    if (nav.audioSession && previous) nav.audioSession.type = previous;
+    throw error;
+  }
+}
+
 export class LiveInput {
   stream: MediaStream | null = null; src: MediaStreamAudioSourceNode | null = null;
   gain: GainNode; mon: GainNode; rec: AudioWorkletNode; sink: GainNode;
@@ -49,10 +72,11 @@ export class LiveInput {
       if (d.done && d.l && d.r && d.n) { this.recording = "off"; this.onState(); this.onTake(concat(d.l, d.n), concat(d.r, d.n), this.ctx.sampleRate); }
     };
   }
-  async open() {
+  async open(stream?: MediaStream) {
     if (this.stream) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    this.src = this.ctx.createMediaStreamSource(this.stream); this.src.connect(this.gain);
+    const candidate = stream ?? await requestInputStream();
+    try { const src = this.ctx.createMediaStreamSource(candidate); src.connect(this.gain); this.src = src; this.stream = candidate; }
+    catch (error) { candidate.getTracks().forEach(t => t.stop()); throw error; }
   }
   /** Seconds of input+output delay to trim from takes. */
   latency() { const c = this.ctx as AudioContext & { outputLatency?: number }; const tr = this.stream?.getAudioTracks()[0]?.getSettings() as { latency?: number } | undefined; return (c.baseLatency || 0) + (c.outputLatency || 0) + (tr?.latency ?? 0.01); }
@@ -64,5 +88,7 @@ export class LiveInput {
   start(at: number, stop?: number) { this.recording = "wait"; this.rec.port.postMessage({ start: at, stop: stop ?? -1 }); this.onState(); }
   stop(at = this.ctx.currentTime) { this.rec.port.postMessage({ stop: at }); }
   cancel() { this.recording = "off"; this.rec.port.postMessage({ cancel: true }); this.onState(); }
-  close() { this.cancel(); this.route(null); this.setMon(0); this.stream?.getTracks().forEach(t => t.stop()); try { this.src?.disconnect(); } catch { /* none */ } this.stream = null; this.src = null; }
+  close() { this.cancel(); this.route(null); this.setMon(0); this.stream?.getTracks().forEach(t => t.stop()); try { this.src?.disconnect(); } catch { /* none */ } this.stream = null; this.src = null;
+    const nav = navigator as AudioSessionNavigator; if (nav.audioSession?.type === "play-and-record") nav.audioSession.type = "playback";
+  }
 }
