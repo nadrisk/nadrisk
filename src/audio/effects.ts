@@ -552,10 +552,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0);
       const wd = p.width ?? 0; set(ew, wd * 1.6); set(sw2, wd * 1.6); const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
   } else if (type === "reverb") {
-    const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
-    input.connect(cv).connect(lp).connect(wet);
-    apply = p => { const sec = eco ? Math.min(p.size * .5, 1.5) : p.size, density = p.density ?? .6, next = `${Math.round(sec * 4)}:${Math.round(density * 20)}`;
-      if (next !== shape) { shape = next; const own = ++request; requestImpulse(ctx, sec, density, buffer => { if (own === request) cv.buffer = buffer; }); } set(lp.frequency, p.damp); };
+    // Our own FDN reverb (nad-reverb): allpass diffusion (DENS) into two decorrelated 4-line delay networks with
+    // Householder mixing, per-line DAMP lowpass and SIZE as T60 decay. Wet-only; MIX is equal-power (see update()).
+    const n = worklet("nad-reverb"); input.connect(n).connect(wet);
+    apply = p => wp(n, { ...p, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp"]);
   } else if (type === "chorus") {
     // Juno-60 BBD chorus (nad-juno): MODE I / II / I+II, DEPTH .5 = authentic swing, MAN = centre delay, ENV pushes the delay.
     const n = worklet("nad-juno"); input.connect(n).connect(wet);
@@ -626,7 +626,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     aps.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
     apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
-  const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
+  const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p);
+    // Reverb uses an equal-power crossfade so dry and wet stay balanced through the middle of the knob.
+    const w = type === "reverb" ? Math.sin(mix * Math.PI / 2) : mix, d = type === "reverb" ? Math.cos(mix * Math.PI / 2) : 1 - mix;
+    set(wet.gain, type === "ott" ? 1 : w); set(dry.gain, type === "ott" ? 0 : d); };
   update(init);
   return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
