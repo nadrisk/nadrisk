@@ -606,8 +606,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
   const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p);
-    // Reverb uses a dry-hold law: dry stays full to 50% while wet fades in, then dry fades out under full wet.
-    const [d, w] = type === "reverb" ? reverbMixLaw(mix) : [1 - mix, mix];
+    // Reverb and tape delay use a dry-hold law: dry stays full to 50% while wet fades in, then dry fades out under full wet.
+    const [d, w] = type === "reverb" || type === "delay" ? reverbMixLaw(mix) : [1 - mix, mix];
     set(wet.gain, type === "ott" ? 1 : w); set(dry.gain, type === "ott" ? 0 : d); };
   update(init);
   return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };

@@ -77,3 +77,10 @@ describe("reverb MIX law", () => {
     expect(reverbMixLaw(0.25)[1]).toBeGreaterThan(0.6);
   });
 });
+
+describe("tape delay MIX", () => {
+  it("uses the same dry-hold law as reverb", async () => {
+    const src = (await import("node:fs")).readFileSync(new URL("./effects.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/type === "reverb" \|\| type === "delay" \? reverbMixLaw\(mix\)/);
+  });
+});
