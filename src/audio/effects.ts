@@ -25,7 +25,7 @@ export const FX_DEFS = {
   saturation: { label: "saturate~", params: { drive: [4, 1, 30, 0.1], tone: [9000, 500, 16000, 10], mix: [1, 0, 1, 0.01] } },
   bitcrush: { label: "degrade~", params: { bits: [6, 1, 16, 1], reduce: [4, 1, 40, 1], sp: [0, 0, 2, 1], mix: [1, 0, 1, 0.01] } },
   delay: { label: "tape.delay~", params: { time: [0.25, 0.01, 1.5, 0.005], sync: [0, 0, 10, 1], mode: [3, 0, 6, 1], feedback: [0.45, 0, 0.95, 0.01], tone: [3000, 300, 12000, 10], wow: [0.3, 0, 1, 0.01], send: [1, 0, 1, 0.01], spring: [0.3, 0, 1, 0.01], width: [0.6, 0, 1, 0.01], mix: [0.35, 0, 1, 0.01] } },
-  reverb: { label: "reverb~", params: { size: [2.5, 0.2, 8, 0.1], density: [0.6, 0.05, 1, 0.01], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
+  reverb: { label: "reverb~", params: { size: [2.5, 0.2, 20, 0.1], density: [0.6, 0.05, 1, 0.01], damp: [6000, 500, 16000, 10], mix: [0.3, 0, 1, 0.01] } },
   chorus: { label: "chorus~", params: { mode: [0, 0, 2, 1], depth: [0.5, 0, 1, 0.01], manual: [3.5, 1, 15, 0.1], env: [0, 0, 1, 0.01], noise: [0.2, 0, 1, 0.01], width: [0.8, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   flanger: { label: "flange~", params: { rate: [0.25, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [2, 0.2, 10, 0.1], feedback: [0.6, -0.95, 0.95, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
   phaser: { label: "phase~", params: { rate: [0.4, 0, 8, 0.01], sync: [0, 0, 10, 1], depth: [0.6, 0, 1, 0.01], manual: [800, 100, 5000, 10], feedback: [0.5, 0, 0.9, 0.01], env: [0, 0, 1, 0.01], width: [0.7, 0, 1, 0.01], mix: [0.5, 0, 1, 0.01] } },
@@ -529,7 +529,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0);
       const wd = p.width ?? 0; set(ew, wd * 1.6); set(sw2, wd * 1.6); const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
   } else if (type === "reverb") {
-    // Our own FDN reverb (nad-reverb): allpass diffusion (DENS) into two decorrelated 4-line delay networks with
+    // Our own FDN reverb (nad-reverb): pre-delay + allpass diffusion (DENS) into two modulated 8-line delay networks with
     // Householder mixing, per-line DAMP lowpass and SIZE as T60 decay. Wet-only; MIX is equal-power (see update()).
     const n = worklet("nad-reverb"); input.connect(n).connect(wet);
     apply = p => wp(n, { ...p, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp"]);
