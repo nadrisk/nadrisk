@@ -42,26 +42,32 @@ class NadVca extends AudioWorkletProcessor {
    one-pole DAMP lowpass per pass, and decays with an exact per-line T60 gain so tails fade smoothly to silence. */
 class NadReverb extends AudioWorkletProcessor {
   static get parameterDescriptors(){return [{name:'size',defaultValue:2.5},{name:'density',defaultValue:.6},{name:'damp',defaultValue:6000}];}
-  constructor(){super();const sr=sampleRate;this.cap=Math.ceil(sr*.44);
+  constructor(){super();const sr=sampleRate;this.cap=Math.ceil(sr*.42);this.apCap=Math.ceil(sr*.026);
     this.base=[[.0613,.0787,.0937,.1103,.1291,.1531,.1823,.2179],[.0671,.0829,.0991,.1171,.1373,.1621,.1949,.2467]];
-    this.d=this.base.map(s=>s.map(()=>new Float32Array(this.cap)));this.w=0;this.lp=[new Float64Array(8),new Float64Array(8)];
-    this.ph=this.base.map((s,si)=>s.map((_,j)=>(j*.618+si*.31)%1*Math.PI*2));this.rate=this.base.map((s,si)=>s.map((_,j)=>(.11+.09*j+.05*si)*2*Math.PI/sr));
+    this.apBase=[[.0071,.0113,.0089,.0157,.0097,.0131,.0079,.0149],[.0083,.0121,.0101,.0139,.0073,.0163,.0091,.0127]];
+    this.d=this.base.map(s=>s.map(()=>new Float32Array(this.cap)));this.lap=this.base.map(s=>s.map(()=>new Float32Array(this.apCap)));this.w=0;this.w2=0;this.lp=[new Float64Array(8),new Float64Array(8)];
+    this.ph=this.base.map((s,si)=>s.map((_,j)=>(j*.618+si*.31)%1*Math.PI*2));this.rate=this.base.map((s,si)=>s.map((_,j)=>(.13+.07*j+.04*si)*2*Math.PI/sr));
     this.apLen=[.0047,.0036,.0127,.0093,.0071].map(t=>Math.floor(t*sr));this.ap=this.apLen.map(l=>new Float32Array(l));this.apPos=[0,0,0,0,0];
-    this.pre=new Float32Array(Math.ceil(sr*.12));this.preW=0;this.key='';}
+    this.pre=new Float32Array(Math.ceil(sr*.12));this.preW=0;this.hp=0;this.hpx=0;this.key='';}
   setup(t60,dens){const sr=sampleRate,ls=Math.max(.35,Math.min(1.6,Math.sqrt(t60/3))),key=ls.toFixed(3)+'|'+t60.toFixed(2)+'|'+dens.toFixed(2);if(key===this.key)return;this.key=key;
-    this.lens=this.base.map(s=>s.map(t=>Math.min(this.cap-64,Math.floor(t*ls*sampleRate))));this.g=this.lens.map(s=>s.map(l=>Math.pow(10,-3*l/(sr*t60))));
-    this.depth=(6+dens*18)*sr/48000;this.preLen=Math.min(this.pre.length-1,Math.floor(sr*Math.min(.1,.008+t60*.005)));}
+    this.lens=this.base.map(s=>s.map(t=>Math.min(this.cap-4,Math.floor(t*ls*sr))));
+    this.md=(.001+.002*dens)*sr;this.apL=this.apBase.map(s=>s.map(t=>Math.min(this.apCap-this.md*2-4,t*sr)));
+    this.g=this.lens.map((s,si)=>s.map((l,j)=>Math.pow(10,-3*(l+this.apL[si][j]+this.md)/(sr*t60))));
+    /* Loudness match: steady-state wet energy grows with T60 / loop length, so scale it back toward the dry level. */
+    const lv=-5.4+16.5*(dens-.1)-4.6*Math.log10(t60/.5);this.outG=.95/Math.sqrt(1+t60/(.14*ls))*Math.pow(10,-lv/20);this.preLen=Math.min(this.pre.length-1,Math.floor(sr*Math.min(.1,.008+t60*.005)));}
   process(ins,outs,p){const x=ins[0],y=outs[0];if(!y||!y[0])return true;
     const t60=Math.max(.2,Math.min(20,p.size[0])),dens=Math.max(0,Math.min(1,p.density[0]));this.setup(t60,dens);
-    const apc=.3+.42*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),cap=this.cap,dp=this.depth;
-    for(let n=0;n<y[0].length;n++){const pw=this.preW,pl=this.pre.length;this.pre[pw]=((x?.[0]?.[n]||0)+((x?.[1]||x?.[0])?.[n]||0))*.5;let v=this.pre[(pw-this.preLen+pl)%pl];this.preW=(pw+1)%pl;
+    const apc=.3+.42*dens,ga=.5+.12*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),hk=Math.exp(-2*Math.PI*120/sampleRate),cap=this.cap,ac=this.apCap,md=this.md,og=this.outG;
+    for(let n=0;n<y[0].length;n++){const pw=this.preW,pl=this.pre.length,xin=((x?.[0]?.[n]||0)+((x?.[1]||x?.[0])?.[n]||0))*.5;
+      this.hp=hk*(this.hp+xin-this.hpx);this.hpx=xin;this.pre[pw]=this.hp;let v=this.pre[(pw-this.preLen+pl)%pl];this.preW=(pw+1)%pl;
       for(let a=0;a<5;a++){const b=this.ap[a],i=this.apPos[a],r=b[i],o=r-apc*v;b[i]=v+apc*r;this.apPos[a]=(i+1)%this.apLen[a];v=o;}
-      for(let s=0;s<2;s++){const D=this.d[s],L=this.lens[s],G=this.g[s],LP=this.lp[s],PH=this.ph[s],R=this.rate[s],f=[0,0,0,0,0,0,0,0];let sum=0,out=0;
-        for(let j=0;j<8;j++){PH[j]+=R[j];if(PH[j]>6.2832)PH[j]-=6.2832;let idx=this.w-L[j]-dp*(1+Math.sin(PH[j]));if(idx<0)idx+=cap;const k=Math.floor(idx),fr=idx-k,b=D[j];
-          const r=b[k]+(b[(k+1)%cap]-b[k])*fr;LP[j]+=lk*(r-LP[j]);const z=LP[j]*G[j];f[j]=z;sum+=z;out+=(j&1?-r:r);}
+      for(let s=0;s<2;s++){const D=this.d[s],A=this.lap[s],L=this.lens[s],AL=this.apL[s],G=this.g[s],LP=this.lp[s],PH=this.ph[s],R=this.rate[s],f=[0,0,0,0,0,0,0,0];let sum=0,out=0;
+        for(let j=0;j<8;j++){let ri=this.w-L[j];if(ri<0)ri+=cap;const r=D[j][ri];LP[j]+=lk*(r-LP[j]);
+          PH[j]+=R[j];if(PH[j]>6.2832)PH[j]-=6.2832;let idx=this.w2-AL[j]-md*(1+Math.sin(PH[j]));if(idx<0)idx+=ac;const k=Math.floor(idx),fr=idx-k,b=A[j];
+          const dl=b[k]+(b[(k+1)%ac]-b[k])*fr,vn=LP[j]+ga*dl;b[this.w2]=vn;const z=(dl-ga*vn)*G[j];f[j]=z;sum+=z;out+=(j&1?-r:r);}
         sum*=.25;for(let j=0;j<8;j++)D[j][this.w]=f[j]-sum+v*(j&1?-.35:.35);
-        const o=out*.3;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
-      this.w=(this.w+1)%cap;}return true;}
+        const o=out*og;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
+      this.w=(this.w+1)%cap;this.w2=(this.w2+1)%ac;}return true;}
 }
 registerProcessor('nad-reverb',NadReverb);
 registerProcessor('nad-duck2',NadDuck2);registerProcessor('nad-vca',NadVca);registerProcessor('nad-gate',NadGate);registerProcessor('nad-duck',NadDuck);registerProcessor('nad-bandgate',NadBandGate);registerProcessor('nad-reverse-delay',NadReverseDelay);registerProcessor('nad-performance',NadPerformance);
