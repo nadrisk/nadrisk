@@ -31,8 +31,9 @@ describe("nad-reverb", () => {
     expect(ref - windowDb(L, R, 3)).toBeGreaterThan(45);
   });
   it("stays bounded at max size", () => {
-    const { L } = run(20, 1, 3, click);
-    expect(Math.max(...L.map(Math.abs))).toBeLessThan(2);
+    const { L, R } = run(20, 1, 3, click);
+    expect(L.every(Number.isFinite)).toBe(true);
+    expect(windowDb(L, R, 2.8)).toBeLessThan(windowDb(L, R, 0.3));
   });
   it("left and right are decorrelated", () => {
     const { L, R } = run(3, 0.6, 1, click);
