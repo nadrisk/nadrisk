@@ -21,7 +21,7 @@ const AboutSection = ({ native = false }: { native?: boolean }) => (
           <a className="gb-cycle" href={LINKS.youtube} {...ext}>YOUTUBE</a>
         </nav>
         {!native && <div className="about-cta">
-          <p>The groovebox is free. If you enjoy it, support it on Ko-fi to keep it online and growing.</p>
+          <p>The Nadrisk Groovebox is free. If you enjoy it, consider donating on Ko-fi — your support keeps it online and helps it grow.</p>
           <a className="gb-cycle about-kofi" href={LINKS.kofi} {...ext}>♥ SUPPORT ON KO-FI</a>
         </div>}
       </div>
