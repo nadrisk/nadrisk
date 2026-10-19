@@ -134,7 +134,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     if (pv(p, "ping", 0) >= .5) d.text("L<R", 4, 23);
   } else if (type === "reverb") {
     // Fixed reflection field: SIZE fills outward, DENS changes spacing, DAMP thins the high region, MIX is the wet bar.
-    const size = Math.max(0, Math.min(1, (pv(p, "size", 2.5) - .2) / 7.8)), dens = pv(p, "density", .6), damp = pv(p, "damp", 6000) / 16000, mix = pv(p, "mix", .3);
+    const size = Math.max(0, Math.min(1, Math.sqrt((pv(p, "size", 2.5) - .2) / 19.8))), dens = pv(p, "density", .6), damp = pv(p, "damp", 6000) / 16000, mix = pv(p, "mix", .3);
     const gap = dens > .78 ? 2 : dens > .48 ? 3 : dens > .22 ? 4 : 6, rx = 7 + size * 52, ry = 2 + size * 8;
     for (let y = 23; y <= 41; y += gap) for (let x = 4; x <= 123; x += gap) {
       const nx = Math.abs(x - 64) / rx, ny = Math.abs(y - 32) / ry, inside = nx * nx + ny * ny <= 1;
