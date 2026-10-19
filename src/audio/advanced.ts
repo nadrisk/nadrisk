@@ -54,7 +54,7 @@ class NadReverb extends AudioWorkletProcessor {
     this.md=(.001+.002*dens)*sr;this.apL=this.apBase.map(s=>s.map(t=>Math.min(this.apCap-this.md*2-4,t*sr)));
     this.g=this.lens.map((s,si)=>s.map((l,j)=>Math.pow(10,-3*(l+this.apL[si][j]+this.md)/(sr*t60))));
     /* Loudness match: steady-state wet energy grows with T60 / loop length, so scale it back toward the dry level. */
-    const lv=-5.4+16.5*(dens-.1)-4.6*Math.log10(t60/.5);this.outG=.95/Math.sqrt(1+t60/(.14*ls))*Math.pow(10,-lv/20);this.preLen=Math.min(this.pre.length-1,Math.floor(sr*Math.min(.1,.008+t60*.005)));}
+    const lv=-5.4+16.5*(dens-.1)-4.6*Math.log10(t60/.5);this.outG=.95/Math.sqrt(1+t60/(.14*ls))*Math.pow(10,-lv/20);this.preLen=Math.floor(sr*.003);}
   process(ins,outs,p){const x=ins[0],y=outs[0];if(!y||!y[0])return true;
     const t60=Math.max(.2,Math.min(20,p.size[0])),dens=Math.max(0,Math.min(1,p.density[0]));this.setup(t60,dens);
     const apc=.3+.42*dens,ga=.5+.12*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),hk=Math.exp(-2*Math.PI*120/sampleRate),cap=this.cap,ac=this.apCap,md=this.md,og=this.outG;
@@ -66,7 +66,7 @@ class NadReverb extends AudioWorkletProcessor {
           PH[j]+=R[j];if(PH[j]>6.2832)PH[j]-=6.2832;let idx=this.w2-AL[j]-md*(1+Math.sin(PH[j]));if(idx<0)idx+=ac;const k=Math.floor(idx),fr=idx-k,b=A[j];
           const dl=b[k]+(b[(k+1)%ac]-b[k])*fr,vn=LP[j]+ga*dl;b[this.w2]=vn;const z=(dl-ga*vn)*G[j];f[j]=z;sum+=z;out+=(j&1?-r:r);}
         sum*=.25;for(let j=0;j<8;j++)D[j][this.w]=f[j]-sum+v*(j&1?-.35:.35);
-        const o=out*og;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
+        /* Diffused input feeds the output directly so the wet sound starts with the note instead of swelling in late. */const o=(out+(s?-v:v)*1.6)*og;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
       this.w=(this.w+1)%cap;this.w2=(this.w2+1)%ac;}return true;}
 }
 registerProcessor('nad-reverb',NadReverb);
