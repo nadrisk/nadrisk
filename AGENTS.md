@@ -28,4 +28,3 @@
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
 - src/hooks and src/audio have scoped AGENTS.md rules; read them before edits.
 - ACID uses clocked pool resets and silent pre-start cancellation to prevent note blips.
-- Sequencer GEN generators live as pure seeded functions in src/audio/patternGen.ts and are written by the hook in one undo step, so they stay testable and undoable.
