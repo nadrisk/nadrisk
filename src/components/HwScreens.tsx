@@ -5,6 +5,37 @@ import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import type { PerformanceParams } from "@/audio/performance";
 import type { MasterMeter } from "@/hooks/useGroovebox";
+import { BREAK_STYLES, ROLES, genBreak, genRandom, type GenResult, type Role } from "@/audio/patternGen";
+
+export type GenProps = { steps: 16 | 32; rows: () => number[]; roles: () => Role[]; apply: (r: GenResult) => void; bake: () => void; selected: number; selName: string; selRole: Role; setRole: (r: Role | undefined) => void };
+function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
+  const [style, setStyle] = useState(0), [dens, setDens] = useState(.4), [fill, setFill] = useState(.3), [vary, setVary] = useState(.3);
+  const [rd, setRd] = useState(.5), [velLo, setVelLo] = useState(.4), [chc, setChc] = useState(.2), [roll, setRoll] = useState(.1), [seed, setSeed] = useState(1);
+  const reroll = () => { const s = Math.floor(Math.random() * 1e9) + 1; setSeed(s); return s; };
+  const pc = (v: number) => `${Math.round(v * 100)}%`;
+  const k = (label: string, short: string, value: number, set: (v: number) => void, reset: number): Knob => ({ label, short, value, min: 0, max: 1, step: .01, fmt: pc, set, reset });
+  const knobs = (page: string): Knob[] => page === "BRKS" ? [
+    { label: "Break style", short: "STYL", value: style, min: 0, max: BREAK_STYLES.length - 1, step: 1, fmt: v => BREAK_STYLES[Math.round(v)], set: setStyle, reset: 0 },
+    k("Break density", "DENS", dens, setDens, .4), k("Break fills", "FILL", fill, setFill, .3), k("Bar two variation", "VAR", vary, setVary, .3),
+  ] : page === "RAND" ? [k("Random density", "DENS", rd, setRd, .5), k("Lowest velocity", "VEL", velLo, setVelLo, .4), k("Chance amount", "CHNC", chc, setChc, .2), k("Roll amount", "ROLL", roll, setRoll, .1)]
+    : page === "ROLE" ? [{ label: "Pad role", short: "ROLE", value: ROLES.indexOf(g.selRole), min: 0, max: ROLES.length - 1, step: 1, fmt: v => ROLES[Math.round(v)].toUpperCase(), set: v => g.setRole(ROLES[Math.round(v)]) }] : [];
+  const keys = (page: string): K[] => [
+    { s: "BACK", label: "Close generator", x: 1, y: 11, w: 30, on: false, fn: close },
+    ...(page === "BRKS" ? [{ s: "GEN", label: "Generate break", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genBreak(BREAK_STYLES[style], { dens, fill, vary, seed: reroll() }, g.roles(), g.rows(), g.steps)) }]
+      : page === "RAND" ? [{ s: "GEN", label: "Generate random", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed: reroll() }, g.rows(), g.steps)) },
+        { s: "SAME", label: "Generate again with same seed", x: 65, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed }, g.rows(), g.steps)) }]
+      : page === "PHRS" ? [{ s: "BAKE", label: "Bake phrase into steps", x: 33, y: 11, w: 30, on: false, fn: g.bake }]
+      : [{ s: "AUTO", label: "Auto-detect role", x: 33, y: 11, w: 30, on: false, fn: () => g.setRole(undefined) }]),
+  ];
+  return <Panel name="GEN" label="Pattern generator" pages={["BRKS", "RAND", "PHRS", "ROLE"]} deps={[style, dens, fill, vary, rd, velLo, chc, roll, seed, g.selected, g.selRole, g.steps]} knobs={knobs}
+    body={(p, page) => {
+      drawKeys(p, keys(page));
+      const line = page === "BRKS" ? `${BREAK_STYLES[style]} ${g.steps} STEPS` : page === "RAND" ? `SEED ${seed % 10000}` : page === "PHRS" ? `${g.selName} PHRASE>STEPS` : `${g.selName}: ${g.selRole.toUpperCase()}`;
+      p.text(line.slice(0, 31), 2, 24);
+      p.text((page === "PHRS" ? "PITCH ON MOD LANE" : page === "ROLE" ? "TURN ROLE / AUTO" : "ROWS X SKIP S SOLO").slice(0, 31), 2, 33);
+    }}
+    extra={page => keyZones(keys(page))} />;
+}
 
 export const pkey = (p: Px, s: string, x: number, y: number, w: number, on: boolean, h = 9) => { if (on) p.rect(x, y, w, h); else p.box(x, y, w, h); p.textC(s, x + w / 2, y + Math.floor((h - 5) / 2), !on); };
 type K = { s: string; label: string; x: number; y: number; w: number; on: boolean; fn: () => void; disabled?: boolean; h?: number };
@@ -111,10 +142,11 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
 }
 
 const BANK_NAMES = ["A", "B", "C", "D"];
-export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo }: {
-  bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: (view: string) => void; reset: () => void;
+export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo, gen }: {
+  gen?: GenProps; bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: (view: string) => void; reset: () => void;
   playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
 }) {
+  const [genOpen, setGenOpen] = useState(false);
   const views = ["note", "vel", "chance", "roll", "mod"];
   const ks: K[] = [
     ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 11, w: 30, h: 10, on: bank === b, fn: () => selectBank(b) })),
@@ -124,10 +156,12 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: () => clear(view) },
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 76, y: 33, w: 25, h: 10, on: playing, fn: onPlay },
     { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 102, y: 33, w: 25, h: 10, on: paused, fn: onPause },
-    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 44, w: 62, h: 10, on: false, disabled: !canUndo, fn: undo },
-    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 65, y: 44, w: 62, h: 10, on: false, disabled: !canRedo, fn: redo },
+    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 44, w: 41, h: 10, on: false, disabled: !canUndo, fn: undo },
+    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 44, y: 44, w: 41, h: 10, on: false, disabled: !canRedo, fn: redo },
+    ...(gen ? [{ s: "GEN", label: "Open pattern generator", x: 87, y: 44, w: 40, h: 10, on: false, fn: () => setGenOpen(true) }] : []),
   ];
   const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : "HIT>TIE>OFF";
+  if (gen && genOpen) return <div className="px-strip"><GenScreen g={gen} close={() => setGenOpen(false)} /></div>;
   return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[BANK_NAMES[bank]]} deps={[bank, queued, view, playing, paused, canUndo, canRedo]} knobs={() => []}
     body={p => { drawKeys(p, ks); p.textC(hint, 64, 56); }}
     extra={() => keyZones(ks)} /></div>;

@@ -10,6 +10,7 @@ import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSe
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
 import type { PatchSound } from "@/audio/patchStore";
+import { bakePhrase, detectRole, type GenResult, type Role } from "@/audio/patternGen";
 import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { breakTiming, playBreak, prepareBreak } from "@/audio/breaks";
@@ -30,7 +31,7 @@ export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: nu
 export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
 /** Maximum steps per row; each bank plays 16 or 32 (Bank.steps). */
 export const STEPS = 32;
-export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
 
@@ -832,6 +833,22 @@ export function useGroovebox() {
     const gen = () => kind === "vel" ? Math.round((.35 + Math.random() * .65) * 100) / 100 : kind === "chance" ? (Math.random() < .55 ? 1 : Math.round((.4 + Math.random() * .55) * 100) / 100) : (Math.random() < .25 ? ROLLS[1 + Math.floor(Math.random() * 3)] : 1);
     editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 && may(r) ? gen() : v))) }));
   };
+  // GEN: write generated rows into the current bank in one undo step; X/S row keys gate which rows change.
+  const genRows = () => { const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2); return sl0.map((_, r) => r).filter(r => anySolo ? sl0[r].rnd === 2 : sl0[r].rnd !== 1); };
+  const genRoles = () => slotsRef.current.map(detectRole);
+  const applyGenerated = (res: GenResult) => {
+    editBank(b => ({ ...b,
+      pattern: b.pattern.map((row, r) => res[r] ? res[r].pattern.map(v => v as StepVal) : row),
+      vel: b.vel.map((row, r) => res[r]?.vel.slice() ?? row), chance: b.chance.map((row, r) => res[r]?.chance.slice() ?? row),
+      ratchet: (b.ratchet ?? ones()).map((row, r) => res[r]?.ratchet.slice() ?? row),
+      lengths: b.lengths.map((l, r) => res[r] ? (res[r].length ?? (b.steps ?? 16)) : l) }));
+  };
+  const bakeSelectedPhrase = () => {
+    const i = selectedRef.current, x = slotsRef.current[i], st = (banksRef.current[bankRef.current].steps ?? 16) as 16 | 32;
+    const out = bakePhrase(x.arp, st), mi = bankRef.current + modLaneRef.current * NBANKS;
+    editBank(b => ({ ...b, pattern: b.pattern.map((row, r) => r === i ? out.pattern.map(v => v as StepVal) : row), vel: b.vel.map((row, r) => r === i ? out.vel : row), lengths: b.lengths.map((l, r) => r === i ? st : l) }));
+    setSlots(sl => sl.map((y, j) => j !== i ? y : { ...y, arp: { ...y.arp, on: false }, mods: y.mods.map((m, k) => k !== mi ? m : { ...m, on: true, target: "pitch", range: 24, values: out.pitch }) }));
+  };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
   const newBlank = () => { disarmInput(); loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
   const resetAll = newBlank;
@@ -848,7 +865,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll };
+  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
