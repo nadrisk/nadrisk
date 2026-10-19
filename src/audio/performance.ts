@@ -43,6 +43,14 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const mastered = ctx.createGain(); output.connect(mHp).connect(mLow).connect(mMud).connect(mPres).connect(mAir).connect(glue).connect(glueMk).connect(mastered);
   const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   const noise = ctx.createBufferSource(); noise.buffer = b; noise.loop = true; noise.connect(noiseGain).connect(hp); noiseGain.gain.value = 0; noise.start();
+  // CYBER riser (EDM pitch riser): three detuned saws climbing ~3 octaves with TENS, plus a band-swept noise whoosh; silent outside CYBER.
+  const riserOsc = [-14, 0, 13].map(det => { const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = 110; o.detune.value = det; o.start(); return o; });
+  const riserBp = ctx.createBiquadFilter(), riserGain = ctx.createGain(), riserPan = ctx.createStereoPanner(), whooshBp = ctx.createBiquadFilter(), whoosh = ctx.createGain();
+  riserBp.type = "bandpass"; riserBp.Q.value = 1.4; riserGain.gain.value = 0; whooshBp.type = "bandpass"; whooshBp.Q.value = 2.5; whoosh.gain.value = 0;
+  riserOsc.forEach(o => o.connect(riserBp)); riserBp.connect(riserGain).connect(riserPan).connect(output);
+  noise.connect(whooshBp).connect(whoosh).connect(output);
+  // Slow wobble so the riser feels alive while held.
+  const riserLfo = ctx.createOscillator(), riserLfoG = ctx.createGain(); riserLfo.frequency.value = 5; riserLfoG.gain.value = 0; riserLfo.connect(riserLfoG); riserOsc.forEach(o => riserLfoG.connect(o.detune)); riserLfo.connect(riserPan.pan); riserLfo.start();
   // Master stage: output -> [clipper | bypass] -> [limiter | bypass] -> final.
   const clipIn = ctx.createGain(), clipBy = ctx.createGain(), pre = ctx.createGain(), shaper = ctx.createWaveShaper(), post = ctx.createGain(), limIn = ctx.createGain(), limBy = ctx.createGain(), limOn = ctx.createGain(), final = ctx.createGain();
   shaper.curve = clipCurve; shaper.oversample = "2x"; clipIn.gain.value = 0; limBy.gain.value = 0;
@@ -80,6 +88,9 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     set(hp.frequency, 20 * (cyber ? 250 : 100) ** v); set(lp.frequency, cyber ? 20000 * .15 ** v : 20000); set(hp.Q, .707 + v * (cyber ? 3 : 1));
     set(delay.delayTime, (60 / bpm) * (cyber ? .25 : .75)); set(fb.gain, v * .65); set(wash.gain, v * .55); set(pan.pan, v * .65); set(noiseGain.gain, v ** 3 * (white ? .12 : .025));
     set(output.gain, 1 - v * .35); set(recorder.parameters.get("mode"), p.mode); set(recorder.parameters.get("length"), 60 / bpm * p.division);
+    const rf = 110 * 8 ** v; riserOsc.forEach(o => set(o.frequency, rf)); set(riserBp.frequency, Math.min(12000, rf * 3));
+    set(riserGain.gain, cyber ? v ** 2 * .09 : 0); set(riserLfoG.gain, cyber ? 8 + v * 30 : 0); set(riserLfo.frequency, 3 + v * 9);
+    set(whooshBp.frequency, 400 * 30 ** v); set(whoosh.gain, cyber ? v ** 2.5 * .06 : 0);
     const clip = p.clipOn ?? false, lim = p.limitOn ?? true, drive = p.clipDrive ?? 6;
     set(clipIn.gain, clip ? 1 : 0); set(clipBy.gain, clip ? 0 : 1); set(pre.gain, db(drive)); set(post.gain, db(-drive * .5));
     const dj = p.djSweep ?? 0, q = p.djRes ?? 1;
@@ -98,5 +109,5 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   // Tail kill: silence the dub echo return and loop until the line has emptied, then restore.
   const flush = () => { const t = ctx.currentTime, hold = eDelay.delayTime.value + .1;
     for (const g of [eRet.gain, eFb.gain]) { const v = g.value; g.cancelScheduledValues(t); g.setValueAtTime(v, t); g.linearRampToValueAtTime(0, t + .02); g.setValueAtTime(0, t + hold); g.linearRampToValueAtTime(g === eRet.gain ? 1 : v, t + hold + .02); } };
-  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); [nadPre, nadDry, nadWet, failure, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, peakGuard, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
+  return { input, output: final, meter, dyn, update, flush, setNad, dispose: () => { noise.stop(); riserOsc.forEach(o => { o.stop(); o.disconnect(); }); riserLfo.stop(); [riserLfo, riserLfoG, riserBp, riserGain, riserPan, whooshBp, whoosh, nadPre, nadDry, nadWet, failure, ottIn, ottDry, ottWet, ott, ottMk, input, output, hp, lp, recorder, delay, fb, wash, pan, noise, noiseGain, limiter, peakGuard, clipIn, clipBy, pre, shaper, post, limIn, limBy, limOn, final, djLp, djHp, eSend, eDelay, eFb, eSat, eHp, eLp, eRet, mHp, mLow, mMud, mPres, mAir, glue, glueMk, mastered, kShelf, kHp, subHp, subLp, meter, outAn].forEach(n => n.disconnect()); } };
 }
