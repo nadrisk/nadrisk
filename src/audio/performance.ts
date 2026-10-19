@@ -47,7 +47,7 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const riserOsc = [-14, 0, 13].map(det => { const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = 110; o.detune.value = det; o.start(); return o; });
   const riserBp = ctx.createBiquadFilter(), riserGain = ctx.createGain(), riserPan = ctx.createStereoPanner(), whooshBp = ctx.createBiquadFilter(), whoosh = ctx.createGain();
   riserBp.type = "bandpass"; riserBp.Q.value = 1.4; riserGain.gain.value = 0; whooshBp.type = "bandpass"; whooshBp.Q.value = 2.5; whoosh.gain.value = 0;
-  riserOsc.forEach(o => o.connect(riserBp)); riserBp.connect(riserGain).connect(riserPan).connect(output);
+  riserOsc.forEach(o => o.connect(riserBp)); riserBp.connect(riserGain).connect(riserPan).connect(output); riserPan.connect(delay); whoosh.connect(delay);
   noise.connect(whooshBp).connect(whoosh).connect(output);
   // Slow wobble so the riser feels alive while held.
   const riserLfo = ctx.createOscillator(), riserLfoG = ctx.createGain(); riserLfo.frequency.value = 5; riserLfoG.gain.value = 0; riserLfo.connect(riserLfoG); riserOsc.forEach(o => riserLfoG.connect(o.detune)); riserLfo.connect(riserPan.pan); riserLfo.start();
@@ -85,10 +85,10 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
   const db = (v: number) => 10 ** (v / 20);
   const update = (p: PerformanceParams, bpm: number) => {
     const v = p.tension, cyber = p.style === "cyber", white = p.style === "whiteout";
-    set(hp.frequency, 20 * (cyber ? 250 : 100) ** v); set(lp.frequency, cyber ? 20000 * .15 ** v : 20000); set(hp.Q, .707 + v * (cyber ? 3 : 1));
+    set(hp.frequency, 20 * (cyber ? 250 : white ? 100 : 400) ** v); set(lp.frequency, cyber ? 20000 * .15 ** v : 20000); set(hp.Q, .707 + v * (cyber ? 3 : white ? 1 : 6));
     set(delay.delayTime, (60 / bpm) * (cyber ? .25 : .75)); set(fb.gain, v * .65); set(wash.gain, v * .55); set(pan.pan, v * .65); set(noiseGain.gain, v ** 3 * (white ? .12 : .025));
     set(output.gain, 1 - v * .35); set(recorder.parameters.get("mode"), p.mode); set(recorder.parameters.get("length"), 60 / bpm * p.division);
-    const rf = 110 * 8 ** v; riserOsc.forEach(o => set(o.frequency, rf)); set(riserBp.frequency, Math.min(12000, rf * 3));
+    const rf = 110 * 32 ** v; riserOsc.forEach(o => set(o.frequency, rf)); set(riserBp.frequency, Math.min(12000, rf * 3));
     set(riserGain.gain, cyber ? v ** 2 * .09 : 0); set(riserLfoG.gain, cyber ? 8 + v * 30 : 0); set(riserLfo.frequency, 3 + v * 9);
     set(whooshBp.frequency, 400 * 30 ** v); set(whoosh.gain, cyber ? v ** 2.5 * .06 : 0);
     const clip = p.clipOn ?? false, lim = p.limitOn ?? true, drive = p.clipDrive ?? 6;
