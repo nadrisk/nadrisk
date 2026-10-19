@@ -12,8 +12,9 @@ const AboutSection = ({ native = false }: { native?: boolean }) => (
         <span className="eyebrow">BEHIND THE INSTRUMENT</span>
         <h2>NADIR ČAJIĆ IS NADRISK.</h2>
         <p>A sound designer and electronic music producer from Bosnia and Herzegovina. His music moves through textured electronics, deep bass and drifting atmospheres, always driven by experimentation.</p>
-        <p>The Nadrisk Groovebox was born from a need to step out of DAWs and perfectionism. Most tools focus on production; this one is built to be played. Shape rhythms, samples and synthesis on the fly and perform your ideas live.</p>
-        <p>The goal is to inspire musicians, new and seasoned alike, with a tool that makes expressing ideas fun again and lets you take your creations to a stage.</p>
+        <p>The Nadrisk Groovebox started as a way to get away from traditional DAWs and spend less time trying to make everything perfect. It&rsquo;s built for playing, experimenting, and having fun with sound.</p>
+        <p>Make beats, build grooves, shape samples, mess with synths, and try out ideas as you go. Whether you&rsquo;re just starting out or have been making music for years, the idea is simple: make music feel fun and spontaneous again, wherever you are, wherever you go, even on your phone. And when you&rsquo;re ready, take your ideas to the stage.</p>
+
         <nav className="about-links" aria-label="Nadrisk links">
           <a className="gb-cycle" href={LINKS.instagram} {...ext}>INSTAGRAM</a>
           <a className="gb-cycle" href={LINKS.soundcloud} {...ext}>SOUNDCLOUD</a>
