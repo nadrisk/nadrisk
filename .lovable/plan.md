@@ -5,7 +5,7 @@ On the sequencer screen, a new **GEN** key opens a small pixel panel with three 
 
 ### 1. BREAKS
 - Writes real drum grooves, not scattered hits.
-- Styles: **AMEN** (jungle), **2STP** (2-step/UKG), **DNB** (roller), **BOOM** (boom bap), **ELEC** (electro/808), **4/4** (four-on-the-floor).
+- Styles: **AMEN** (jungle), **2STP** (2-step/UKG), **DNB** (roller), **BOOM** (boom bap), **IDM** (glitchy, off-grid feel: displaced kicks, stuttering rolls, odd-length row loops), **4/4** (four-on-the-floor).
 - **DENS**: how busy (ghost notes, extra hats).
 - **FILL**: end-of-bar rolls and turnarounds (uses the ROLL values).
 - **VAR**: how different bar two is from bar one (in 32-step view).
