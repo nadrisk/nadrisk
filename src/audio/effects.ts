@@ -268,29 +268,6 @@ function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) 
   c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * g; c[i] = (x >= 0 ? Math.tanh(x) : Math.tanh(x * (1 - b * .6)) * (1 - b * .35)) / n; }
   muffCache.set(k, c); return c; }
-// Cache misses fill in deferred chunks so SIZE/DENS changes never block pad input.
-const impulses = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
-const pendingImpulses = new WeakMap<BaseAudioContext, Map<string, ((buffer: AudioBuffer) => void)[]>>();
-function requestImpulse(ctx: BaseAudioContext, sec: number, density: number, ready: (buffer: AudioBuffer) => void) {
-  const size = Math.round(sec * 4) / 4, dens = Math.round(Math.max(.05, Math.min(1, density)) * 20) / 20, key = `${size}:${dens}`;
-  const m = impulses.get(ctx) ?? new Map<string, AudioBuffer>(); impulses.set(ctx, m);
-  const hit = m.get(key); if (hit) { ready(hit); return; }
-  const pending = pendingImpulses.get(ctx) ?? new Map<string, ((buffer: AudioBuffer) => void)[]>(); pendingImpulses.set(ctx, pending);
-  const waiters = pending.get(key); if (waiters) { waiters.push(ready); return; }
-  pending.set(key, [ready]);
-  const len = Math.floor(ctx.sampleRate * Math.max(.2, size)), b = ctx.createBuffer(2, len, ctx.sampleRate);
-  const chance = .015 + dens * dens * .985, gain = Math.min(3, 1 / Math.sqrt(chance));
-  let ch = 0, at = 0;
-  const fill = () => {
-    const d = b.getChannelData(ch), end = Math.min(len, at + 8192);
-    for (let i = at; i < end; i++) d[i] = Math.random() < chance ? (Math.random() * 2 - 1) * (1 - i / len) ** 3 * gain : 0;
-    at = end; if (at >= len) { ch++; at = 0; }
-    if (ch < 2) { setTimeout(fill, 0); return; }
-    m.set(key, b); const callbacks = pending.get(key) ?? []; pending.delete(key); callbacks.forEach(cb => cb(b));
-  };
-  setTimeout(fill, 0);
-}
-
 /** Tremolo LFO shape: maps a sine (-1..1) to sine/triangle/square-ish; also used by the screen so it draws the real gain. */
 export function tremoloShape(x: number, shape: number) { const tri = Math.asin(Math.max(-1, Math.min(1, x))) * 2 / Math.PI;
   if (shape <= .5) { const t = shape * 2; return x * (1 - t) + tri * t; } const k = 1 + (shape - .5) * 2 * 14; return Math.tanh(tri * k) / Math.tanh(k); }
