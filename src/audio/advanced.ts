@@ -54,7 +54,7 @@ class NadReverb extends AudioWorkletProcessor {
     this.md=(.001+.002*dens)*sr;this.apL=this.apBase.map(s=>s.map(t=>Math.min(this.apCap-this.md*2-4,t*sr)));
     this.g=this.lens.map((s,si)=>s.map((l,j)=>Math.pow(10,-3*(l+this.apL[si][j]+this.md)/(sr*t60))));
     /* Loudness match: steady-state wet energy grows with T60 / loop length, so scale it back toward the dry level. */
-    this.outG=.95/Math.sqrt(1+t60/(.14*ls));this.preLen=Math.min(this.pre.length-1,Math.floor(sr*Math.min(.1,.008+t60*.005)));}
+    const lv=-5.4+16.5*(dens-.1)-4.6*Math.log10(t60/.5);this.outG=.95/Math.sqrt(1+t60/(.14*ls))*Math.pow(10,-lv/20);this.preLen=Math.min(this.pre.length-1,Math.floor(sr*Math.min(.1,.008+t60*.005)));}
   process(ins,outs,p){const x=ins[0],y=outs[0];if(!y||!y[0])return true;
     const t60=Math.max(.2,Math.min(20,p.size[0])),dens=Math.max(0,Math.min(1,p.density[0]));this.setup(t60,dens);
     const apc=.3+.42*dens,ga=.5+.12*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),hk=Math.exp(-2*Math.PI*120/sampleRate),cap=this.cap,ac=this.apCap,md=this.md,og=this.outG;
