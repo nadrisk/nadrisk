@@ -1,6 +1,6 @@
 # Architecture
 - Native uses shared Groovebox via Capacitor detection.
-- The public site renders only the groovebox; About, HELP and a once-a-day welcome open as overlays inside it after a startup logo flash (welcome/Ko-fi hidden on native); native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on the OLED display; DISP lasts only that visit.
+- The public site renders only the groovebox; About, HELP and a once-a-day welcome open as overlays inside it after a startup logo flash (welcome/Ko-fi hidden on native); native stays groovebox-only. Theme state lives in each page shell and feeds the shared Groovebox so all five palettes stay consistent. Each load boots on OLED; DISP lasts one visit.
 - Use Tone.js for the browser instrument, started only after a user gesture and disposed on unmount, to provide reliable audio synthesis without hosted audio or a backend.
 - Keep groovebox state and transport in a focused hook, and per-trigger voice graphs (drum, synth, sampler) in src/audio on the shared Tone raw context, so sound logic stays separate from the patch interface.
 - Test new domains in origin.ts; unknown hosts stay locked against copies.
