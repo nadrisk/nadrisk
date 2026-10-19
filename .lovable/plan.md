@@ -16,7 +16,13 @@ These causes come from reading our reverb's code:
 - **Correct decay:** SIZE becomes the true time for the tail to fade to silence (up to about 20 s for "gigantic"). The tail fades smoothly to nothing, with no sudden end.
 - **Darkening over time:** DAMP rolls off highs more on each pass, so the tail gets warmer as it fades, like a real big space.
 - **Soft fade-in on the wet sound,** so attacks bloom instead of slapping.
-- Same knobs: SIZE, DENS, DAMP, MIX (smooth MIX curve stays). Saved sets still load. Effect cost stays close to today's.
+- Same knobs, each reworked to shape this kind of space:
+  - **SIZE:** scales the space and the tail together. Echo-line lengths and pre-delay grow with it, so low settings sound like a small room (around 0.5 s) and high settings like a gigantic void (around 20 s).
+  - **DENS:** how quickly the echoes thicken into a smooth wash. Low gives sparse, grainy early echoes you can hear apart. High gives an instant, seamless cloud, plus a little more wobble so nothing rings.
+  - **DAMP:** how dark the space is. It sets the high-frequency loss on each pass, so the tail warms as it fades. Low keeps a bright, airy shimmer; high gives a muffled, distant late-90s void.
+  - **MIX:** unchanged, with the smooth equal-power balance.
+- Saved sets still load, with each old value mapped to the nearest equivalent sound. Effect cost stays close to today's.
+- The reverb screen's dot field keeps following SIZE, DENS and DAMP, so what you see matches the new behaviour.
 
 ## Checks
 - A test for the decay: one click gives a smooth tail on both sides that actually reaches about −60 dB at the SIZE time, with no early cutoff and no runaway at max.
