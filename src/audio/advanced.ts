@@ -66,7 +66,7 @@ class NadReverb extends AudioWorkletProcessor {
           PH[j]+=R[j];if(PH[j]>6.2832)PH[j]-=6.2832;let idx=this.w2-AL[j]-md*(1+Math.sin(PH[j]));if(idx<0)idx+=ac;const k=Math.floor(idx),fr=idx-k,b=A[j];
           const dl=b[k]+(b[(k+1)%ac]-b[k])*fr,vn=LP[j]+ga*dl;b[this.w2]=vn;const z=(dl-ga*vn)*G[j];f[j]=z;sum+=z;out+=(j&1?-r:r);}
         sum*=.25;for(let j=0;j<8;j++)D[j][this.w]=f[j]-sum+v*(j&1?-.35:.35);
-        /* Diffused input feeds the output directly so the wet sound starts with the note instead of swelling in late. */const o=(out+(s?-v:v)*1.6)*og;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
+        /* Diffused input feeds the output directly so the wet sound starts with the note instead of swelling in late. */const o=out*og+(s?-v:v)*.45;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
       this.w=(this.w+1)%cap;this.w2=(this.w2+1)%ac;}return true;}
 }
 registerProcessor('nad-reverb',NadReverb);
