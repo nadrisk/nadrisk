@@ -27,7 +27,7 @@ function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
       : page === "PHRS" ? [{ s: "BAKE", label: "Bake phrase into steps", x: 33, y: 11, w: 30, on: false, fn: g.bake }]
       : [{ s: "AUTO", label: "Auto-detect role", x: 33, y: 11, w: 30, on: false, fn: () => g.setRole(undefined) }]),
   ];
-  return <Panel name="GEN" label="Pattern generator" pages={["BRKS", "RAND", "PHRS", "ROLE"]} deps={[style, dens, fill, vary, rd, velLo, chc, roll, seed, g.selected, g.selRole, g.steps]} knobs={knobs}
+  return <Panel compactReadout name="GEN" label="Pattern generator" pages={["BRKS", "RAND", "PHRS", "ROLE"]} deps={[style, dens, fill, vary, rd, velLo, chc, roll, seed, g.selected, g.selRole, g.steps]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
       const line = page === "BRKS" ? `${BREAK_STYLES[style]} ${g.steps} STEPS` : page === "RAND" ? `SEED ${seed % 10000}` : page === "PHRS" ? `${g.selName} PHRASE>STEPS` : `${g.selName}: ${g.selRole.toUpperCase()}`;

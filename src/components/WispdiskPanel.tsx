@@ -1,11 +1,11 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
 import { NOTE_NAMES } from "@/audio/arp";
-import { memo, useContext, useState } from "react";
+import { memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import { breakEngine } from "@/audio/breaks";
 import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
-import { EnvZones, fineSt } from "./pixelScreens";
+import { EnvZones, fineSt, compactHeaderText } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
 
@@ -48,7 +48,10 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
   const [lfoView, setLfoView] = useState(false);
   const [bpmEdit, setBpmEdit] = useState(false);
   const SHP = ["sin", "tri", "sqr", "rnd"] as const;
-  const show = (s: string) => setReadout(s);
+  const readoutTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(readoutTimer.current), []);
+  // Knob feedback replaces the name briefly, like the drum screens, so the tabs never hide it.
+  const show = (s: string) => { setReadout(s); clearTimeout(readoutTimer.current); readoutTimer.current = setTimeout(() => setReadout(""), 1600); };
   const noteK = useNoteKnob(slot, onChange), sk = sm.sampleKey ?? 0;
   const fineK = { label: "Sample fine tune", short: "FINE", value: Math.max(-50, Math.min(50, sm.fine ?? 0)), min: -50, max: 50, step: 1, bare: true, reset: 0, fmt: (v: number) => `F${fineSt(v)}`, set: (fine: number) => M({ fine }) };
 
@@ -118,8 +121,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
   const draw = (p: Px) => {
     // Header: inverted bar, name, page tabs.
     p.invert(0, 0, 128, 9);
-    p.text((slot.name || "SMP").slice(0, 8), 2, 2, false);
-    p.text(readout.slice(0, 4), 36, 2, false);
+    p.text(readout ? compactHeaderText(readout, 50) : (slot.name || "SMP").slice(0, 12), 2, 2, false);
     PAGES.forEach((pg, i) => { const x = 54 + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
     // Left: level fader.
     if (page === "IN") {
