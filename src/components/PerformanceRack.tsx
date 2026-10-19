@@ -101,7 +101,7 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
         const f = dj < 0 ? 20000 * (60 / 20000) ** -dj : 20 * (12000 / 20) ** dj, fs = f >= 1000 ? `${(f / 1000).toFixed(1)}K` : `${Math.round(f)}`;
         p.text(dj === 0 ? "OFF" : `${dj < 0 ? "LP" : "HP"} ${fs}`, 5, 27);
         p.text(`T${v.time > 0 ? "+" : v.time < 0 ? "-" : ""}${Math.round(Math.abs(v.time) * 100)}${v.timeHome ? "*" : ""}`, 102, 20);
-        p.rect(3, 37, Math.round(v.tension * 98), 2);
+        p.rect(3, 37, Math.round(v.tension * 122), 2);
       } else if (page === "ECO") {
         // Echo taps: original hit then repeats spaced by the division, fading with feedback, thinning as tone darkens.
         p.box(2, 11, 124, 30);

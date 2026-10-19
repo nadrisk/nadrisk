@@ -79,7 +79,7 @@ export function createPerformance(ctx: BaseAudioContext, dest: AudioNode) {
     const v = p.tension, cyber = p.style === "cyber", white = p.style === "whiteout";
     set(hp.frequency, 20 * (cyber ? 250 : 100) ** v); set(lp.frequency, cyber ? 20000 * .15 ** v : 20000); set(hp.Q, .707 + v * (cyber ? 3 : 1));
     set(delay.delayTime, (60 / bpm) * (cyber ? .25 : .75)); set(fb.gain, v * .65); set(wash.gain, v * .55); set(pan.pan, v * .65); set(noiseGain.gain, v ** 3 * (white ? .12 : .025));
-    set(output.gain, 1 - v * .2); set(recorder.parameters.get("mode"), p.mode); set(recorder.parameters.get("length"), 60 / bpm * p.division);
+    set(output.gain, 1 - v * .35); set(recorder.parameters.get("mode"), p.mode); set(recorder.parameters.get("length"), 60 / bpm * p.division);
     const clip = p.clipOn ?? false, lim = p.limitOn ?? true, drive = p.clipDrive ?? 6;
     set(clipIn.gain, clip ? 1 : 0); set(clipBy.gain, clip ? 0 : 1); set(pre.gain, db(drive)); set(post.gain, db(-drive * .5));
     const dj = p.djSweep ?? 0, q = p.djRes ?? 1;
