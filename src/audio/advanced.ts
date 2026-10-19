@@ -36,5 +36,28 @@ class NadVca extends AudioWorkletProcessor {
  process(ins,outs,p){const x=ins[0],y=outs[0];if(!x||!x.length)return true;const th=p.threshold[0],r=Math.max(1,p.ratio[0]),W=6,ka=1-Math.exp(-1/(sampleRate*Math.max(.0005,p.attack[0]))),kr=1-Math.exp(-1/(sampleRate*Math.max(.01,p.release[0]))),mk=Math.pow(10,p.makeup[0]/20);
  for(let n=0;n<y[0].length;n++){const v=Math.max(Math.abs(x[0][n]||0),Math.abs((x[1]||x[0])[n]||0)),db=20*Math.log10(v+1e-9),o=db-th;let tgt=0;if(2*o>W)tgt=o*(1-1/r);else if(2*o>-W){const q=o+W/2;tgt=(1-1/r)*q*q/(2*W);}this.gr+=(tgt-this.gr)*(tgt>this.gr?ka:kr);const g=Math.pow(10,-this.gr/20)*mk;for(let c=0;c<y.length;c++)y[c][n]=((x[c]||x[0])[n]||0)*g;}return true;}
 }
+/* NAD reverb: our own feedback-delay-network design. A mono sum passes two allpass diffusers (DENS sets their
+   coefficient), then feeds two decorrelated 4-line delay networks (one per side) with Householder mixing, a
+   one-pole DAMP lowpass per line and per-line decay gains derived from SIZE as T60. Techniques learned from
+   classic FDN/plate literature; all code, lengths and tuning are ours. */
+class NadReverb extends AudioWorkletProcessor {
+  static get parameterDescriptors(){return [{name:'size',defaultValue:2.5},{name:'density',defaultValue:.6},{name:'damp',defaultValue:6000}];}
+  constructor(){super();this.cap=Math.ceil(sampleRate*.12);this.base=[[.0297,.0371,.0411,.0437],[.0305,.0349,.0399,.0451]];
+    this.d=this.base.map(s=>s.map(()=>new Float32Array(this.cap)));this.pos=[[0,0,0,0],[0,0,0,0]];this.lp=[[0,0,0,0],[0,0,0,0]];
+    this.apBuf=[new Float32Array(512),new Float32Array(512)];this.apPos=[0,0];this.apLen=[226,172];this.lens=null;}
+  process(ins,outs,p){const x=ins[0],y=outs[0];if(!x||!x.length)return true;
+    const t60=Math.max(.2,p.size[0]),ls=Math.round(Math.max(.25,Math.min(2,Math.sqrt(t60/2.5)))*20)/20;
+    if(!this.lens||this.ls!==ls){this.ls=ls;this.lens=this.base.map(s=>s.map(t=>Math.min(this.cap-2,Math.max(64,Math.floor(t*ls*sampleRate)))));}
+    const apc=.25+.5*Math.max(0,Math.min(1,p.density[0])),lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate);
+    const g=this.lens.map(s=>s.map(l=>Math.pow(10,-3*l/(sampleRate*t60))*.97));
+    for(let n=0;n<y[0].length;n++){let v=((x[0]?.[n]||0)+((x[1]||x[0])?.[n]||0))*.5;
+      for(let s=0;s<2;s++){const b=this.apBuf[s],L=this.apLen[s],i=this.apPos[s],r=b[i];const o=r-apc*v;b[i]=v+apc*r;this.apPos[s]=(i+1)%L;v=o;}
+      for(let s=0;s<2;s++){const f=[0,0,0,0];let out=0;
+        for(let j=0;j<4;j++){const r=this.d[s][j][this.pos[s][j]];this.lp[s][j]+=lk*(r-this.lp[s][j]);f[j]=this.lp[s][j];out+=r;}
+        const avg=(f[0]+f[1]+f[2]+f[3])*.5;
+        for(let j=0;j<4;j++){this.d[s][j][this.pos[s][j]]=v+(f[j]-avg)*g[s][j];this.pos[s][j]=(this.pos[s][j]+1)%this.lens[s][j];}
+        if(y[s])y[s][n]=out*.6;}return true;}}
+}
+registerProcessor('nad-reverb',NadReverb);
 registerProcessor('nad-duck2',NadDuck2);registerProcessor('nad-vca',NadVca);registerProcessor('nad-gate',NadGate);registerProcessor('nad-duck',NadDuck);registerProcessor('nad-bandgate',NadBandGate);registerProcessor('nad-reverse-delay',NadReverseDelay);registerProcessor('nad-performance',NadPerformance);
 `;
