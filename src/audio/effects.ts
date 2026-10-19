@@ -268,29 +268,6 @@ function muffCurve(gain: number, bias: number) { const g = Math.round(gain * 2) 
   c = new Float32Array(new ArrayBuffer(2048 * 4)); const n = Math.tanh(g);
   for (let i = 0; i < 2048; i++) { const x = (i / 1023.5 - 1) * g; c[i] = (x >= 0 ? Math.tanh(x) : Math.tanh(x * (1 - b * .6)) * (1 - b * .35)) / n; }
   muffCache.set(k, c); return c; }
-// Cache misses fill in deferred chunks so SIZE/DENS changes never block pad input.
-const impulses = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
-const pendingImpulses = new WeakMap<BaseAudioContext, Map<string, ((buffer: AudioBuffer) => void)[]>>();
-function requestImpulse(ctx: BaseAudioContext, sec: number, density: number, ready: (buffer: AudioBuffer) => void) {
-  const size = Math.round(sec * 4) / 4, dens = Math.round(Math.max(.05, Math.min(1, density)) * 20) / 20, key = `${size}:${dens}`;
-  const m = impulses.get(ctx) ?? new Map<string, AudioBuffer>(); impulses.set(ctx, m);
-  const hit = m.get(key); if (hit) { ready(hit); return; }
-  const pending = pendingImpulses.get(ctx) ?? new Map<string, ((buffer: AudioBuffer) => void)[]>(); pendingImpulses.set(ctx, pending);
-  const waiters = pending.get(key); if (waiters) { waiters.push(ready); return; }
-  pending.set(key, [ready]);
-  const len = Math.floor(ctx.sampleRate * Math.max(.2, size)), b = ctx.createBuffer(2, len, ctx.sampleRate);
-  const chance = .015 + dens * dens * .985, gain = Math.min(3, 1 / Math.sqrt(chance));
-  let ch = 0, at = 0;
-  const fill = () => {
-    const d = b.getChannelData(ch), end = Math.min(len, at + 8192);
-    for (let i = at; i < end; i++) d[i] = Math.random() < chance ? (Math.random() * 2 - 1) * (1 - i / len) ** 3 * gain : 0;
-    at = end; if (at >= len) { ch++; at = 0; }
-    if (ch < 2) { setTimeout(fill, 0); return; }
-    m.set(key, b); const callbacks = pending.get(key) ?? []; pending.delete(key); callbacks.forEach(cb => cb(b));
-  };
-  setTimeout(fill, 0);
-}
-
 /** Tremolo LFO shape: maps a sine (-1..1) to sine/triangle/square-ish; also used by the screen so it draws the real gain. */
 export function tremoloShape(x: number, shape: number) { const tri = Math.asin(Math.max(-1, Math.min(1, x))) * 2 / Math.PI;
   if (shape <= .5) { const t = shape * 2; return x * (1 - t) + tri * t; } const k = 1 + (shape - .5) * 2 * 14; return Math.tanh(tri * k) / Math.tanh(k); }
@@ -552,10 +529,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
       const w = p.wow ?? .3; set(wow.g.gain, w * .0035); set(flut.g.gain, w * .0004); set(spOut.gain, (p.spring ?? 0) * 1.4); set(spIn.gain, (p.spring ?? 0) > 0 ? .5 : 0);
       const wd = p.width ?? 0; set(ew, wd * 1.6); set(sw2, wd * 1.6); const sd = p.send ?? 1; set(send.gain, sd); set(echoOut.gain, sd > 0 ? 1 / curveComp(sat.curve) : 0); };
   } else if (type === "reverb") {
-    const cv = ctx.createConvolver(), lp = ctx.createBiquadFilter(); nodes.push(cv, lp); let shape = "", request = 0;
-    input.connect(cv).connect(lp).connect(wet);
-    apply = p => { const sec = eco ? Math.min(p.size * .5, 1.5) : p.size, density = p.density ?? .6, next = `${Math.round(sec * 4)}:${Math.round(density * 20)}`;
-      if (next !== shape) { shape = next; const own = ++request; requestImpulse(ctx, sec, density, buffer => { if (own === request) cv.buffer = buffer; }); } set(lp.frequency, p.damp); };
+    // Our own FDN reverb (nad-reverb): allpass diffusion (DENS) into two decorrelated 4-line delay networks with
+    // Householder mixing, per-line DAMP lowpass and SIZE as T60 decay. Wet-only; MIX is equal-power (see update()).
+    const n = worklet("nad-reverb"); input.connect(n).connect(wet);
+    apply = p => wp(n, { ...p, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp"]);
   } else if (type === "chorus") {
     // Juno-60 BBD chorus (nad-juno): MODE I / II / I+II, DEPTH .5 = authentic swing, MAN = centre delay, ENV pushes the delay.
     const n = worklet("nad-juno"); input.connect(n).connect(wet);
@@ -626,7 +603,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     aps.forEach(a => { m.g.connect(a.frequency); env.connect(a.frequency); });
     apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
-  const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p); set(wet.gain, type === "ott" ? 1 : mix); set(dry.gain, type === "ott" ? 0 : 1 - mix); };
+  const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p);
+    // Reverb uses an equal-power crossfade so dry and wet stay balanced through the middle of the knob.
+    const w = type === "reverb" ? Math.sin(mix * Math.PI / 2) : mix, d = type === "reverb" ? Math.cos(mix * Math.PI / 2) : 1 - mix;
+    set(wet.gain, type === "ott" ? 1 : w); set(dry.gain, type === "ott" ? 0 : d); };
   update(init);
   return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
