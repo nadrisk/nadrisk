@@ -56,7 +56,7 @@ class NadReverb extends AudioWorkletProcessor {
         for(let j=0;j<4;j++){const r=this.d[s][j][this.pos[s][j]];this.lp[s][j]+=lk*(r-this.lp[s][j]);f[j]=this.lp[s][j];out+=r;}
         const avg=(f[0]+f[1]+f[2]+f[3])*.5;
         for(let j=0;j<4;j++){this.d[s][j][this.pos[s][j]]=v+(f[j]-avg)*g[s][j];this.pos[s][j]=(this.pos[s][j]+1)%this.lens[s][j];}
-        if(y[s])y[s][n]=out*.6;}return true;}}
+        if(y[s])y[s][n]=out*.6;else if(s===1&&y[0])y[0][n]=(y[0][n]+out*.6)*.5;}}return true;}
 }
 registerProcessor('nad-reverb',NadReverb);
 registerProcessor('nad-duck2',NadDuck2);registerProcessor('nad-vca',NadVca);registerProcessor('nad-gate',NadGate);registerProcessor('nad-duck',NadDuck);registerProcessor('nad-bandgate',NadBandGate);registerProcessor('nad-reverse-delay',NadReverseDelay);registerProcessor('nad-performance',NadPerformance);
