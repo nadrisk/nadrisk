@@ -58,6 +58,13 @@ describe("nad-reverb", () => {
   });
 });
 
+describe("reverb onset", () => {
+  it("starts with the note instead of swelling in late", () => {
+    const { L, R } = run(8, 0.6, 0.4, click);
+    expect(windowDb(L, R, 0) - windowDb(L, R, 0.15)).toBeGreaterThan(-3);
+  });
+});
+
 describe("reverb MIX law", () => {
   it("is pure dry at 0% and pure wet at 100%", () => {
     expect(reverbMixLaw(0)).toEqual([1, 0]);
