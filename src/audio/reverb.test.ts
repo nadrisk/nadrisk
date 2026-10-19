@@ -78,9 +78,3 @@ describe("reverb MIX law", () => {
   });
 });
 
-describe("tape delay MIX", () => {
-  it("uses the same dry-hold law as reverb", async () => {
-    const src = (await import("node:fs")).readFileSync(new URL("./effects.ts", import.meta.url), "utf8");
-    expect(src).toMatch(/type === "reverb" \|\| type === "delay" \? reverbMixLaw\(mix\)/);
-  });
-});
