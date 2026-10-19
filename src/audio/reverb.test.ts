@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ADVANCED_WORKLETS } from "./advanced";
+import { reverbMixLaw } from "./effects";
 
 const SR = 48000;
 function makeReverb() {
@@ -8,38 +9,63 @@ function makeReverb() {
   return new reg["nad-reverb"]();
 }
 
-/** Returns RMS (dB) of each 0.1 s window after a click, plus left/right samples. */
-function impulse(size: number, seconds: number) {
-  const r = makeReverb(), p = { size: [size], density: [0.6], damp: [6000] };
-  const blocks = Math.ceil(seconds * SR / 128), win = SR / 10, rms: number[] = [], L: number[] = [], R: number[] = [];
-  let acc = 0, cnt = 0, peak = 0;
-  for (let b = 0; b < blocks; b++) {
-    const x = [new Float32Array(128), new Float32Array(128)];
-    if (b === 0) { x[0][0] = 1; x[1][0] = 1; }
-    const y = [new Float32Array(128), new Float32Array(128)];
+function run(size: number, dens: number, seconds: number, src: (i: number) => number) {
+  const r = makeReverb(), p = { size: [size], density: [dens], damp: [6000] }, L: number[] = [], R: number[] = [], X: number[] = [];
+  for (let b = 0; b < Math.ceil(seconds * SR / 128); b++) {
+    const x = [new Float32Array(128), new Float32Array(128)], y = [new Float32Array(128), new Float32Array(128)];
+    for (let n = 0; n < 128; n++) x[0][n] = x[1][n] = src(b * 128 + n);
     r.process([x], [y], p);
-    for (let n = 0; n < 128; n++) { L.push(y[0][n]); R.push(y[1][n]); acc += y[0][n] ** 2 + y[1][n] ** 2; peak = Math.max(peak, Math.abs(y[0][n])); if (++cnt === win) { rms.push(10 * Math.log10(acc / win + 1e-20)); acc = 0; cnt = 0; } }
+    for (let n = 0; n < 128; n++) { L.push(y[0][n]); R.push(y[1][n]); X.push(x[0][n]); }
   }
-  return { rms, L, R, peak };
+  return { L, R, X };
 }
+const click = (i: number) => (i === 0 ? 1 : 0);
+const windowDb = (L: number[], R: number[], t: number) => { let e = 0; const a = Math.round(t * SR); for (let i = a; i < a + 4800; i++) e += L[i] ** 2 + R[i] ** 2; return 10 * Math.log10(e / 4800 + 1e-20); };
 
 describe("nad-reverb", () => {
   it("decays about 60 dB over the SIZE time, without cutting off early", () => {
-    const { rms } = impulse(3, 4);
-    const ref = Math.max(...rms.slice(0, 5));
-    const at = (s: number) => ref - rms[Math.round(s * 10)];
-    expect(at(1.5)).toBeGreaterThan(15);
-    expect(at(1.5)).toBeLessThan(45);   // half-way: still a real tail
-    expect(at(3)).toBeGreaterThan(45);
-    expect(at(3)).toBeLessThan(80);
+    const { L, R } = run(3, 0.6, 3.3, click);
+    const ref = Math.max(...[0.05, 0.1, 0.15, 0.2, 0.3].map(t => windowDb(L, R, t)));
+    expect(ref - windowDb(L, R, 1.5)).toBeGreaterThan(15);
+    expect(ref - windowDb(L, R, 1.5)).toBeLessThan(45);
+    expect(ref - windowDb(L, R, 3)).toBeGreaterThan(45);
   });
   it("stays bounded at max size", () => {
-    expect(impulse(20, 3).peak).toBeLessThan(2);
+    const { L } = run(20, 1, 3, click);
+    expect(Math.max(...L.map(Math.abs))).toBeLessThan(2);
   });
   it("left and right are decorrelated", () => {
-    const { L, R } = impulse(3, 1);
+    const { L, R } = run(3, 0.6, 1, click);
     let lr = 0, ll = 0, rr = 0;
     for (let i = 4800; i < L.length; i++) { lr += L[i] * R[i]; ll += L[i] ** 2; rr += R[i] ** 2; }
     expect(Math.abs(lr / Math.sqrt(ll * rr))).toBeLessThan(0.5);
+  });
+  it("wet loudness stays near dry across SIZE and DENS", () => {
+    for (const [size, dens] of [[0.5, 0.1], [2.5, 0.6], [20, 0.9]]) {
+      let seed = 7; const noise = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+      const { L, R, X } = run(size, dens, 3, noise);
+      let ein = 0, eout = 0; for (let i = SR * 1.5; i < L.length; i++) { ein += X[i] ** 2; eout += (L[i] ** 2 + R[i] ** 2) / 2; }
+      expect(Math.abs(10 * Math.log10(eout / ein))).toBeLessThan(4);
+    }
+  });
+  it("tail has no strong ringing peak", () => {
+    const { L } = run(4, 0.6, 1.2, click);
+    const seg = L.slice(SR * 0.5, SR * 0.5 + 8192), mags: number[] = [];
+    for (let k = 20; k < 1400; k += 2) { let re = 0, im = 0; for (let i = 0; i < seg.length; i++) { const a = 2 * Math.PI * k * i / seg.length; re += seg[i] * Math.cos(a); im += seg[i] * Math.sin(a); } mags.push(Math.hypot(re, im)); }
+    const mean = mags.reduce((a, b) => a + b, 0) / mags.length;
+    expect(Math.max(...mags) / mean).toBeLessThan(6);
+  });
+});
+
+describe("reverb MIX law", () => {
+  it("is pure dry at 0% and pure wet at 100%", () => {
+    expect(reverbMixLaw(0)).toEqual([1, 0]);
+    const [d, w] = reverbMixLaw(1); expect(d).toBeCloseTo(0, 6); expect(w).toBe(1);
+  });
+  it("keeps dry full up to 50% and wet full from 50%", () => {
+    expect(reverbMixLaw(0.25)[0]).toBe(1);
+    expect(reverbMixLaw(0.5)).toEqual([1, 1]);
+    expect(reverbMixLaw(0.75)[1]).toBe(1);
+    expect(reverbMixLaw(0.25)[1]).toBeGreaterThan(0.6);
   });
 });
