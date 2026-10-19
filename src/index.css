@@ -1042,3 +1042,13 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-rnd-key { min-height: 32px; }
 }
 .site-shell { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.about-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+.about-links a.gb-cycle { text-decoration: none; display: inline-flex; align-items: center; }
+.about-kofi { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.about-cta { margin-top: 10px; padding-top: 10px; border-top: 1px solid hsl(var(--foreground)); }
+.info-copy { padding: 22px 24px 18px; }
+.help-list { margin: 0 0 6px; padding-left: 16px; list-style: square; }
+.help-list li { margin-bottom: 5px; }
+.help-note { margin-top: 10px; font: 7px 'Silkscreen', monospace; color: hsl(var(--muted-foreground)); }
+.startup-flash { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.startup-flash canvas { width: min(512px, 90vw); aspect-ratio: 2; image-rendering: pixelated; }
