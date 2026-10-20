@@ -6,13 +6,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import VjPage from "./pages/VjPage.tsx";
 import NativeGroovebox from "./pages/NativeGroovebox.tsx";
 
 const queryClient = new QueryClient();
 const nativePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has("native");
 const nativeApp = Capacitor.isNativePlatform() || nativePreview;
 
-const App = () => (
+const vjWindow = new URLSearchParams(window.location.search).has("vj");
+
+const App = () => vjWindow ? <VjPage /> : (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />

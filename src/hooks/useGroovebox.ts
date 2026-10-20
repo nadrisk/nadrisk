@@ -1,5 +1,6 @@
 import { setSustainProbe } from "@/lib/frameGate";
 import { detectSlices } from "@/audio/slices";
+import { vjKindOf, vjSend } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, makeFx, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
@@ -248,6 +249,7 @@ export function useGroovebox() {
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
+    { const kind = vjKindOf(detectRole(s), s.engine); window.setTimeout(() => vjSend({ t: "hit", kind, vel }), Math.max(0, (t0 - e.ctx.currentTime) * 1000)); }
     let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
