@@ -41,7 +41,7 @@ const ORDER = [0, 2, 1, 4, 3, 5]; // octa → cube → tetra → dodeca → icos
 
 const BAYER = (() => { const m = [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25], [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]]; return m.flat().map(x => (x + 0.5) / 64); })();
 
-const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - (i + 0.5) / 130, r = Math.sqrt(Math.max(0, 1 - (y - 1 + 1) ** 2)); const a = i * 2.39996; return norm([Math.cos(a) * (r || 0.3), y > 1 ? 2 - y : y, Math.sin(a) * (r || 0.3)]); }).map(v => norm([v[0], (v[1] * 2 + 1) % 2 - 1, v[2]] as V3));
+const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
 
 const rot = (v: V3, ax: number, ay: number, az: number): V3 => {
   let [x, y, z] = v; let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
