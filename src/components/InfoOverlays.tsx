@@ -6,7 +6,7 @@ export function WelcomeContent({ onGuide, onClose }: { onGuide: () => void; onCl
     <header className="about-header"><span>WELCOME</span><span>NADRISK GROOVEBOX</span></header>
     <div className="about-copy info-copy">
       <p>The Nadrisk Groovebox is a free instrument in your browser: drums, synths, samplers, effects and a sequencer you can perform live. No installs, no accounts.</p>
-      <p>It stays free. If you enjoy it, consider donating on Ko-fi: pay what you want once, or join the monthly plan. Your support helps maintain the project and takes the Nadrisk Groovebox toward a full-fledged app.</p>
+      <p>It stays free. If you enjoy it and want to support its development, consider donating on Ko-fi.</p>
       <div className="about-links">
         <a className="gb-cycle about-kofi" href={LINKS.kofi} target="_blank" rel="noopener noreferrer">♥ SUPPORT ON KO-FI</a>
         <button className="gb-cycle" onClick={onGuide}>QUICK GUIDE</button>
