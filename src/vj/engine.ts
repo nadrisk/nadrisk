@@ -104,8 +104,8 @@ export class VjEngine {
     const i0 = Math.floor(this.morph), f = this.morph - i0, u = f * f * (3 - 2 * f);
     const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]];
     const scale = 1 + this.kick * 0.12 + this.level * 0.08;
-    const light = norm([Math.cos(this.lightA), 0.6, Math.sin(this.lightA) + 0.4]);
-    const amb = 0.08 + this.level * 0.1, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
+    const light = norm([Math.cos(this.lightA) * 0.9, 0.55 + Math.sin(this.lightA * 0.7) * 0.3, -0.8]);
+    const amb = 0.04 + this.level * 0.06, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
     const explode = this.snare * 0.35 + this.kal * 0.12;
 
     const draw = (ox: number, oy: number, oz: number, sc: number, extraY: number, thresh = 1) => {
@@ -120,7 +120,7 @@ export class VjEngine {
         // Back-face cull in screen space (camera looks down +z).
         const area = (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]) - (pts[2][0] - pts[0][0]) * (pts[1][1] - pts[0][1]);
         if (area >= 0) continue;
-        const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] - n[2] * light[2]);
+        const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
         faces.push({ z: (pts[0][2] + pts[1][2] + pts[2][2]) / 3, p: pts, shade: Math.min(1, (amb + lam * gain) * thresh) });
       }
       faces.sort((x, y) => y.z - x.z);
