@@ -115,6 +115,20 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 150) return; lastToggle.current = { k, t }; onToggle(r, c); };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const labelTap = useRef({ r: -1, t: 0 });
+  // RND keys read raw touches (fire once on lift <8px, preventDefault) so iOS never swallows fast taps
+  // or turns them into double-tap zoom/ghost clicks; mouse and keyboard still use onClick.
+  const gridRef = useRef<HTMLDivElement>(null), rndAct = useRef(onRnd); rndAct.current = onRnd;
+  useEffect(() => {
+    const el = gridRef.current; if (!el) return;
+    const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-rnd]") as HTMLElement | null;
+    const start = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); } };
+    const move = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const s = touches.get(t.identifier); if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 8) touches.delete(t.identifier); } };
+    const end = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const s = touches.get(t.identifier); if (!s) continue; touches.delete(t.identifier); if (e.cancelable) e.preventDefault(); if (e.type === "touchend" && !s.b.closest(".midi-learn")) rndAct.current(Number(s.b.dataset.rnd)); } };
+    el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
+    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
   const harmony = useContext(HarmonyContext);
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
   const fmtV = (r: number, v: number) => view === "mod" && slots[r].mods?.[bank + modLane * 4]?.target === "pitch" ? `PTCH ${noteName(modPitchNote(harmony, slots[r].note, v))}` : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
