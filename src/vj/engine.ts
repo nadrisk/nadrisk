@@ -120,7 +120,7 @@ export class VjEngine {
         // Back-face cull in screen space (camera looks down +z).
         const area = (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]) - (pts[2][0] - pts[0][0]) * (pts[1][1] - pts[0][1]);
         if (area >= 0) continue;
-        const lam = Math.max(0, n[0] * light[0] - n[1] * light[1] + n[2] * light[2]);
+        const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
         faces.push({ z: (pts[0][2] + pts[1][2] + pts[2][2]) / 3, p: pts, shade: Math.min(1, (amb + lam * gain) * thresh) });
       }
       faces.sort((x, y) => y.z - x.z);
