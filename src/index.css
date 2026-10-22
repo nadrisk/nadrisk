@@ -1033,7 +1033,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   width: var(--seq-rnd); height: 100%; min-height: 26px; padding: 0; border-radius: 0;
   background: hsl(var(--background)); color: hsl(var(--foreground));
 }
-.instrument-workspace .gb-rnd-key { touch-action: manipulation; -webkit-user-select: none; user-select: none; border: 1px solid hsl(var(--border)); font: 12px 'Silkscreen', monospace; }
+.instrument-workspace .gb-rnd-key { touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; border: 1px solid hsl(var(--border)); font: 12px 'Silkscreen', monospace; }
 .instrument-workspace .gb-rnd-key.rnd-1 { color: hsl(var(--muted-foreground)); }
 .instrument-workspace .gb-rnd-key.rnd-2 { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .instrument-workspace .gb-row > :nth-child(3) { position: sticky; left: calc(var(--seq-name) + var(--seq-rnd) + 2 * var(--seq-gap)); z-index: 3; }
