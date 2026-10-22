@@ -299,7 +299,8 @@ export function useGroovebox() {
       // Mono engines (808, ACID, SIREN, LASER; REESE below) share one rule: a new hit cuts the old
       // tail with a short fade, so long releases never pile up on fast runs.
       if (s.engine === "808" || s.engine === "siren") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
-      if (sliced) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
+      // Sliced and one-shot samplers are monophonic: each hit cuts the previous one (4 ms declick stop).
+      if (sliced || (s.engine === "sampler" && s.sampler.mode === "one")) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
