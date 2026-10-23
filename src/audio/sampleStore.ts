@@ -1,5 +1,5 @@
-// Sample sources: "lib:<file>" = bundled in public/samples, "db:<key>" = user audio cached in IndexedDB.
-export const LIBRARY = ["kick", "snare", "hat", "open-hat", "clap", "rim", "perc-metal", "bass-hit", "pad-chord", "vox-ah", "glitch-chop", "texture"];
+// Sample sources: "lib:<file>" = bundled in public/samples (internal, factory pads only — never listed in the library browser), "db:<key>" = user audio cached in IndexedDB.
+
 export type SampleRef = { id: string; name: string };
 
 const DB = "nadrisk.samples", STORE = "blobs";
