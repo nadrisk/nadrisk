@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel } from "@/components/pixelScreens";
-import { LIBRARY, listCached, type SampleRef } from "@/audio/sampleStore";
+import { listCached, type SampleRef } from "@/audio/sampleStore";
 
 const ROWS = 3;
 
@@ -12,7 +12,7 @@ export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { val
   const folder = useRef<HTMLInputElement>(null), file = useRef<HTMLInputElement>(null);
   const refresh = () => { listCached().then(setCached).catch(() => setCached([])); };
   useEffect(refresh, [value]);
-  const all = [...LIBRARY.map(n => ({ id: `lib:${n}`, name: n })), ...cached];
+  const all = [...cached];
   useEffect(() => { const i = all.findIndex(a => a.id === value); if (i >= 0) setSel(i); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value, cached.length]);
   const top = Math.max(0, Math.min(sel - 1, all.length - ROWS));
   const vis = all.slice(top, top + ROWS);
