@@ -23,7 +23,6 @@ export const listCached = async (): Promise<SampleRef[]> => {
 export const deleteCached = (id: string) => tx("readwrite", s => s.delete(id));
 
 export async function getSampleBlob(id: string): Promise<Blob | null> {
-  if (id.startsWith("lib:")) { const r = await fetch(`/samples/${id.slice(4)}.wav`); return r.ok ? r.blob() : null; }
   if (id.startsWith("db:")) { const v = (await tx("readonly", s => s.get(id))) as { blob: Blob } | undefined; return v?.blob ?? null; }
   return null;
 }
