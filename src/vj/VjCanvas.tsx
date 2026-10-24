@@ -4,7 +4,7 @@ import { vjListen, vjSend } from "./bus";
 
 // Resolve a CSS colour to a packed little-endian RGBA word for ImageData.
 function packed(css: string) {
-  const c = document.createElement("canvas").getContext("2d")!; c.fillStyle = css; c.fillRect(0, 0, 1, 1);
+  const c = document.createElement("canvas").getContext("2d"); if (!c) return 0; c.fillStyle = css; c.fillRect(0, 0, 1, 1);
   const [r, g, b] = c.getImageData(0, 0, 1, 1).data; return (255 << 24 | b << 16 | g << 8 | r) >>> 0;
 }
 

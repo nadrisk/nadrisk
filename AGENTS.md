@@ -28,3 +28,4 @@
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
 - src/hooks and src/audio have scoped AGENTS.md rules; read them before edits.
 - ACID uses clocked pool resets and silent pre-start cancellation to prevent note blips.
+- VJ geometric/vector models provide explicit 3D line segments separately from the polyhedron rasterizer, so recognizable contours do not depend on shaded radial SDF meshes; satellite eligibility is model-specific.
