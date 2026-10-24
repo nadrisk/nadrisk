@@ -1,6 +1,7 @@
 // 1-bit software 3D renderer: one morphing polyhedron, flat-lit and Bayer-dithered into two theme colours.
 import type { VjKind } from "./bus";
-import { SDF_MODELS, radialSample } from "./models";
+import { MODELS, hasSatellites, vectorSegments } from "./models";
+export { MODELS } from "./models";
 
 type V3 = [number, number, number];
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
@@ -42,11 +43,6 @@ const RADII = SOLIDS.map(({ n }) => {
   const mx = Math.max(...r); return r.map(x => x / mx);
 });
 const ORDER = [0, 2, 1, 4, 3, 5]; // octa → cube → tetra → dodeca → icosa → sphere → …
-const SCULPT = new Map(SDF_MODELS.map(m => [m.name, radialSample(cage.v, m.f)]));
-const SPIKE_DIRS: V3[] = [...cage.ico.v, ...SOLIDS[3].n];
-/** Selectable models, cycled with ←/→. POLY and WIRE use the morphing solids; SPIKE grows with the audio. */
-export const MODELS = ["POLY", "SMILEY", "SKULL", "EYE", "SPIKE", "FLOPPY", "PILL", "WIRE", "STATUE"];
-
 const BAYER = (() => { const m = [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25], [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]]; return m.flat().map(x => (x + 0.5) / 64); })();
 
 const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
@@ -78,7 +74,7 @@ export class VjEngine {
 
   /** Step model (±1) and/or size (±1); the previous shape crossfades into the next. */
   ctl(dm: number, ds: number) {
-    if (dm) { this.prevR = this.curR.slice(); this.fade = 0; this.model = (this.model + dm + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
+    if (dm) { this.prevR = this.curR.slice(); this.fade = 0; this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
     if (ds) { this.size = Math.round(Math.max(0.4, Math.min(2.2, this.size + ds * 0.1)) * 10) / 10; this.hudMsg = `SIZE ${Math.round(this.size * 100)}%`; }
     this.hudUntil = this.t + 1.6;
   }
@@ -87,12 +83,8 @@ export class VjEngine {
 
   private radii() {
     const m = MODELS[this.model], i0 = Math.floor(this.morph), f = this.morph - i0, u = f * f * (3 - 2 * f);
-    let r: number[];
-    if (m === "POLY" || m === "WIRE") { const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]]; r = A.map((a, j) => a + (B[j] - a) * u); }
-    else if (m === "SPIKE") {
-      const amt = 0.15 + this.level * 0.5 + this.kick * 0.6 + this.hat * 0.4, ph = this.t * 1.3;
-      r = cage.v.map(d => { let s = 0; for (let k = 0; k < SPIKE_DIRS.length; k++) { const q = SPIKE_DIRS[k], c = d[0] * q[0] + d[1] * q[1] + d[2] * q[2]; if (c > 0.9) s = Math.max(s, ((c - 0.9) * 10) ** 3 * (0.6 + 0.4 * Math.sin(ph + k * 1.7))); } return (0.62 + s * amt) / (0.62 + amt); });
-    } else r = SCULPT.get(m)!;
+    const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]];
+    let r = A.map((a, j) => a + (B[j] - a) * u);
     if (this.prevR && this.fade < 1) { const e = this.fade * this.fade * (3 - 2 * this.fade), P = this.prevR; r = r.map((x, j) => P[j] + (x - P[j]) * e); }
     this.curR = r; return r;
   }
@@ -113,7 +105,8 @@ export class VjEngine {
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
     const W = Math.max(64, Math.floor(cv.clientWidth / px)), H = Math.max(36, Math.floor(cv.clientHeight / px));
     if (W !== this.w || H !== this.h) { this.w = W; this.h = H; this.small.width = W; this.small.height = H; this.img = new ImageData(W, H); this.buf = new Uint32Array(this.img.data.buffer); }
-    const buf = this.buf!, img = this.img!;
+    const buf = this.buf, img = this.img;
+    if (!buf || !img) return;
     buf.fill(this.flash > 0.55 ? fg : bg);
     const inv = this.flash > 0.55;
     const FG = inv ? bg : fg, BG = inv ? fg : bg;
@@ -160,18 +153,37 @@ export class VjEngine {
       for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
     };
 
-    draw(0, 0, 0, scale, 0);
+    const model = MODELS[this.model];
+    if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
+    else {
+      const energy = this.kick + this.snare * .6 + this.tone * .3;
+      const segments = vectorSegments(model, this.t, energy);
+      // The medallion rocks rather than tumbling away from its readable face.
+      const ax = model === "SMILEY" ? Math.sin(this.rx) * .3 : this.rx;
+      const ay = model === "SMILEY" ? Math.sin(this.ry) * .65 : this.ry;
+      const az = model === "SMILEY" ? Math.sin(this.rz) * .15 : this.rz;
+      const sc = scale * (.8 + .2 * this.fade);
+      const project = (p: V3) => {
+        const q = rot(p.map(x => x * sc) as V3, ax, ay, az), z = Math.max(.35, q[2] + camZ);
+        return [cx + q[0] * focal / z, cy - q[1] * focal / z];
+      };
+      for (const [a, b] of segments) line(buf, W, H, project(a), project(b), FG);
+    }
     // Kaleidoscope expansion: mirrored satellites unfold from the core on open hats / percussion.
-    if (this.kal > 0.04) {
+    if (hasSatellites(model) && this.kal > 0.04) {
       const n = 6, rad = 0.4 + this.kal * 1.6, sc = 0.14 + this.kal * 0.22;
       for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2 + this.t * 0.3; draw(Math.cos(a) * rad, Math.sin(a) * rad, 0.3, sc, j % 2 ? Math.PI : 0, 0.5 + this.kal); }
     }
     img.data.set(new Uint8ClampedArray(buf.buffer));
-    this.small.getContext("2d")!.putImageData(img, 0, 0);
+    const smallContext = this.small.getContext("2d");
+    if (!smallContext) return;
+    smallContext.putImageData(img, 0, 0);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
     if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
-    const c = cv.getContext("2d")!; c.imageSmoothingEnabled = false;
+    const c = cv.getContext("2d");
+    if (!c) return;
+    c.imageSmoothingEnabled = false;
     c.drawImage(this.small, 0, 0, W * px * dpr, H * px * dpr);
   }
 }
