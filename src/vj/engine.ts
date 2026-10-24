@@ -1,5 +1,6 @@
 // 1-bit software 3D renderer: one morphing polyhedron, flat-lit and Bayer-dithered into two theme colours.
 import type { VjKind } from "./bus";
+import { SDF_MODELS, radialSample } from "./models";
 
 type V3 = [number, number, number];
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
@@ -9,7 +10,7 @@ const PHI = (1 + Math.sqrt(5)) / 2;
 function icosphere(level: number) {
   const vs: V3[] = [[-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI], [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1]].map(v => norm(v as V3));
   let fs = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
-  const ico = { v: vs.slice(), f: fs.slice() };
+  const ico = { v: vs.slice(), f: fs.slice() }; let f1 = fs;
   for (let l = 0; l < level; l++) {
     const cache = new Map<string, number>(), mid = (a: number, b: number) => {
       const k = a < b ? `${a}_${b}` : `${b}_${a}`; let i = cache.get(k);
@@ -17,11 +18,14 @@ function icosphere(level: number) {
       return i;
     };
     fs = fs.flatMap(([a, b, c]) => { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]; });
+    if (l === 0) f1 = fs;
   }
-  return { v: vs, f: fs, ico };
+  return { v: vs, f: fs, ico, f1 };
 }
 
-const cage = icosphere(3);
+const cage = icosphere(4);
+// Wireframe edges come from the level-1 cage (its 42 vertices are the first 42 of the full cage).
+const EDGES = (() => { const e = new Set<string>(); for (const [a, b, c] of cage.f1) for (const [x, y] of [[a, b], [b, c], [c, a]]) e.add(x < y ? `${x}_${y}` : `${y}_${x}`); return [...e].map(k => k.split("_").map(Number)); })();
 const signs = (n: number) => Array.from({ length: 1 << n }, (_, m) => Array.from({ length: n }, (_, k) => (m >> k) & 1 ? -1 : 1));
 // Each solid = its face normals. Radius along a direction d is 1 / max(n·d), rescaled so every solid has unit circumradius.
 const SOLIDS: { name: string; n: V3[] }[] = [
@@ -38,6 +42,10 @@ const RADII = SOLIDS.map(({ n }) => {
   const mx = Math.max(...r); return r.map(x => x / mx);
 });
 const ORDER = [0, 2, 1, 4, 3, 5]; // octa → cube → tetra → dodeca → icosa → sphere → …
+const SCULPT = new Map(SDF_MODELS.map(m => [m.name, radialSample(cage.v, m.f)]));
+const SPIKE_DIRS: V3[] = [...cage.ico.v, ...SOLIDS[3].n];
+/** Selectable models, cycled with ←/→. POLY and WIRE use the morphing solids; SPIKE grows with the audio. */
+export const MODELS = ["POLY", "SMILEY", "SKULL", "EYE", "SPIKE", "FLOPPY", "PILL", "WIRE", "STATUE"];
 
 const BAYER = (() => { const m = [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25], [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]]; return m.flat().map(x => (x + 0.5) / 64); })();
 
@@ -53,7 +61,8 @@ export class VjEngine {
   // Ambient state (always moving) plus decaying audio envelopes.
   t = 0; morph = 0; rx = 0; ry = 0; rz = 0; env = 0; lightA = 0;
   kick = 0; snare = 0; hat = 0; kal = 0; tone = 0; level = 0; flash = 0; spinX = 0; spinY = 0; envSpin = 0;
-  last = "";
+  last = ""; model = 0; size = 1; fade = 1; hudUntil = 0; hudMsg = "";
+  private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
 
@@ -67,7 +76,27 @@ export class VjEngine {
     else { this.tone = Math.max(this.tone, v); this.morph += 0.18 * v; }
   }
 
-  shapeName() { const i = Math.floor(this.morph); return `${SOLIDS[ORDER[i % 6]].name}>${SOLIDS[ORDER[(i + 1) % 6]].name}`; }
+  /** Step model (±1) and/or size (±1); the previous shape crossfades into the next. */
+  ctl(dm: number, ds: number) {
+    if (dm) { this.prevR = this.curR.slice(); this.fade = 0; this.model = (this.model + dm + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
+    if (ds) { this.size = Math.round(Math.max(0.4, Math.min(2.2, this.size + ds * 0.1)) * 10) / 10; this.hudMsg = `SIZE ${Math.round(this.size * 100)}%`; }
+    this.hudUntil = this.t + 1.6;
+  }
+
+  shapeName() { const m = MODELS[this.model]; if (m !== "POLY" && m !== "WIRE") return m; const i = Math.floor(this.morph); return `${m} ${SOLIDS[ORDER[i % 6]].name}>${SOLIDS[ORDER[(i + 1) % 6]].name}`; }
+
+  private radii() {
+    const m = MODELS[this.model], i0 = Math.floor(this.morph), f = this.morph - i0, u = f * f * (3 - 2 * f);
+    let r: number[];
+    if (m === "POLY" || m === "WIRE") { const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]]; r = A.map((a, j) => a + (B[j] - a) * u); }
+    else if (m === "SPIKE") {
+      const amt = 0.15 + this.level * 0.5 + this.kick * 0.6 + this.hat * 0.4, ph = this.t * 1.3;
+      r = cage.v.map(d => { let s = 0; for (let k = 0; k < SPIKE_DIRS.length; k++) { const q = SPIKE_DIRS[k], c = d[0] * q[0] + d[1] * q[1] + d[2] * q[2]; if (c > 0.9) s = Math.max(s, ((c - 0.9) * 10) ** 3 * (0.6 + 0.4 * Math.sin(ph + k * 1.7))); } return (0.62 + s * amt) / (0.62 + amt); });
+    } else r = SCULPT.get(m)!;
+    if (this.prevR && this.fade < 1) { const e = this.fade * this.fade * (3 - 2 * this.fade), P = this.prevR; r = r.map((x, j) => P[j] + (x - P[j]) * e); }
+    this.curR = r; return r;
+  }
+
 
   frame(cv: HTMLCanvasElement, fg: number, bg: number, dt: number) {
     dt = Math.min(dt, 0.05); this.t += dt;
@@ -79,7 +108,7 @@ export class VjEngine {
     this.spinX -= sx; this.spinY -= sy; this.envSpin -= se;
     this.rx += dt * (0.21 + this.level * 0.4) + sx; this.ry += dt * (0.34 + this.level * 0.6) + sy; this.rz += dt * 0.13;
     this.env += dt * 0.03 + se; this.lightA += dt * 0.25;
-    this.morph += dt * 0.06;
+    this.morph += dt * 0.06; this.fade = Math.min(1, this.fade + dt * 2.2);
 
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
     const W = Math.max(64, Math.floor(cv.clientWidth / px)), H = Math.max(36, Math.floor(cv.clientHeight / px));
@@ -101,15 +130,19 @@ export class VjEngine {
     }
 
     // Morph radii between two consecutive solids with a smoothstep.
-    const i0 = Math.floor(this.morph), f = this.morph - i0, u = f * f * (3 - 2 * f);
-    const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]];
-    const scale = 1 + this.kick * 0.12 + this.level * 0.08;
+    const R = this.radii(), wire = MODELS[this.model] === "WIRE";
+    const scale = (1 + this.kick * 0.12 + this.level * 0.08) * this.size;
     const light = norm([Math.cos(this.lightA) * 0.9, 0.55 + Math.sin(this.lightA * 0.7) * 0.3, -0.8]);
     const amb = 0.04 + this.level * 0.06, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
     const explode = this.snare * 0.35 + this.kal * 0.12;
 
     const draw = (ox: number, oy: number, oz: number, sc: number, extraY: number, thresh = 1) => {
-      const P = cage.v.map((d, j) => { const r = (A[j] + (B[j] - A[j]) * u) * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
+      const P = cage.v.map((d, j) => { const r = R[j] * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
+      if (wire) {
+        const S = P.slice(0, 42).map(q => { const z = q[2] + oz + camZ; return [cx + (q[0] + ox) * focal / z, cy - (q[1] + oy) * focal / z]; });
+        for (const [a, b] of EDGES) line(buf, W, H, S[a], S[b], FG);
+        return;
+      }
       const faces: { z: number; p: number[][]; shade: number }[] = [];
       for (const [a, b, c] of cage.f) {
         const pa = P[a], pb = P[b], pc = P[c];
@@ -154,4 +187,10 @@ function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: numbe
     const row = y * W, br = (y & 7) * 8;
     for (let x = l; x <= r; x++) buf[row + x] = shade > BAYER[br + (x & 7)] ? FG : BG;
   }
+}
+
+function line(buf: Uint32Array, W: number, H: number, a: number[], b: number[], c: number) {
+  const n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))) + 1;
+  if (n > 4000) return;
+  for (let i = 0; i <= n; i++) { const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c; }
 }
