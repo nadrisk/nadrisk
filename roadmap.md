@@ -1,5 +1,10 @@
 # Roadmap
 
+## Optical VJ fields (2026-10-25)
+- [ ] Add six restrained model-specific optical fields and structural drum/tone deformation
+- [ ] Connect live output waveform and tempo phase without changing audible routing
+- [ ] Test geometry/routing and verify real pad reactions in the VJ window
+
 ## Sharp VJ models (2026-10-24)
 - [x] Keep POLY/WIRE; replace radial sculpts with TESSERACT, KNOT, STELLA and vector SMILEY
 - [x] Restrict orbiting satellites to POLY; test model switching and real object scaling
