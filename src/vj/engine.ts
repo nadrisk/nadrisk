@@ -1,6 +1,7 @@
 // 1-bit software 3D renderer: one morphing polyhedron, flat-lit and Bayer-dithered into two theme colours.
 import type { VjKind } from "./bus";
-import { MODELS, hasSatellites, vectorSegments } from "./models";
+import { MODELS, hasSatellites, vectorSegments, wireRadius, type Reaction, type Segment } from "./models";
+import { opticalField } from "./fields";
 export { MODELS } from "./models";
 
 type V3 = [number, number, number];
@@ -58,18 +59,32 @@ export class VjEngine {
   t = 0; morph = 0; rx = 0; ry = 0; rz = 0; env = 0; lightA = 0;
   kick = 0; snare = 0; hat = 0; kal = 0; tone = 0; level = 0; flash = 0; spinX = 0; spinY = 0; envSpin = 0;
   last = ""; model = 0; size = 1; fade = 1; hudUntil = 0; hudMsg = "";
+  beat = 0; bpm = 120; running = false; snap = 0; wave: number[] = [];
+  private signalUntil = 0;
+  private invertPending = false; private lastInvert = -10;
   private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
+
+  signal(wave: readonly number[], beat: number, bpm: number, running: boolean) {
+    this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
+    if (Number.isFinite(beat)) this.beat = Math.max(0, beat);
+    if (Number.isFinite(bpm)) this.bpm = Math.max(30, Math.min(300, bpm));
+    this.running = running; this.signalUntil = this.t + .3;
+  }
+
+  reaction(): Reaction { return { kick: this.kick, snare: this.snare, hat: this.hat, perc: this.kal, tone: this.tone, snap: this.snap }; }
 
   hit(kind: VjKind, vel: number) {
     const v = Number.isFinite(vel) ? Math.max(0.2, Math.min(1, vel)) : 1;
     this.last = kind.toUpperCase();
     if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; }
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
     else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
     else if (kind === "open" || kind === "perc") { this.kal = Math.max(this.kal, v); this.spinY += 0.6 * v; }
     else { this.tone = Math.max(this.tone, v); this.morph += 0.18 * v; }
+    // A local, one-frame optical accent; never a sustained full-screen strobe.
+    if (kind === "snare" && v >= .95 && this.t - this.lastInvert > .8) { this.invertPending = true; this.lastInvert = this.t; }
   }
 
   /** Step model (±1) and/or size (±1); the previous shape crossfades into the next. */
@@ -92,13 +107,18 @@ export class VjEngine {
 
   frame(cv: HTMLCanvasElement, fg: number, bg: number, dt: number) {
     dt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.05)) : 0; this.t += dt;
+    if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
+    else if (this.t >= this.signalUntil) this.running = false;
+    if (this.t >= this.signalUntil) this.wave = [];
+    const phase = this.running ? Math.floor(this.beat * 16) / 16 : this.t * this.bpm / 60;
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.kal *= k(1.6); this.tone *= k(2); this.flash *= k(18);
     // Continuous motion: slow irrational tumbling, morph always drifting, impulses eased in.
     const ease = 1 - k(6);
     const sx = this.spinX * ease, sy = this.spinY * ease, se = this.envSpin * ease;
     this.spinX -= sx; this.spinY -= sy; this.envSpin -= se;
-    this.rx += dt * (0.21 + this.level * 0.4) + sx; this.ry += dt * (0.34 + this.level * 0.6) + sy; this.rz += dt * 0.13;
+    const tempo = this.bpm / 120;
+    this.rx += dt * tempo * (0.21 + this.level * 0.4) + sx; this.ry += dt * tempo * (0.34 + this.level * 0.6) + sy; this.rz += dt * tempo * 0.13;
     this.env += dt * 0.03 + se; this.lightA += dt * 0.25;
     this.morph += dt * 0.06; this.fade = Math.min(1, this.fade + dt * 2.2);
 
@@ -107,15 +127,14 @@ export class VjEngine {
     if (W !== this.w || H !== this.h) { this.w = W; this.h = H; this.small.width = W; this.small.height = H; this.img = new ImageData(W, H); this.buf = new Uint32Array(this.img.data.buffer); }
     const buf = this.buf, img = this.img;
     if (!buf || !img) return;
-    buf.fill(this.flash > 0.55 ? fg : bg);
-    const inv = this.flash > 0.55;
-    const FG = inv ? bg : fg, BG = inv ? fg : bg;
+    buf.fill(bg);
+    const FG = fg, BG = bg;
 
     const cx = W / 2, cy = H / 2, focal = H * 1.1;
     const camZ = 3.4 - this.kick * 0.9 - Math.sin(this.t * 0.11) * 0.5;
 
     // Environment: a slowly rotating field of points around the camera.
-    for (const s of STARS) {
+    for (const s of MODELS[this.model] === "POLY" ? STARS : []) {
       const p = rot(s, this.env * 0.7, this.env, 0.2), z = p[2] * 6 + camZ;
       if (z < 0.5) continue;
       const x = Math.round(cx + p[0] * 6 * focal / z), y = Math.round(cy + p[1] * 6 * focal / z);
@@ -128,9 +147,22 @@ export class VjEngine {
     const light = norm([Math.cos(this.lightA) * 0.9, 0.55 + Math.sin(this.lightA * 0.7) * 0.3, -0.8]);
     const amb = 0.04 + this.level * 0.06, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
     const explode = this.snare * 0.35 + this.kal * 0.12;
+    const audio = this.reaction();
+    const model = MODELS[this.model];
+    const field = opticalField(model, phase, audio, this.wave);
+    const drawField = (segments: Segment[]) => {
+      const project = (p: V3) => {
+        // Measurement planes keep their own gentle drift rather than obscuring the object with its tumble.
+        const q = rot(p.map(x => x * scale) as V3, Math.sin(phase * .04) * .12, Math.sin(phase * .03) * .2, 0);
+        const z = Math.max(.5, q[2] + camZ);
+        return [cx + q[0] * focal / z, cy - q[1] * focal / z];
+      };
+      for (const [a, b] of segments) line(buf, W, H, project(a), project(b), FG);
+    };
+    drawField(field.back);
 
     const draw = (ox: number, oy: number, oz: number, sc: number, extraY: number, thresh = 1) => {
-      const P = cage.v.map((d, j) => { const r = R[j] * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
+      const P = cage.v.map((d, j) => { const r = (wire ? wireRadius(R[j], d, audio) : R[j]) * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
       if (wire) {
         const S = P.slice(0, 42).map(q => { const z = q[2] + oz + camZ; return [cx + (q[0] + ox) * focal / z, cy - (q[1] + oy) * focal / z]; });
         for (const [a, b] of EDGES) line(buf, W, H, S[a], S[b], FG);
@@ -153,11 +185,10 @@ export class VjEngine {
       for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
     };
 
-    const model = MODELS[this.model];
     if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
     else {
       const energy = this.kick + this.snare * .6 + this.tone * .3;
-      const segments = vectorSegments(model, this.t, energy);
+      const segments = vectorSegments(model, phase, energy, audio);
       // The medallion rocks rather than tumbling away from its readable face.
       const ax = model === "SMILEY" ? Math.sin(this.rx) * .3 : this.rx;
       const ay = model === "SMILEY" ? Math.sin(this.ry) * .65 : this.ry;
@@ -173,6 +204,16 @@ export class VjEngine {
     if (hasSatellites(model) && this.kal > 0.04) {
       const n = 6, rad = 0.4 + this.kal * 1.6, sc = 0.14 + this.kal * 0.22;
       for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2 + this.t * 0.3; draw(Math.cos(a) * rad, Math.sin(a) * rad, 0.3, sc, j % 2 ? Math.PI : 0, 0.5 + this.kal); }
+    }
+    drawField(field.front);
+    if (this.invertPending) {
+      const quadrant = Math.floor(phase) % 4, left = quadrant % 2 === 0 ? 0 : Math.floor(W / 2), top = quadrant < 2 ? 0 : Math.floor(H / 2);
+      // Only invert a narrow edge band, preserving the central contour and negative space.
+      const endX = left + Math.floor(W / 2), endY = top + Math.floor(H / 2), band = Math.max(1, Math.floor(H / 90));
+      for (let y = top; y < endY; y++) for (let x = left; x < endX; x++) {
+        if (x - left < band || endX - x <= band || y - top < band || endY - y <= band) buf[y * W + x] = buf[y * W + x] === FG ? BG : FG;
+      }
+      this.invertPending = false;
     }
     img.data.set(new Uint8ClampedArray(buf.buffer));
     const smallContext = this.small.getContext("2d");

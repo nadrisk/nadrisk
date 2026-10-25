@@ -13,7 +13,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const eng = new VjEngine();
-    const off = vjListen(m => { if (m.t === "hit") eng.hit(m.kind, m.vel); else if (m.t === "level") eng.level += (m.v - eng.level) * 0.5; else if (m.t === "ctl") eng.ctl(m.model, m.size); });
+    const off = vjListen(m => { if (m.t === "hit") eng.hit(m.kind, m.vel); else if (m.t === "level") eng.level += (m.v - eng.level) * 0.5; else if (m.t === "signal") eng.signal(m.wave, m.beat, m.bpm, m.running); else if (m.t === "ctl") eng.ctl(m.model, m.size); });
     // ←/→ switch model, ↑/↓ resize it; broadcast so the TV window and the overlay stay in step.
     const key = (e: KeyboardEvent) => {
       const dm = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0, ds = e.key === "ArrowUp" ? 1 : e.key === "ArrowDown" ? -1 : 0;

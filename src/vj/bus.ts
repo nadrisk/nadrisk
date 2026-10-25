@@ -1,6 +1,6 @@
 // Groovebox → VJ event bus. Same-window listeners plus a BroadcastChannel so a pop-out window on a TV gets every hit.
 export type VjKind = "kick" | "snare" | "hat" | "open" | "perc" | "tone";
-export type VjMsg = { t: "hit"; kind: VjKind; vel: number } | { t: "level"; v: number } | { t: "theme"; theme: string } | { t: "hello" } | { t: "ctl"; model: number; size: number };
+export type VjMsg = { t: "hit"; kind: VjKind; vel: number } | { t: "level"; v: number } | { t: "signal"; wave: number[]; beat: number; bpm: number; running: boolean } | { t: "theme"; theme: string } | { t: "hello" } | { t: "ctl"; model: number; size: number };
 
 const ch = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("nad-vj") : null;
 const subs = new Set<(m: VjMsg) => void>();

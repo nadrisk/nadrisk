@@ -526,6 +526,20 @@ export function useGroovebox() {
     setFxEco(eco); Tone.getContext().lookAhead = 0.1;
     const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s));
   }, [eco]);
+  useEffect(() => {
+    // Read the existing silent final-output tap; no React updates or extra audio nodes.
+    const id = window.setInterval(() => {
+      const e = engine.current; if (!e) return;
+      const values = e.analyser.getValue();
+      const data = values instanceof Float32Array ? values : values[0];
+      if (!data?.length) return;
+      const wave = Array.from({ length: 128 }, (_, i) => data[Math.floor(i * data.length / 128)] ?? 0);
+      const running = Tone.getTransport().state === "started", tick = lastTick.current;
+      const beat = running && tick ? Math.max(0, tick.tick / 4 + (e.ctx.currentTime - tick.time) * bpmRef.current / 60) : 0;
+      vjSend({ t: "signal", wave, beat, bpm: bpmRef.current, running });
+    }, 50);
+    return () => window.clearInterval(id);
+  }, []);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
     t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
