@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { hasSatellites, MODELS, vectorSegments } from "./models";
 import { VjEngine } from "./engine";
 
@@ -31,5 +31,10 @@ describe("VJ model routing", () => {
       expect(segments.flat(2).every(Number.isFinite)).toBe(true);
     }
     expect(vectorSegments("TESSERACT", 0, 0)).not.toEqual(vectorSegments("TESSERACT", 0, 1));
+  });
+  it("keeps morph state finite if a live event has no valid velocity", () => {
+    const engine = new VjEngine();
+    engine.hit("tone", Number.NaN);
+    expect(engine.morph).toBe(.18);
   });
 });

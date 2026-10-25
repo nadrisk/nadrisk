@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Sharp VJ models (2026-10-24)
-- [ ] Keep POLY/WIRE; replace radial sculpts with TESSERACT, KNOT, STELLA and vector SMILEY
-- [ ] Restrict orbiting satellites to POLY; test model switching and real object scaling
-- [ ] Verify desktop and phone rendering plus audio-event reactions
+- [x] Keep POLY/WIRE; replace radial sculpts with TESSERACT, KNOT, STELLA and vector SMILEY
+- [x] Restrict orbiting satellites to POLY; test model switching and real object scaling
+- [x] Verify desktop and phone-sized rendering plus real kick-pad event reactions; five regression tests pass
 
 ## Recording and input fixes (2026-10-18)
 - [x] Preserve tape recording across Devices / SEQ / PERF and utility switches; browser capture survives switching and WAV remains available
