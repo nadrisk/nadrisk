@@ -32,4 +32,9 @@ describe("VJ model routing", () => {
     }
     expect(vectorSegments("TESSERACT", 0, 0)).not.toEqual(vectorSegments("TESSERACT", 0, 1));
   });
+  it("keeps morph state finite if a live event has no valid velocity", () => {
+    const engine = new VjEngine();
+    engine.hit("tone", Number.NaN);
+    expect(engine.morph).toBe(.18);
+  });
 });

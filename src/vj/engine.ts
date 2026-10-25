@@ -63,7 +63,7 @@ export class VjEngine {
   private small = document.createElement("canvas");
 
   hit(kind: VjKind, vel: number) {
-    const v = Math.max(0.2, Math.min(1, vel));
+    const v = Number.isFinite(vel) ? Math.max(0.2, Math.min(1, vel)) : 1;
     this.last = kind.toUpperCase();
     if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; }
@@ -91,7 +91,7 @@ export class VjEngine {
 
 
   frame(cv: HTMLCanvasElement, fg: number, bg: number, dt: number) {
-    dt = Math.min(dt, 0.05); this.t += dt;
+    dt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.05)) : 0; this.t += dt;
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.kal *= k(1.6); this.tone *= k(2); this.flash *= k(18);
     // Continuous motion: slow irrational tumbling, morph always drifting, impulses eased in.
