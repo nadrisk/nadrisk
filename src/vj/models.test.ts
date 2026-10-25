@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { hasSatellites, MODELS, vectorSegments } from "./models";
 import { VjEngine } from "./engine";
 

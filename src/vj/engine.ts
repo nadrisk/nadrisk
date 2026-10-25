@@ -124,7 +124,7 @@ export class VjEngine {
 
     // Morph radii between two consecutive solids with a smoothstep.
     const R = this.radii(), wire = MODELS[this.model] === "WIRE";
-    const scale = (1 + this.kick * 0.12 + this.level * 0.08) * this.size;
+    const scale = (1 + this.kick * 0.12 + this.level * 0.08) * this.size * Math.min(1, W / H);
     const light = norm([Math.cos(this.lightA) * 0.9, 0.55 + Math.sin(this.lightA * 0.7) * 0.3, -0.8]);
     const amb = 0.04 + this.level * 0.06, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
     const explode = this.snare * 0.35 + this.kal * 0.12;
