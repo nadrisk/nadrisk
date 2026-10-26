@@ -230,7 +230,6 @@ export function useGroovebox() {
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
-    { const kind = vjKindOf(detectRole(s), s.engine); window.setTimeout(() => vjSend({ t: "hit", kind, vel }), Math.max(0, (t0 - e.ctx.currentTime) * 1000)); }
     let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) ? chordNotes(s.chord) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
@@ -285,6 +284,17 @@ export function useGroovebox() {
       const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
       const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
+      const role = detectRole(s), kind = vjKindOf(role, s.engine);
+      // Match the booked voice attack, including chord voicing/strum; cancelled future notes never reach the visual.
+      const sendHit = (when: number, playedNotes: number[]) => {
+        window.setTimeout(() => {
+          if (engine.current !== e || e.ctx.state !== "running") return;
+          if (when > t0 && !booked.current[i].some(b => Math.abs(b.at - t) < .001) && e.ctx.currentTime < when - .01) return;
+          vjSend({ t: "hit", kind, vel, pad: { index: i, name: s.name, engine: s.engine, role, notes: playedNotes } });
+        }, Math.max(0, (when - e.ctx.currentTime) * 1000));
+      };
+      if (strum) ns.forEach((offset, k) => sendHit(at(k), [pitch + offset]));
+      else sendHit(t, s.engine === "drum" ? [] : ns.map(offset => pitch + offset));
       // Simpler THRU: a slice plays on to the region end; only the next slice, pad lift or STOP cuts it.
       const thru = (frac: number) => { const sm = s.sampler, reg = Math.max(.01, ((sm.end ?? 1) - sm.start) * raw.duration);
         const len = sm.warp ? breakTiming(sm, raw.duration, bpmRef.current).seconds : reg / 2 ** (sp / 12); return Math.max(gate, (1 - frac) * len - .01); };
@@ -536,7 +546,11 @@ export function useGroovebox() {
       const wave = Array.from({ length: 128 }, (_, i) => data[Math.floor(i * data.length / 128)] ?? 0);
       const running = Tone.getTransport().state === "started", tick = lastTick.current;
       const beat = running && tick ? Math.max(0, tick.tick / 4 + (e.ctx.currentTime - tick.time) * bpmRef.current / 60) : 0;
-      vjSend({ t: "signal", wave, beat, bpm: bpmRef.current, running });
+      let peak = 0, square = 0;
+      for (const value of data) { peak = Math.max(peak, Math.abs(value)); square += value * value; }
+      const activeBank = banksRef.current[bankRef.current];
+      const step = running ? Math.floor(beat * 4) % (activeBank?.steps ?? 16) : 0;
+      vjSend({ t: "signal", wave, beat, bpm: bpmRef.current, running, peak, rms: Math.sqrt(square / data.length), step, bank: String.fromCharCode(65 + bankRef.current) });
     }, 50);
     return () => window.clearInterval(id);
   }, []);

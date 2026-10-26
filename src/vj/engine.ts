@@ -1,5 +1,8 @@
 // 1-bit software 3D renderer: one morphing polyhedron, flat-lit and Bayer-dithered into two theme colours.
-import type { VjKind } from "./bus";
+import type { VjKind, VjPad } from "./bus";
+import type { VjCamera } from "./camera";
+import { BAYER, ditherCamera } from "./raster";
+import { cameraHud } from "./cameraHud";
 import { MODELS, hasSatellites, vectorSegments, wireRadius, type Reaction, type Segment } from "./models";
 import { opticalField } from "./fields";
 export { MODELS } from "./models";
@@ -44,7 +47,6 @@ const RADII = SOLIDS.map(({ n }) => {
   const mx = Math.max(...r); return r.map(x => x / mx);
 });
 const ORDER = [0, 2, 1, 4, 3, 5]; // octa → cube → tetra → dodeca → icosa → sphere → …
-const BAYER = (() => { const m = [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25], [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]]; return m.flat().map(x => (x + 0.5) / 64); })();
 
 const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
 
@@ -60,24 +62,32 @@ export class VjEngine {
   kick = 0; snare = 0; hat = 0; kal = 0; tone = 0; level = 0; flash = 0; spinX = 0; spinY = 0; envSpin = 0;
   last = ""; model = 0; size = 1; fade = 1; hudUntil = 0; hudMsg = "";
   beat = 0; bpm = 120; running = false; snap = 0; wave: number[] = [];
+  pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
+  camera?: VjCamera;
+  private cameraCanvas = document.createElement("canvas");
   private signalUntil = 0;
   private invertPending = false; private lastInvert = -10;
   private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
 
-  signal(wave: readonly number[], beat: number, bpm: number, running: boolean) {
+  signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
     if (Number.isFinite(beat)) this.beat = Math.max(0, beat);
     if (Number.isFinite(bpm)) this.bpm = Math.max(30, Math.min(300, bpm));
     this.running = running; this.signalUntil = this.t + .3;
+    this.peak = Number.isFinite(peak) ? Math.max(0, peak) : 0;
+    this.rms = Number.isFinite(rms) ? Math.max(0, rms) : 0;
+    this.step = Number.isFinite(step) ? Math.max(0, Math.floor(step)) : 0; this.bank = bank;
   }
 
   reaction(): Reaction { return { kick: this.kick, snare: this.snare, hat: this.hat, perc: this.kal, tone: this.tone, snap: this.snap }; }
 
-  hit(kind: VjKind, vel: number) {
+  hit(kind: VjKind, vel: number, pad?: VjPad) {
     const v = Number.isFinite(vel) ? Math.max(0.2, Math.min(1, vel)) : 1;
     this.last = kind.toUpperCase();
+    this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
+    if (pad) this.pad = pad;
     if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
     else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
@@ -109,7 +119,7 @@ export class VjEngine {
     dt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.05)) : 0; this.t += dt;
     if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
     else if (this.t >= this.signalUntil) this.running = false;
-    if (this.t >= this.signalUntil) this.wave = [];
+    if (this.t >= this.signalUntil) { this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const phase = this.running ? Math.floor(this.beat * 16) / 16 : this.t * this.bpm / 60;
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.kal *= k(1.6); this.tone *= k(2); this.flash *= k(18);
@@ -130,6 +140,23 @@ export class VjEngine {
     buf.fill(bg);
     const FG = fg, BG = bg;
 
+    if (MODELS[this.model] === "CAM") {
+      const camera = this.camera, video = camera?.video;
+      if (camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0) {
+        if (this.cameraCanvas.width !== W || this.cameraCanvas.height !== H) { this.cameraCanvas.width = W; this.cameraCanvas.height = H; }
+        const context = this.cameraCanvas.getContext("2d", { willReadFrequently: true });
+        if (context) {
+          context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, W, H);
+          const cover = Math.max(W / video.videoWidth, H / video.videoHeight) * this.size;
+          const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
+          context.translate(W, 0); context.scale(-1, 1);
+          context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
+          ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
+        }
+      }
+      cameraHud(buf, W, H, FG, BG, { pad: this.pad, vel: this.velocity, bpm: this.bpm, beat: this.beat, step: this.step, bank: this.bank, running: this.running, peak: this.peak, rms: this.rms, size: this.size, theme: this.theme, status: camera?.status ?? "off" });
+      this.invertPending = false;
+    } else {
     const cx = W / 2, cy = H / 2, focal = H * 1.1;
     const camZ = 3.4 - this.kick * 0.9 - Math.sin(this.t * 0.11) * 0.5;
 
@@ -216,6 +243,7 @@ export class VjEngine {
       }
       this.invertPending = false;
     }
+    }
     img.data.set(new Uint8ClampedArray(buf.buffer));
     const smallContext = this.small.getContext("2d");
     if (!smallContext) return;
@@ -226,7 +254,7 @@ export class VjEngine {
     const c = cv.getContext("2d");
     if (!c) return;
     c.imageSmoothingEnabled = false;
-    c.drawImage(this.small, 0, 0, W * px * dpr, H * px * dpr);
+    c.drawImage(this.small, 0, 0, tw, th);
   }
 }
 

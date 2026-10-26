@@ -29,3 +29,4 @@
 - src/hooks and src/audio have scoped AGENTS.md rules; read them before edits.
 - ACID uses clocked pool resets and silent pre-start cancellation to prevent note blips.
 - VJ models and optical fields use separate explicit 3D segments with shared transient envelopes; back/front fields preserve readable contours, and satellite eligibility is model-specific. Reuse the silent final-output analyser for a bounded 20 Hz waveform/transport bus, never React audio-frame state or new audible routing.
+- CAM owns a local video-only stream with generation-guarded cleanup on model exit, hidden page and unmount; rasterize camera and telemetry into the shared two-colour buffer, while theme changes update colours without reopening hardware.
