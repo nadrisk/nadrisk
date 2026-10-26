@@ -5,13 +5,13 @@ import { VjEngine } from "./engine";
 describe("VJ model routing", () => {
   it("allows the six orbiting satellites only on the first base POLY model", () => {
     expect(hasSatellites("POLY")).toBe(true);
-    for (const name of ["WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY"]) expect(hasSatellites(name)).toBe(false);
+    for (const name of ["WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY", "CAM"]) expect(hasSatellites(name)).toBe(false);
   });
   it("cycles the sharp model roster in both directions", () => {
     const engine = new VjEngine();
-    expect(MODELS).toEqual(["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY"]);
+    expect(MODELS).toEqual(["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY", "CAM"]);
     engine.ctl(-1, 0);
-    expect(engine.shapeName()).toBe("SMILEY");
+    expect(engine.shapeName()).toBe("CAM");
     engine.ctl(1, 0);
     expect(engine.model).toBe(0);
     for (let i = 1; i < MODELS.length; i++) { engine.ctl(1, 0); expect(engine.shapeName().startsWith(MODELS[i])).toBe(true); }
