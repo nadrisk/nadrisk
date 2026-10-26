@@ -5,11 +5,11 @@ import { VjEngine } from "./engine";
 describe("VJ model routing", () => {
   it("allows the six orbiting satellites only on the first base POLY model", () => {
     expect(hasSatellites("POLY")).toBe(true);
-    for (const name of ["WIRE", "TESSERACT", "KNOT", "STELLA", "SMILEY"]) expect(hasSatellites(name)).toBe(false);
+    for (const name of ["WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY"]) expect(hasSatellites(name)).toBe(false);
   });
   it("cycles the sharp model roster in both directions", () => {
     const engine = new VjEngine();
-    expect(MODELS).toEqual(["POLY", "WIRE", "TESSERACT", "KNOT", "STELLA", "SMILEY"]);
+    expect(MODELS).toEqual(["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY"]);
     engine.ctl(-1, 0);
     expect(engine.shapeName()).toBe("SMILEY");
     engine.ctl(1, 0);
@@ -25,7 +25,7 @@ describe("VJ model routing", () => {
     expect(engine.size).toBe(1);
   });
   it("produces finite distinct geometry for every vector model", () => {
-    for (const name of ["TESSERACT", "KNOT", "STELLA", "SMILEY"]) {
+    for (const name of ["TESSERACT", "EYE", "STELLA", "SMILEY"]) {
       const segments = vectorSegments(name, 3, .8);
       expect(segments.length).toBeGreaterThan(10);
       expect(segments.flat(2).every(Number.isFinite)).toBe(true);

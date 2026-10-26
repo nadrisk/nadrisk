@@ -190,9 +190,10 @@ export class VjEngine {
       const energy = this.kick + this.snare * .6 + this.tone * .3;
       const segments = vectorSegments(model, phase, energy, audio);
       // The medallion rocks rather than tumbling away from its readable face.
-      const ax = model === "SMILEY" ? Math.sin(this.rx) * .3 : this.rx;
-      const ay = model === "SMILEY" ? Math.sin(this.ry) * .65 : this.ry;
-      const az = model === "SMILEY" ? Math.sin(this.rz) * .15 : this.rz;
+      const face = model === "SMILEY" || model === "EYE";
+      const ax = face ? Math.sin(this.rx) * .3 : this.rx;
+      const ay = face ? Math.sin(this.ry) * .65 : this.ry;
+      const az = face ? Math.sin(this.rz) * .15 : this.rz;
       const sc = scale * (.8 + .2 * this.fade);
       const project = (p: V3) => {
         const q = rot(p.map(x => x * sc) as V3, ax, ay, az), z = Math.max(.35, q[2] + camZ);

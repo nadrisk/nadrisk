@@ -4,17 +4,17 @@ import { MODELS, quietReaction, vectorSegments, wireRadius } from "./models";
 import { VjEngine } from "./engine";
 
 describe("Optical VJ fields", () => {
-  it("gives all six models distinct finite back/front measurement fields", () => {
-    const fields = MODELS.map(model => opticalField(model, 2));
-    expect(new Set(fields.map(field => JSON.stringify(field))).size).toBe(6);
+  it("leaves POLY and WIRE unframed and gives the other models distinct finite fields", () => {
+    for (const model of ["POLY", "WIRE"]) expect(opticalField(model, 2)).toEqual({ back: [], front: [] });
+    const fields = MODELS.slice(2).map(model => opticalField(model, 2));
+    expect(new Set(fields.map(field => JSON.stringify(field))).size).toBe(4);
     for (const field of fields) {
-      expect(field.back.length).toBeGreaterThan(0);
-      expect(field.front.length).toBeGreaterThan(0);
+      expect(field.back.length + field.front.length).toBeGreaterThan(0);
       expect([...field.back, ...field.front].flat(2).every(Number.isFinite)).toBe(true);
     }
   });
   it("drum transients structurally deform each vector model", () => {
-    for (const model of ["TESSERACT", "KNOT", "STELLA", "SMILEY"]) {
+    for (const model of ["TESSERACT", "EYE", "STELLA", "SMILEY"]) {
       const quiet = vectorSegments(model, 2, 0);
       expect(vectorSegments(model, 2, 0, { ...quietReaction, kick: 1 })).not.toEqual(quiet);
       expect(vectorSegments(model, 2, 0, { ...quietReaction, snare: 1, snap: Math.PI / 2 })).not.toEqual(quiet);
@@ -25,11 +25,11 @@ describe("Optical VJ fields", () => {
     expect(wireRadius(.8, [1, 0, 0], { ...quietReaction, kick: 1 })).toBeCloseTo(.992);
     expect(wireRadius(.8, [1, 0, 0], { ...quietReaction, snare: 1 })).toBeGreaterThan(.8);
   });
-  it("knot cylinder traces the actual waveform, not a simulated oscillator", () => {
-    const silent = opticalField("KNOT", 0, quietReaction, [0, 0, 0, 0]);
-    const live = opticalField("KNOT", 0, quietReaction, [.8, -.8, .8, -.8]);
+  it("eye orbit ring traces the actual waveform, not a simulated oscillator", () => {
+    const silent = opticalField("EYE", 0, quietReaction, [0, 0, 0, 0]);
+    const live = opticalField("EYE", 0, quietReaction, [.8, -.8, .8, -.8]);
     expect(live).not.toEqual(silent);
-    expect(opticalField("KNOT", 0)).toEqual(silent);
+    expect(opticalField("EYE", 0)).toEqual(silent);
   });
   it("snap rotates the fourth dimension by ninety degrees on snares", () => {
     const engine = new VjEngine();
