@@ -1,7 +1,7 @@
 // Explicit vector contours retain recognizable silhouettes in the two-colour renderer.
 export type V3 = [number, number, number];
 export type Segment = [V3, V3];
-export const MODELS = ["POLY", "WIRE", "TESSERACT", "KNOT", "STELLA", "SMILEY"];
+export const MODELS = ["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY"];
 export const hasSatellites = (model: string) => model === "POLY";
 export type Reaction = { kick: number; snare: number; hat: number; perc: number; tone: number; snap: number };
 export const quietReaction: Reaction = { kick: 0, snare: 0, hat: 0, perc: 0, tone: 0, snap: 0 };
@@ -37,14 +37,28 @@ export function vectorSegments(model: string, t: number, energy: number, audio: 
     });
     return vertices.flatMap((v, i) => [1, 2, 4, 8].filter(bit => (i & bit) === 0).map(bit => [v, vertices[i | bit]] as Segment));
   }
-  if (model === "KNOT") {
-    // Two continuous boundaries and sparse cross-ribs make a legible twisted ribbon.
-    const rings = [0, 1].map(side => Array.from({ length: 241 }, (_, i): V3 => {
-      const a = i / 240 * Math.PI * 2, twist = 3 * a + t * .2 + audio.tone * .65 * Math.sin(a * 4);
-      const r = .63 + audio.kick * .16 + .23 * Math.cos(twist) + audio.snare * .07 * Math.sin(a * 12), width = (side ? 1 : -1) * (.036 + audio.tone * .025);
-      return [(r + width) * Math.cos(2 * a), (r + width) * Math.sin(2 * a), .3 * Math.sin(twist) + width * Math.sin(a * 5)];
-    }));
-    return [...contour(rings[0], false), ...contour(rings[1], false), ...rings[0].filter((_, i) => i % 8 === 0).map((p, i) => [p, rings[1][i * 8]] as Segment)];
+  if (model === "EYE") {
+    // Almond lids, iris rings and a pupil; kicks dilate and widen, snares blink, hats twitch the gaze.
+    const open = Math.max(.08, (.42 + audio.kick * .16) * (1 - audio.snare * .85));
+    const gx = Math.sin(t * .37) * .12 + audio.hat * .05 * Math.sin(t * 41), gy = Math.sin(t * .23) * .05;
+    const lid = (sign: number) => contour(Array.from({ length: 61 }, (_, i): V3 => {
+      const x = -1 + 2 * i / 60;
+      return [x * .95, sign * open * (1 - x * x), .1 * (1 - x * x)];
+    }), false);
+    const segments = [...lid(1), ...lid(-1)];
+    const iris = .3 * (1 + audio.tone * .08), pupil = .09 + audio.kick * .13 + audio.tone * .03;
+    // Clip iris rings to the lid opening so blinks visibly close the eye.
+    const clipped = (r: number) => contour(Array.from({ length: 49 }, (_, i): V3 => {
+      const a = i / 48 * Math.PI * 2, x = gx + Math.cos(a) * r, lim = open * Math.max(0, 1 - (x / .95) ** 2);
+      return [x, Math.max(-lim, Math.min(lim, gy + Math.sin(a) * r)), .14];
+    }), false);
+    segments.push(...clipped(iris), ...clipped(iris * .78), ...clipped(pupil));
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2, lim = open * .9;
+      const p = (r: number): V3 => [gx + Math.cos(a) * r, Math.max(-lim, Math.min(lim, gy + Math.sin(a) * r)), .14];
+      segments.push([p(pupil + .03), p(iris * .78)]);
+    }
+    return segments;
   }
   if (model === "STELLA") {
     const v: V3[] = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map(p => p.map(x => x * .52) as V3);
