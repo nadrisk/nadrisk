@@ -1058,7 +1058,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .vj-page, .vj-overlay { position: fixed; inset: 0; z-index: 80; background: hsl(var(--background)); cursor: none; }
 .vj-overlay { cursor: default; }
 .vj-stage, .vj-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
-.vj-hud { position: absolute; left: 12px; bottom: 10px; font-family: 'Silkscreen', monospace; font-size: 10px; letter-spacing: .08em; color: hsl(var(--foreground)); opacity: .55; pointer-events: none; }
+.vj-hud { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Silkscreen', monospace; font-size: 10px; letter-spacing: .08em; color: hsl(var(--foreground)); opacity: .55; pointer-events: none; }
 .vj-keys { position: absolute; bottom: calc(8px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; width: max-content; max-width: calc(100% - 16px); }
 .vj-camera-error { position: absolute; top: 57%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(320px, 88%); background: hsl(var(--background)); color: hsl(var(--foreground)); padding: 12px; font: 10px 'Silkscreen', monospace; text-align: center; }
-.vj-hud { bottom: 48px; }
