@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Dithered webcam VJ (2026-10-26)
-- [ ] Add CAM to model cycling with mirrored two-colour Bayer video and private stream cleanup
-- [ ] Draw four-corner bitmap pad/note/loudness/clock telemetry from live audio events
-- [ ] Test camera permissions, rapid switching, real pad/transport readings and screen fit
+- [x] Add CAM to model cycling with mirrored two-colour Bayer video and private stream cleanup
+- [x] Draw four-corner bitmap pad/note/loudness/clock telemetry from live audio events
+- [x] Test camera permissions, late permission cleanup, model switching, real named synth pad/transport readings and desktop/phone screen fit; 16 VJ tests pass, simulated browser camera verified
+- [ ] Confirm camera portrait quality on user's hardware and HDMI display (requires the user's devices)
 
 ## Optical VJ fields (2026-10-25)
 - [x] Add six restrained model-specific optical fields and structural drum/tone deformation
