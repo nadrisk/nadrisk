@@ -5,15 +5,16 @@ import { meterDb, noteName, pixelText } from "./raster";
 export type CameraTelemetry = { pad?: VjPad; vel: number; bpm: number; beat: number; step: number; bank: string; running: boolean; peak: number; rms: number; size: number; theme: string; status: CameraStatus };
 
 export function cameraHud(buf: Uint32Array, w: number, h: number, fg: number, bg: number, data: CameraTelemetry) {
-  const margin = 9, chars = Math.max(8, Math.floor((w / 2 - margin * 2) / 4)), blockW = chars * 4 + 5;
+  const margin = 9, chars = Math.max(8, Math.floor((w / 2 - margin * 2) / 4));
   const block = (right: boolean, bottom: boolean, rows: string[]) => {
+    const blockW = Math.min(chars, Math.max(...rows.map(row => row.length))) * 4 + 1;
     const x = right ? w - margin - blockW : margin;
     const y = bottom ? h - 28 - rows.length * 9 : margin + 5;
     for (let py = y - 3; py < y + rows.length * 9; py++) for (let px = x - 3; px < x + blockW; px++) if (py >= 0 && py < h && px >= 0 && px < w) buf[py * w + px] = bg;
     rows.forEach((row, i) => pixelText(buf, w, h, x, y + i * 9, row.slice(0, chars), fg));
   };
   const pad = data.pad;
-  block(false, false, [pad ? `PAD ${String(pad.index + 1).padStart(2, "0")} ${pad.name}` : "PAD --", pad ? `${pad.role} / ${pad.engine}` : "VOICE --", `VEL ${Math.round(data.vel * 100)}%`]);
+  block(false, false, [pad ? `PAD ${String(pad.index + 1).padStart(2, "0")}` : "PAD --", pad?.name || "VOICE --", pad ? `${pad.role} / ${pad.engine}` : "ENGINE --", `VEL ${Math.round(data.vel * 100)}%`]);
   block(true, false, [`${data.bpm.toFixed(1)} BPM`, `${data.running ? "PLAY" : "STOP"} ${data.bank} S${String(data.step + 1).padStart(2, "0")}`, `BAR ${String(Math.floor(data.beat / 4) + 1).padStart(2, "0")}`]);
   block(false, true, [`NAD VJ / CAM`, `SIZE ${Math.round(data.size * 100)}%`, `${data.theme === "oled" ? "1-BIT OLED" : data.theme.toUpperCase()} / ${data.status.toUpperCase()}`]);
   const db = (v: number) => v > .000001 ? `${meterDb(v).toFixed(1)} DB` : "-- DB";

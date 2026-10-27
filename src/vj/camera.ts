@@ -35,7 +35,7 @@ export class VjCamera {
       if (generation !== this.generation) return;
       this.stream?.getTracks().forEach(track => track.stop());
       this.stream = null; this.video.srcObject = null;
-      const name = error instanceof Error ? error.name : "";
+      const name = error instanceof Error || error instanceof DOMException ? error.name : "";
       this.update(name === "NotAllowedError" || name === "SecurityError" ? "denied" : name === "NotFoundError" ? "missing" : "unavailable");
     }
   }
