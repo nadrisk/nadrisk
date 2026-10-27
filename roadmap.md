@@ -4,6 +4,7 @@
 - [x] Add CAM to model cycling with mirrored two-colour Bayer video and private stream cleanup
 - [x] Draw four-corner bitmap pad/note/loudness/clock telemetry from live audio events
 - [x] Test camera permissions, late permission cleanup, model switching, real named synth pad/transport readings and desktop/phone screen fit; 16 VJ tests pass, simulated browser camera verified
+- [x] Move the NAD_VJ readout to the top edge so the bottom row keeps arrows, TV OUT and CLOSE clear; verified desktop/phone fit with no overlap
 - [ ] Confirm camera portrait quality on user's hardware and HDMI display (requires the user's devices)
 
 ## Optical VJ fields (2026-10-25)
