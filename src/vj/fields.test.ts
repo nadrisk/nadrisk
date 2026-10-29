@@ -6,7 +6,7 @@ import { VjEngine } from "./engine";
 describe("Optical VJ fields", () => {
   it("leaves POLY and WIRE unframed and gives the other models distinct finite fields", () => {
     for (const model of ["POLY", "WIRE"]) expect(opticalField(model, 2)).toEqual({ back: [], front: [] });
-    const fields = MODELS.slice(2).filter(model => model !== "CAM" && model !== "MATRIX").map(model => opticalField(model, 2));
+    const fields = MODELS.slice(2).filter(model => model !== "CAM" && model !== "TERRAIN").map(model => opticalField(model, 2));
     expect(new Set(fields.map(field => JSON.stringify(field))).size).toBe(4);
     for (const field of fields) {
       expect(field.back.length + field.front.length).toBeGreaterThan(0);
