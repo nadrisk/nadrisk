@@ -5,6 +5,7 @@ import { BAYER, ditherCamera } from "./raster";
 import { cameraHud } from "./cameraHud";
 import { MODELS, hasSatellites, vectorSegments, wireRadius, type Reaction, type Segment } from "./models";
 import { opticalField } from "./fields";
+import { matrixCells, pushEvent, type MatrixEvent } from "./matrix";
 export { MODELS } from "./models";
 
 type V3 = [number, number, number];
@@ -46,7 +47,10 @@ const RADII = SOLIDS.map(({ n }) => {
   const r = cage.v.map(d => 1 / Math.max(...n.map(m => m[0] * d[0] + m[1] * d[1] + m[2] * d[2])));
   const mx = Math.max(...r); return r.map(x => x / mx);
 });
-const ORDER = [0, 2, 1, 4, 3, 5]; // octa → cube → tetra → dodeca → icosa → sphere → …
+const ORDER = [0, 2, 1, 4, 3, 5];
+// MATRIX instances use a light level-1 cage so 64 shaded solids stay cheap.
+const mini = icosphere(1);
+const MINI_RADII = RADII.map(r => r.slice(0, mini.v.length)); // octa → cube → tetra → dodeca → icosa → sphere → …
 
 const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
 
@@ -70,6 +74,7 @@ export class VjEngine {
   private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
+  private events: MatrixEvent[] = [];
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -88,6 +93,7 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
+    pushEvent(this.events, { at: this.t, kind, vel: v });
     if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
     else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
@@ -212,7 +218,30 @@ export class VjEngine {
       for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
     };
 
-    if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
+    if (model === "MATRIX") {
+      const cells = matrixCells(this.t, this.events, audio, this.wave);
+      const tilt = .55 + Math.sin(this.t * .07) * .12, yaw = this.ry * .35, faces: { z: number; p: number[][]; shade: number }[] = [];
+      const sc = scale * .9, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
+      for (const c of cells) {
+        const r = mini.v.map((_, j) => c.weights.reduce((a, w, k) => a + w * MINI_RADII[k][j], 0));
+        const P = mini.v.map((d, j) => {
+          const l = rot([d[0] * r[j] * c.scale, d[1] * r[j] * c.scale * c.stretch, d[2] * r[j] * c.scale], 0, c.spin, c.spin * .6);
+          return proj(rot([(l[0] + c.x) * sc, (l[1] + c.y) * sc, (l[2] + c.z) * sc], tilt, yaw, 0));
+        });
+        if (c.wire) { for (const [a, b, d] of mini.f) { line(buf, W, H, P[a], P[b], FG); line(buf, W, H, P[b], P[d], FG); } continue; }
+        for (const [a, b, d] of mini.f) {
+          const pa = P[a], pb = P[b], pd = P[d];
+          const area = (pb[0] - pa[0]) * (pd[1] - pa[1]) - (pd[0] - pa[0]) * (pb[1] - pa[1]);
+          if (area >= 0) continue;
+          // Screen-space facet normal for flat lighting.
+          const n = norm([(pb[1] - pa[1]) * (pd[2] - pa[2]) - (pb[2] - pa[2]) * (pd[1] - pa[1]), (pb[2] - pa[2]) * (pd[0] - pa[0]) - (pb[0] - pa[0]) * (pd[2] - pa[2]), area]);
+          const lam = Math.abs(n[0] * light[0] - n[1] * light[1] + n[2] * light[2]);
+          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + lam * gain * .9) });
+        }
+      }
+      faces.sort((x, y) => y.z - x.z);
+      for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
+    } else if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
     else {
       const energy = this.kick + this.snare * .6 + this.tone * .3;
       const segments = vectorSegments(model, phase, energy, audio);
