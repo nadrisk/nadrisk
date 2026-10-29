@@ -226,7 +226,7 @@ export class VjEngine {
         const r = mini.v.map((_, j) => c.weights.reduce((a, w, k) => a + w * MINI_RADII[k][j], 0));
         const Pw = mini.v.map((d, j) => {
           const l = rot([d[0] * r[j] * c.scale, d[1] * r[j] * c.scale * c.stretch, d[2] * r[j] * c.scale], 0, c.spin, c.spin * .6);
-          return rot([(l[0] + c.x) * sc, (l[1] + c.y - .15) * sc, (l[2] + c.z) * sc], tilt, yaw, 0);
+          return rot([(l[0] + c.x) * sc, (l[1] + c.y - .55) * sc, (l[2] + c.z) * sc], tilt, yaw, 0);
         }), P = Pw.map(proj);
         if (c.wire) { for (const [a, b, d] of mini.f) { line(buf, W, H, P[a], P[b], FG); line(buf, W, H, P[b], P[d], FG); } continue; }
         for (const [a, b, d] of mini.f) {
@@ -237,7 +237,7 @@ export class VjEngine {
           const wa = Pw[a], e1 = [Pw[b][0] - wa[0], Pw[b][1] - wa[1], Pw[b][2] - wa[2]], e2 = [Pw[d][0] - wa[0], Pw[d][1] - wa[1], Pw[d][2] - wa[2]];
           const n = norm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
           const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
-          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + lam * gain) });
+          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + .14 + lam * gain) });
         }
       }
       faces.sort((x, y) => y.z - x.z);
