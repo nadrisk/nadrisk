@@ -1,7 +1,7 @@
 // Explicit vector contours retain recognizable silhouettes in the two-colour renderer.
 export type V3 = [number, number, number];
 export type Segment = [V3, V3];
-export const MODELS = ["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY", "CAM"];
+export const MODELS = ["POLY", "WIRE", "TESSERACT", "EYE", "STELLA", "SMILEY", "MATRIX", "CAM"];
 export const hasSatellites = (model: string) => model === "POLY";
 export type Reaction = { kick: number; snare: number; hat: number; perc: number; tone: number; snap: number };
 export const quietReaction: Reaction = { kick: 0, snare: 0, hat: 0, perc: 0, tone: 0, snap: 0 };
