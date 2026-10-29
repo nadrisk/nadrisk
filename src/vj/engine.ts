@@ -221,22 +221,23 @@ export class VjEngine {
     if (model === "MATRIX") {
       const cells = matrixCells(this.t, this.events, audio, this.wave);
       const tilt = .55 + Math.sin(this.t * .07) * .12, yaw = this.ry * .35, faces: { z: number; p: number[][]; shade: number }[] = [];
-      const sc = scale * .9, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
+      const sc = scale * .5, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
       for (const c of cells) {
         const r = mini.v.map((_, j) => c.weights.reduce((a, w, k) => a + w * MINI_RADII[k][j], 0));
-        const P = mini.v.map((d, j) => {
+        const Pw = mini.v.map((d, j) => {
           const l = rot([d[0] * r[j] * c.scale, d[1] * r[j] * c.scale * c.stretch, d[2] * r[j] * c.scale], 0, c.spin, c.spin * .6);
-          return proj(rot([(l[0] + c.x) * sc, (l[1] + c.y) * sc, (l[2] + c.z) * sc], tilt, yaw, 0));
-        });
+          return rot([(l[0] + c.x) * sc, (l[1] + c.y - .15) * sc, (l[2] + c.z) * sc], tilt, yaw, 0);
+        }), P = Pw.map(proj);
         if (c.wire) { for (const [a, b, d] of mini.f) { line(buf, W, H, P[a], P[b], FG); line(buf, W, H, P[b], P[d], FG); } continue; }
         for (const [a, b, d] of mini.f) {
           const pa = P[a], pb = P[b], pd = P[d];
           const area = (pb[0] - pa[0]) * (pd[1] - pa[1]) - (pd[0] - pa[0]) * (pb[1] - pa[1]);
           if (area >= 0) continue;
           // Screen-space facet normal for flat lighting.
-          const n = norm([(pb[1] - pa[1]) * (pd[2] - pa[2]) - (pb[2] - pa[2]) * (pd[1] - pa[1]), (pb[2] - pa[2]) * (pd[0] - pa[0]) - (pb[0] - pa[0]) * (pd[2] - pa[2]), area]);
-          const lam = Math.abs(n[0] * light[0] - n[1] * light[1] + n[2] * light[2]);
-          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + lam * gain * .9) });
+          const wa = Pw[a], e1 = [Pw[b][0] - wa[0], Pw[b][1] - wa[1], Pw[b][2] - wa[2]], e2 = [Pw[d][0] - wa[0], Pw[d][1] - wa[1], Pw[d][2] - wa[2]];
+          const n = norm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
+          const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
+          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + lam * gain) });
         }
       }
       faces.sort((x, y) => y.z - x.z);
