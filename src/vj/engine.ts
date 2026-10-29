@@ -5,7 +5,7 @@ import { BAYER, ditherCamera } from "./raster";
 import { cameraHud } from "./cameraHud";
 import { MODELS, hasSatellites, vectorSegments, wireRadius, type Reaction, type Segment } from "./models";
 import { opticalField } from "./fields";
-import { matrixCells, pushEvent, type MatrixEvent } from "./matrix";
+import { terrainRows, monoliths, camera as flyCam, terrainHeight } from "./terrain";
 export { MODELS } from "./models";
 
 type V3 = [number, number, number];
@@ -48,9 +48,6 @@ const RADII = SOLIDS.map(({ n }) => {
   const mx = Math.max(...r); return r.map(x => x / mx);
 });
 const ORDER = [0, 2, 1, 4, 3, 5];
-// MATRIX instances use a light level-1 cage so 64 shaded solids stay cheap.
-const mini = icosphere(1);
-const MINI_RADII = RADII.map(r => r.slice(0, mini.v.length)); // octa → cube → tetra → dodeca → icosa → sphere → …
 
 const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
 
@@ -74,7 +71,7 @@ export class VjEngine {
   private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
-  private events: MatrixEvent[] = [];
+  private fly = 0; private horizon = new Float32Array(0);
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -93,7 +90,6 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
-    pushEvent(this.events, { at: this.t, kind, vel: v });
     if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
     else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
@@ -218,30 +214,52 @@ export class VjEngine {
       for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
     };
 
-    if (model === "MATRIX") {
-      const cells = matrixCells(this.t, this.events, audio, this.wave);
-      const tilt = .55 + Math.sin(this.t * .07) * .12, yaw = this.ry * .35, faces: { z: number; p: number[][]; shade: number }[] = [];
-      const sc = scale * .68, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
-      for (const c of cells) {
-        const r = mini.v.map((_, j) => c.weights.reduce((a, w, k) => a + w * MINI_RADII[k][j], 0));
-        const Pw = mini.v.map((d, j) => {
-          const l = rot([d[0] * r[j] * c.scale, d[1] * r[j] * c.scale * c.stretch, d[2] * r[j] * c.scale], 0, c.spin, c.spin * .6);
-          return rot([(l[0] + c.x) * sc, (l[1] + c.y - .55) * sc, (l[2] + c.z) * sc], tilt, yaw, 0);
-        }), P = Pw.map(proj);
-        if (c.wire) { for (const [a, b, d] of mini.f) { line(buf, W, H, P[a], P[b], FG); line(buf, W, H, P[b], P[d], FG); } continue; }
-        for (const [a, b, d] of mini.f) {
-          const pa = P[a], pb = P[b], pd = P[d];
-          const area = (pb[0] - pa[0]) * (pd[1] - pa[1]) - (pd[0] - pa[0]) * (pb[1] - pa[1]);
-          if (area >= 0) continue;
-          // Screen-space facet normal for flat lighting.
-          const wa = Pw[a], e1 = [Pw[b][0] - wa[0], Pw[b][1] - wa[1], Pw[b][2] - wa[2]], e2 = [Pw[d][0] - wa[0], Pw[d][1] - wa[1], Pw[d][2] - wa[2]];
-          const n = norm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
-          const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
-          faces.push({ z: (pa[2] + pb[2] + pd[2]) / 3, p: [pa, pb, pd], shade: Math.min(1, amb + .14 + lam * gain) });
+    if (model === "TERRAIN") {
+      // Floating-horizon fly-through: nearest rows draw first and hide everything behind them.
+      this.fly += dt * 1.4 * (1 + this.level * .8 + this.kick * .9) * tempo;
+      if (this.horizon.length !== W) this.horizon = new Float32Array(W);
+      const hz = this.horizon; hz.fill(H);
+      const f = H * .9 * this.size, hy = H * .38, cam = flyCam(this.fly, this.t);
+      const cr = Math.cos(cam.roll), sr = Math.sin(cam.roll);
+      const proj = (p: number[]) => { const z = Math.max(.2, p[2]); const x = p[0] * f / z, y = p[1] * f / z; return [cx + x * cr - y * sr, hy - (x * sr + y * cr)]; };
+      const rows = terrainRows(this.fly, this.t, audio, this.wave);
+      const mono = monoliths(this.fly, this.t, audio);
+      const cy0 = Math.cos(cam.yaw), sy0 = Math.sin(cam.yaw);
+      const toCam = (x: number, y: number, z: number) => { const dx = x - cam.x, dz = z - this.fly; return [dx * cy0 - dz * sy0, y - cam.y, dx * sy0 + dz * cy0]; };
+      const next = new Float32Array(W);
+      const seg = (a: number[], b: number[], dotted: boolean) => {
+        const n = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
+        for (let i = 0; i <= n; i++) {
+          const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n);
+          if (x < 0 || x >= W) continue;
+          if (y < hz[x] && y >= 0 && (!dotted || ((x + y) & 1) === 0)) buf[y * W + x] = FG;
+          if (y < next[x]) next[x] = y;
         }
+      };
+      let mi = 0; mono.sort((p, q) => p.z - q.z);
+      const dz = rows.length > 1 ? rows[1][0][2] - rows[0][0][2] : 1;
+      rows.forEach((row, r) => {
+        next.set(hz);
+        const P = row.map(proj), dotted = r > rows.length * .6 || (this.hat > .3 && r % 2 === 1);
+        for (let i = 1; i < P.length; i++) seg(P[i - 1], P[i], dotted);
+        // Sparse cross-ribs every few columns give the contours depth.
+        if (r > 0 && r % 1 === 0) { const Q = rows[r - 1].map(proj); for (let i = 0; i < P.length; i += 4) seg(Q[i], P[i], r > rows.length * .5); }
+        while (mi < mono.length && mono[mi].z - this.fly < row[0][2] + dz * .5) {
+          const m = mono[mi++], g = terrainHeight(m.x, m.z, this.t, audio);
+          const c = [-1, 1].flatMap(sx => [-1, 1].map(sz => [toCam(m.x + sx * m.w, g, m.z + sz * m.w), toCam(m.x + sx * m.w, g + m.h, m.z + sz * m.w)]));
+          for (const [lo, hi] of c) if (lo[2] > .3) seg(proj(lo), proj(hi), false);
+          const tops = c.map(([, hi]) => hi).filter(p => p[2] > .3).map(proj);
+          if (tops.length === 4) { seg(tops[0], tops[1], false); seg(tops[1], tops[3], false); seg(tops[3], tops[2], false); seg(tops[2], tops[0], false); }
+        }
+        hz.set(next);
+      });
+      // Sun disc low on the horizon, banded like a dithered print, swelling with level.
+      const sr2 = H * (.1 + this.level * .03 + this.kick * .02), sx = cx - cam.yaw * f * .5, sy = hy - H * .08;
+      for (let y = Math.floor(sy - sr2); y < sy + sr2; y++) for (let x = Math.floor(sx - sr2); x < sx + sr2; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H || y >= hz[x]) continue;
+        const d = Math.hypot(x - sx, y - sy) / sr2, band = Math.floor((y - sy + sr2) / 3) % 3;
+        if (d < 1 && (band !== 0 || y < sy - sr2 * .2) && BAYER[(y & 7) * 8 + (x & 7)] < .55 + (1 - d) * .4) buf[y * W + x] = FG;
       }
-      faces.sort((x, y) => y.z - x.z);
-      for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
     } else if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
     else {
       const energy = this.kick + this.snare * .6 + this.tone * .3;
