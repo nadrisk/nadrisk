@@ -41,7 +41,7 @@ export function matrixCells(t: number, events: readonly MatrixEvent[], audio: Re
     const weights = [kick * .5 / total, snare / total, kick * .5 / total, tone / total, hat / total, .15 / total];
     cells.push({
       x, y, z,
-      scale: .07 + kick * .14 + snare * .07 + tone * .06 + hat * .05,
+      scale: .12 + kick * .14 + snare * .07 + tone * .06 + hat * .05,
       stretch: 1 + (odd ? snare * 1.4 : 0),
       spin: t * (.4 + hat * 6) + (odd ? audio.snap : 0) + i * .3 + j * .2,
       weights,

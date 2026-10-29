@@ -221,7 +221,7 @@ export class VjEngine {
     if (model === "MATRIX") {
       const cells = matrixCells(this.t, this.events, audio, this.wave);
       const tilt = .55 + Math.sin(this.t * .07) * .12, yaw = this.ry * .35, faces: { z: number; p: number[][]; shade: number }[] = [];
-      const sc = scale * .5, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
+      const sc = scale * .68, proj = (q: V3) => { const z = Math.max(.35, q[2] + camZ); return [cx + q[0] * focal / z, cy - q[1] * focal / z, z]; };
       for (const c of cells) {
         const r = mini.v.map((_, j) => c.weights.reduce((a, w, k) => a + w * MINI_RADII[k][j], 0));
         const Pw = mini.v.map((d, j) => {
