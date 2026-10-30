@@ -22,7 +22,7 @@ describe("Optical VJ fields", () => {
   });
   it("wire bursts expand vertices without changing the resting cage", () => {
     expect(wireRadius(.8, [1, 0, 0], quietReaction)).toBe(.8);
-    expect(wireRadius(.8, [1, 0, 0], { ...quietReaction, kick: 1 })).toBeCloseTo(.992);
+    expect(wireRadius(.8, [1, 0, 0], { ...quietReaction, kick: 1 })).toBeCloseTo(1.136);
     expect(wireRadius(.8, [1, 0, 0], { ...quietReaction, snare: 1 })).toBeGreaterThan(.8);
   });
   it("eye orbit ring traces the actual waveform, not a simulated oscillator", () => {

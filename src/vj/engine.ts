@@ -90,7 +90,7 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); }
+    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); if (MODELS[this.model] === "WIRE") { this.spinY += (Math.random() < .5 ? -1 : 1) * .7 * v; this.spinX += .35 * v; } }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
     else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
     else if (kind === "open" || kind === "perc") { this.kal = Math.max(this.kal, v); this.spinY += 0.6 * v; }
@@ -193,8 +193,23 @@ export class VjEngine {
     const draw = (ox: number, oy: number, oz: number, sc: number, extraY: number, thresh = 1) => {
       const P = cage.v.map((d, j) => { const r = (wire ? wireRadius(R[j], d, audio) : R[j]) * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
       if (wire) {
-        const S = P.slice(0, 42).map(q => { const z = q[2] + oz + camZ; return [cx + (q[0] + ox) * focal / z, cy - (q[1] + oy) * focal / z]; });
-        for (const [a, b] of EDGES) line(buf, W, H, S[a], S[b], FG);
+        const proj = (q: number[]) => { const z = q[2] + oz + camZ; return [cx + (q[0] + ox) * focal / z, cy - (q[1] + oy) * focal / z]; };
+        const S = P.slice(0, 42).map(proj);
+        // Echo cage: a lagging, slightly larger dotted ghost trails drum and synth energy.
+        const echo = Math.max(this.kick, this.tone * .8, this.snare * .7);
+        if (echo > .08) {
+          const lag = .35 * echo, gs = 1 + echo * .18;
+          const G = cage.v.slice(0, 42).map((d, j) => { const r = wireRadius(R[j], d, audio) * sc * gs; return proj(rot([d[0] * r, d[1] * r, d[2] * r], this.rx - lag, this.ry + extraY - lag * 1.3, this.rz)); });
+          for (const [a, b] of EDGES) line(buf, W, H, G[a], G[b], FG, 3);
+        }
+        // Hats chop the solid edges into a rhythmic stipple.
+        const dash = this.hat > .2 ? 2 : 0;
+        for (const [a, b] of EDGES) line(buf, W, H, S[a], S[b], FG, dash);
+        // Kick sparks: brief crosshair ticks on every vertex.
+        if (this.kick > .35) {
+          const s = Math.round(1 + this.kick * 2);
+          for (const [x, y] of S) { line(buf, W, H, [x - s, y], [x + s, y], FG); line(buf, W, H, [x, y - s], [x, y + s], FG); }
+        }
         return;
       }
       const faces: { z: number; p: number[][]; shade: number }[] = [];
@@ -319,8 +334,11 @@ function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: numbe
   }
 }
 
-function line(buf: Uint32Array, W: number, H: number, a: number[], b: number[], c: number) {
+function line(buf: Uint32Array, W: number, H: number, a: number[], b: number[], c: number, gap = 0) {
   const n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))) + 1;
   if (n > 4000) return;
-  for (let i = 0; i <= n; i++) { const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c; }
+  for (let i = 0; i <= n; i++) {
+    if (gap && i % (gap + 1) !== 0) continue;
+    const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c;
+  }
 }
