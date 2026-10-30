@@ -8,7 +8,7 @@ export const quietReaction: Reaction = { kick: 0, snare: 0, hat: 0, perc: 0, ton
 
 export function wireRadius(radius: number, vertex: V3, audio: Reaction) {
   const ridge = .5 + .5 * Math.sin(vertex[0] * 11 + vertex[1] * 7 + vertex[2] * 13);
-  return radius * (1 + audio.kick * .24 + audio.snare * ridge * .38);
+  return radius * (1 + audio.kick * audio.kick * .32 + audio.kick * .1 + audio.snare * ridge * .38);
 }
 
 function contour(points: V3[], closed = true): Segment[] {
