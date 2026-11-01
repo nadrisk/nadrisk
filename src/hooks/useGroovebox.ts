@@ -444,7 +444,7 @@ export function useGroovebox() {
     if (!h) { const slot = slotsRef.current[i], e = engine.current; if (e && heldEngine(slot)) e.mono[i]?.release?.(e.ctx.currentTime, relOf(slot)); return; }
     stopHold(i);
   }, [stopHold]);
-  const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
+  const isChordArp = (s: Slot) => { const pm = performanceRef.current.chordMode ?? "pad"; return s.chord.on && (s.engine === "sampler" || (s.engine === "synth" && cleanOf(s.synth).voices > 1)) && (pm === "pad" ? s.chord.play === "arp" : pm === "arp"); };
   const play = useCallback((i: number) => {
     const slot = slotsRef.current[i], e = engine.current;
     if (repeatRef.current.on) { if (repeatRef.current.latch && holds.current.get(i)?.kind === "repeat") { stopHold(i); return; } stopHold(i); startHold(i, "repeat"); return; }
