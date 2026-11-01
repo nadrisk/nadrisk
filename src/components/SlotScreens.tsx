@@ -1,4 +1,4 @@
-import { useScope, drawScope, type GetWave } from "@/components/ScopeScreen";
+import { useSpectrum, drawSpectrum, type GetSpectrum } from "@/components/SpectrumScreen";
 import { eqCurve, EQ_KILL } from "@/audio/eqResponse";
 import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
@@ -10,7 +10,8 @@ import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
-const ENG: [EngineKind, string][] = [["drum", "DRM"], ["synth", "SYN"], ["sampler", "SMP"], ["poly", "PLY"], ["808", "808"], ["siren", "SRN"]];
+const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "IDM"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"]];
+const EW = 25;
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
   const theme = useContext(DisplayThemeContext);
@@ -43,7 +44,7 @@ function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () =
 
 // Pad copy/paste clipboard: one pad's whole sound (instrument, mode, sound, note/chord, EQ, FX rack).
 let padClip: Partial<Slot> | null = null;
-const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "chord", "eq", "fx"] as const;
+const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "idm", "chord", "eq", "fx"] as const;
 export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
   const [renaming, setRenaming] = useState(false);
@@ -57,7 +58,7 @@ export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Parti
   return <>
     <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan, clip]} knobs={() => knobs}
     body={p => {
-      ENG.forEach(([e, s], i) => key(p, s, 1 + i * 21, 11, 21, slot.engine === e));
+      ENG.forEach(([e, s], i) => key(p, s, 1 + i * EW, 11, EW, slot.engine === e));
       p.box(1, 22, 62, 9);
       p.text(name.trimEnd() || "—", 4, 24);
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
@@ -66,7 +67,7 @@ export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Parti
       if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 46);
     }}
     extra={() => <>
-      {ENG.map(([e], i) => <Tap key={e} x={1 + i * 21} y={11} w={21} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e === "sampler" && slot.engine !== "sampler" ? { note: 60 } : {}) })} />)}
+      {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e === "sampler" && slot.engine !== "sampler" ? { note: 60 } : {}) })} />)}
       <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
       <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
@@ -111,10 +112,10 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
 }
 
 const EQ_FREQS = Float32Array.from({ length: 121 }, (_, i) => 20 * 1000 ** (i / 120));
-export function ChannelEqScreen({ slot, onChange, index = 0, getWave }: { slot: Slot; onChange: (p: Partial<Slot>) => void; index?: number; getWave?: GetWave }) {
-  // SCP page turns the EQ tile into this pad's oscilloscope; it only polls while that page is showing.
+export function ChannelEqScreen({ slot, onChange, index = 0, getSpectrum }: { slot: Slot; onChange: (p: Partial<Slot>) => void; index?: number; getSpectrum?: GetSpectrum }) {
+  // SCP page turns the EQ tile into this pad's live spectrum; it only polls while that page is showing.
   const [pg, setPg] = useState("LVL");
-  const scope = useScope(index, getWave, pg === "SCP");
+  const scope = useSpectrum(index, getSpectrum, pg === "SCP");
   const eq = { lowFreq: 100, highFreq: 9000, q: .7, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
   const gainKnobs: Knob[] = [
     { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, reset: 0, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
@@ -127,9 +128,9 @@ export function ChannelEqScreen({ slot, onChange, index = 0, getWave }: { slot: 
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
     { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
-  return <Panel name={pg === "SCP" ? "SCOPE" : "EQ"} label="Channel EQ insert" pages={["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
+  return <Panel name={pg === "SCP" ? "SPECTRUM" : "EQ"} label="Channel EQ insert" pages={["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
     body={(p, page) => {
-      if (page === "SCP") { drawScope(p, scope.buf, 2, 11, 124, 51); return; }
+      if (page === "SCP") { drawSpectrum(p, scope.bars, scope.peaks); return; }
       // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
       // If the response can't be read yet (or a value is missing) the curve falls back to flat instead of leaving a blank screen.
       const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq || 1000);
