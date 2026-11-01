@@ -13,5 +13,5 @@ export function vjListen(f: (m: VjMsg) => void) { subs.add(f); return () => { su
 /** Map a pad role to a visual reaction family. */
 export function vjKindOf(role: string, engine: string): VjKind {
   if (role === "kick" || role === "snare" || role === "hat" || role === "open" || role === "perc") return role;
-  return engine === "drum" ? "perc" : "tone";
+  return engine === "drum" || engine === "idm" ? "perc" : "tone";
 }

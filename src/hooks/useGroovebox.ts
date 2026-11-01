@@ -10,9 +10,12 @@ import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStor
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
+import { cleanOf, defaultClean, playClean } from "@/audio/clean";
+import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
+import { applyXY, type XY } from "@/audio/xyMaps";
 import type { PatchSound } from "@/audio/patchStore";
 import { bakePhrase, detectRole, type GenResult, type Role } from "@/audio/patternGen";
-import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
+import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, playReese, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
 
 import { breakTiming, playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
@@ -26,13 +29,14 @@ export const bufferMode: BufferMode = typeof window !== "undefined" && (() => { 
 if (typeof window !== "undefined" && !(Tone.getContext() as unknown as { __nad?: boolean }).__nad) {
   const c = new Tone.Context({ latencyHint: (bufferMode === "prod" ? 0.06 : "interactive") as AudioContextLatencyCategory, lookAhead: 0.1 }); (c as unknown as { __nad: boolean }).__nad = true; Tone.setContext(c);
 }
-export type EngineKind = "drum" | "synth" | "sampler" | "poly" | "808" | "siren";
+/** "poly" and "siren" are legacy kinds: saved sets load them as SYN or BAS (see migrateEngine). "808" is the BAS engine. */
+export type EngineKind = "drum" | "idm" | "synth" | "sampler" | "poly" | "808" | "siren";
 /** Channel-rack EQ in dB (frequencies in Hz). */
 export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: number; q: number; high: number; highFreq: number };
 export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
 /** Maximum steps per row; each bank plays 16 or 32 (Bank.steps). */
 export const STEPS = 32;
-export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams };
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Instrument XY offset; centre = saved sound. */ xy?: XY };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; until: number }[][] };
 
@@ -46,7 +50,7 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", ...o });
 
-const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), ...extra });
+const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), idm: defaultIdm(), xy: { x: 0, y: 0 }, ...extra });
 const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48, { drum: { kind: "kick", ...DRUM_INIT.kick, env: { ...DRUM_INIT.kick.env } } }));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
@@ -70,7 +74,7 @@ const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ patter
 /** Engines whose pad taps sustain until the finger lifts. */
 export const MAX_SAMPLE_SEC = 30;
 const isWavMp3 = (f: File) => /\.(wav|wave|mp3)$/i.test(f.name) || /^audio\/(wav|wave|x-wav|vnd\.wave|mpeg|mp3)$/i.test(f.type);
-const heldEngine = (s: Slot) => s.engine === "synth" || s.engine === "poly" || s.engine === "siren" || s.engine === "sampler";
+const heldEngine = (s: Slot) => s.engine === "synth" || s.engine === "poly" || s.engine === "siren" || s.engine === "sampler" || (s.engine === "808" && s.bass.mode === "reese");
 /** Sets before v2: the sampler's PTCH becomes its NOTE (C4 = no shift) and phrase pads take their phrase root as NOTE. */
 const migrateSlot = (x: Slot): Slot => {
   let note = x.note; const sm = x.sampler;
@@ -79,9 +83,16 @@ const migrateSlot = (x: Slot): Slot => {
   return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
 };
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
-const acidTo808 = (x: Slot): Slot => (x.poly as { mode?: string }).mode === "acid" ? { ...x, engine: "808", bass: { ...x.bass, mode: "acid", acid: (x.poly as { acid?: Bass808Params["acid"] }).acid }, poly: { ...x.poly, mode: "poly" } } : x;
+const acidTo808 = (x0: Slot): Slot => {
+  let x = (x0.poly as { mode?: string }).mode === "acid" ? { ...x0, engine: "808" as const, bass: { ...x0.bass, mode: "acid" as const, acid: (x0.poly as { acid?: Bass808Params["acid"] }).acid }, poly: { ...x0.poly, mode: "poly" as const } } : x0;
+  // Lineup v3: POLY-REESE pads become BAS in REESE mode, POLY chords become an 8-voice SYN, SIREN pads become a mono SYN.
+  if (x.engine === "poly") x = x.poly.mode === "reese" ? { ...x, engine: "808", bass: { ...x.bass, mode: "reese", reese: x.poly.reese } }
+    : { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), detune: Math.min(1, x.poly.detune / 30), sub: x.poly.sub, cutoff: x.poly.cutoff, res: Math.min(1, x.poly.res / 8), env: x.poly.env, voices: 8 } } };
+  else if (x.engine === "siren") x = { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), voices: 1 } } };
+  return x;
+};
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
-const relOf = (s: Slot) => s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
+const relOf = (s: Slot) => s.engine === "synth" ? cleanOf(s.synth).env.r : s.engine === "idm" ? idmParams(s.idm).decay : s.engine === "808" && s.bass.mode === "reese" ? reeseParams(s.bass.reese).env.r : s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
 function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
   let r = reversed.get(b); if (r) return r;
@@ -163,7 +174,7 @@ export function useGroovebox() {
   // Changing KEY moves every pitched pad by the same interval, so a pad progression stays a progression.
   const setHarmony = useCallback((h: Harmony) => {
     const d0 = h.key - harmonyRef.current.key, d = d0 > 6 ? d0 - 12 : d0 < -5 ? d0 + 12 : d0;
-    if (d && harmonyOn(h)) setSlots(ss => ss.map(x => (x.engine === "drum" || x.engine === "siren" ? x : { ...x, note: x.note + d })));
+    if (d && harmonyOn(h)) setSlots(ss => ss.map(x => (x.engine === "drum" || x.engine === "idm" || x.engine === "siren" ? x : { ...x, note: x.note + d })));
     setHarmonyState(h);
   }, []);
   const [volume, setVolume] = useState(60);
@@ -225,14 +236,16 @@ export function useGroovebox() {
   const trigger = useCallback((i: number, time?: number, vel0 = 1, semi = 0, gateSec?: number, noteIdx?: number) => {
     // Fader-like loudness curve: low velocities fade smoothly to true silence.
     const vel = Math.max(0, Math.min(1, vel0)) ** 2; if (vel <= 0) return;
-    const e = engine.current, s0 = slotsRef.current[i], sm = time !== undefined ? startMod.current[i] : null;
+    const e = engine.current, sX = slotsRef.current[i], sm = time !== undefined ? startMod.current[i] : null;
+    const s0 = sX && applyXY(sX);
     const s = s0 && sm != null && s0.engine === "sampler" ? { ...s0, sampler: { ...s0.sampler, start: sm } } : s0;
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
     const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
-    let notes = s.engine === "poly" && s.poly.mode === "reese" ? [0] : (s.engine === "poly" || s.engine === "sampler" || (s.engine === "synth" && s.synth.mode === "spec")) ? chordNotes(s.chord) : [0];
+    const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
+    let notes = s.engine === "sampler" || (s.engine === "synth" && !monoSyn) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
     if (kc) {
@@ -249,7 +262,7 @@ export function useGroovebox() {
       ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns; }
     }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
-    const pitch = s.note + semi + (s.engine === "drum" ? 0 : tuneRef.current);
+    const pitch = s.note + semi + (s.engine === "drum" || s.engine === "idm" ? 0 : tuneRef.current);
     // Sampler: NOTE relative to the sample's own key (S-KEY), plus FINE cents; C4 with S-KEY C plays the file as recorded.
     const sp = s.note + (s.engine === "drum" ? 0 : tuneRef.current) - 60 - (s.sampler.sampleKey ?? 0) + Math.max(-50, Math.min(50, s.sampler.fine ?? 0)) / 100;
     if (s.engine === "sampler" && !buffers.current[i]) return; // empty sampler pads stay silent until a sample is loaded
@@ -280,7 +293,7 @@ export function useGroovebox() {
       if (s.choke) slotsRef.current.forEach((other, j) => { if (j !== i && other.choke === s.choke) { e.ring[j].forEach(r => r.stop(t)); e.ring[j] = []; e.mono[j]?.stop(t); e.mono[j] = null; } });
       // Mono engines (808, ACID, SIREN, LASER; REESE below) share one rule: a new hit cuts the old
       // tail with a short fade, so long releases never pile up on fast runs.
-      if (s.engine === "808" || s.engine === "siren") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
+      if ((s.engine === "808" && s.bass.mode !== "reese") || s.engine === "siren") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       // Sliced and one-shot samplers are monophonic: each hit cuts the previous one (4 ms declick stop).
       if (sliced || (s.engine === "sampler" && s.sampler.mode === "one")) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
@@ -298,7 +311,15 @@ export function useGroovebox() {
       // Simpler THRU: a slice plays on to the region end; only the next slice, pad lift or STOP cuts it.
       const thru = (frac: number) => { const sm = s.sampler, reg = Math.max(.01, ((sm.end ?? 1) - sm.start) * raw.duration);
         const len = sm.warp ? breakTiming(sm, raw.duration, bpmRef.current).seconds : reg / 2 ** (sp / 12); return Math.max(gate, (1 - frac) * len - .01); };
-      const voices = ns.map((offset, k) => s.engine === "808" ? (s.bass.mode === "acid" ? playAcid(e.ctx, dest, (ap => ({ ...ap, decay: ap.decay * factor }))(acidParams(s.bass.acid)), pitch, t, gate, vel) : play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel))
+      // Mono SYN (VOICES 1) and BAS REESE share the REESE rule: a new note cuts the old and glides from its pitch while it still rings.
+      const glideMono = monoSyn || (s.engine === "808" && s.bass.mode === "reese");
+      let glideFrom: number | undefined;
+      if (glideMono) { const last = reeseLast.current[i]; glideFrom = last && last.until > t ? last.midi : undefined; e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t);
+        reeseLast.current[i] = { midi: pitch, until: Math.max(e.ctx.currentTime, t) + gate + relOf(s) }; }
+      const voices = ns.map((offset, k) => s.engine === "808" && s.bass.mode === "reese" ? (rv => playReese(e.ctx, dest, { ...rv, env: scaledEnv(rv.env, factor) }, pitch, t, gate, vel, bpmRef.current, glideFrom))(reeseParams(s.bass.reese))
+        : s.engine === "idm" ? (q => playIdm(e.ctx, dest, { ...q, decay: q.decay * factor }, t, vel, semi))(idmParams(s.idm))
+        : s.engine === "synth" && cl ? playClean(e.ctx, dest, { ...cl, env: scaledEnv(cl.env, factor) }, pitch + offset, at(k), gk(k), vel / Math.sqrt(ns.length), glideFrom)
+        : s.engine === "808" ? (s.bass.mode === "acid" ? playAcid(e.ctx, dest, (ap => ({ ...ap, decay: ap.decay * factor }))(acidParams(s.bass.acid)), pitch, t, gate, vel) : play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel))
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
         : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: sliced ? sp : sp + semi + offset, sliceAt: sliced ? sliceOf(semi, offset) : 0 }, buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), bpmRef.current, sliced ? vel : vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), sliced ? vel : vel / Math.sqrt(ns.length)))
         : s.engine === "poly" ? null
@@ -311,7 +332,7 @@ export function useGroovebox() {
         reeseLast.current[i] = { midi: pitch, until: Math.max(now0, t) + gate + rv.env.r }; }
       else if (s.engine === "poly") { const pp = { ...s.poly, env: scaledEnv(s.poly.env, factor) }; if (strum) ns.forEach((n, k) => voices.push(playPoly(e.ctx, dest, pp, [pitch + n], at(k), gk(k), vel / Math.sqrt(ns.length)))); else voices.push(playPoly(e.ctx, dest, pp, ns.map(n => pitch + n), t, gate, vel)); }
       if (strum) ns.forEach((offset, k) => sendHit(at(k), [pitch + offset]));
-      else sendHit(t, s.engine === "drum" ? [] : ns.map(offset => pitch + offset));
+      else sendHit(t, s.engine === "drum" || s.engine === "idm" ? [] : ns.map(offset => pitch + offset));
       // Strummed slices cut each other: every next slice stops the one before it.
       if (sliced) voices.forEach((v, k) => { if (k > 0) voices[k - 1]?.stop(at(k)); });
       const rel = (st: number, r: number) => voices.forEach(v => v?.release?.(st, r));
@@ -320,7 +341,7 @@ export function useGroovebox() {
       // Earlier tails fade with the pad's current release, so a shortened release is heard on the very next hit.
       const now0 = e.ctx.currentTime, rl = (e.ring[i] = e.ring[i].filter(r => r.until > now0)), curR = relOf(s);
       // Poly chords are heavy (many oscillators each), so their old tails fade quickly and fewer may ring, keeping every new hit audible.
-      const isPoly = s.engine === "poly", cap = isPoly ? 3 : 6;
+      const isPoly = s.engine === "poly" || (s.engine === "synth" && ns.length > 2), cap = cl && !monoSyn ? Math.max(1, Math.min(6, Math.floor(cl.voices / ns.length))) : isPoly ? 3 : 6;
       if (idx === undefined || idx === 0) rl.forEach(r => r.release(t, isPoly ? Math.min(curR, .25) : curR));
       rl.push({ stop: e.mono[i]!.stop, release: rel, until: Math.max(now0, t) + gate + 8 });
       if (rl.length > cap) rl.splice(0, rl.length - cap).forEach(r => r.stop(t));
@@ -670,7 +691,9 @@ export function useGroovebox() {
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
   const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
-  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); if (patch.siren) engine.current?.mono[selectedRef.current]?.update?.(patch.siren as never); if (patch.poly?.mode === "reese") engine.current?.mono[selectedRef.current]?.update?.({ reese: patch.poly.reese } as never); if (patch.synth?.mode === "spec" && patch.synth.spec) engine.current?.mono[selectedRef.current]?.update?.({ spec: patch.synth.spec } as never); if (patch.bass?.mode === "acid") engine.current?.mono[selectedRef.current]?.update?.({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
+  const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch); if (patch.siren) engine.current?.mono[selectedRef.current]?.update?.(patch.siren as never); if (patch.poly?.mode === "reese") engine.current?.mono[selectedRef.current]?.update?.({ reese: patch.poly.reese } as never); if (patch.synth?.mode === "spec" && patch.synth.spec) engine.current?.mono[selectedRef.current]?.update?.({ spec: patch.synth.spec } as never); if (patch.synth?.clean) engine.current?.mono[selectedRef.current]?.update?.({ clean: patch.synth.clean } as never); if (patch.bass?.mode === "reese") engine.current?.mono[selectedRef.current]?.update?.({ reese: patch.bass.reese } as never);
+    if (patch.xy) { const ap = applyXY({ ...slotsRef.current[selectedRef.current], ...patch }); engine.current?.mono[selectedRef.current]?.update?.({ clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never); }
+    if (patch.bass?.mode === "acid") engine.current?.mono[selectedRef.current]?.update?.({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
     let buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
@@ -821,7 +844,7 @@ export function useGroovebox() {
     const i = selectedRef.current; cancelBooked(i); idle();
     setSlots(sl => sl.map((x, j) => { if (j !== i) return x; const oldSynth = o.synth ?? x.synth;
       const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }, filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 };
-      return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, fx: o.fx ?? [] }); }));
+      return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, idm: o.idm ?? x.idm, xy: { x: 0, y: 0 }, eq: { ...x.eq, ...o.eq }, fx: o.fx ?? [] }); }));
     if (o.engine === "sampler" && o.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName ?? "sample");
   }, [loadById]);
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };

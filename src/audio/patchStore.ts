@@ -1,17 +1,17 @@
 import type { Slot } from "@/hooks/useGroovebox";
 
 /** A pad's sound + effects rack. Rhythm, phrases, name, mute/solo and choke stay with the pad. */
-export type PatchSound = Partial<Pick<Slot, "engine" | "note" | "drum" | "synth" | "sampler" | "poly" | "bass" | "siren" | "chord" | "eq" | "fx">>;
+export type PatchSound = Partial<Pick<Slot, "engine" | "note" | "drum" | "synth" | "sampler" | "poly" | "bass" | "siren" | "idm" | "chord" | "eq" | "fx">>;
 export type SampleMap = Record<string, { name: string; type: string; data: string }>;
 export type Patch = { v: 1; id: string; name: string; engine: Slot["engine"]; savedAt: number; sound: PatchSound };
 export const PATCH_KEY = "nadrisk.patches.v1";
-const ENGINES = ["drum", "synth", "sampler", "poly", "808", "siren"];
+const ENGINES = ["drum", "idm", "synth", "sampler", "poly", "808", "siren"];
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export function capturePatch(s: Slot, name: string): Patch {
-  const { engine, note, drum, synth, sampler, poly, bass, siren, chord, eq, fx } = s;
-  return { v: 1, id: newId(), name: name.trim() || "PATCH", engine, savedAt: Date.now(), sound: copy({ engine, note, drum, synth, sampler, poly, bass, siren, chord, eq, fx }) };
+  const { engine, note, drum, synth, sampler, poly, bass, siren, idm, chord, eq, fx } = s;
+  return { v: 1, id: newId(), name: name.trim() || "PATCH", engine, savedAt: Date.now(), sound: copy({ engine, note, drum, synth, sampler, poly, bass, siren, idm, chord, eq, fx }) };
 }
 
 /** Accepts anything parsed from JSON and returns a safe patch, or null. */
