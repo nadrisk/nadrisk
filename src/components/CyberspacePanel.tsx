@@ -17,7 +17,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `Synth ${label}`, short, value: c[key], min, max, step, fmt, log, reset: home[key], set: v => C({ [key]: v }) });
   const knobs = (page: string): Knob[] => {
-    if (page === "OSC") return [K("wave", "WAVE", "wave", 0, 3, .01, waveName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
+    if (page === "OSC") return [noteK, K("wave", "WAVE", "wave", 0, 3, .01, waveName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
       K("voices", "VOX", "voices", 1, 8, 1, v => (v === 1 ? "MONO" : `${v}V`))];
     if (page === "FLT") return [K("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), K("resonance", "RES", "res", 0, 1, .01, pct), K("filter envelope", "ENV", "envAmt", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
     return envKnobs(c.env, env => C({ env }), home.env).map(k => ({ ...k, label: `Synth ${k.label}` }));
@@ -49,6 +49,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />;
     return <EnvZones env={c.env} set={env => C({ env })} />;
   };
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Clean synth" knobs={page => page === "OSC" && c.voices === 1 ? [...knobs(page).slice(0, 3), { ...knobs(page)[3] }] : knobs(page)} body={body} extra={extra} deps={[slot.name, c, noteK.value]} />;
+  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Clean synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value]} />;
 }
 export default memo(CyberspacePanel);
