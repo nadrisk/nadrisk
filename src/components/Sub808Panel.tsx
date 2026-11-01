@@ -2,14 +2,16 @@ import { useNoteKnob } from "@/components/harmonyKnob";
 import { noteName } from "@/audio/arp";
 import { memo, useRef } from "react";
 import type { GetWave } from "./ScopeScreen";
-import { reeseVisualLevel } from "@/pixel/reeseWaves";
+import { drawReeseWaves, reeseVisualLevel } from "@/pixel/reeseWaves";
+import { defaultReese, reeseParams, type ReeseParams } from "@/audio/reese";
+import { drawFilterCurve } from "./pixelScreens";
 import { acidParams, defaultAcid, type AcidParams } from "@/audio/acid";
 import { drawAcidDisplay, draw808Display } from "@/pixel/acidDisplay";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, hz, ms, pct, st, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
 
-const PAGES = ["PTCH", "AMP", "WGT"] as const;
+const PAGES = ["PTCH", "BODY"] as const;
 
 // SUB808: the 808 editor as a 128x64 1-bit hardware screen.
 function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index?: number; getWave?: GetWave; onChange: (p: Partial<Slot>) => void }) {
@@ -24,9 +26,25 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
     v.level = reeseVisualLevel(v.buffer, v.level); if (v.level < .015) v.level = 0;
     const bucket = Math.round(v.level * 12), changed = bucket !== v.bucket; v.bucket = bucket; return changed;
   };
-  const acid = b.mode === "acid";
-  const modeKey = <Tap x={96} y={11} w={30} h={10} label={acid ? "Switch to 808" : "Switch to ACID"} pressed={acid} onClick={() => onChange({ bass: { ...b, mode: acid ? "808" : "acid", ...(!acid && !b.acid ? { acid: defaultAcid() } : {}) } })} />;
-  const drawMode = (p: import("@/pixel/draw").Px) => { if (acid) { p.rect(96, 11, 30, 10); p.textC("808", 111, 14, false); } else { p.box(96, 11, 30, 10); p.textC("ACID", 111, 14); } };
+  const acid = b.mode === "acid", reese = b.mode === "reese";
+  // BAS mode key cycles 808 > ACID > REESE; the key shows the mode it switches to.
+  const next = acid ? "reese" : reese ? "808" : "acid", NEXT = next === "reese" ? "RESE" : next === "acid" ? "ACID" : "808";
+  const modeKey = <Tap x={96} y={11} w={30} h={10} label={`Switch bass to ${NEXT}`} pressed={b.mode !== undefined && b.mode !== "808"} onClick={() => onChange({ bass: { ...b, mode: next, ...(next === "acid" && !b.acid ? { acid: defaultAcid() } : {}), ...(next === "reese" && !b.reese ? { reese: defaultReese() } : {}) } })} />;
+  const drawMode = (p: import("@/pixel/draw").Px) => { p.rect(96, 11, 30, 10, false); p.box(96, 11, 30, 10); p.textC(NEXT, 111, 14); };
+  if (reese) {
+    const r = reeseParams(b.reese), rh = defaultReese();
+    const Rz = (q: Partial<ReeseParams>) => onChange({ bass: { ...b, reese: { ...r, ...q } } });
+    const rk = (label: string, short: string, key: "detune" | "sub" | "glide" | "cutoff" | "res" | "width", min: number, max: number, step: number, fmt: (n: number) => string, log = false): Knob =>
+      ({ label: `Reese ${label}`, short, value: r[key], min, max, step, fmt, log, reset: rh[key], set: v => Rz({ [key]: v }) });
+    return <Panel key="reese" name={slot.name || "REESE"} label="Bass reese" pages={["OSC", "FLT"]} deps={[index, slot.name, slot.note, b]}
+      live={page => page === "OSC" && getWave ? reactToSound : undefined}
+      knobs={page => page === "OSC" ? [noteK, rk("detune", "DETN", "detune", 0, 50, .1, v => `${v.toFixed(0)}CT`), rk("sub", "SUB", "sub", 0, 1, .01, pct), rk("glide", "GLID", "glide", 0, .5, .001, ms)]
+        : [rk("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), rk("resonance", "RES", "res", 0, 8, .1, v => v.toFixed(1)), rk("width", "WID", "width", 0, 1, .01, pct),
+          { label: "Reese release", short: "REL", value: r.env.r, min: .01, max: 4, step: .01, fmt: ms, reset: rh.env.r, set: v => Rz({ env: { ...r.env, r: v } }) }]}
+      body={(p, page) => { if (page === "OSC") { p.box(2, 11, 124, 34); drawReeseWaves(p, r, visual.current.bucket / 12, window.matchMedia("(prefers-reduced-motion: reduce)").matches); drawMode(p); }
+        else drawFilterCurve(p, "lowpass", r.cutoff, r.res, 2, 11, 124, 32); }}
+      extra={page => page === "OSC" ? modeKey : <Zone x={2} y={11} w={124} h={32} horizontal log label="Reese cutoff drag" value={r.cutoff} min={40} max={16000} step={1} onChange={cutoff => Rz({ cutoff })} />} />;
+  }
   if (acid) {
     const a = acidParams(b.acid), init = defaultAcid();
     const A = (patch: Partial<AcidParams>) => onChange({ bass: { ...b, acid: { ...a, ...patch } } });
@@ -52,17 +70,11 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
       noteK,
       { label: "Click", short: "CLK", value: b.click, min: 0, max: 1, step: .01, reset: .3, fmt: pct, set: click => B({ click }) },
     ];
-    if (page === "AMP") return [
-      { label: "Release", short: "REL", value: b.decay, min: .05, max: 4, step: .01, reset: 1.2, fmt: ms, set: decay => B({ decay }) },
-      { label: "Tube drive", short: "DRV", value: b.tube, min: 0, max: 1, step: .01, reset: .25, fmt: pct, set: tube => B({ tube }) },
-      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, reset: 80, fmt: v => `${v}%`, set: level => onChange({ level }) },
-      { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, reset: 0, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
-    ];
     return [
-      { label: "Tube drive", short: "TUBE", value: b.tube, min: 0, max: 1, step: .01, reset: .25, fmt: pct, set: tube => B({ tube }) },
+      { label: "Release", short: "DEC", value: b.decay, min: .05, max: 4, step: .01, reset: 1.2, fmt: ms, set: decay => B({ decay }) },
+      { label: "Tube drive", short: "DRV", value: b.tube, min: 0, max: 1, step: .01, reset: .25, fmt: pct, set: tube => B({ tube }) },
       { label: "Harmonics", short: "HARM", value: b.harmonics, min: 0, max: 1, step: .01, reset: .2, fmt: pct, set: harmonics => B({ harmonics }) },
       { label: "Tone", short: "TONE", value: b.tone, min: 200, max: 16000, step: 10, reset: 2500, fmt: hz, set: tone => B({ tone }) },
-      { label: "Volume", short: "LEV", value: slot.level, min: 0, max: 100, step: 1, reset: 80, fmt: v => `${v}%`, set: level => onChange({ level }) },
     ];
   };
 
@@ -70,23 +82,21 @@ function Sub808Panel({ slot, index = 0, getWave, onChange }: { slot: Slot; index
     p.box(2, 11, 124, 34);
     if (page === "PTCH") {
       draw808Display(p, b, slot.note, visual.current.bucket / 12); drawMode(p);
-    } else if (page === "AMP") {
+    } else {
       // Release tail graph.
       const rel = Math.max(2, Math.round(b.decay / 4 * 88));
       p.line(4, 14, 4, 14); p.line(4, 14, 4 + rel, 41); p.line(4 + rel, 41, 96, 41);
       const clk = Math.round(b.click * 4);
       for (let i = 0; i < clk; i++) p.dot(6 + i * 2, 16);
-      const value = ms(b.decay); p.text(value, 124 - value.length * 4, 36);
-    } else {
-      // Weight: drive/harmonics/tone bars.
-      const bars: [string, number][] = [["TUB", b.tube], ["HRM", b.harmonics], ["TON", b.tone / 16000]];
-      bars.forEach(([lb, v], i) => { const x = 26 + i * 34, bh = Math.round(v * 26); p.rect(x, 41 - bh, 14, bh); p.textC(lb, x + 7, 14); });
+      const value = ms(b.decay); p.text(value, 124 - value.length * 4, 13);
+      // Weight bars beside the tail: drive / harmonics / tone.
+      ([["TUB", b.tube], ["HRM", b.harmonics], ["TON", b.tone / 16000]] as [string, number][]).forEach(([lb, v], i) => { const x = 100 + i * 8, bh = Math.round(v * 18); p.rect(x, 41 - bh, 5, bh); });
     }
   };
 
   const extra = (page: string) => {
     if (page === "PTCH") return <><Zone x={14} y={23} w={114} h={22} horizontal label="Pitch env decay" value={b.pitchDecay} min={.005} max={.4} step={.005} onChange={pitchDecay => B({ pitchDecay })} />{modeKey}</>;
-    if (page === "AMP") return <Zone x={14} y={10} w={114} h={35} horizontal label="Release" value={b.decay} min={.05} max={4} step={.01} onChange={decay => B({ decay })} />;
+    if (page === "BODY") return <Zone x={14} y={10} w={84} h={35} horizontal label="Release" value={b.decay} min={.05} max={4} step={.01} onChange={decay => B({ decay })} />;
     return null;
   };
 
