@@ -22,7 +22,7 @@ export function detectRole(slot: { name: string; engine: string; role?: Role; dr
   if (/SNR|SNARE|SD|CLAP|CLP/.test(n)) return "snare";
   if (/HAT|HH|\bCH\b/.test(n)) return "hat";
   if (slot.engine === "drum" && slot.drum) return slot.drum.kind === "kick" ? "kick" : slot.drum.kind === "hat" ? "hat" : "snare";
-  if (/PERC|RIM|TOM|CLICK|MTL|SHK/.test(n)) return "perc";
+  if (/PERC|RIM|TOM|CLICK|MTL|SHK/.test(n) || slot.engine === "idm") return "perc";
   return "none";
 }
 
