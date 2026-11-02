@@ -7,3 +7,6 @@ export const migrateEngine = (x0: Slot): Slot => {
   // Lineup v3: POLY-REESE pads become BAS in REESE mode, POLY chords become an 8-voice SYN, SIREN pads become a mono SYN.
   if (x.engine === "poly") x = x.poly.mode === "reese" ? { ...x, engine: "808", bass: { ...x.bass, mode: "reese", reese: x.poly.reese } }
     : { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), detune: Math.min(1, x.poly.detune / 30), sub: x.poly.sub, cutoff: x.poly.cutoff, res: Math.min(1, x.poly.res / 8), env: x.poly.env, voices: 8 } } };
+  else if (x.engine === "siren") x = { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), voices: 1 } } };
+  return x;
+};

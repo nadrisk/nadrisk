@@ -85,9 +85,6 @@ const migrateSlot = (x: Slot): Slot => {
 };
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
 const acidTo808 = migrateEngine;
-  else if (x.engine === "siren") x = { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), voices: 1 } } };
-  return x;
-};
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
 const relOf = (s: Slot) => s.engine === "synth" ? cleanOf(s.synth).env.r : s.engine === "idm" ? idmParams(s.idm).decay : s.engine === "808" && s.bass.mode === "reese" ? reeseParams(s.bass.reese).env.r : s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
