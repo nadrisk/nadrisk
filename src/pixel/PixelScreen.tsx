@@ -124,3 +124,12 @@ export function Zone({ x, y, w, h, label, value, min, max, step = 1, onChange, h
 export function Tap({ x, y, w, h, label, pressed, onClick, disabled }: { x: number; y: number; w: number; h: number; label: string; pressed?: boolean; onClick: () => void; disabled?: boolean }) {
   return <button className="px-zone" style={pos(x, y, w, h)} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick} />;
 }
+
+/** Absolute 2D touch pad: reports -1..1 on both axes (up = +y) while dragging, and onLift when the finger leaves. */
+export function XYPad({ x, y, w, h, label, onMove, onLift }: { x: number; y: number; w: number; h: number; label: string; onMove: (x: number, y: number) => void; onLift?: () => void }) {
+  const at = (e: React.PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); onMove(Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1)), Math.max(-1, Math.min(1, 1 - ((e.clientY - r.top) / r.height) * 2))); };
+  return <div className="px-zone" style={{ ...pos(x, y, w, h), touchAction: "none" }} role="slider" tabIndex={0} aria-label={label}
+    onPointerDown={e => { if (!e.isTrusted) return; e.currentTarget.setPointerCapture(e.pointerId); at(e); }}
+    onPointerMove={e => { if (e.buttons && e.isTrusted) at(e); }}
+    onPointerUp={() => onLift?.()} onPointerCancel={() => onLift?.()} />;
+}
