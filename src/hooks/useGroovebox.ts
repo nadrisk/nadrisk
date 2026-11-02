@@ -13,6 +13,7 @@ import { acidParams, playAcid } from "@/audio/acid";
 import { cleanOf, defaultClean, playClean } from "@/audio/clean";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
+import { migrateEngine } from "@/audio/lineup";
 import type { PatchSound } from "@/audio/patchStore";
 import { bakePhrase, detectRole, type GenResult, type Role } from "@/audio/patternGen";
 import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, playReese, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
@@ -83,14 +84,7 @@ const migrateSlot = (x: Slot): Slot => {
   return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
 };
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
-const acidTo808 = (x0: Slot): Slot => {
-  let x = (x0.poly as { mode?: string }).mode === "acid" ? { ...x0, engine: "808" as const, bass: { ...x0.bass, mode: "acid" as const, acid: (x0.poly as { acid?: Bass808Params["acid"] }).acid }, poly: { ...x0.poly, mode: "poly" as const } } : x0;
-  // Lineup v3: POLY-REESE pads become BAS in REESE mode, POLY chords become an 8-voice SYN, SIREN pads become a mono SYN.
-  if (x.engine === "poly") x = x.poly.mode === "reese" ? { ...x, engine: "808", bass: { ...x.bass, mode: "reese", reese: x.poly.reese } }
-    : { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), detune: Math.min(1, x.poly.detune / 30), sub: x.poly.sub, cutoff: x.poly.cutoff, res: Math.min(1, x.poly.res / 8), env: x.poly.env, voices: 8 } } };
-  else if (x.engine === "siren") x = { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), voices: 1 } } };
-  return x;
-};
+const acidTo808 = migrateEngine;
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
 const relOf = (s: Slot) => s.engine === "synth" ? cleanOf(s.synth).env.r : s.engine === "idm" ? idmParams(s.idm).decay : s.engine === "808" && s.bass.mode === "reese" ? reeseParams(s.bass.reese).env.r : s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
