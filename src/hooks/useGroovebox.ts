@@ -13,6 +13,7 @@ import { acidParams, playAcid } from "@/audio/acid";
 import { cleanOf, defaultClean, playClean } from "@/audio/clean";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
+import { migrateEngine } from "@/audio/lineup";
 import type { PatchSound } from "@/audio/patchStore";
 import { bakePhrase, detectRole, type GenResult, type Role } from "@/audio/patternGen";
 import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler, playGrains, playSynth, type DrumParams, type SamplerParams, type SynthParams, defaultPoly, playPoly, playReese, play808, default808, playSiren, defaultSiren, type SirenParams, type Bass808Params, type PolyParams, type Voice } from "@/audio/voices";
@@ -51,7 +52,7 @@ export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.mi
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", ...o });
 
 const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), idm: defaultIdm(), xy: { x: 0, y: 0 }, ...extra });
-export const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48, { drum: { kind: "kick", ...DRUM_INIT.kick, env: { ...DRUM_INIT.kick.env } } }));
+const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "drum", 48, { drum: { kind: "kick", ...DRUM_INIT.kick, env: { ...DRUM_INIT.kick.env } } }));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
 export type StepVal = 0 | 1 | 2 | 3;
 /** Which column a row plays on a tick. With a loop crop, the offset slides the loop window across the row. */
@@ -83,11 +84,7 @@ const migrateSlot = (x: Slot): Slot => {
   return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
 };
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
-export const acidTo808 = (x0: Slot): Slot => {
-  let x = (x0.poly as { mode?: string }).mode === "acid" ? { ...x0, engine: "808" as const, bass: { ...x0.bass, mode: "acid" as const, acid: (x0.poly as { acid?: Bass808Params["acid"] }).acid }, poly: { ...x0.poly, mode: "poly" as const } } : x0;
-  // Lineup v3: POLY-REESE pads become BAS in REESE mode, POLY chords become an 8-voice SYN, SIREN pads become a mono SYN.
-  if (x.engine === "poly") x = x.poly.mode === "reese" ? { ...x, engine: "808", bass: { ...x.bass, mode: "reese", reese: x.poly.reese } }
-    : { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), detune: Math.min(1, x.poly.detune / 30), sub: x.poly.sub, cutoff: x.poly.cutoff, res: Math.min(1, x.poly.res / 8), env: x.poly.env, voices: 8 } } };
+const acidTo808 = migrateEngine;
   else if (x.engine === "siren") x = { ...x, engine: "synth", synth: { ...x.synth, clean: { ...defaultClean(), voices: 1 } } };
   return x;
 };

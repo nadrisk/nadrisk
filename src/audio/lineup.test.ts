@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { acidTo808, blankSlots, type Slot } from "@/hooks/useGroovebox";
+import type { Slot } from "@/hooks/useGroovebox";
+import { migrateEngine as acidTo808 } from "./lineup";
+import { default808, defaultPoly, DRUM_INIT } from "./voices";
+import { defaultSiren } from "./voices";
 import { cleanOf } from "./clean";
 import { applyXY, commitXY } from "./xyMaps";
 import { idmParams } from "./idm";
 
-const pad = (p: Partial<Slot>): Slot => ({ ...blankSlots()[0], ...p });
+const base = { name: "", engine: "drum", note: 48, level: 75, pan: 0, mute: false, solo: false, drum: { kind: "kick", ...DRUM_INIT.kick }, synth: { env: { a: .01, d: .3, s: .5, r: .2 } }, sampler: { start: 0, loop: false, pitch: 0, env: { a: 0, d: .3, s: 1, r: .1 }, sampleName: "" }, fx: [], choke: 0, poly: defaultPoly(), bass: default808(), siren: defaultSiren() } as unknown as Slot;
+const pad = (p: Partial<Slot>): Slot => ({ ...base, ...p });
 
 describe("instrument lineup", () => {
   it("loads old POLY-REESE pads as BAS in REESE mode", () => {
