@@ -25,7 +25,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, o
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} getSlices={getSlices ? sm => getSlices(index, sm) : undefined} live={live} />}
     </DevicePanel>
     <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getSpectrum={getSpectrum} /></DevicePanel>
-    <DevicePanel className="gb-ed-voice gb-ed-device" label="XY"><XyScreen slot={slot} onChange={onChange} /></DevicePanel>
+    <DevicePanel className="gb-ed-xy gb-ed-device" label="XY"><XyScreen slot={slot} onChange={onChange} /></DevicePanel>
     {chords && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {slot.engine === "sampler" && <DevicePanel className="gb-ed-library gb-ed-device" label="Library"><LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} /></DevicePanel>}
   </div>;
