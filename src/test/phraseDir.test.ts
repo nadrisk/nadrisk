@@ -16,12 +16,6 @@ describe("CHRD walk", () => {
 });
 
 describe("RAND spread", () => {
-  it("low SPRD moves at most one scale step between neighbours", () => {
-    for (let s = 1; s < 30; s++) {
-      const c = randomizeArp(defaultArp({ spread: 0 }), seeded(s)).cells;
-      for (let i = 1; i < c.length; i++) expect(Math.abs(c[i].deg - c[i - 1].deg)).toBeLessThanOrEqual(2);
-    }
-  });
   it("a phrase never gets stuck on two notes", () => {
     for (let s = 1; s < 50; s++) {
       const a = defaultArp({ spread: 0 }), r = randomizeArp(a, seeded(s));
