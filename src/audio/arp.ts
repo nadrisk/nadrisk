@@ -154,3 +154,6 @@ export function lockToChord(semi: number, tones: readonly number[]): number {
   for (let o = -3; o <= 4; o++) for (const t of tones) { const c = t + o * 12, e = Math.abs(c - semi); if (e < err || (e === err && c < best)) { err = e; best = c; } }
   return best;
 }
+
+/** SPRD live: scales a step's degree around the phrase root (0.5 = as written, 0 = all root, 1 = twice as wide). Stored cells never change. */
+export const spreadDeg = (deg: number, spread = .5) => Math.max(0, Math.round(deg * Math.max(0, spread) * 2));
