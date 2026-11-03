@@ -6,7 +6,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
-import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
+import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale, spreadDeg } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
