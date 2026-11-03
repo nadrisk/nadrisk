@@ -44,7 +44,7 @@ export const FX_DEFS = {
   noisegate: { label: "gate~", params: { threshold: [-40, -80, 0, 1], attack: [0.001, 0.0005, 0.05, 0.0005], hold: [0.03, 0, 0.5, 0.005], release: [0.12, 0.01, 1.5, 0.01], range: [0, 0, 1, 0.01] } },
   drumbus: { label: "drum.bus~", params: { trans: [0, -1, 1, 0.01], smash: [0.3, 0, 1, 0.01], tone: [0, -1, 1, 0.01], clip: [0.3, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   gain: { label: "gain~", params: { level: [.55, 0, 1, 0.001] } },
-  hack: { label: "hack~", params: { short: [0.3, 0, 1, 0.01], clock: [0.25, 0, 1, 0.01], starve: [0.2, 0, 1, 0.01], mix: [1, 0, 1, 0.01], skip: [0.2, 0, 1, 0.01], size: [0.5, 0, 1, 0.01], chaos: [0.3, 0, 1, 0.01], lock: [1, 0, 1, 1] } },
+  hack: { label: "hack~", params: { short: [0.3, 0, 1, 0.01], clock: [0.25, 0, 1, 0.01], starve: [0.2, 0, 1, 0.01], skip: [0.2, 0, 1, 0.01], rate: [2, 0, 3, 1], steps: [16, 4, 16, 4], depth: [0.5, 0, 1, 0.01], size: [0.5, 0, 1, 0.01], lock: [1, 0, 1, 1], mix: [1, 0, 1, 0.01], seed: [0, 0, 2147483647, 1] } },
   dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], q: [1.5, 0.3, 8, 0.1], gain: [6, 0, 15, 0.5], threshold: [-30, -60, 0, 1], dir: [0, 0, 1, 1], attack: [0.005, 0.001, 0.1, 0.001], release: [0.12, 0.02, 1, 0.01] } },
   morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], oppose: [0, 0, 1, 1], depth: [0.4, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
@@ -297,6 +297,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   let automationTime = ctx.currentTime;
   const set = (p: AudioParam | undefined, v: number) => { if (p && Number.isFinite(v)) p.setTargetAtTime(v, automationTime, 0.005); };
   let keyInput: AudioNode | undefined;
+  const cleanups: (() => void)[] = [];
   let setPitch: ((semi: number, at: number) => void) | undefined;
   let trigger: ((at: number) => void) | undefined;
   const worklet = (name: string, inputs = 1) => { const n = Tone.getContext().createAudioWorkletNode(name, { numberOfInputs: inputs, outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(n); return n; };
@@ -432,8 +433,14 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
   } else if (type === "hack") {
     // Circuit bend: one nad-hack worklet (SHRT data-line short, CLK wobbling sample clock, SKIP buffer stutter,
     // STRV starved rails, seeded CHAOS events); it posts its live state for the screen.
+    // GEN pattern: seed/rate/steps/depth go by port message (never glided); anchor = audio time of transport zero so steps follow the grid.
+    // CHAOS is retired: only old saved units still carry it, so they keep sounding as saved.
     const n = worklet("nad-hack"); input.connect(n).connect(wet); listen(n);
-    apply = p => wp(n, { ...p, bpm: fxBpm }, ["short", "clock", "starve", "skip", "size", "chaos", "lock", "bpm"]);
+    const tr = Tone.getTransport(), anchor = () => ctx.currentTime - (tr.state === "started" ? tr.seconds : 0);
+    const onStart = (time: number, offset?: number) => n.port.postMessage({ anchor: time - (offset ? Tone.Time(offset).toSeconds() : 0) });
+    tr.on("start", onStart); cleanups.push(() => tr.off("start", onStart));
+    apply = p => { wp(n, { ...p, chaos: p.chaos ?? 0, bpm: fxBpm }, ["short", "clock", "starve", "skip", "size", "chaos", "lock", "bpm"]);
+      n.port.postMessage({ seed: Math.round(p.seed ?? 0), rate: Math.round(p.rate ?? 2), steps: Math.round(p.steps ?? 16), depth: p.depth ?? 0, anchor: anchor() }); };
   } else if (type === "spectral") {
     // Spectral gate: 512-point FFT frames; AMOUNT keeps only the loudest bins (0 = clean, 1 = a few glassy partials).
     const n = worklet("nad-specgate"); input.connect(n).connect(wet); listen(n);
@@ -569,7 +576,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const [d, w] = type === "reverb" || type === "delay" ? reverbMixLaw(mix) : [1 - mix, mix];
     set(wet.gain, type === "ott" ? 1 : w); set(dry.gain, type === "ott" ? 0 : d); };
   update(init);
-  return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
+  return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { cleanups.forEach(c => c()); oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
