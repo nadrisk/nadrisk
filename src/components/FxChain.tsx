@@ -250,7 +250,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const bx = 7 + (skip ? 3 : 0), by = 25 + Math.round(sag * 2);
     d.line(bx + 8, by - 3, bx + 10, by - 1); d.line(bx + 23, by - 3, bx + 21, by - 1); d.rect(bx + 7, by - 4, 2, 1); d.rect(bx + 23, by - 4, 2, 1);
     d.box(bx, by, 32, 17); d.box(bx + 2, by + 2, 28, 13, true);
-    const blink = per > 6 && Math.floor(now * (1 + eff[1] * 3)) % 3 === 0, cross = flash || (mask && eff[0] > .6);
+    const blink = per > 6 && Math.floor(performance.now() / 1000 * (1 + eff[1] * 3)) % 3 === 0, cross = flash || (mask && eff[0] > .6);
     for (const ex of [bx + 8, bx + 20]) {
       if (blink) d.line(ex, by + 7, ex + 3, by + 7);
       else if (cross) { d.line(ex, by + 5, ex + 3, by + 8); d.line(ex + 3, by + 5, ex, by + 8); }
