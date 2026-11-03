@@ -5,7 +5,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
-import { defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
+import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
@@ -240,7 +240,7 @@ export function useGroovebox() {
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
     const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
-    let notes = s.engine === "sampler" || (s.engine === "synth" && !monoSyn) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
+    let notes = noteIdx !== -1 && (s.engine === "sampler" || (s.engine === "synth" && !monoSyn)) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
     if (kc) {
@@ -353,15 +353,22 @@ export function useGroovebox() {
     catch (err) { console.warn("pad voice failed", err); }
   }, []);
 
+  /** CHRD lock: chord tones (offsets from the pad root) a phrase snaps to, or null when off / no chord.
+   *  Locked steps play one note each, so the phrase walks the chord instead of stacking it. */
+  const chordLock = useCallback((i: number, a: ArpParams): number[] | null => {
+    const s = slotsRef.current[i]; if (!a.chordSync || !s.chord.on) return null;
+    return keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length) ?? chordNotes(s.chord);
+  }, []);
+
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
   const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
-    const semi = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a), semi = (lk ? lockToChord(raw, lk) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
     if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
     let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
     const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
-    trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t)); return true;
-  }, [trigger]);
+    trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t), lk ? -1 : undefined); return true;
+  }, [trigger, chordLock]);
 
   // STEP mode: each hit advances one place through the (loop-expanded) phrase and wraps around.
   const cursor = useRef<number[]>(Array(16).fill(0));
@@ -369,8 +376,9 @@ export function useGroovebox() {
     const a = slotsRef.current[i].arp, order = phraseOrder(a), k = order[cursor.current[i] % order.length];
     cursor.current[i] = (cursor.current[i] + 1) % order.length;
     const c = a.cells[k]; if (!c?.on) return false;
-    trigger(i, t, c.vel * velMul, phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg) + semiAdd, gate); return true;
-  }, [trigger]);
+    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a);
+    trigger(i, t, c.vel * velMul, (lk ? lockToChord(raw, lk) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
+  }, [trigger, chordLock]);
 
   // Writes a hit at col with velocity, and (keyboard notes) its pitch into a two-octave pitch lane on the current bank.
   const writeStep = useCallback((i: number, col: number, v: number, semi?: number) => {

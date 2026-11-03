@@ -5,7 +5,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 import { packSamples, unpackSamples } from "@/audio/sampleStore";
 import { PATCH_KEY, capturePatch, newId, parsePatchFile, readPatches, samplesOf, uniqueName, type Patch, type PatchSound } from "@/audio/patchStore";
 
-const TAG: Record<string, string> = { drum: "DRM", idm: "IDM", synth: "SYN", sampler: "SMP", poly: "SYN", "808": "BAS", siren: "SYN" };
+const TAG: Record<string, string> = { drum: "DRM", idm: "PRC", synth: "SYN", sampler: "SMP", poly: "SYN", "808": "BAS", siren: "SYN" };
 const BTNS = ["SAVE", "OVR", "LOAD", "REN", "DUP", "DEL"] as const, BTNS2 = ["EXP", "BANK", "IMP"] as const;
 const ROWS = 4;
 

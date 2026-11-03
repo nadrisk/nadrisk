@@ -66,6 +66,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
     [step ? "STEP" : "RUN", "Phrase play mode", 1, step, () => set({ mode: step ? "run" : "step" })],
     [lp.where === "first" ? "FIRST" : "LAST", "Phrase loop position", 33, lp.times > 1, () => set({ loop: { ...lp, where: lp.where === "first" ? "last" : "first" } })],
     [`LEN${Math.min(lp.len, arp.steps)}`, "Phrase loop length, tap for next", 65, lp.times > 1, () => set({ loop: { ...lp, len: (Math.min(lp.len, Math.min(8, arp.steps)) % Math.min(8, arp.steps)) + 1 } })],
+    ["CHRD", "Lock phrase to chord notes", 97, !!arp.chordSync, () => set({ chordSync: !arp.chordSync })],
   ] : page === "TRNC" ? [
     [trOn ? "ON" : "OFF", "Trance mode", 1, trOn, () => trOn ? setTr({ on: false }) : setTr({ on: true }, true)],
     ["GEN", "Write trance phrase", 33, false, () => setTr({}, true)],

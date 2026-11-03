@@ -19,7 +19,7 @@ export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
 export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean }; eucl?: EuclParams };
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean }; eucl?: EuclParams; /** CHRD: phrase notes snap to the pad chord tones. */ chordSync?: boolean };
 /** Repeat the first or last `len` steps `times` times before moving on (times 1 = off). */
 export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
 
@@ -120,4 +120,12 @@ export function euclid(hits: number, steps: number, rot = 0): boolean[] {
 export function applyEucl(a: ArpParams, e: EuclParams): ArpParams {
   const on = euclid(e.hits, e.steps, e.rot);
   return { ...a, eucl: e, steps: on.length, cells: a.cells.map((c, i) => i < on.length ? { ...c, on: on[i], gate: e.gate } : c) };
+}
+
+/** Snaps `semi` to the nearest chord tone (tones are offsets from the pad root, repeated every octave). */
+export function lockToChord(semi: number, tones: readonly number[]): number {
+  if (!tones.length) return semi;
+  let best = semi, err = 99;
+  for (let o = -3; o <= 4; o++) for (const t of tones) { const c = t + o * 12, e = Math.abs(c - semi); if (e < err || (e === err && c < best)) { err = e; best = c; } }
+  return best;
 }

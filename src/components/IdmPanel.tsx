@@ -31,7 +31,7 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
   const d = idmParams(slot.idm), home = IDM_INIT[d.model], names = IDM_KNOBS[d.model];
   const D = (q: Partial<IdmParams>) => onChange({ idm: { ...d, ...q } });
   const K = (label: string, short: string, key: Exclude<keyof IdmParams, "model" | "preset">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
-    ({ label: `IDM ${label}`, short, value: d[key], min, max, step, fmt, log, reset: home[key], set: v => D({ [key]: v }) });
+    ({ label: `PRC ${label}`, short, value: d[key], min, max, step, fmt, log, reset: home[key], set: v => D({ [key]: v }) });
   const knobs = (page: string): Knob[] => page === "MODL"
     ? [K(names[0].toLowerCase(), names[0], "tune", 20, 12000, 1, hz, true), K(names[1].toLowerCase(), names[1], "a", 0, 1, .01, pct), K(names[2].toLowerCase(), names[2], "b", 0, 1, .01, pct), K(names[3].toLowerCase(), names[3], "c", 0, 1, .01, pct)]
     : [K("decay", "DEC", "decay", IDM_MIN_DECAY, IDM_MAX_DECAY, .001, ms), K("bend", "BEND", "bend", -48, 48, 1, st), K("grit", "GRIT", "grit", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
@@ -62,9 +62,9 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
     }
   };
   const extra = (page: string) => <>
-    {IDM_MODELS.map((m, i) => <Tap key={m} x={kx(i)} y={10} w={KW} h={9} label={`IDM model ${IDM_LABEL[m]}`} pressed={m === d.model} onClick={() => m !== d.model && onChange({ idm: { model: m, ...IDM_INIT[m] } })} />)}
-    {page === "ENV" && <Zone x={2} y={20} w={124} h={25} horizontal label="IDM decay drag" value={d.decay} min={IDM_MIN_DECAY} max={IDM_MAX_DECAY} step={.001} reset={home.decay} onChange={decay => D({ decay })} />}
+    {IDM_MODELS.map((m, i) => <Tap key={m} x={kx(i)} y={10} w={KW} h={9} label={`PRC model ${IDM_LABEL[m]}`} pressed={m === d.model} onClick={() => m !== d.model && onChange({ idm: { model: m, ...IDM_INIT[m] } })} />)}
+    {page === "ENV" && <Zone x={2} y={20} w={124} h={25} horizontal label="PRC decay drag" value={d.decay} min={IDM_MIN_DECAY} max={IDM_MAX_DECAY} step={.001} reset={home.decay} onChange={decay => D({ decay })} />}
   </>;
-  return <Panel name={slot.name || "IDM"} pages={["MODL", "ENV"]} label="IDM drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d]} />;
+  return <Panel name={slot.name || "PRC"} pages={["MODL", "ENV"]} label="PRC drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d]} />;
 }
 export default memo(IdmPanel);
