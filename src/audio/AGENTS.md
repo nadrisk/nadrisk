@@ -34,3 +34,4 @@
 - GEN generators are pure seeded functions in patternGen.ts; the hook writes results in one undo step, so they stay testable and undoable.
 - IDM models (src/audio/idm.ts) are percussive-only: DECAY is clamped to IDM_MAX_DECAY in idmParams and the XY map, and retired model ids map to a current model on load, so old sets never ring long.
 - Phrase CHRD lock (arp.chordSync) walks TRNC/EUCL phrases through the chord tones (chordWalk, per-pad counter reset on the first phrase step) and snaps other phrases to the nearest tone; phrase playback order is arp.dir (legacy loop ignored) (key chord when Harmony is on) and plays one note per step via trigger noteIdx -1, so the phrase walks the chord instead of stacking it.
+- Phrase SPRD is a live degree scale (spreadDeg, 0.5 = as written) applied at playback and on screen, never written into cells, so turning it back restores the pattern; double-tap ties use the pure tieSpan helper in tie.ts.

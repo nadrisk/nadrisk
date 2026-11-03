@@ -65,7 +65,7 @@ export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
 /** Rolls a new in-key phrase. SPRD (a.spread 0..1) sets the largest move between notes, from one scale step to two octaves.
  *  A note never repeats more than twice in a row and the phrase uses at least 3 different notes. */
 export function randomizeArp(a: ArpParams, rnd: () => number = Math.random): ArpParams {
-  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + (a.spread ?? .3) * (span - 2)));
+  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + .4 * (span - 2)));
   let deg = Math.floor(rnd() * Math.min(span, SCALES[a.scale].length)), run = 0;
   const cells: ArpStep[] = a.cells.map((_, i) => {
     const on = i === 0 || rnd() < (i % 4 === 0 ? 0.9 : 0.62);
@@ -154,3 +154,6 @@ export function lockToChord(semi: number, tones: readonly number[]): number {
   for (let o = -3; o <= 4; o++) for (const t of tones) { const c = t + o * 12, e = Math.abs(c - semi); if (e < err || (e === err && c < best)) { err = e; best = c; } }
   return best;
 }
+
+/** SPRD live: scales a step's degree around the phrase root (0.5 = as written, 0 = all root, 1 = twice as wide). Stored cells never change. */
+export const spreadDeg = (deg: number, spread = .5) => Math.max(0, Math.round(deg * Math.max(0, spread) * 2));
