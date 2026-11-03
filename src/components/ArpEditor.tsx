@@ -28,12 +28,11 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
     { label: "Step velocity", short: "VEL", value: cur.vel, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}`, set: vel => setCell({ vel }) },
     { label: "Step gate", short: "GATE", value: cur.gate, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, set: gate => setCell({ gate }) },
     rateK,
-    { label: "Random phrase spread", short: "SPRD", value: arp.spread ?? .3, min: 0, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, reset: .3, set: spread => set({ spread }) },
     { label: "Phrase glide time", short: "GLID", value: arp.glide ?? 80, min: 10, max: 400, step: 5, fmt: v => `${v}MS`, set: glide => set({ glide }) },
   ] : [
     { label: "Phrase root", short: "ROOT", value: arp.root, min: 0, max: 11, step: 1, fmt: v => NOTE_NAMES[v], set: root => set({ root }) },
     { label: "Phrase scale", short: "SCL", value: SC.indexOf(arp.scale), min: 0, max: SC.length - 1, step: 1, fmt: v => SC[v].toUpperCase(), set: v => set({ scale: SC[v] }) },
-    { label: "Phrase octave", short: "OCT", value: arp.octave, min: 0, max: 6, step: 1, fmt: String, set: octave => set({ octave }) },
+    { label: "Random phrase spread", short: "SPRD", value: arp.spread ?? .3, min: 0, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, reset: .3, set: spread => set({ spread }) },
     { label: "Phrase steps", short: "STPS", value: arp.steps, min: 1, max: 16, step: 1, fmt: String, set: steps => set({ steps }) },
     { label: "Phrase direction", short: "DIR", value: dirI, min: 0, max: 3, step: 1, fmt: v => DIRN[Math.round(v)], reset: 0, set: v => set({ dir: PHRASE_DIRS[Math.round(v)] }) },
   ];
