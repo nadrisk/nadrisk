@@ -18,9 +18,9 @@ function drawHit(p: Px, d: IdmParams) {
     const h = Math.round(a * (bot - top)); if (h > 0) p.rect(X0 + i, bot - h, 1, h);
   }
   p.line(X0, bot + 1, X1, bot + 1);
-  // Decay end marker + value label, placed where it can't touch the shape.
-  const ex = Math.min(X1, X0 + len); for (let y = top; y <= bot; y += 2) p.dot(ex, y);
-  const lab = `DEC ${ms(d.decay)}`; p.text(lab, Math.max(ex + 3 + 0, 0) + 40 > X1 ? X1 - lab.length * 4 : ex + 3, top);
+  // Decay end marker; the value sits top-right where the fallen shape never reaches.
+  const ex = Math.min(X1, X0 + len); for (let y = top + 8; y <= bot; y += 2) p.dot(ex, y);
+  const lab = `DEC ${ms(d.decay)}`; p.text(lab, X1 - lab.length * 4, top);
   // Pitch strip: flat line = no bend; slope shows where the pitch starts relative to TUNE.
   const my = 42, span = Math.max(3, Math.round(len * .35)), dy = Math.round(Math.max(-1, Math.min(1, d.bend / 48)) * 3);
   p.text("P", X0, 40); p.line(X0 + 5, my - dy, X0 + 5 + span, my); p.line(X0 + 5 + span, my, X1, my, true);
