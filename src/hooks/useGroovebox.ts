@@ -5,7 +5,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import * as Tone from "tone";
 import { createFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
-import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
+import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale} from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
@@ -360,15 +360,25 @@ export function useGroovebox() {
     return keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length) ?? chordNotes(s.chord);
   }, []);
 
+  // CHRD walk: TRNC/EUCL phrases step through the chord tones one note per hit; RAND/manual phrases snap to the nearest tone.
+  const walk = useRef<number[]>(Array(16).fill(0));
+  const walkedSemi = useCallback((i: number, a: ArpParams, deg: number, raw: number, lk: number[], first: boolean) => {
+    const tr = !!a.trance?.on, eu = !!a.eucl?.on; if (!tr && !eu) return lockToChord(raw, lk);
+    if (first) walk.current[i] = eu ? Math.round(a.eucl?.rot ?? 0) : 0;
+    const n = walk.current[i];
+    if (tr && deg !== 0) return chordWalk(lk, n - 1 + intvWalkSteps(a.trance?.spread ?? 0, lk.length));
+    walk.current[i] = n + 1; return chordWalk(lk, n);
+  }, []);
+
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
   const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
-    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a), semi = (lk ? lockToChord(raw, lk) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a), semi = (lk ? walkedSemi(i, a, c.deg, raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
     if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
     let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
     const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
     trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t), lk ? -1 : undefined); return true;
-  }, [trigger, chordLock]);
+  }, [trigger, chordLock, walkedSemi]);
 
   // STEP mode: each hit advances one place through the (loop-expanded) phrase and wraps around.
   const cursor = useRef<number[]>(Array(16).fill(0));
@@ -377,8 +387,8 @@ export function useGroovebox() {
     cursor.current[i] = (cursor.current[i] + 1) % order.length;
     const c = a.cells[k]; if (!c?.on) return false;
     const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a);
-    trigger(i, t, c.vel * velMul, (lk ? lockToChord(raw, lk) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
-  }, [trigger, chordLock]);
+    trigger(i, t, c.vel * velMul, (lk ? walkedSemi(i, a, c.deg, raw, lk, false) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
+  }, [trigger, chordLock, walkedSemi]);
 
   // Writes a hit at col with velocity, and (keyboard notes) its pitch into a two-octave pitch lane on the current bank.
   const writeStep = useCallback((i: number, col: number, v: number, semi?: number) => {
