@@ -65,7 +65,7 @@ export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
 /** Rolls a new in-key phrase. SPRD (a.spread 0..1) sets the largest move between notes, from one scale step to two octaves.
  *  A note never repeats more than twice in a row and the phrase uses at least 3 different notes. */
 export function randomizeArp(a: ArpParams, rnd: () => number = Math.random): ArpParams {
-  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + (a.spread ?? .3) * (span - 2)));
+  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + .4 * (span - 2)));
   let deg = Math.floor(rnd() * Math.min(span, SCALES[a.scale].length)), run = 0;
   const cells: ArpStep[] = a.cells.map((_, i) => {
     const on = i === 0 || rnd() < (i % 4 === 0 ? 0.9 : 0.62);

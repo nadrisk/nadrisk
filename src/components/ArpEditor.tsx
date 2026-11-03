@@ -7,7 +7,6 @@ import { pkey } from "@/components/HwScreens";
 import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, spreadDeg, noteName, randomizeArp, trancePhrase, defaultTrance, TRANCE_PATTERNS, INTV_NAMES, applyEucl, defaultEucl, PHRASE_DIRS, euclid, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
 type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void; note?: number; onNote?: (n: number) => void; noteOf?: (deg: number) => number };
-const SC: ScaleName[] = ["major", "minor", "pent maj", "pent min", "dorian", "phrygian", "lydian", "mixolydian", "harm min", "chromatic"];
 const RT = Object.keys(RATES) as RateName[];
 
 function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf }: Props) {
