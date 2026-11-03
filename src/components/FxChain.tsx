@@ -7,6 +7,7 @@ import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
 import { glyph } from "@/pixel/font";
 import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { hackPattern } from "@/audio/hack";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
