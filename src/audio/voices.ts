@@ -161,8 +161,8 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
     os.forEach(o => o.connect(ring)); ring.connect(sum).connect(bp).connect(bus);
     noise().connect(decGain(p.noise * 1.3, p.env.d + .02)).connect(bus);
     if (p.transient > 0) noise().connect(decGain(p.transient * vel * .8, .004)).connect(bus);
-    // Hats sit above 2 kHz: an older saved high base or HP cutoff stacked on the 6-partial band used to mute them, so cap both.
-    hp.frequency.value = Math.min(hp.frequency.value, 2500); if (p.filter === "highpass") filt.frequency?.setValueAtTime?.(Math.min(p.cutoff, 4000), t);
+    // Hats sit above 2 kHz: an older saved high base stacked on the 6-partial band used to mute them, so cap both.
+    hp.frequency.value = Math.min(hp.frequency.value, 2500);
   } else {
     // Clap: N short noise bursts then a room tail, all through a band-pass whose centre follows the pitch envelope.
     const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = p.tone2; pe(bp.frequency, p.noiseTone); nodes.push(bp);
