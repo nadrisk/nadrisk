@@ -19,7 +19,7 @@ export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
 export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean } };
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean }; eucl?: EuclParams };
 /** Repeat the first or last `len` steps `times` times before moving on (times 1 = off). */
 export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
 
@@ -78,27 +78,46 @@ export function scaleChordOffsets(scale: ScaleName, semi: number, size: number):
 /** True when every interval of `shape`, built on `semi`, lands on a note of the scale. */
 export const shapeInScale = (scale: ScaleName, semi: number, shape: readonly number[]) => shape.every(o => degreeOf(scale, semi + o) !== null);
 
-/** TRANCE generator settings stored with the phrase; writing cells keeps the scheduler unchanged. */
+/** TRANCE generator settings stored with the phrase; writing cells keeps the scheduler unchanged.
+ *  `spread` is the upper-note interval index (INTV_NAMES). */
 export type TranceParams = { pattern: number; density: number; spread: number; gate: number };
-export const TRANCE_PATTERNS = ["ROLL", "GATE", "ARP", "PLCK"] as const;
-export const defaultTrance = (): TranceParams => ({ pattern: 0, density: 1, spread: 1, gate: .5 });
-/**
- * Classic trance 16th phrases in scale degrees (oct = one octave up):
- * ROLL off-beat rolling bass (rest on each downbeat), GATE chopped chord-tone stabs,
- * ARP root/octave/fifth jumping arp, PLCK uplifting 3-3-2 pluck figure. DENS drops weak steps first.
- */
+export const TRANCE_PATTERNS = ["332", "PUSH", "GALL", "ROLL"] as const;
+export const INTV_NAMES = ["OCT", "5TH", "M7", "M3"] as const;
+const INTV_SEMI = [12, 7, 10, 3];
+export const defaultTrance = (): TranceParams => ({ pattern: 0, density: 1, spread: 0, gate: .5 });
+/** Two-note 16th rhythms: a = root, b = upper note, . = rest. Named after the rhythm itself. */
+export const TRANCE_RHYTHMS: Record<typeof TRANCE_PATTERNS[number], string> = {
+  "332": "ab.ab.abab.ab.ab", // 3+3+2 groups, twice per bar
+  PUSH: ".ab.ab.a.ab.ab.b", // off-beat pushes ahead of each beat
+  GALL: "abb.abb.abb.abba", // gallop: one low, two high
+  ROLL: ".abb.abb.abb.abb", // rolling off-beat with the downbeat left to the kick
+};
+/** Scale degree nearest to `semi` semitones above the root. */
+export function nearestDegree(scale: ScaleName, semi: number) {
+  let best = 0, err = 99; for (let d = 0; d <= SCALES[scale].length; d++) { const e = Math.abs(degreeToSemi(scale, d) - semi); if (e < err) { err = e; best = d; } } return best;
+}
+/** Writes a two-note rhythm into 16 cells. DENS drops weak steps first (never the first a/b of each group). */
 export function trancePhrase(scale: ScaleName, t: TranceParams): ArpStep[] {
-  const n = SCALES[scale].length, o = n * Math.max(0, Math.min(2, Math.round(t.spread))), fifth = Math.min(4, n - 1), third = Math.min(2, n - 1);
-  const pat: (number | null)[] = [
-    [null, 0, 0, o, null, 0, 0, o, null, 0, 0, o, null, 0, 0, o],
-    [0, null, third, fifth, null, 0, third, null, 0, third, null, fifth, 0, null, third, fifth],
-    [0, o, fifth, o, third, o, fifth, o, 0, o, fifth, o, third, o, fifth, o + third],
-    [0, null, null, o, null, null, fifth, null, 0, null, null, o, null, null, o + third, fifth],
-  ][Math.max(0, Math.min(3, Math.round(t.pattern)))];
-  // Weakest positions go first as density falls: odd 16ths, then off-8ths, then off-beats.
+  const pat = TRANCE_RHYTHMS[TRANCE_PATTERNS[Math.max(0, Math.min(3, Math.round(t.pattern)))]];
+  const up = nearestDegree(scale, INTV_SEMI[Math.max(0, Math.min(3, Math.round(t.spread)))] ?? 12);
   const weight = (i: number) => i % 4 === 0 ? 1 : i % 2 === 0 ? .66 : .33;
   return Array.from({ length: 16 }, (_, i) => {
-    const d = pat[i], on = d !== null && weight(i) > 1 - t.density - .01;
-    return { on, deg: Math.max(0, d ?? 0), vel: i % 4 === 0 ? 1 : i % 2 ? .7 : .85, gate: t.gate, slide: false };
+    const ch = pat[i], hit = ch !== ".", lead = hit && (i === 0 || pat[i - 1] === ".");
+    const on = hit && (lead || weight(i) > 1 - t.density - .01);
+    return { on, deg: ch === "b" ? up : 0, vel: ch === "a" ? 1 : .8, gate: t.gate, slide: false };
   });
+}
+
+/** Euclidean rhythm on the phrase: HITS spread evenly over STPS (Bjorklund), rotated by ROT. Notes are kept. */
+export type EuclParams = { on: boolean; hits: number; steps: number; rot: number; gate: number };
+export const defaultEucl = (): EuclParams => ({ on: false, hits: 5, steps: 8, rot: 0, gate: .5 });
+export function euclid(hits: number, steps: number, rot = 0): boolean[] {
+  const n = Math.max(1, Math.min(16, Math.round(steps))), k = Math.max(0, Math.min(n, Math.round(hits)));
+  const base = Array.from({ length: n }, (_, i) => k > 0 && (i * k) % n < k);
+  const r = ((Math.round(rot) % n) + n) % n;
+  return base.map((_, i) => base[(i - r + n) % n]);
+}
+export function applyEucl(a: ArpParams, e: EuclParams): ArpParams {
+  const on = euclid(e.hits, e.steps, e.rot);
+  return { ...a, eucl: e, steps: on.length, cells: a.cells.map((c, i) => i < on.length ? { ...c, on: on[i], gate: e.gate } : c) };
 }
