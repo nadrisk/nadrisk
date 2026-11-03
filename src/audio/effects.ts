@@ -59,12 +59,12 @@ export const GAIN_ZERO = .55;
 export const gainPosToDb = (p: number) => p <= .02 ? -Infinity : p < .25 ? -60 + (p - .02) / .23 * 48 : p < .85 ? -12 + (p - .25) / .6 * 24 : 12 + (p - .85) / .15 * 12;
 export const gainDbToPos = (db: number) => db <= -60 ? .02 : db < -12 ? .02 + (db + 60) / 48 * .23 : db < 12 ? .25 + (db + 12) / 24 * .6 : Math.min(1, .85 + (db - 12) / 12 * .15);
 /** Loads saved effect lists: retired neuro.box~ becomes hack~ with its starting values, morph drops the old mutate value, unknown types are skipped. */
-export const migrateFx = (list: unknown): FxUnit[] => !Array.isArray(list) ? [] : list.flatMap((u: FxUnit & { type: string }) => {
+export const migrateFx = (list: unknown): FxUnit[] => !Array.isArray(list) ? [] : list.flatMap((u: { id?: number; on?: boolean; type: string; params?: Record<string, number> }): FxUnit[] => {
   if (!u || typeof u !== "object") return [];
   if (u.type === "neurobox") return [{ ...makeFx("hack"), id: u.id ?? nextId++, on: u.on !== false }];
   if (!(u.type in FX_DEFS)) return [];
-  if (u.type === "morph" && u.params && "mutate" in u.params) { const { mutate: _m, ...params } = u.params; return [{ ...u, params }]; }
-  return [u];
+  if (u.type === "morph" && u.params && "mutate" in u.params) { const { mutate: _m, ...params } = u.params; return [{ ...u, params } as FxUnit]; }
+  return [u as FxUnit];
 });
 export const makeFx = (type: FxType, over: Record<string, number> = {}): FxUnit => ({ id: nextId++, type, on: true, params: { ...Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, (r as Range)[0]])), ...over } });
 
