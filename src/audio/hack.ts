@@ -29,5 +29,12 @@ export const hackPattern = (seed: number) => {
 /** Which pattern step plays at `sec` seconds of transport: RATE 0..3 = 1/4, 1/8, 1/16, 1/32. */
 export const hackStep = (sec: number, bpm: number, rate: number, steps: number) => { const n = Math.max(1, Math.round(steps)), k = Math.floor(Math.max(0, sec) * bpm / 60 * [1, 2, 4, 8][Math.max(0, Math.min(3, Math.round(rate)))] + 1e-6); return k % n; };
 
-/** Knob value moved by the held step; DEPTH 0 returns the knob exactly. */
-export const hackMod = (knob: number, depth: number, v: number) => Math.max(0, Math.min(1, knob + depth * v));
+/** Knob value moved by the (smoothed) step; knob at 0 is fully off, DEPTH 0 returns the knob exactly,
+ *  and the swing fades in over the first quarter of the knob so low settings stay subtle. */
+export const hackMod = (knob: number, depth: number, v: number) => knob <= .001 ? 0 : Math.max(0, Math.min(1, knob + depth * v * Math.min(1, knob * 4)));
+
+/** SMTH slew: per-block glide factor toward the step value; 0 = instant steps, 1 = glide of about one step. */
+export const hackSlew = (smth: number, blockSec: number, stepSec: number) => smth <= .001 ? 1 : 1 - Math.exp(-blockSec / Math.max(1e-4, smth * smth * stepSec * .5));
+
+/** Safety limiter gain for a peak envelope: unity below the ceiling, otherwise pulls the peak down to it. */
+export const hackLimit = (peak: number, ceil: number) => peak > ceil ? ceil / peak : 1;

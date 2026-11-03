@@ -31,3 +31,10 @@ describe("hack GEN patterns", () => {
   it("step follows the grid: 1/16 at 120 BPM is 0.125 s per step", () => { expect(hackStep(0, 120, 2, 16)).toBe(0); expect(hackStep(.125, 120, 2, 16)).toBe(1); expect(hackStep(2, 120, 2, 16)).toBe(0); expect(hackStep(.5, 120, 0, 4)).toBe(1); });
   it("old hack units load with no pattern and DEPTH 0", () => { const [u] = migrateFx([{ id: 2, on: true, type: "hack", params: { short: .5, chaos: .3 } }]); expect(u.params.depth).toBe(0); expect(u.params.seed).toBe(0); expect(u.params.chaos).toBe(.3); });
 });
+
+import { hackLimit, hackSlew } from "./hack";
+describe("hack step modulator", () => {
+  it("knob at 0 is fully off whatever the pattern does", () => { for (const v of [-1, -.5, .5, 1]) expect(hackMod(0, 1, v)).toBe(0); });
+  it("SMTH 0 jumps straight to the step, SMTH up glides", () => { expect(hackSlew(0, .003, .125)).toBe(1); const k = hackSlew(1, .003, .125); expect(k).toBeGreaterThan(0); expect(k).toBeLessThan(.1); });
+  it("limiter keeps peaks at the ceiling", () => { expect(hackLimit(.5, .89)).toBe(1); expect(2 * hackLimit(2, .89)).toBeCloseTo(.89); });
+});
