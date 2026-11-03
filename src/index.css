@@ -993,6 +993,20 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-scope .scope-canvas, .gb-vis-screen .scope-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .px-wrap { min-width: 0; contain: layout paint; }
 
+/* Phones: screens fill their slot edge to edge (no side bars, no extra divider lines), like desktop. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .instrument-workspace .px-wrap,
+  .instrument-workspace .gb-utility-body .px-wrap,
+  .instrument-workspace .gb-editor-body .px-wrap { display: block; width: 100%; max-width: none; padding: 0 !important; margin: 0 !important; border: 0 !important; }
+  .instrument-workspace .px-screen { width: 100% !important; height: auto !important; aspect-ratio: 2 / 1; border: 0; box-sizing: border-box; }
+  .instrument-workspace .px-screen canvas { width: 100% !important; height: 100% !important; }
+  .instrument-workspace .gb-editor-body { display: flex; flex-direction: column; gap: 0; padding: 0; }
+  .instrument-workspace .gb-editor-body > * { border-left: 0; border-right: 0; }
+  .instrument-workspace .gb-editor-body > * + * { border-top: 3px solid hsl(var(--foreground)) !important; }
+  .instrument-workspace .gb-seq-perf { gap: 0; }
+  .instrument-workspace .gb-seq-perf > * + * { border-top: 3px solid hsl(var(--foreground)); }
+}
+
 /* Sampler: the sample name sits on its own line below the screen's knobs. */
 .gb-sample-name { font-family: Silkscreen, monospace; font-size: 10px; line-height: 14px; padding: 2px 4px 0; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
