@@ -52,7 +52,7 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
       c.restore();
     }
     // MIX: below 100% wet, knock out a dither of pixels so the word looks less solid.
-    if (mix < .98) for (let y = y0; y < y0 + 15; y++) for (let x = 0; x < 128; x++) if (rnd(x * 31 + y * 7) > .35 + mix * .65) d.c.clearRect(x, y, 1, 1);
+    if (mix < .98) for (let y = y0; y < y0 + 15; y++) for (let x = 0; x < 128; x++) if (rnd(x * 31 + y * 7) > .35 + mix * .65) d.dot(x, y, false);
     if (hit) d.box(0, 20, 128, 26);
     return;
   }
