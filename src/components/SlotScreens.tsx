@@ -43,14 +43,14 @@ function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () =
 }
 
 // Pad copy/paste clipboard: one pad's whole sound (instrument, mode, sound, note/chord, EQ, FX rack).
-let padClip: Partial<Slot> | null = null;
+let padClip: Partial<Slot> | null = null, padClipFrom = -1;
 const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "idm", "chord", "eq", "fx"] as const;
-export function SlotScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
+export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot: Slot; index?: number; onChange: (p: Partial<Slot>) => void; onCopyBuffer?: (from: number) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
   const [renaming, setRenaming] = useState(false);
   const [clip, setClip] = useState(0);
-  const copy = () => { padClip = structuredClone(Object.fromEntries(PAD_SOUND.map(k => [k, slot[k]]))) as Partial<Slot>; setClip(c => c + 1); };
-  const paste = () => { if (padClip) onChange(structuredClone(padClip)); };
+  const copy = () => { padClip = structuredClone(Object.fromEntries(PAD_SOUND.map(k => [k, slot[k]]))) as Partial<Slot>; padClipFrom = index; setClip(c => c + 1); };
+  const paste = () => { if (!padClip) return; onChange(structuredClone(padClip)); if (padClip.engine === "sampler" && padClipFrom >= 0 && padClipFrom !== index) onCopyBuffer?.(padClipFrom); };
   const knobs: Knob[] = slot.engine === "sampler" ? [] : [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
