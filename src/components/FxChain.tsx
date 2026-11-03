@@ -27,7 +27,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { delay: "DLAY", hack: "HACK", reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "hack" ? ({ short: "SHRT", clock: "CLK", starve: "STRV", skip: "SKIP", size: "SIZE", chaos: "CHAOS", lock: "SYNC", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "hack" ? ({ short: "SHRT", clock: "CLK", starve: "STRV", skip: "SKIP", size: "SIZE", rate: "RATE", steps: "STPS", depth: "DPTH", lock: "SYNC", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -241,15 +241,28 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     d.text(`${g > 0 ? "+" : ""}${g.toFixed(1)}`, 100, 23);
     d.text(`KEY ${pv(p, "source", 1)}`, 4, 23);
   } else if (type === "hack") {
-    // Live circuit state from the worklet: 12 data-line pins (shorted lines filled, inverted on a chaos flash),
-    // the output trace drawn as held stairs, scanline jitter from the clock bend, sagging rails and a SKIP bracket.
+    // Glitch Bot: a small CRT face that reacts to the circuit (SHRT eyes, CLK blink, STRV sag, SKIP jump), beside
+    // the four GEN lanes as held sample-and-hold squares with the playing step marked. Everything stays inside y 22..43.
     const st = levels?.state, mask = st?.[0] ?? 0, per = st?.[1] ?? 1, skip = (st?.[2] ?? 0) > .5, sag = st?.[3] ?? 0, flash = (st?.[4] ?? 0) > .3;
-    for (let b = 0; b < 12; b++) { const x = 4 + b * 10, on = !!(mask & (1 << (11 - b))); d.line(x + 3, 24, x + 3, 26); if (on !== flash) d.rect(x, 20, 7, 4); else d.box(x, 20, 7, 4); }
-    const rail = Math.round(sag * 5); d.line(3, 27 + rail, 124, 27 + rail, true); d.line(3, 45 - rail, 124, 45 - rail, true);
-    const jit = Math.min(4, Math.round(Math.log2(per) * .8)); let py = 36;
-    for (let i = 0; i < 32; i++) { const v = st?.[5 + i] ?? 0, x0 = 4 + i * 3.8 | 0, x1 = 4 + (i + 1) * 3.8 | 0, y = Math.max(28, Math.min(44, Math.round(36 - v * 8))) + (jit && i % 3 === 0 ? (i % 2 ? jit : -jit) : 0);
-      const yc = Math.max(28, Math.min(44, y)); d.line(x0, py, x0, yc); d.line(x0, yc, x1, yc); py = yc; }
-    if (skip) { d.line(3, 46, 3, 44); d.line(3, 46, 124, 46); d.line(124, 46, 124, 44); d.text("SKIP", 106, 12 + 9); }
+    let loud = 0; for (let k = 0; k < 32; k++) loud = Math.max(loud, Math.abs(st?.[5 + k] ?? 0));
+    const step = st?.[37] ?? -1, eff = [st?.[38] ?? pv(p, "short", .3), st?.[39] ?? pv(p, "clock", .25), st?.[40] ?? pv(p, "starve", .2), st?.[41] ?? pv(p, "skip", .2)];
+    const bx = 7 + (skip ? 3 : 0), by = 25 + Math.round(sag * 2);
+    d.line(bx + 8, by - 3, bx + 10, by - 1); d.line(bx + 23, by - 3, bx + 21, by - 1); d.rect(bx + 7, by - 4, 2, 1); d.rect(bx + 23, by - 4, 2, 1);
+    d.box(bx, by, 32, 17); d.box(bx + 2, by + 2, 28, 13, true);
+    const blink = per > 6 && Math.floor(now * (1 + eff[1] * 3)) % 3 === 0, cross = flash || (mask && eff[0] > .6);
+    for (const ex of [bx + 8, bx + 20]) {
+      if (blink) d.line(ex, by + 7, ex + 3, by + 7);
+      else if (cross) { d.line(ex, by + 5, ex + 3, by + 8); d.line(ex + 3, by + 5, ex, by + 8); }
+      else d.rect(ex, by + 5 + (sag > .4 ? 1 : 0), 4, 3);
+    }
+    const mo = Math.min(3, Math.round(loud * 4)); if (mo) d.box(bx + 12, by + 11, 8, mo + 1); else d.line(bx + 12, by + 12, bx + 19, by + 12);
+    const pat = (p.seed ?? 0) > 0 ? hackPattern(p.seed) : null, n = Math.round(pv(p, "steps", 16)), cw = Math.floor(74 / n), x0 = 48;
+    ["S", "C", "V", "K"].forEach((lb, lane) => {
+      const y = 22 + lane * 6; d.text(lb, 43, y);
+      if (!pat) { d.line(x0, y + 4, x0 + n * cw - 1, y + 4, true); return; }
+      for (let k = 0; k < n; k++) { const v = pat[lane * 16 + k], h = lane === 3 ? Math.round(v * 4) : Math.round((v + 1) * 2), x = x0 + k * cw;
+        if (k === step) d.rect(x, y, cw - 1, 5); else if (h > 0) d.rect(x, y + 5 - h, cw - 1, h); else d.line(x, y + 4, x + cw - 2, y + 4, true); }
+    });
   } else if (type === "spectral" && p.freq === undefined) {
     // Live bands from the effect: level bar height, solid = kept, dotted = removed; THRESH line.
     const st = levels?.state, yOf = (db: number) => 43 - Math.round(Math.max(0, Math.min(1, (db + 80) / 80)) * 20), thr = yOf(pv(p, "thresh", -45));
@@ -292,7 +305,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const lofiOn = f?.type === "vibrato" && (f.params.lofi ?? 0) >= .5;
   // The metal resonator shows one screen: TUNE, RING, CLANG, DAMP, MIX; its other settings keep their saved values.
   const METAL_KEYS = ["note", "feedback", "metal", "tone", "mix"];
-  const params = f ? (f.type === "metal" ? METAL_KEYS.map(k => [k, FX_DEFS.metal.params[k as keyof typeof FX_DEFS.metal.params]]) : Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask" && !(f.type === "vibrato" && (k === "lofi" || (!lofiOn && (k === "bump" || k === "oxide")))))) as [string, number[]][] : [];
+  const params = f ? (f.type === "metal" ? METAL_KEYS.map(k => [k, FX_DEFS.metal.params[k as keyof typeof FX_DEFS.metal.params]]) : Object.entries(FX_DEFS[f.type].params).filter(([k]) => k !== "mask" && !(f.type === "hack" && (k === "seed" || k === "chaos")) && !(f.type === "vibrato" && (k === "lofi" || (!lofiOn && (k === "bump" || k === "oxide")))))) as [string, number[]][] : [];
   const pageSize = f?.type === "metal" ? 5 : 4;
   const pages = Math.max(1, Math.ceil(params.length / pageSize)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
@@ -318,7 +331,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * pageSize, pi * pageSize + pageSize).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k, f.type), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : k === "width" ? 0 : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
-    reset: k === "source" ? undefined : r[0], fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
+    reset: k === "source" ? undefined : r[0], fmt: v => (k === "source" ? `${v} ${slots[v - 1] ?? ""}` : f.type === "hack" && k === "rate" ? ["1/4", "1/8", "1/16", "1/32"][Math.round(v)] ?? "1/16" : f.type === "hack" && k === "steps" ? `${Math.round(v)}` : f.type === "hack" && k === "depth" ? `${Math.round(v * 100)}%` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
   }));
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
@@ -333,6 +346,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           if (!f) { p.text("NO EFFECT  ADD ONE", 2, 14); return; }
           p.text(`${i + 1} ${nm(f.type)}`.slice(0, 22), 2, 12);
           if (pages > 1) pkey(p, `P${pi + 1}/${pages}`, 100, 10, 27, false);
+          if (f.type === "hack") { const on = (f.params.seed ?? 0) > 0; if (on) p.rect(72, 10, 26, 9); else p.box(72, 10, 26, 9); p.textC("GEN", 85, 12, !on); }
           if (f.type === "vibrato") { if (lofiOn) p.rect(72, 10, 26, 9); else p.box(72, 10, 26, 9); p.textC(lofiOn ? "VIB" : "LOFI", 85, 12, !lofiOn); }
           drawFxVisual(p, f, levels, hist.current, now);
         } else {
@@ -347,6 +361,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
       </> : page === "EDT" ? <>
         {f?.type === "noisegate" && <Zone x={1} y={21} w={126} h={24} label="Gate threshold line" value={f.params.threshold ?? -40} min={-80} max={0} step={1} onChange={v => set({ params: { ...f.params, threshold: v } })} />}
         {pages > 1 && <Tap x={100} y={10} w={27} h={9} label="Next parameter page" onClick={() => setPg((pi + 1) % pages)} />}
+        {f?.type === "hack" && <Tap x={72} y={10} w={26} h={9} label="Generate a new HACK modulation pattern" pressed={(f.params.seed ?? 0) > 0} onClick={() => set({ params: { ...f.params, seed: 1 + Math.floor(Math.random() * 2147483646), depth: f.params.depth ?? .5 } })} />}
         {f?.type === "vibrato" && <Tap x={72} y={10} w={26} h={9} label={lofiOn ? "Switch vibrato to VIB mode" : "Switch vibrato to LOFI mode"} pressed={lofiOn} onClick={() => { setPg(0); set({ params: { ...f.params, lofi: lofiOn ? 0 : 1 } }); }} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>

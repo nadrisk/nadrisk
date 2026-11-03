@@ -63,6 +63,8 @@ export const migrateFx = (list: unknown): FxUnit[] => !Array.isArray(list) ? [] 
   if (!u || typeof u !== "object") return [];
   if (u.type === "neurobox") return [{ ...makeFx("hack"), id: u.id ?? nextId++, on: u.on !== false }];
   if (!(u.type in FX_DEFS)) return [];
+  // hack~ saved before GEN patterns: no pattern and DEPTH 0, so it sounds as saved.
+  if (u.type === "hack" && u.params && !("depth" in u.params)) return [{ ...u, params: { ...u.params, depth: 0, seed: 0 } } as FxUnit];
   if (u.type === "morph" && u.params && "mutate" in u.params) { const { mutate: _m, ...params } = u.params; return [{ ...u, params } as FxUnit]; }
   return [u as FxUnit];
 });
