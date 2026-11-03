@@ -19,18 +19,31 @@ export type RateName = keyof typeof RATES;
 
 /** slide: glide into this note from the previous one (acid portamento) instead of re-attacking. */
 export type ArpStep = { on: boolean; deg: number; vel: number; gate: number; slide?: boolean };
-export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; trance?: TranceParams & { on?: boolean }; eucl?: EuclParams; /** CHRD: phrase notes snap to the pad chord tones. */ chordSync?: boolean };
-/** Repeat the first or last `len` steps `times` times before moving on (times 1 = off). */
+export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: number; steps: number; sync: boolean; rate: RateName; freeMs: number; cells: ArpStep[]; glide?: number; mode?: "run" | "step"; loop?: PhraseLoop; /** Play direction through the phrase steps. */ dir?: PhraseDir; /** SPRD: RAND step size 0..1. */ spread?: number; trance?: TranceParams & { on?: boolean }; eucl?: EuclParams; /** CHRD: phrase notes snap to the pad chord tones. */ chordSync?: boolean };
+/** Legacy loop (ignored on playback, kept so old sets type-check). */
 export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
 
-/** Play order of cell indexes with the loop expanded; shared by the scheduler and the editor. */
-export function phraseOrder(a: Pick<ArpParams, "steps" | "loop">): number[] {
-  const n = Math.max(1, a.steps), all = Array.from({ length: n }, (_, i) => i), l = a.loop;
-  if (!l || l.times <= 1) return all;
-  const len = Math.max(1, Math.min(n, l.len)), seg = l.where === "first" ? all.slice(0, len) : all.slice(n - len);
-  const rep = Array.from({ length: l.times }, () => seg).flat();
-  return l.where === "first" ? [...rep, ...all.slice(len)] : [...all.slice(0, n - len), ...rep];
+export const PHRASE_DIRS = ["fwd", "rev", "pp", "rnd"] as const;
+export type PhraseDir = typeof PHRASE_DIRS[number];
+/** Play order of cell indexes for the phrase direction; shared by the scheduler and the editor. */
+export function phraseOrder(a: Pick<ArpParams, "steps" | "dir">, rnd: () => number = Math.random): number[] {
+  const n = Math.max(1, a.steps), all = Array.from({ length: n }, (_, i) => i);
+  switch (a.dir) {
+    case "rev": return all.reverse();
+    case "pp": return n < 3 ? all : [...all, ...all.slice(1, -1).reverse()];
+    case "rnd": { for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; } return all; }
+    default: return all;
+  }
 }
+
+/** CHRD walk: n-th walked note through the chord tones, climbing an octave each full round (two octaves, then wraps). */
+export function chordWalk(tones: readonly number[], n: number): number {
+  if (!tones.length) return 0;
+  const t = [...tones].sort((x, y) => x - y), len = t.length, k = ((n % (len * 2)) + len * 2) % (len * 2);
+  return t[k % len] + 12 * Math.floor(k / len);
+}
+/** Chord-walk steps above "a" for each trance INTV (OCT, 5TH, M7, M3). */
+export const intvWalkSteps = (spread: number, len: number) => [len, 2, 3, 1][Math.max(0, Math.min(3, Math.round(spread)))];
 
 /** Degree span offered in the step pitch picker: two octaves of the scale plus the top root. */
 export const degreeCount = (scale: ScaleName) => SCALES[scale].length * 2 + 1;
@@ -49,16 +62,28 @@ export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
   ...o,
 });
 
-/** Rolls a new in-key phrase: keeps root/scale/octave/steps, favours small melodic moves and downbeats. */
-export function randomizeArp(a: ArpParams): ArpParams {
-  const span = degreeCount(a.scale), n = SCALES[a.scale].length;
-  let deg = Math.floor(Math.random() * n);
-  const cells = a.cells.map((_, i) => {
-    const on = i === 0 || Math.random() < (i % 4 === 0 ? 0.9 : 0.62);
-    if (Math.random() < 0.25) deg = [0, n, 4 % n][Math.floor(Math.random() * 3)];
-    else deg = Math.max(0, Math.min(span - 1, deg + Math.floor(Math.random() * 5) - 2));
-    return { on, deg, vel: i % 4 === 0 ? 0.85 + Math.random() * 0.15 : 0.45 + Math.random() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(Math.random() * 5)], slide: i > 0 && Math.random() < 0.15 };
+/** Rolls a new in-key phrase. SPRD (a.spread 0..1) sets the largest move between notes, from one scale step to two octaves.
+ *  A note never repeats more than twice in a row and the phrase uses at least 3 different notes. */
+export function randomizeArp(a: ArpParams, rnd: () => number = Math.random): ArpParams {
+  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + (a.spread ?? .3) * (span - 2)));
+  let deg = Math.floor(rnd() * Math.min(span, SCALES[a.scale].length)), run = 0;
+  const cells: ArpStep[] = a.cells.map((_, i) => {
+    const on = i === 0 || rnd() < (i % 4 === 0 ? 0.9 : 0.62);
+    if (i > 0) {
+      let mv = Math.round((rnd() * 2 - 1) * maxStep);
+      if (mv === 0 && run >= 1) mv = rnd() < .5 ? -1 : 1;
+      let nd = deg + mv; if (nd < 0 || nd > span - 1) nd = deg - mv;
+      nd = Math.max(0, Math.min(span - 1, nd)); run = nd === deg ? run + 1 : 0; deg = nd;
+    }
+    return { on, deg, vel: i % 4 === 0 ? 0.85 + rnd() * 0.15 : 0.45 + rnd() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(rnd() * 5)], slide: i > 0 && rnd() < 0.15 };
   });
+  // Guarantee at least 3 distinct pitches among the played steps.
+  const played = cells.slice(0, a.steps).map((c, i) => c.on ? i : -1).filter(i => i >= 0);
+  const used = new Set(played.map(i => cells[i].deg));
+  for (let j = played.length - 1; used.size < Math.min(3, played.length) && j > 0; j--) {
+    const c = cells[played[j]], base = cells[played[j - 1]].deg;
+    for (let d = 1; d < span; d++) { const cand = [base + d, base - d].find(x => x >= 0 && x < span && !used.has(x)); if (cand !== undefined) { used.add(cand); c.deg = cand; break; } }
+  }
   return { ...a, cells };
 }
 
