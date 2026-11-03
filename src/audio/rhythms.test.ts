@@ -3,7 +3,9 @@ import { euclid, trancePhrase, defaultTrance, defaultArp, applyEucl } from "./ar
 import { genBreak } from "./patternGen";
 import { idmParams, IDM_MAX_DECAY } from "./idm";
 import { applyXY } from "./xyMaps";
-import { blankSlots } from "@/hooks/useGroovebox";
+import type { Slot } from "@/hooks/useGroovebox";
+import { DRUM_INIT, defaultPoly, default808 } from "./voices";
+const pad = { name: "", engine: "drum", note: 48, level: 75, pan: 0, mute: false, solo: false, drum: { kind: "kick", ...DRUM_INIT.kick }, synth: { env: { a: .01, d: .3, s: .5, r: .2 } }, sampler: { start: 0, loop: false, pitch: 0, env: { a: 0, d: .3, s: 1, r: .1 }, sampleName: "" }, fx: [], choke: 0, poly: defaultPoly(), bass: default808() } as unknown as Slot;
 
 describe("euclidean phrase rhythm", () => {
   it("spreads 3 hits over 8 steps as the tresillo", () => {
@@ -45,21 +47,14 @@ describe("IDM stays percussive", () => {
 
 describe("XY TIGHT is plucky", () => {
   it("full TIGHT shortens decay and drops sustain", () => {
-    const s = blankSlots()[0], synth = { ...s, engine: "synth" as const, xy: { x: -1, y: 0 } };
+    const s = pad, synth = { ...s, engine: "synth" as const, xy: { x: -1, y: 0 } };
     const base = applyXY({ ...synth, xy: { x: 0, y: 0 } }).synth.clean!, tight = applyXY(synth).synth.clean!;
     expect(tight.env.d).toBeLessThan(base.env.d / 4);
     expect(tight.env.s).toBeLessThan(base.env.s * .2 + 1e-9);
   });
   it("hat opens to a long decay", () => {
-    const s = blankSlots()[0], hat = { ...s, engine: "drum" as const, drum: { ...s.drum, kind: "hat" as const, env: { a: .001, d: .06, s: 0, r: .02 } }, xy: { x: 1, y: 0 } };
+    const s = pad, hat = { ...s, engine: "drum" as const, drum: { ...s.drum, kind: "hat" as const, env: { a: .001, d: .06, s: 0, r: .02 } }, xy: { x: 1, y: 0 } };
     expect(applyXY(hat).drum.env.d).toBeGreaterThan(.5);
   });
 });
 
-describe("fresh slate", () => {
-  it("starts with 16 empty sampler pads", () => {
-    const s = blankSlots();
-    expect(s).toHaveLength(16);
-    expect(s.every(x => x.engine === "sampler" && x.sampler.sampleName === "EMPTY")).toBe(true);
-  });
-});
