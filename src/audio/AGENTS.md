@@ -32,3 +32,4 @@
 - Sampler INPUT mode (src/audio/liveInput.ts) keeps one shared mic stream routed into the armed pad's outs[i].input and captures via the nad-rec worklet in the shared bundle; armed state is session-only and never saved.
 - Reverb is our own nad-reverb FDN worklet (pre-delay + 120 Hz HP, 5 DENS input diffusers, two decorrelated 8-line Householder networks each with an LFO-modulated in-loop allpass, DAMP lowpass, exact T60 gains, empirically loudness-matched output) with the dry-hold reverbMixLaw in createFx (tape delay MIX shares it); recalibrate the loudness fit in setup() and its test if the topology changes.
 - GEN generators are pure seeded functions in patternGen.ts; the hook writes results in one undo step, so they stay testable and undoable.
+- IDM models (src/audio/idm.ts) are percussive-only: DECAY is clamped to IDM_MAX_DECAY in idmParams and the XY map, and retired model ids map to a current model on load, so old sets never ring long.

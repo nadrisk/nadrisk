@@ -3,7 +3,7 @@ import { midiOf, phraseOrder, type ArpParams } from "./arp";
 /** Pure, seeded pattern generators for the sequencer GEN screen. */
 export type Role = "kick" | "snare" | "hat" | "open" | "perc" | "none";
 export const ROLES: Role[] = ["kick", "snare", "hat", "open", "perc", "none"];
-export const BREAK_STYLES = ["AMEN", "2STP", "DNB", "BOOM", "IDM", "4/4"] as const;
+export const BREAK_STYLES = ["AMEN", "2STP", "DNB", "BOOM", "IDM", "4/4", "LATN"] as const;
 export type BreakStyle = typeof BREAK_STYLES[number];
 export type GenRow = { pattern: number[]; vel: number[]; chance: number[]; ratchet: number[]; length?: number };
 export type GenResult = Record<number, GenRow>;
@@ -26,12 +26,21 @@ export function detectRole(slot: { name: string; engine: string; role?: Role; dr
   return "none";
 }
 
-const G: Record<Exclude<BreakStyle, "IDM">, Partial<Record<Role, string>>> = {
+const G: Record<Exclude<BreakStyle, "IDM" | "LATN">, Partial<Record<Role, string>>> = {
   AMEN: { kick: "x.x.......xx....", snare: "....x..x.x..x..x", hat: "x.x.x.x.x.x.x.x.", open: "..........x.....", perc: "......x.......x." },
   "2STP": { kick: "x.........x.....", snare: "....x.......x...", hat: "..x...x...x...xx", open: "......x.......x.", perc: "...x.....x......" },
   DNB: { kick: "x.........x.....", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", open: "..............x.", perc: ".......x.....x.." },
   BOOM: { kick: "x......xx.x.....", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", open: "...............x", perc: "..x.........x..." },
   "4/4": { kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", open: "..x...x...x...x.", perc: ".x.....x.x.....x" },
+};
+/** LATN: a full Latin rhythm section. Each role draws one of these per generation, so cumbia, son/rumba clave,
+ *  bossa, tumbao and cascara feels mix into one ensemble groove. */
+export const LATN: Record<Exclude<Role, "none">, string[]> = {
+  kick: ["x...x...x...x...", "x..x....x..x....", "x.....x.x.....x.", "x..x..x.x.......", "x.......x..x...."],
+  snare: ["x..x..x...x.x...", "..x.x...x..x..x.", "x..x...x..x.x...", "x..x..x...x..x..", "....x.......x..x"],
+  hat: ["x.xxx.xxx.xxx.xx", "xxx.xxx.xxx.xxx.", "x.x.xx.xx.x.xx.x", "x.xx.xx.x.xx.xx."],
+  open: ["..x...x...x...x.", "...x.......x....", "......x.......x.", "..x.......x....."],
+  perc: ["..xx..x...xx..x.", "....x.xx....x.xx", "..x..xx...x..xx.", "x.x..x.xx.x..x.x"],
 };
 const ACC: Record<Role, number> = { kick: 1, snare: .95, hat: .7, open: .75, perc: .65, none: 1 };
 
@@ -48,7 +57,8 @@ export function genBreak(style: BreakStyle, o: BreakOpts, roles: Role[], rows: n
       // Off-grid feel: hits on odd subdivisions, displaced downbeats.
       const prob = { kick: .22, snare: .16, hat: .45, open: .1, perc: .3, none: 0 }[role];
       base = Array.from({ length: 16 }, (_, i) => (role === "kick" && i === 0) || r() < prob * (.6 + o.dens * .8) ? "x" : ".").join("");
-    } else base = G[style][role] ?? "................";
+    } else if (style === "LATN") { const opts = LATN[role]; base = opts[Math.floor(r() * opts.length)]; }
+    else base = G[style][role] ?? "................";
     for (let c = 0; c < steps; c++) {
       let hit = base[c % 16] === "x";
       if (c >= 16 && o.vary > 0 && r() < o.vary * .3) hit = !hit && role !== "kick" ? r() < .5 : role === "kick" && c % 4 === 0 ? hit : !hit && r() < .5;

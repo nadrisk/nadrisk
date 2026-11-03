@@ -39,17 +39,20 @@ const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
 function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][] = [], t = 0) {
   const p = f.params, type = f.type, hz = type === "chorus" ? [.513, .863, 3][Math.round(p.mode ?? 0)] ?? .5 : ANIM.includes(type) && p.rate !== undefined ? fxRate(p) : 0, ph = hz * t;
   if (type === "metal") {
-    // The word itself: NOTE sets letter spacing, DRIVE slices and shears it, FDBK leaves ringing ghost copies; flashes when the input crosses THRS.
-    const note = pv(p, "note", 57), drv = pv(p, "drive", .2), fb = pv(p, "feedback", .85), hit = (levels?.input ?? -80) > pv(p, "thresh", -40);
-    const gap = Math.round(3 + (84 - note) / 10), word = "METAL", sc = 3, w = word.length * 3 * sc + (word.length - 1) * gap, x0 = Math.round(64 - w / 2), y0 = 26;
-    const c = d.c, jit = hit ? 1 : 0;
+    // The word itself follows the five knobs: TUNE = letter spacing, CLNG = slice shear, RING = ghost copies,
+    // DAMP (tone) = how far the ghosts trail, MIX = solid vs dotted letters. Hits jitter the slices.
+    const note = pv(p, "note", 57), clng = pv(p, "metal", .4), fb = pv(p, "feedback", .85), tone = pv(p, "tone", 6000), mix = pv(p, "mix", .4), hit = (levels?.input ?? -80) > pv(p, "thresh", -40);
+    const gap = Math.round(1 + (84 - note) / 7), word = "METAL", sc = 3, w = word.length * 3 * sc + (word.length - 1) * gap, x0 = Math.round(64 - w / 2), y0 = 26;
+    const c = d.c, bright = Math.log(tone / 300) / Math.log(16000 / 300), ghosts = Math.round(fb / .97 * 3), trail = 2 + Math.round(bright * 5);
     for (let s = 0; s < 5; s++) {
-      const off = Math.round((rnd(s + Math.floor(t * 8) * jit * 7) - .5) * drv * 14);
+      const off = Math.round((rnd(s * 3.1 + (hit ? Math.floor(t * 8) : 0)) - .5) * clng * 22);
       c.save(); c.beginPath(); c.rect(0, y0 + s * sc, 128, sc); c.clip();
-      for (let g = hit ? (fb > .9 ? 2 : fb > .5 ? 1 : 0) : 0; g >= 1; g--) if (s % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * (sc + 3) + k * (3 * sc + gap), y0, true, sc));
+      for (let g = ghosts; g >= 1; g--) if ((s + g) % 2) [...word].forEach((ch, k) => d.text(ch, x0 + off + g * trail + k * (3 * sc + gap), y0, true, sc));
       [...word].forEach((ch, k) => d.text(ch, x0 + off + k * (3 * sc + gap), y0, true, sc));
       c.restore();
     }
+    // MIX: below 100% wet, knock out a dither of pixels so the word looks less solid.
+    if (mix < .98) for (let y = y0; y < y0 + 15; y++) for (let x = 0; x < 128; x++) if (rnd(x * 31 + y * 7) > .35 + mix * .65) d.dot(x, y, false);
     if (hit) d.box(0, 20, 128, 26);
     return;
   }

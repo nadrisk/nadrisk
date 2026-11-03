@@ -99,7 +99,7 @@ export const drumDefaults = (k: DrumKind): Required<DrumMachine> => ({ gain: 1, 
 export const DRUM_INIT: Record<DrumKind, Omit<DrumParams, "kind">> = {
   kick: { pitch: 50, pitchEnv: 38, pitchDecay: .03, pAtk: 0, pCurve: .75, pEnd: 0, fm: .6, fmRatio: 1.5, fmDecay: .03, transient: .7, noise: .01, drive: 0, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 9000, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 20, fltWidth: 10, env: { a: .001, d: .32, s: 0, r: .06 } },
   snare: { pitch: 200, pitchEnv: 14, pitchDecay: .02, pAtk: 0, pCurve: .7, pEnd: 0, fm: 1.5, fmRatio: 2.4, fmDecay: .04, transient: .5, noise: .65, noiseDecay: .14, noiseTone: 4200, tone2: 1.58, bodyDecay: .09, drive: 0, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 12000, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 120, fltWidth: 7, env: { a: .001, d: .16, s: 0, r: .05 } },
-  hat: { pitch: 420, pitchEnv: 2, pitchDecay: .01, pAtk: 0, pCurve: .7, pEnd: 0, fm: 4, fmRatio: 1.41, fmDecay: .05, transient: .4, noise: .55, spread: 1.1, drive: 0, ring: .5, ringFreq: 3200, filter: "highpass", cutoff: 7500, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 6000, fltWidth: 1.6, env: { a: .001, d: .045, s: 0, r: .02 } },
+  hat: { pitch: 420, pitchEnv: 2, pitchDecay: .01, pAtk: 0, pCurve: .7, pEnd: 0, fm: 4, fmRatio: 1.41, fmDecay: .05, transient: .4, noise: .55, spread: 1.1, drive: 0, ring: .5, ringFreq: 3200, filter: "highpass", cutoff: 3500, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 2000, fltWidth: 3.2, env: { a: .001, d: .045, s: 0, r: .02 } },
   clap: { pitch: 1000, pitchEnv: 0, pitchDecay: .01, pAtk: 0, pCurve: .7, pEnd: 0, fm: 0, fmRatio: 1, transient: .2, noise: 1, noiseTone: 1300, tone2: 2.5, bursts: 4, burstGap: .009, tail: .5, drive: 0, ring: 0, ringFreq: 800, filter: "bandpass", cutoff: 1300, res: 1, filterEnv: 0, filterDecay: .1, fltBase: 300, fltWidth: 4.5, env: { a: .001, d: .2, s: 0, r: .05 } },
 };
 const mach = (p: DrumParams) => ({ ...drumDefaults(p.kind), ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) }) as DrumParams & Required<DrumMachine>;
@@ -153,14 +153,16 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
     const nf = ctx.createBiquadFilter(); nf.type = "highpass"; nf.frequency.value = clampF(p.noiseTone); nodes.push(nf);
     noise().connect(nf).connect(decGain(p.noise * (.7 + .3 * vel), p.noiseDecay)).connect(bus);
   } else if (p.kind === "hat") {
-    const R = [1, 1.304, 1.466, 1.787, 1.932, 2.536], sum = ctx.createGain(); sum.gain.value = (1 - p.noise) / 3; nodes.push(sum);
+    const R = [1, 1.304, 1.466, 1.787, 1.932, 2.536], sum = ctx.createGain(); sum.gain.value = (1 - p.noise) * .9; nodes.push(sum);
     const os = R.map(r => osc("square", p.pitch * r ** p.spread)); fmTo(os.map(o => o.frequency), p.pitch);
     const ring = ctx.createGain(); ring.gain.value = 1 - p.ring; nodes.push(ring);
     if (p.ring > 0) { const ro = osc("sine", p.ringFreq), rd = ctx.createGain(); rd.gain.value = p.ring; ro.connect(rd).connect(ring.gain); nodes.push(rd); }
     const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = .8; pe(bp.frequency, p.pitch * 12); nodes.push(bp);
     os.forEach(o => o.connect(ring)); ring.connect(sum).connect(bp).connect(bus);
-    noise().connect(decGain(p.noise * .8, p.env.d + .02)).connect(bus);
-    if (p.transient > 0) noise().connect(decGain(p.transient * vel * .6, .004)).connect(bus);
+    noise().connect(decGain(p.noise * 1.3, p.env.d + .02)).connect(bus);
+    if (p.transient > 0) noise().connect(decGain(p.transient * vel * .8, .004)).connect(bus);
+    // Hats sit above 2 kHz: an older saved high base stacked on the 6-partial band used to mute them, so cap the base.
+    hp.frequency.value = Math.min(hp.frequency.value, 2500);
   } else {
     // Clap: N short noise bursts then a room tail, all through a band-pass whose centre follows the pitch envelope.
     const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = p.tone2; pe(bp.frequency, p.noiseTone); nodes.push(bp);

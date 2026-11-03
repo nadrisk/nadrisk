@@ -2,7 +2,7 @@ import { memo, useState } from "react";
 import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
-import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, phraseOrder, randomizeArp, trancePhrase, defaultTrance, TRANCE_PATTERNS, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
+import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, noteName, phraseOrder, randomizeArp, trancePhrase, defaultTrance, TRANCE_PATTERNS, INTV_NAMES, applyEucl, defaultEucl, euclid, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
 type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void; note?: number; onNote?: (n: number) => void; noteOf?: (deg: number) => number };
 const SC: ScaleName[] = ["major", "minor", "pent maj", "pent min", "dorian", "phrygian", "lydian", "mixolydian", "harm min", "chromatic"];
@@ -23,7 +23,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
     ? { label: "Phrase rate", short: "RATE", value: RT.indexOf(arp.rate), min: 0, max: RT.length - 1, step: 1, fmt: v => RT[v], set: v => set({ rate: RT[v] }) }
     : { label: "Phrase free time", short: "MS", value: arp.freeMs, min: 40, max: 1000, step: 1, fmt: v => `${v}MS`, set: freeMs => set({ freeMs }) };
   // Three flat pages: RUN (steps + timing), PATT (key, length, looping), TRNC (trance writer).
-  const knobs = (page: string): Knob[] => page === "TRNC" ? tranceKnobs : page === "RUN" ? [
+  const knobs = (page: string): Knob[] => page === "TRNC" ? tranceKnobs : page === "EUCL" ? euclKnobs : page === "RUN" ? [
     { label: "Step pitch", short: "NOTE", value: Math.min(cur.deg, span - 1), min: 0, max: span - 1, step: 1, fmt: v => nm(v), set: deg => setCell({ deg, on: true }) },
     { label: "Step velocity", short: "VEL", value: cur.vel, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}`, set: vel => setCell({ vel }) },
     { label: "Step gate", short: "GATE", value: cur.gate, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, set: gate => setCell({ gate }) },
@@ -43,8 +43,17 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
   const tranceKnobs: Knob[] = [
     { label: "Trance pattern", short: "PATT", value: tr.pattern, min: 0, max: TRANCE_PATTERNS.length - 1, step: 1, fmt: v => TRANCE_PATTERNS[Math.round(v)], reset: 0, set: pattern => setTr({ pattern }) },
     { label: "Trance density", short: "DENS", value: tr.density, min: 0, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, reset: 1, set: density => setTr({ density }) },
-    { label: "Trance octave spread", short: "OCT", value: tr.spread, min: 0, max: 2, step: 1, fmt: v => `${Math.round(v)}OC`, reset: 1, set: spread => setTr({ spread }) },
+    { label: "Trance upper note interval", short: "INTV", value: Math.min(3, tr.spread), min: 0, max: 3, step: 1, fmt: v => INTV_NAMES[Math.round(v)], reset: 0, set: spread => setTr({ spread }) },
     { label: "Trance gate", short: "GATE", value: tr.gate, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, reset: .5, set: gate => setTr({ gate }) },
+  ];
+  // EUCL writes which phrase steps play (Bjorklund spread); the step notes stay as they are.
+  const eu = { ...defaultEucl(), ...arp.eucl }, euOn = !!arp.eucl?.on;
+  const setEu = (p: Partial<typeof eu>) => { const next = { ...eu, ...p }; next.hits = Math.min(next.hits, next.steps); if (next.on) onChange({ ...applyEucl(arp, next), on: true }); else set({ eucl: next }); };
+  const euclKnobs: Knob[] = [
+    { label: "Euclid hits", short: "HITS", value: eu.hits, min: 0, max: 16, step: 1, fmt: String, reset: 5, set: hits => setEu({ hits }) },
+    { label: "Euclid steps", short: "STPS", value: eu.steps, min: 2, max: 16, step: 1, fmt: String, reset: 8, set: steps => setEu({ steps }) },
+    { label: "Euclid rotation", short: "ROTN", value: eu.rot, min: 0, max: 15, step: 1, fmt: String, reset: 0, set: rot => setEu({ rot }) },
+    { label: "Euclid gate", short: "GATE", value: eu.gate, min: .05, max: 1, step: .01, fmt: v => `${Math.round(v * 100)}%`, reset: .5, set: gate => setEu({ gate }) },
   ];
   type Key = [string, string, number, boolean, () => void];
   const keysFor = (page: string): Key[] => page === "RUN" ? [
@@ -60,9 +69,11 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
   ] : page === "TRNC" ? [
     [trOn ? "ON" : "OFF", "Trance mode", 1, trOn, () => trOn ? setTr({ on: false }) : setTr({ on: true }, true)],
     ["GEN", "Write trance phrase", 33, false, () => setTr({}, true)],
+  ] : page === "EUCL" ? [
+    [euOn ? "ON" : "OFF", "Euclid mode", 1, euOn, () => setEu({ on: !euOn })],
   ] : [];
   return <div className="node-body arp-body">
-    <Panel name="PHRASE" label="Phrase sequencer" pages={["RUN", "PATT", "TRNC"]} deps={[JSON.stringify(arp), si, slotName]} knobs={knobs}
+    <Panel name="PHRASE" label="Phrase sequencer" pages={["RUN", "PATT", "TRNC", "EUCL"]} deps={[JSON.stringify(arp), si, slotName]} knobs={knobs}
       body={(p, page) => {
         if (page === "RUN") {
           arp.cells.slice(0, arp.steps).forEach((c, i) => {
@@ -75,6 +86,14 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
 
         } else {
           keysFor(page).forEach(([s, , x, on]) => pkey(p, s, x, 11, 30, on));
+          if (page === "EUCL") {
+            // Pulse ring: every step is a dot on the circle, hits are filled squares, the phrase start is marked.
+            const ring = euclid(eu.hits, eu.steps, eu.rot), cx = 96, cy = 31, R = 12;
+            p.text(`E(${Math.min(eu.hits, eu.steps)},${eu.steps})`, 34, 12); p.text(euOn ? "LIVE" : "OFF", 2, 24); p.text(`ROT ${eu.rot}`, 2, 32);
+            ring.forEach((on, i) => { const a = -Math.PI / 2 + i / ring.length * Math.PI * 2, x = Math.round(cx + Math.cos(a) * R), y = Math.round(cy + Math.sin(a) * R); if (on) p.rect(x - 1, y - 1, 3, 3); else p.dot(x, y); if (i === 0) p.line(cx, cy, x, y, true); });
+            p.text(`${Math.min(eu.hits, eu.steps)}/${eu.steps}`, 50, 32);
+            return;
+          }
           if (page === "TRNC") {
             p.text(`${TRANCE_PATTERNS[Math.round(tr.pattern)]} ${trOn ? "LIVE" : "OFF"}`, 68, 12);
             arp.cells.slice(0, arp.steps).forEach((c, i) => { const x = i * W, h = Math.max(1, Math.round((Math.min(c.deg, span - 1) + 1) / span * 16)); if (c.on) p.rect(x + 2, 40 - Math.round(h * c.gate) , W - 4, Math.max(1, Math.round(h * c.gate))); else p.dot(x + Math.floor(W / 2), 39); });
