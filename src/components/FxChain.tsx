@@ -12,21 +12,22 @@ const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
 const MORPH_T = ["LP", "HP", "BP", "NTCH"], MORPH_W = ["SIN", "TRI", "SAW", "SQR", "S&H"];
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
-  k === "typeA" || k === "typeB" ? MORPH_T[Math.round(v)] ?? "LP" : k === "wave" ? MORPH_W[Math.round(v)] ?? "SIN" : k === "retrig" ? (v >= .5 ? "NOTE" : "FREE") : k === "morph" || k === "mutate" ? `${Math.round(v * 100)}%` : k === "res" ? v.toFixed(1) : k === "cutoff" ? (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`) :
+  k === "typeA" || k === "typeB" ? MORPH_T[Math.round(v)] ?? "LP" : k === "wave" ? MORPH_W[Math.round(v)] ?? "SIN" : k === "retrig" ? (v >= .5 ? "NOTE" : "FREE") : k === "morph" ? `${Math.round(v * 100)}%` : k === "res" ? v.toFixed(1) : k === "cutoff" ? (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`) :
   k === "shape" ? (v < .25 ? "SINE" : v < .75 ? "TRI" : "SQR") + Math.round(v * 100) : k === "focus" ? (Math.abs(v) < .02 ? "BOTH" : `${v > 0 ? "TRN" : "SUS"}${Math.round(Math.abs(v) * 100)}`) : k === "crush" ? `${Math.round(v * 100)}%` : k === "dir" ? (v >= .5 ? "BOOST" : "CUT") : k === "gain" && p.dir !== undefined ? `${v}DB` :
   k === "mode" && p.manual !== undefined ? ["I", "II", "I+II"][Math.round(v)] ?? "I" : k === "mode" ? `HEAD ${HEAD_NAMES[Math.round(v)] ?? "1"}` : k === "spring" ? `${Math.round(v * 100)}%` : k === "ping" ? (v >= .5 ? "ON" : "OFF") : k === "hp" ? `${Math.round(v)}HZ` : k === "thresh" ? `${Math.round(v)}DB` : k === "depth" && p.hp !== undefined ? `${Math.round(v * 100)}%` : k === "attack" && p.hp !== undefined ? `${Math.round(v * 1000)}MS` :
   k === "level" ? (() => { const d = gainPosToDb(v); return d === -Infinity ? "-INF" : `${d > 0 ? "+" : ""}${d.toFixed(1)}DB`; })() : k === "note" ? `${NN[Math.round(v) % 12]}${Math.floor(Math.round(v) / 12) - 1}` : k === "fine" ? `${v > 0 ? "+" : ""}${Math.round(v)}CT` : k === "track" ? (v >= .5 ? "ON" : "OFF") : k === "metal" ? `${Math.round(v * 100)}%` : k === "drive" && p.note !== undefined ? `${Math.round(v * 100)}%` :
   k === "preset" ? GATE_PRESETS[Math.round(v)]?.[0] ?? "" : k === "sp" ? ["OFF", "SP12", "MPC60"][Math.round(v)] : k === "amount" || k === "random" ? `${Math.round(v * 100)}%` : k === "lofi" ? (v >= .5 ? "VIB" : "LOFI") : k === "oppose" ? (v >= .5 ? "OPP" : "SAME") : k === "tight" ? `${Math.round(v * 100)}%` : k === "sync" || k === "modSync" ? SYNC_DIVS[Math.round(v)][0] : k === "modRate" && p.modSync ? "SYNC"
   : k === "trans" ? (Math.abs(v) < .01 ? "0" : `${v < 0 ? "TGT" : "OPN"}${Math.round(Math.abs(v) * 100)}`) : k === "tone" && Math.abs(v) <= 1 ? (Math.abs(v) < .01 ? "FLAT" : `${v < 0 ? "DRK" : "BRT"}${Math.round(Math.abs(v) * 100)}`)
   : k === "decay" ? `${Math.round(v * 1000)}MS` : k === "modRate" ? `${v}HZ` : ["smash", "clip", "modTime", "modTone", "modFb"].includes(k) ? `${Math.round(v * 100)}%` : (k === "rate" || k === "time") && p.sync ? "SYNC"
-  : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
+  : k === "lock" ? (v >= .5 ? "ON" : "OFF") : k === "size" && p.chaos !== undefined ? (p.lock >= .5 ? ["1/32", "1/16", "1/8", "1/4"][Math.min(3, Math.floor(v * 4))] : `${Math.round((.01 + v * v * .39) * 1000)}MS`)
+  : ["short", "clock", "starve", "skip", "chaos"].includes(k) ? `${Math.round(v * 100)}%` : ["reese", "growl", "squelch", "disp"].includes(k) ? `${Math.round(v * 100)}%` : k === "gain" ? `${v > 0 ? "+" : ""}${v}DB` : k === "threshold" || k === "makeup" ? `${v}DB` : k === "ratio" ? `${v}:1` : k === "attack" || k === "release" ? `${Math.round(v * 1000)}MS`
   : k === "speed" || k === "smooth" || k === "mix" || k === "depth" || k === "density" || k === "feedback" || k === "wow" || k === "env" || k === "blend" || k === "mid" || k === "vol" ? `${Math.round(v * 100)}%`
   : k === "tone" || k === "damp" || k === "freq" || (k === "manual" && v > 50) ? `${Math.round(v)}HZ`
   : k === "time" ? `${Math.round(v * 1000)}MS` : k === "rate" ? (v === 0 ? "STATIC" : `${v}HZ`) : k === "size" ? `${v}S` : String(+v.toFixed(2));
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
-const SHORT_NAME: Partial<Record<FxType, string>> = { reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
+const SHORT_NAME: Partial<Record<FxType, string>> = { delay: "DLAY", hack: "HACK", reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "hack" ? ({ short: "SHRT", clock: "CLK", starve: "STRV", skip: "SKIP", size: "SIZE", chaos: "CHAOS", lock: "SYNC", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -192,25 +193,17 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const mx = 3 + Math.round(Math.log(mf / 20) / Math.log(1000) * 121); d.line(mx, 42, mx, 44);
   } else if (type === "morph") {
     // Blended response of both filters (same math as the audio, magnitude only) plus the LFO sweep range dotted.
-    const T = ["LP", "HP", "BP", "NTCH"], MT = ["SCRM", "DECO", "FRAC", "VOID"], cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a)), ta = Math.round(cl(pv(p, "typeA", 0), 0, 3)), tb = Math.round(cl(pv(p, "typeB", 2), 0, 3)), fc = cl(pv(p, "cutoff", 1200), 40, 16000), q = cl(pv(p, "res", 2), .5, 12), m = cl(pv(p, "morph", 0), 0, 1), dep = cl(pv(p, "depth", .4), 0, 1), mu = cl(pv(p, "mutate", 0), 0, 1);
-    const mag = (t: number, r: number, qq = q) => { const a = 1 - r * r, b = r / qq, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
-    // Mutated twins drawn with the same character as the audio: SCRM jagged teeth on a hot peak, DECO scattered phase mist,
-    // FRAC a lattice of harmonic peaks, VOID stacked deep holes. MUT blends the clean curve into the twin.
-    const twin = (t: number, r: number, x: number) => t === 0 ? mag(0, r) * (1 + 2.5 * Math.exp(-((Math.log2(r)) ** 2) * 6)) * (r > .7 ? (x % 3 === 0 ? 1.8 : .7) : 1)
-      : t === 1 ? mag(1, r) * (r > .8 ? .5 + ((x * 37) % 11) / 8 : 1)
-      : t === 2 ? Math.max(...[1, 2.01, 3.03, 4.24].map(k => mag(2, r / k, q * 4))) * 1.4
-      : [.5, 1, 2].reduce((g, k) => g * mag(3, r / k, Math.min(4, q * .6)), 1);
+    const T = ["LP", "HP", "BP", "NTCH"], cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a)), ta = Math.round(cl(pv(p, "typeA", 0), 0, 3)), tb = Math.round(cl(pv(p, "typeB", 2), 0, 3)), fc = cl(pv(p, "cutoff", 1200), 40, 16000), q = cl(pv(p, "res", 2), .5, 12), m = cl(pv(p, "morph", 0), 0, 1), dep = cl(pv(p, "depth", .4), 0, 1);
+    const mag = (t: number, r: number) => { const a = 1 - r * r, b = r / q, den = Math.sqrt(a * a + b * b); return t === 0 ? 1 / den : t === 1 ? r * r / den : t === 2 ? b / den : Math.abs(a) / den; };
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 0;
-    const one = (t: number, r: number, x: number) => (1 - mu) * mag(t, r) + mu * twin(t, r, x);
-    for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * one(ta, r, x) + Math.sin(m * Math.PI / 2) * one(tb, r, x), db = 20 * Math.log10(Math.max(1e-4, g));
-      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y;
-      if (mu > .3 && (ta === 1 || tb === 1) && (x * 13) % 7 === 0 && r > .8) d.dot(x, Math.max(21, y - 2 - ((x * 5) % 5))); }
+    for (let x = 3; x < 125; x++) { const r = fx(x) / fc, g = Math.cos(m * Math.PI / 2) * mag(ta, r) + Math.sin(m * Math.PI / 2) * mag(tb, r), db = 20 * Math.log10(Math.max(1e-4, g));
+      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y; }
     const cx = (f: number) => 3 + Math.round(Math.log(Math.max(20, Math.min(20000, f)) / 20) / Math.log(1000) * 121);
+    const mx = cx(fc); d.line(mx, 42, mx, 44);
     if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44);
-      // OPPOSE: arrowheads point both ways, A rising while B falls.
-      if (pv(p, "oppose", 0) >= .5) { const c = cx(fc), o = Math.round(Math.sin(TAU * ph) * (hi - lo) / 2); d.line(c + o, 41, c + o, 44); d.line(c - o, 41, c - o, 44); } }
-    const nm = (t: number) => mu >= .5 ? MT[t] : T[t];
-    d.text(`${nm(ta)}>${nm(tb)}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
+      // OPPOSE: markers move both ways, A rising while B falls.
+      if (pv(p, "oppose", 0) >= .5) { const o = Math.round(Math.sin(TAU * ph) * (hi - lo) / 2); d.line(mx + o, 41, mx + o, 44); d.line(mx - o, 41, mx - o, 44); } }
+    d.text(`${T[ta]}>${T[tb]}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
   } else if (type === "djfilter") {
     const sw = pv(p, "sweep", 0), w = Math.round(Math.abs(sw) * 58);
     d.text("LP", 4, 25); d.text("HP", 117, 25); d.line(64, 30, 64, 42);
@@ -247,9 +240,16 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     for (let x = 3; x < 125; x++) { const oc = Math.log2(fx(x) / mf), y = Math.max(22, Math.min(44, Math.round(33 - g * Math.exp(-oc * oc * q * q * 1.5) * .65))); if (g >= 0 || x % 2) d.line(x - 1, py, x, y); py = y; }
     d.text(`${g > 0 ? "+" : ""}${g.toFixed(1)}`, 100, 23);
     d.text(`KEY ${pv(p, "source", 1)}`, 4, 23);
-  } else if (type === "neurobox") {
-    const r = pv(p, "reese", .35), g = pv(p, "growl", .4), sq = pv(p, "squelch", .3); let py = 33;
-    for (let x = 3; x < 125; x++) { const t = (x - 3) / 122, w = Math.sin(t * Math.PI * 12) + Math.sin(t * Math.PI * 12 * (1 + r * .08)) * r, s = Math.sin(w * (1 + g * 3)) * (1 - sq * .4 + sq * .4 * Math.sin(t * Math.PI * 2)); const y = 33 - Math.round(s * 9); d.line(x - 1, py, x, y); py = y; }
+  } else if (type === "hack") {
+    // Live circuit state from the worklet: 12 data-line pins (shorted lines filled, inverted on a chaos flash),
+    // the output trace drawn as held stairs, scanline jitter from the clock bend, sagging rails and a SKIP bracket.
+    const st = levels?.state, mask = st?.[0] ?? 0, per = st?.[1] ?? 1, skip = (st?.[2] ?? 0) > .5, sag = st?.[3] ?? 0, flash = (st?.[4] ?? 0) > .3;
+    for (let b = 0; b < 12; b++) { const x = 4 + b * 10, on = !!(mask & (1 << (11 - b))); d.line(x + 3, 24, x + 3, 26); if (on !== flash) d.rect(x, 20, 7, 4); else d.box(x, 20, 7, 4); }
+    const rail = Math.round(sag * 5); d.line(3, 27 + rail, 124, 27 + rail, true); d.line(3, 45 - rail, 124, 45 - rail, true);
+    const jit = Math.min(4, Math.round(Math.log2(per) * .8)); let py = 36;
+    for (let i = 0; i < 32; i++) { const v = st?.[5 + i] ?? 0, x0 = 4 + i * 3.8 | 0, x1 = 4 + (i + 1) * 3.8 | 0, y = Math.max(28, Math.min(44, Math.round(36 - v * 8))) + (jit && i % 3 === 0 ? (i % 2 ? jit : -jit) : 0);
+      const yc = Math.max(28, Math.min(44, y)); d.line(x0, py, x0, yc); d.line(x0, yc, x1, yc); py = yc; }
+    if (skip) { d.line(3, 46, 3, 44); d.line(3, 46, 124, 46); d.line(124, 46, 124, 44); d.text("SKIP", 106, 12 + 9); }
   } else if (type === "spectral" && p.freq === undefined) {
     // Live bands from the effect: level bar height, solid = kept, dotted = removed; THRESH line.
     const st = levels?.state, yOf = (db: number) => 43 - Math.round(Math.max(0, Math.min(1, (db + 80) / 80)) * 20), thr = yOf(pv(p, "thresh", -45));
@@ -296,7 +296,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const pageSize = f?.type === "metal" ? 5 : 4;
   const pages = Math.max(1, Math.ceil(params.length / pageSize)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
-  const liveMeter = !!f && ["compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal", "acid", "reverseDelay", "vibrato"].includes(f.type);
+  const liveMeter = !!f && ["hack", "compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal", "acid", "reverseDelay", "vibrato"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
     hist.current = []; let last = 0, smooth: FxLevels = { input: -60, output: -60 };

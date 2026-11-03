@@ -21,7 +21,7 @@
 - Granular voices use shared smooth windows, density-aware overlap with energy compensation and bounded stereo spread, so cloud playback stays continuous without raising the global grain budget.
 - LASER uses three oscillators and a shared attack/decay trajectory for audio/display; missing saved attack is zero to preserve recall.
 - Transient slices (src/audio/slices.ts) cache one onset curve per buffer; SLCE sensitivity only re-picks peaks, and sliced sampler pads are mono (chords become strum/arp slice sequences).
-- morph.flt~ moves both biquads with one LFO through detune and rebuilds the LFO source only on wave change or RTRG note triggers.
+- morph.flt~ is two crossfaded biquads moved by one LFO through detune (no mutate twins); it rebuilds the LFO source only on wave change or RTRG note triggers.
 - NADRISK malfunction mode is session-only and crossfades pre-built, dry master stages in performance.ts (OTT, then the nad-failure worklet: loudness-reactive sub-octaves, diode drive, slow pump) before the limiter, so entering it never builds nodes or cuts audio.
 - Unlicensed hosts (src/lib/origin.ts allowlist) force a permanent NADRISK lock for the session; add every new domain to that allowlist before connecting it.
 - acid.drive~ is a "Da Funk" chain (mid push → one cached asymmetric clip curve → TONE lowpass → MID peak → heavy fast compressor); it keeps the "drive" key as SUST and derives TONE from old "tone" Hz values, so older sets and sequencer mods still load.
@@ -35,3 +35,4 @@
 - IDM models (src/audio/idm.ts) are percussive-only: DECAY is clamped to IDM_MAX_DECAY in idmParams and the XY map, and retired model ids map to a current model on load, so old sets never ring long.
 - Phrase CHRD lock (arp.chordSync) walks TRNC/EUCL phrases through the chord tones (chordWalk, per-pad counter reset on the first phrase step) and snaps other phrases to the nearest tone; phrase playback order is arp.dir (legacy loop ignored) (key chord when Harmony is on) and plays one note per step via trigger noteIdx -1, so the phrase walks the chord instead of stacking it.
 - Phrase SPRD is a live degree scale (spreadDeg, 0.5 = as written) applied at playback and on screen, never written into cells, so turning it back restores the pattern; double-tap ties use the pure tieSpan helper in tie.ts.
+- hack~ (circuit bend) is the nad-hack worklet in src/audio/hackWorklet.ts, built by stringifying the pure helpers in hack.ts so tests cover the same math; saved neuro.box~ units and morph mutate values are converted by migrateFx on set/patch load.
