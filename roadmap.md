@@ -1,5 +1,12 @@
 # Roadmap
 
+## Sound engine overhaul (2026-10-31)
+- [x] Lineup DRM / IDM / SYN / BAS / SMP; siren removed; old POLY/SIREN sets convert
+- [x] Clean SYN (OSC/FLT/ENV, 1-8 voices), BAS REESE mode, DRM trimmed, new IDM engine
+- [x] Phrase sequencer RUN/PATT/TRNC; metal effect on one 5-knob screen
+- [x] Per-instrument XY pad with HOLD/SNAP/COMMIT; EQ SCP shows the spectrum
+- [ ] User listening check of new SYN, IDM and XY moves (needs the user's ears)
+
 ## Dithered webcam VJ (2026-10-26)
 - [x] Add CAM to model cycling with mirrored two-colour Bayer video and private stream cleanup
 - [x] Draw four-corner bitmap pad/note/loudness/clock telemetry from live audio events
