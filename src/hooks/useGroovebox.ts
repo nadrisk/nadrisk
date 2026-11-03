@@ -378,7 +378,7 @@ export function useGroovebox() {
     const c = a.cells[k]; if (!c?.on) return false;
     const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a);
     trigger(i, t, c.vel * velMul, (lk ? lockToChord(raw, lk) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
-  }, [trigger]);
+  }, [trigger, chordLock]);
 
   // Writes a hit at col with velocity, and (keyboard notes) its pitch into a two-octave pitch lane on the current bank.
   const writeStep = useCallback((i: number, col: number, v: number, semi?: number) => {

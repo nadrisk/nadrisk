@@ -10,7 +10,7 @@ import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
-const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "IDM"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"]];
+const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"]];
 const EW = 25;
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
