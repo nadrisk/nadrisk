@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chordWalk, defaultArp, phraseOrder, randomizeArp } from "./arp";
+import { chordWalk, defaultArp, phraseOrder, randomizeArp } from "@/audio/arp";
 
 const seeded = (s: number) => () => ((s = (s * 16807) % 2147483647) / 2147483647);
 
