@@ -13,10 +13,10 @@ import { type GetWave } from "@/components/ScopeScreen";
 import { type GetSpectrum } from "@/components/SpectrumScreen";
 import { cleanOf } from "@/audio/clean";
 
-function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, onChange, onLoad, onLoadId, onLoadFolder, live }: { live?: LiveProps; slot: Slot; index?: number; getWave?: GetWave; getSpectrum?: GetSpectrum; getSlices?: (i: number, sm: Slot["sampler"]) => number[]; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
+function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, onChange, onLoad, onLoadId, onLoadFolder, onCopyBuffer, live }: { onCopyBuffer?: (from: number) => void; live?: LiveProps; slot: Slot; index?: number; getWave?: GetWave; getSpectrum?: GetSpectrum; getSlices?: (i: number, sm: Slot["sampler"]) => number[]; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler, chords = slot.engine === "sampler" || (slot.engine === "synth" && cleanOf(slot.synth).voices > 1);
   return <div className="node-body gb-editor-body">
-    <DevicePanel className="gb-ed-slot" label="Slot"><SlotScreen slot={slot} onChange={onChange} /></DevicePanel>
+    <DevicePanel className="gb-ed-slot" label="Slot"><SlotScreen slot={slot} index={index} onChange={onChange} onCopyBuffer={onCopyBuffer} /></DevicePanel>
     <DevicePanel className="gb-ed-main gb-ed-device" label={slot.engine === "808" ? "bass" : slot.engine}>
       {slot.engine === "drum" && <DrumkitPanel slot={slot} onChange={onChange} />}
       {slot.engine === "idm" && <IdmPanel slot={slot} onChange={onChange} />}
