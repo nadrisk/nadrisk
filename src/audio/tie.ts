@@ -1,4 +1,4 @@
-import type { StepVal } from "@/audio/engine";
+type StepVal = 0 | 1 | 2 | 3;
 /** Double-tap tie: joins everything from the nearest earlier note up to `end` into one held note.
  *  Returns null when there's no earlier note, or when `end` is already inside a tie. */
 export function tieSpan(row: StepVal[], end: number): StepVal[] | null {

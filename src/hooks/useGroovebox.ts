@@ -1,4 +1,5 @@
 import { setSustainProbe } from "@/lib/frameGate";
+import { tieSpan } from "@/audio/tie";
 import { detectSlices } from "@/audio/slices";
 import { vjKindOf, vjSend } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
@@ -373,7 +374,7 @@ export function useGroovebox() {
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
   const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
-    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a), semi = (lk ? walkedSemi(i, a, c.deg, raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a), semi = (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
     if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
     let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
     const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
@@ -386,8 +387,8 @@ export function useGroovebox() {
     const a = slotsRef.current[i].arp, order = phraseOrder(a), k = order[cursor.current[i] % order.length];
     cursor.current[i] = (cursor.current[i] + 1) % order.length;
     const c = a.cells[k]; if (!c?.on) return false;
-    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, c.deg), lk = chordLock(i, a);
-    trigger(i, t, c.vel * velMul, (lk ? walkedSemi(i, a, c.deg, raw, lk, false) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
+    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a);
+    trigger(i, t, c.vel * velMul, (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, false) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
   }, [trigger, chordLock, walkedSemi]);
 
   // Writes a hit at col with velocity, and (keyboard notes) its pitch into a two-octave pitch lane on the current bank.
@@ -804,6 +805,8 @@ export function useGroovebox() {
     if (j !== col) return v;
     if (v === 0) return 1; if (v >= 2) return 0; return col > 0 && r[col - 1] !== 0 ? 2 : 0;
   }) : r))), []);
+  // Double-tap tie: one undo step that joins the nearest earlier note through this step.
+  const tieStep = useCallback((row: number, col: number) => { const r0 = banksRef.current[bankRef.current].pattern[row], next = r0 && tieSpan(r0, col); if (!next) return; snap(); setPattern(p => p.map((r, i) => (i === row ? next : r))); }, [snap]);
   // Mod rows live on each slot per pattern bank, so A/B can automate differently.
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => { snap(); setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current + modLaneRef.current * NBANKS ? f(l) : l)) } : x))); }, [snap]);
   const setModValue = useCallback((row: number, col: number, v: number) => editLane(row, l => ({ ...l, on: true, values: l.values.map((x, k) => (k === col ? v : x)) })), [editLane]);
@@ -915,7 +918,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, applyGenerated, bakeSelectedPhrase };
+  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
