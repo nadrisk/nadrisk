@@ -188,7 +188,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
   };
 
   return <div className="px-panel">
-    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks, page === "IN" ? live : null]} live={page === "GRN" && sm.grain ? () => grainRead(sm.sampleId ?? sm.sampleName) != null : undefined}>
+    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks, page === "IN" ? live : null]} live={page === "GRN" && sm.grain ? () => true : undefined}>
       {PAGES.map((pg, i) => <Tap key={pg} x={54 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "IN" && live && <>
         <Tap x={2} y={10} w={21} h={9} label={live.armed ? "Disarm input" : "Arm input"} pressed={live.armed} onClick={live.arm} />
