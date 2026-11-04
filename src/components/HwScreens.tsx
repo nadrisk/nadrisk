@@ -7,7 +7,7 @@ import type { PerformanceParams } from "@/audio/performance";
 import type { MasterMeter } from "@/hooks/useGroovebox";
 import { BREAK_STYLES, ROLES, genBreak, genRandom, type GenResult, type Role } from "@/audio/patternGen";
 
-export type GenProps = { steps: 16 | 32; rows: () => number[]; roles: () => Role[]; apply: (r: GenResult) => void; bake: () => void; selected: number; selName: string; selRole: Role; setRole: (r: Role | undefined) => void };
+export type GenProps = { steps: 16 | 32; rows: () => number[]; roles: () => Role[]; models?: () => (string | undefined)[]; apply: (r: GenResult) => void; bake: () => void; selected: number; selName: string; selRole: Role; setRole: (r: Role | undefined) => void };
 function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
   const [style, setStyle] = useState(0), [dens, setDens] = useState(.4), [fill, setFill] = useState(.3), [vary, setVary] = useState(.3);
   const [rd, setRd] = useState(.5), [velLo, setVelLo] = useState(.4), [chc, setChc] = useState(.2), [roll, setRoll] = useState(.1), [seed, setSeed] = useState(1);
@@ -21,9 +21,9 @@ function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
     : page === "ROLE" ? [{ label: "Pad role", short: "ROLE", value: ROLES.indexOf(g.selRole), min: 0, max: ROLES.length - 1, step: 1, fmt: v => ROLES[Math.round(v)].toUpperCase(), set: v => g.setRole(ROLES[Math.round(v)]) }] : [];
   const keys = (page: string): K[] => [
     { s: "BACK", label: "Close generator", x: 1, y: 11, w: 30, on: false, fn: close },
-    ...(page === "BRKS" ? [{ s: "GEN", label: "Generate break", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genBreak(BREAK_STYLES[style], { dens, fill, vary, seed: reroll() }, g.roles(), g.rows(), g.steps)) }]
-      : page === "RAND" ? [{ s: "GEN", label: "Generate random", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed: reroll() }, g.rows(), g.steps)) },
-        { s: "SAME", label: "Generate again with same seed", x: 65, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed }, g.rows(), g.steps)) }]
+    ...(page === "BRKS" ? [{ s: "GEN", label: "Generate break", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genBreak(BREAK_STYLES[style], { dens, fill, vary, seed: reroll() }, g.roles(), g.rows(), g.steps, g.models?.())) }]
+      : page === "RAND" ? [{ s: "GEN", label: "Generate random", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed: reroll() }, g.rows(), g.steps, g.models?.())) },
+        { s: "SAME", label: "Generate again with same seed", x: 65, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed }, g.rows(), g.steps, g.models?.())) }]
       : page === "PHRS" ? [{ s: "BAKE", label: "Bake phrase into steps", x: 33, y: 11, w: 30, on: false, fn: g.bake }]
       : [{ s: "AUTO", label: "Auto-detect role", x: 33, y: 11, w: 30, on: false, fn: () => g.setRole(undefined) }]),
   ];
