@@ -44,8 +44,9 @@ describe("instrument XY", () => {
     const down = cleanOf(applyXY({ ...s, xy: { x: -1, y: -1 } }).synth);
     expect(down.cutoff).toBeLessThan(c.cutoff); expect(down.env.r).toBeLessThan(c.env.r);
   });
-  it("COMMIT writes the explored sound and returns the pad to centre", () => {
+  it("SET writes the explored sound and keeps the dot where it is", () => {
     const s = pad({ engine: "808", xy: { x: .5, y: .5 } }), p = commitXY(s);
-    expect(p.bass?.tone).toBeGreaterThan(s.bass.tone); expect(p.xy).toMatchObject({ x: 0, y: 0 });
+    expect(p.bass?.tone).toBeGreaterThan(s.bass.tone); expect(p.xy).toMatchObject({ x: .5, y: .5, ox: .5, oy: .5 });
+    expect(applyXY({ ...s, ...p } as Slot).bass).toBe(p.bass);
   });
 });

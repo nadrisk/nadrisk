@@ -2,7 +2,7 @@ import { memo, useRef } from "react";
 import { Tap, XYPad } from "@/pixel/PixelScreen";
 import { Panel } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { commitXY, xyLabels } from "@/audio/xyMaps";
+import { commitXY, xyHome, xyLabels } from "@/audio/xyMaps";
 
 const X0 = 2, Y0 = 11, PW = 124, PH = 34;
 // XY: explore the instrument's own sound. X = tight..open, Y = dark..bright, centre = saved patch.
