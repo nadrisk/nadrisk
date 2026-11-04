@@ -22,7 +22,7 @@ class NadHack extends AudioWorkletProcessor {
     this.port.onmessage = e => { const d = e.data || {}; if (d.seed !== undefined && d.seed !== this.seed) { this.seed = d.seed; this.pat = d.seed ? hackPattern(d.seed) : null; }
       if (d.rate !== undefined) this.rate = d.rate; if (d.steps !== undefined) this.steps = d.steps; if (d.depth !== undefined) this.depth = d.depth; if (d.anchor !== undefined) this.anchor = d.anchor; if (d.smth !== undefined) this.smth = d.smth;
       if (d.run !== undefined) { this.run = !!d.run; if (!this.run) this.flush(); } }; }
-  flush() { this.buf[0].fill(0); this.buf[1].fill(0); this.rep = 0; this.rpos = 0; this.drop = 0; this.hold = [0, 0]; this.dx = [0, 0]; this.dy = [0, 0]; this.env = 0; this.sv = [0, 0, 0, 0]; this.step = -1; }
+  flush() { this.buf[0].fill(0); this.buf[1].fill(0); this.rep = 0; this.rpos = 0; this.drop = 0; this.hold = [0, 0]; this.dx = [0, 0]; this.dy = [0, 0]; this.env = 0; this.sv = [0, 0, 0, 0]; this.step = -1; this.gi = 0; this.gg = 0; }
   process(ins, outs, p) {
     const x = ins[0], y = outs[0]; if (!x || !x.length) return true;
     const bpm0 = Math.max(40, p.bpm[0]), pat = this.pat, dp = pat ? this.depth : 0, si = pat && this.run ? hackStep(currentTime - this.anchor, bpm0, this.rate, this.steps) : -1; this.step = si;
