@@ -13,7 +13,7 @@ const KLAB: Record<DrumKind, string> = { kick: "KICK", snare: "SNR", hat: "HAT",
 const f2 = (v: number) => v.toFixed(2);
 // Kick/snare tune reads as a musical note plus cents, so the body can be tuned to the track's key.
 import { noteCents } from "@/audio/pitchFmt";
-void NOTE_NAMES;
+
 
 // DRUMKIT: four drum machines (kick / snare / hat / clap) on a 128x64 1-bit hardware screen.
 function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {

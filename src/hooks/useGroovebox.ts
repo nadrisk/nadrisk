@@ -11,6 +11,7 @@ import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStor
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
+import { isSlotMono } from "@/audio/pitchFmt";
 import { cleanOf, defaultClean, playClean } from "@/audio/clean";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
@@ -377,8 +378,9 @@ export function useGroovebox() {
   const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
     const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a), semi = (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
-    if (c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
-    let n = 1; while (n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
+    const so = slotsRef.current[i], canSlide = isSlotMono({ engine: so.engine, synthVoices: so.engine === "synth" ? cleanOf(so.synth).voices : undefined, samplerMode: so.sampler.mode });
+    if (canSlide && c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
+    let n = 1; while (canSlide && n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
     const g = n > 1 ? sd * (n - 1 + a.cells[(k + n - 1) % a.steps].gate) : sd * c.gate;
     trigger(i, t, c.vel * velMul, semi, Math.min(g, end - t), lk ? -1 : undefined); return true;
   }, [trigger, chordLock, walkedSemi]);
