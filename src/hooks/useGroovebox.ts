@@ -15,6 +15,11 @@ import { isSlotMono } from "@/audio/pitchFmt";
 import { cleanOf, defaultClean, playClean } from "@/audio/clean";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
+import { motionOn, xyAt } from "@/audio/xyMotion";
+/** Transport position in 1/16 steps at an audio time (or now), null when stopped. */
+const stepAtTime = (time?: number) => { const t = Tone.getTransport(); if (t.state !== "started") return null; return (time !== undefined ? t.getTicksAtTime(time) : t.ticks) / (t.PPQ / 4); };
+/** Slot with its XY motion (recorded path / LFO) resolved to the position at `time`. */
+const withMotion = (s: Slot, time?: number): Slot => motionOn(s.xy) ? { ...s, xy: { ...s.xy!, ...xyAt(s.xy, stepAtTime(time)) } } : s;
 import { migrateEngine } from "@/audio/lineup";
 import type { PatchSound } from "@/audio/patchStore";
 import { bakePhrase, detectRole, type GenResult, type Role } from "@/audio/patternGen";
@@ -236,7 +241,7 @@ export function useGroovebox() {
     // Fader-like loudness curve: low velocities fade smoothly to true silence.
     const vel = Math.max(0, Math.min(1, vel0)) ** 2; if (vel <= 0) return;
     const e = engine.current, sX = slotsRef.current[i], sm = time !== undefined ? startMod.current[i] : null;
-    const s0 = sX && applyXY(sX);
+    const s0 = sX && applyXY(withMotion(sX, time));
     const s = s0 && sm != null && s0.engine === "sampler" ? { ...s0, sampler: { ...s0.sampler, start: sm } } : s0;
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
@@ -518,6 +523,10 @@ export function useGroovebox() {
       const cb = banksRef.current[bankRef.current];
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
+      // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
+      slotsRef.current.forEach((sl, i) => { const ee = engine.current; if (!ee || !motionOn(sl.xy) || (sl.engine !== "synth" && !(sl.engine === "808" && sl.bass.mode === "reese"))) return;
+        const ap = applyXY(withMotion(sl, time)), q = { clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never;
+        const seen = new Set<unknown>(); [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); });
       cb.pattern.forEach((row, i) => {
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
