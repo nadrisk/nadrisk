@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
-import { Panel, hz, ms, pct, st, type Knob } from "./pixelScreens";
+import { Panel, ms, pct, st, type Knob } from "./pixelScreens";
+import { noteCents } from "@/audio/pitchFmt";
 import type { Slot } from "@/hooks/useGroovebox";
 import type { Px } from "@/pixel/draw";
 import { IDM_INIT, IDM_KNOBS, IDM_LABEL, IDM_MAX_DECAY, IDM_MIN_DECAY, IDM_MODELS, idmParams, type IdmParams } from "@/audio/idm";

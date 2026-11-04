@@ -4,7 +4,6 @@ import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, 
 import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
-import { NOTE_NAMES } from "@/audio/arp";
 import { parseNote } from "@/audio/noteParse";
 
 const PAGES = ["TONE", "NOIS", "ENV", "PRST"] as const;
