@@ -726,7 +726,7 @@ export function useGroovebox() {
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch);
     // The scheduler books ahead from slotsRef, so refresh it now instead of waiting for React's render.
     { const si = selectedRef.current; slotsRef.current = slotsRef.current.map((x, j) => (j === si ? { ...x, ...patch } : x)); }

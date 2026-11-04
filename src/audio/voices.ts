@@ -1,3 +1,4 @@
+import { reflect, advance, FREEZE_JITTER, setGrainRead } from "./grainPos";
 import { ENGINE_TRIM } from "./loudness";
 import { playSpec, type SpecParams } from "./spectral";
 import { reeseParams, type ReeseParams } from "./reese";
@@ -20,7 +21,7 @@ export type SynthLfo = { wave: Wave; rate: number; depth: number; target: "pitch
 export const lfoDests = (l: SynthLfo): LfoDests => l.dests ?? { pitch: 0, cutoff: 0, amp: 0, osc1: 0, osc2: 0, [l.target]: l.depth };
 export type SamplerParams = { start: number; loop: boolean; pitch: number; env: ADSR; sampleName: string; sampleId?: string; reverse?: boolean; grain?: boolean; grainSize?: number; spray?: number; freeze?: boolean; loopEnd?: number; loopXfade?: number; stretch?: boolean; stretchAmt?: number; stretchGrain?: number; warp?: boolean; breakDouble?: boolean; sampleBpm?: number; beats?: number; slices?: number; endFrac?: number; mode?: "one" | "adsr"; end?: number; loopStartF?: number; grainDens?: number; grainRnd?: number; gLfoRate?: number; gLfoAmt?: number; gLfoShape?: "sin" | "tri" | "sqr" | "rnd"; sampleKey?: number; fine?: number; /** Transient slice sensitivity 0..1 (0 = off). */ sliceSens?: number; /** Runtime: slice start as a fraction of the BRK region. */ sliceAt?: number; /** VNT: keep original pitch regardless of note. */ pitchLock?: boolean };
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
-export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams> & Partial<SirenParams>) => void };
+export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams> & Partial<SirenParams> & { grainLive?: Partial<SamplerParams> }) => void };
 export type Bass808Params = { mode?: "808" | "acid" | "reese"; acid?: Partial<AcidParams>; reese?: Partial<ReeseParams>; pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
 export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
@@ -368,31 +369,41 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
   const D = buf.duration, lo = Math.max(0, Math.min(D - .001, p.start * D)), hi = Math.min(D, Math.max(lo + .001, (p.end ?? 1) * D)), rnd = p.grainRnd ?? 0;
   const lRate = p.gLfoRate ?? 0, lAmt = p.gLfoAmt ?? 0, shp = p.gLfoShape ?? "sin";
   // Free-running LFO read from the audio clock, so its phase continues across notes.
-  const lfo = (at: number) => { const ph = at * lRate, f = ph - Math.floor(ph);
+  const lfo = (at: number) => { const ph = at * cur.lRate, f = ph - Math.floor(ph);
     if (shp === "tri") return 1 - 4 * Math.abs(f - .5); if (shp === "sqr") return f < .5 ? 1 : -1;
     if (shp === "rnd") { const x = Math.sin(Math.floor(ph) * 12.9898) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; } return Math.sin(2 * Math.PI * f); };
-  let next = t, pos = lo;
+  // Live-editable params (held-pad tweaks): freeze latches the current read head instead of jumping.
+  let cur = { size, hop, spray, rnd, lAmt, lRate, freeze: !!p.freeze, lo, hi };
+  let next = t, pos = lo; const key = p.sampleId ?? p.sampleName;
   const pump = () => {
     const horizon = ctx.currentTime + .12;
     while (next < horizon && next < stopAt) {
-      if (liveGrains >= 16) { next += hop; continue; }
+      if (liveGrains >= 16) { next += cur.hop; continue; }
        const src = ctx.createBufferSource(), g = ctx.createGain(), pan = ctx.createStereoPanner(); src.buffer = buf;
-      src.playbackRate.value = rate * 2 ** ((Math.random() * 2 - 1) * rnd / 12);
-       const grainDuration = Math.min(duration, (hi - lo) / src.playbackRate.value);
+       src.playbackRate.value = rate * 2 ** ((Math.random() * 2 - 1) * cur.rnd / 12);
+       const dur = Math.max(cur.size, cur.hop * 2.5);
+       const grainDuration = Math.min(dur, (cur.hi - cur.lo) / src.playbackRate.value), len = grainDuration * src.playbackRate.value;
        g.gain.value = 0; g.gain.setValueCurveAtTime(HANN, next, grainDuration); liveGrains++;
        pan.pan.value = (Math.random() * 2 - 1) * .65;
        src.connect(g).connect(pan).connect(cloud);
-      const c = pos + (lAmt > 0 && lRate > 0 ? lfo(next) * lAmt * .5 * D : 0) + (Math.random() * 2 - 1) * spray * Math.min(1, D) * .5;
-       const off = Math.max(lo, Math.min(hi - grainDuration * src.playbackRate.value, c));
+      const jit = cur.freeze ? (Math.random() * 2 - 1) * FREEZE_JITTER : 0;
+      const c = pos + jit + (cur.lAmt > 0 && cur.lRate > 0 ? lfo(next) * cur.lAmt * .5 * D : 0) + (Math.random() * 2 - 1) * cur.spray * Math.min(1, D) * .5;
+       const off = reflect(c, cur.lo, Math.max(cur.lo, cur.hi - len));
        src.start(next, off); src.stop(next + grainDuration); src.onended = () => { liveGrains--; src.disconnect(); g.disconnect(); pan.disconnect(); };
-       // Slightly irregular spacing avoids a rigid buzz without changing average density.
-       next += hop * (.9 + Math.random() * .2); if (!p.freeze) { pos += hop * .5 * rate; if (pos > hi) pos = lo; }
+       next += cur.hop * (.9 + Math.random() * .2); pos = advance(pos, cur.hop * .5 * rate, cur.lo, cur.hi, cur.freeze);
     }
-     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => { cloud.disconnect(); tone.disconnect(); amp.disconnect(); }, Math.max(0, (stopAt + duration - ctx.currentTime) * 1000) + 100); }
+    if (key) setGrainRead(key, { frac: D > 0 ? pos / D : 0, frozen: cur.freeze, until: performance.now() + 200 });
+    if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => { cloud.disconnect(); tone.disconnect(); amp.disconnect(); }, Math.max(0, (stopAt + duration - ctx.currentTime) * 1000) + 100); }
   };
   const iv = window.setInterval(pump, 40); pump();
   return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, .004); stopAt = Math.min(stopAt, s + .05); },
-    release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp, s, r); } };
+    release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp, s, r); },
+    update: q => { const g = q.grainLive; if (!g) return;
+      const nlo = g.start != null ? Math.max(0, Math.min(D - .001, g.start * D)) : cur.lo, nhi = g.end != null ? Math.min(D, Math.max(nlo + .001, g.end * D)) : Math.max(nlo + .001, cur.hi);
+      // Moving POS while not frozen re-anchors the head; frozen keeps it where you hear it unless POS moved.
+      if (g.start != null && nlo !== cur.lo) pos = nlo;
+      cur = { ...cur, lo: nlo, hi: nhi, size: g.grainSize != null ? Math.max(.02, Math.min(.4, g.grainSize)) : cur.size, hop: g.grainDens != null ? 1 / Math.max(2, Math.min(40, g.grainDens)) : cur.hop,
+        spray: g.spray ?? cur.spray, rnd: g.grainRnd ?? cur.rnd, lAmt: g.gLfoAmt ?? cur.lAmt, lRate: g.gLfoRate ?? cur.lRate, freeze: g.freeze ?? cur.freeze }; } };
 }
 
 const tubeCache = new Map<number, Float32Array<ArrayBuffer>>(), harmCache = new Map<number, Float32Array<ArrayBuffer>>();

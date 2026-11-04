@@ -3,6 +3,7 @@ import { NOTE_NAMES } from "@/audio/arp";
 import { memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DisplayThemeContext } from "@/pixel/PixelScreen";
+import { grainRead } from "@/audio/grainPos";
 import { breakEngine } from "@/audio/breaks";
 import PixelScreen, { Tap, Zone } from "@/pixel/PixelScreen";
 import { EnvZones, fineSt, compactHeaderText } from "./pixelScreens";
@@ -179,13 +180,15 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       if (peaks) { const gw = Math.max(2, Math.round((sm.grainSize ?? .08) / .4 * 30)), sp = Math.round((sm.spray ?? .1) * 20), gx = 3 + Math.round(sm.start * 121);
       p.box(Math.max(3, gx - sp), 20, Math.min(gw + sp * 2, 125 - Math.max(3, gx - sp)), 24, true);
       // LFO sweep range drawn as a bracket under the grain window.
+      const rd = sm.grain ? grainRead(sm.sampleId ?? sm.sampleName) : null;
+      if (rd) { const cx = 3 + Math.round(Math.min(1, rd.frac) * 121); if (rd.frozen) { p.rect(cx - 1, 20, 2, 24, true); p.rect(Math.min(118, cx + 2), 21, 7, 6, false); p.text("||", Math.min(119, cx + 3), 21); } else p.line(cx, 20, cx, 43); }
       const la = Math.round((sm.gLfoAmt ?? 0) * 61); if (la > 0 && (sm.gLfoRate ?? 0) > 0) { const l0 = Math.max(3, gx - la), l1 = Math.min(124, gx + la); p.line(l0, 43, l1, 43); p.line(l0, 41, l0, 43); p.line(l1, 41, l1, 43); } }
     }
     knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 58); });
   };
 
   return <div className="px-panel">
-    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks, page === "IN" ? live : null]}>
+    <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks, page === "IN" ? live : null]} live={page === "GRN" && sm.grain ? () => true : undefined}>
       {PAGES.map((pg, i) => <Tap key={pg} x={54 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "IN" && live && <>
         <Tap x={2} y={10} w={21} h={9} label={live.armed ? "Disarm input" : "Arm input"} pressed={live.armed} onClick={live.arm} />
@@ -210,7 +213,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
         <Tap x={25} y={10} w={21} h={9} label="Grain freeze" pressed={!!sm.freeze} disabled={!sm.grain} onClick={() => M({ freeze: !sm.freeze })} />
         <Tap x={48} y={10} w={21} h={9} label="Grain LFO page" pressed={lfoView} onClick={() => setLfoView(v => !v)} />
       </>}
-      {page !== "ENV" && page !== "BRK" && page !== "IN" && <Zone x={14} y={19} w={114} h={26} horizontal label="Sample waveform start" value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`STRT ${pct(start)}`); }} />}
+      {page !== "ENV" && page !== "BRK" && page !== "IN" && <Zone x={14} y={19} w={114} h={26} horizontal label={page === "GRN" ? "Grain position" : "Sample waveform start"} value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`${page === "GRN" ? "POS" : "STRT"} ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
       {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} reset={(k as { reset?: number }).reset} onChange={v => { k.set(v); show(k.short === "NOTE" || (k as { bare?: boolean }).bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
       {page === "BRK" && sm.warp && <Tap x={68} y={10} w={42} h={9} label="Type sample BPM" onClick={() => setBpmEdit(true)} />}
