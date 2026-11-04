@@ -4,7 +4,7 @@ import { Tap, XYPad, Zone } from "@/pixel/PixelScreen";
 import { Panel } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
-import { commitXY, xyHome, xyLabels, type XY } from "@/audio/xyMaps";
+import { commitXY, xyCorners, xyHome, xyLabels, type XY } from "@/audio/xyMaps";
 import { LFO_DEFAULT, LFO_RATES, REC_LENS, SHAPE_NAME, XY_SHAPES, fillPath, motionOn, recAt, shapeAt, xyAt } from "@/audio/xyMotion";
 import { LFO_ZONES as LZ, PAD, REC_BAR, REC_ZONES as RZ, XY_ZONES as XZ, type Box } from "./xyLayout";
 
