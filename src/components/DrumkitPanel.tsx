@@ -4,7 +4,6 @@ import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, ms, pct, 
 import type { Slot } from "@/hooks/useGroovebox";
 import { drumDefaults, DRUM_INIT, type DrumKind } from "@/audio/voices";
 import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/audio/drumPresets";
-import { NOTE_NAMES } from "@/audio/arp";
 import { parseNote } from "@/audio/noteParse";
 
 const PAGES = ["TONE", "NOIS", "ENV", "PRST"] as const;
@@ -12,10 +11,8 @@ const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
 const KLAB: Record<DrumKind, string> = { kick: "KICK", snare: "SNR", hat: "HAT", clap: "CLAP" };
 const f2 = (v: number) => v.toFixed(2);
 // Kick/snare tune reads as a musical note plus cents, so the body can be tuned to the track's key.
-const noteCents = (f: number) => {
-  const m = 69 + 12 * Math.log2(f / 440), r = Math.round(m), c = Math.round((m - r) * 100);
-  return `${NOTE_NAMES[((r % 12) + 12) % 12]}${Math.floor(r / 12) - 1}${c > 0 ? "+" : c < 0 ? "-" : ""}${c ? Math.abs(c) + "c" : ""}`;
-};
+import { noteCents } from "@/audio/pitchFmt";
+
 
 // DRUMKIT: four drum machines (kick / snare / hat / clap) on a 128x64 1-bit hardware screen.
 function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
