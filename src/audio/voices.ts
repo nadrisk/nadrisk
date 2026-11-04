@@ -1,3 +1,4 @@
+import { reflect, advance, FREEZE_JITTER, setGrainRead } from "./grainPos";
 import { ENGINE_TRIM } from "./loudness";
 import { playSpec, type SpecParams } from "./spectral";
 import { reeseParams, type ReeseParams } from "./reese";
@@ -368,7 +369,7 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
   const D = buf.duration, lo = Math.max(0, Math.min(D - .001, p.start * D)), hi = Math.min(D, Math.max(lo + .001, (p.end ?? 1) * D)), rnd = p.grainRnd ?? 0;
   const lRate = p.gLfoRate ?? 0, lAmt = p.gLfoAmt ?? 0, shp = p.gLfoShape ?? "sin";
   // Free-running LFO read from the audio clock, so its phase continues across notes.
-  const lfo = (at: number) => { const ph = at * lRate, f = ph - Math.floor(ph);
+  const lfo = (at: number) => { const ph = at * cur.lRate, f = ph - Math.floor(ph);
     if (shp === "tri") return 1 - 4 * Math.abs(f - .5); if (shp === "sqr") return f < .5 ? 1 : -1;
     if (shp === "rnd") { const x = Math.sin(Math.floor(ph) * 12.9898) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; } return Math.sin(2 * Math.PI * f); };
   // Live-editable params (held-pad tweaks): freeze latches the current read head instead of jumping.
