@@ -25,7 +25,7 @@ class NadHack extends AudioWorkletProcessor {
   flush() { this.buf[0].fill(0); this.buf[1].fill(0); this.rep = 0; this.rpos = 0; this.drop = 0; this.hold = [0, 0]; this.dx = [0, 0]; this.dy = [0, 0]; this.env = 0; this.sv = [0, 0, 0, 0]; this.step = -1; }
   process(ins, outs, p) {
     const x = ins[0], y = outs[0]; if (!x || !x.length) return true;
-    const bpm0 = Math.max(40, p.bpm[0]), pat = this.pat, dp = pat ? this.depth : 0, si = pat ? this.run ? hackStep(currentTime - this.anchor, bpm0, this.rate, this.steps) : -1; this.step = si;
+    const bpm0 = Math.max(40, p.bpm[0]), pat = this.pat, dp = pat ? this.depth : 0, si = pat && this.run ? hackStep(currentTime - this.anchor, bpm0, this.rate, this.steps) : -1; this.step = si;
     const stepSec = 60 / bpm0 / [1, 2, 4, 8][Math.max(0, Math.min(3, Math.round(this.rate)))], k0 = hackSlew(this.smth, x[0].length / sampleRate, stepSec);
     for (let i = 0; i < 4; i++) this.sv[i] += ((pat && si >= 0 ? pat[i * 16 + si] : 0) - this.sv[i]) * k0;
     const lv0 = i => this.sv[i];
