@@ -1,3 +1,4 @@
+import { ENGINE_TRIM } from "./loudness";
 import { playSpec, type SpecParams } from "./spectral";
 import { reeseParams, type ReeseParams } from "./reese";
 import type { AcidParams } from "./acid";
@@ -491,7 +492,7 @@ export function playReese(ctx: BaseAudioContext, dest: AudioNode, r: ReeseParams
   const sub = at(ctx.createOscillator(), t), subG = ctx.createGain(); sub.type = "sine"; subG.gain.value = r.sub * .9; sub.connect(subG).connect(amp); freqs.push(sub.frequency); srcs.push(sub); nodes.push(sub, subG);
   freqs.forEach((fr, k) => { const div = k === freqs.length - 1 ? 2 : 1; fr.setValueAtTime(from / div, t); if (from !== f) fr.setTargetAtTime(f / div, t, r.glide / 3); });
   srcs.unshift(srcs.splice(srcs.indexOf(sub), 1)[0]);
-  const v = finish(srcs, nodes, adsr(amp.gain, t, r.env, gate, vel * .3), amp);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, r.env, gate, vel * .3 * ENGINE_TRIM.reese), amp);
   v.update = q => { const n = ctx.currentTime, tc = .007, rq = (q as { reese?: Partial<ReeseParams> }).reese; if (!rq) return;
     if (rq.cutoff) { const cents = 1200 * Math.log2(rq.cutoff / r.cutoff); [f1, f2].forEach(fl => fl.detune.setTargetAtTime(cents, n, tc)); }
     if (rq.res !== undefined) f1.Q.setTargetAtTime(rq.res, n, tc);

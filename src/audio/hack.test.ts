@@ -38,3 +38,18 @@ describe("hack step modulator", () => {
   it("SMTH 0 jumps straight to the step, SMTH up glides", () => { expect(hackSlew(0, .003, .125)).toBe(1); const k = hackSlew(1, .003, .125); expect(k).toBeGreaterThan(0); expect(k).toBeLessThan(.1); });
   it("limiter keeps peaks at the ceiling", () => { expect(hackLimit(.5, .89)).toBe(1); expect(2 * hackLimit(2, .89)).toBeCloseTo(.89); });
 });
+
+import { HACK_WORKLET } from "./hackWorklet";
+function makeHack() {
+  let Cls: any; const g: any = { sampleRate: 48000, currentTime: 0 };
+  class AWP { port = { postMessage() {}, onmessage: null as any }; }
+  new Function("AudioWorkletProcessor", "registerProcessor", "sampleRate", "currentTime", HACK_WORKLET)(AWP, (_: string, c: any) => { Cls = c; }, g.sampleRate, 0);
+  const n = new Cls(); const p: any = { short: [.9], clock: [.3], starve: [.5], skip: [1], size: [.2], chaos: [0], lock: [0], bpm: [124] };
+  const run = (inp: (i: number) => number, blocks: number) => { let peak = 0; for (let b = 0; b < blocks; b++) { const x = Float32Array.from({ length: 128 }, (_, i) => inp(b * 128 + i)), y = [new Float32Array(128), new Float32Array(128)]; n.process([[x, x]], [y], p); for (const v of y[0]) peak = Math.max(peak, Math.abs(v)); } return peak; };
+  return { n, run };
+}
+describe("hack silence", () => {
+  it("silent input gives exactly zero output with SHRT and SKIP up", () => { const { run } = makeHack(); expect(run(() => 0, 400)).toBe(0); });
+  it("no stutter replay after the input stops", () => { const { run } = makeHack(); run(i => Math.sin(i * .05) * .5, 400); run(() => 0, 200); expect(run(() => 0, 400)).toBe(0); });
+  it("transport stop clears the stutter memory", () => { const { n, run } = makeHack(); run(i => Math.sin(i * .05) * .5, 200); n.port.onmessage({ data: { run: false } }); expect(n.rep).toBe(0); expect(n.buf[0].every((v: number) => v === 0)).toBe(true); expect(run(() => 0, 200)).toBe(0); });
+});

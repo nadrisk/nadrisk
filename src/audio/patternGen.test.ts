@@ -37,3 +37,27 @@ describe("phrase bake", () => {
     expect(b.pitch[0]).toBe(.5); expect(b.pitch[2]).toBeGreaterThan(.5); expect(b.vel[2]).toBe(.5);
   });
 });
+
+import { genBreak as gb2, genRandom as gr2 } from "./patternGen";
+describe("PRC-aware generators", () => {
+  const roles = Array(16).fill("perc") as any[], o = { dens: .5, fill: .5, vary: 0, seed: 11 };
+  it("different PRC models get different lanes", () => {
+    const res = gb2("AMEN", o, roles, [0, 1, 2, 3], 16, ["clik", "zap", "metl", "shrd"]);
+    const rows = [0, 1, 2, 3].map(i => res[i].pattern.slice(0, 16).join(""));
+    expect(new Set(rows).size).toBe(4);
+  });
+  it("two pads with the same model interlock instead of doubling", () => {
+    const res = gb2("DNB", o, roles, [0, 1], 16, ["metl", "metl"]);
+    expect(res[0].pattern.join("")).not.toBe(res[1].pattern.join(""));
+  });
+  it("PRC ghost hits keep 70-90% chance", () => {
+    for (let seed = 1; seed < 30; seed++) { const res = gb2("4/4", { ...o, seed }, roles, [0], 32, ["nois"]);
+      res[0].chance.forEach((c, i) => { if (res[0].pattern[i] && c < 1) { expect(c).toBeGreaterThanOrEqual(.7); expect(c).toBeLessThanOrEqual(.9); } }); }
+  });
+  it("RANDOM gives PRC rows ratchets and off-beat weight", () => {
+    let off = 0, on = 0, rolls = 0;
+    for (let seed = 1; seed < 40; seed++) { const r = gr2({ dens: .8, velLo: .4, chance: 0, roll: 0, seed }, [0], 16, ["clik"])[0];
+      r.pattern.forEach((v, c) => { if (!v) return; if (c % 4 === 0) on++; else off++; if (r.ratchet[c] > 1) rolls++; }); }
+    expect(off).toBeGreaterThan(on * 3); expect(rolls).toBeGreaterThan(0);
+  });
+});

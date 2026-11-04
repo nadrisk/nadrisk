@@ -116,7 +116,7 @@ const defaultBank = (): Bank => {
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 const defaultFxParams = (type: FxType) => Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, r[0]]));
-const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal"]);
+const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal", "hack"]);
 function syncChain(e: Engine, i: number, s: Slot) {
   const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
@@ -884,7 +884,15 @@ export function useGroovebox() {
   const randomizePattern = (view = "note") => {
     const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2), may = (r: number) => anySolo ? sl0[r]?.rnd === 2 : sl0[r]?.rnd !== 1;
     const pat = banksRef.current[bankRef.current].pattern;
-    if (view === "note") { setPattern(emptyPattern().map((r, i) => may(i) ? r.map(() => (Math.random() < (i < 3 ? 0.3 : 0.1) ? 1 : 0) as StepVal) : pat[i].slice())); return; }
+    if (view === "note") {
+      // PRC rows get syncopated, off-beat-leaning density and a few ratchets instead of the sparse background odds.
+      const prc = (i: number) => sl0[i]?.engine === "idm", rolls: Record<number, number[]> = {};
+      setPattern(emptyPattern().map((r, i) => !may(i) ? pat[i].slice() : r.map((_, c) => {
+        const on = prc(i) ? Math.random() < (c % 2 === 1 || c % 4 === 2 ? 0.32 : 0.1) : Math.random() < (i < 3 ? 0.3 : 0.1);
+        if (on && prc(i) && Math.random() < .2) (rolls[i] ??= [])[c] = ROLLS[1 + Math.floor(Math.random() * 2)];
+        return (on ? 1 : 0) as StepVal; })));
+      if (Object.keys(rolls).length) editBank(b => ({ ...b, ratchet: (b.ratchet ?? ones()).map((row, r) => rolls[r] ? row.map((v, c) => rolls[r][c] ?? 1) : row) }));
+      return; }
     const mi = bankRef.current + modLaneRef.current * NBANKS;
     if (view === "mod") { snap(); setSlots(sl => sl.map((x, r) => { const l = x.mods[mi]; if (!l?.on || !may(r)) return x; return { ...x, mods: x.mods.map((m, b) => (b === mi ? { ...m, values: m.values.map((v, c) => (pat[r]?.[c] ? Math.round(Math.random() * 100) / 100 : v)) } : m)) }; })); return; }
     const kind = view === "roll" ? "ratchet" : view === "vel" ? "vel" : "chance";
@@ -894,6 +902,7 @@ export function useGroovebox() {
   // GEN: write generated rows into the current bank in one undo step; X/S row keys gate which rows change.
   const genRows = () => { const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2); return sl0.map((_, r) => r).filter(r => anySolo ? sl0[r].rnd === 2 : sl0[r].rnd !== 1); };
   const genRoles = () => slotsRef.current.map(detectRole);
+  const genModels = () => slotsRef.current.map(x => x.engine === "idm" ? x.idm?.model : undefined);
   const applyGenerated = (res: GenResult) => {
     editBank(b => ({ ...b,
       pattern: b.pattern.map((row, r) => res[r] ? res[r].pattern.map(v => v as StepVal) : row),
@@ -923,7 +932,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, applyGenerated, bakeSelectedPhrase };
+  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

@@ -440,7 +440,10 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     const n = worklet("nad-hack"); input.connect(n).connect(wet); listen(n);
     const tr = Tone.getTransport(), anchor = () => ctx.currentTime - (tr.state === "started" ? tr.seconds : 0);
     const onStart = (time: number, offset?: number) => n.port.postMessage({ anchor: time - (offset ? Tone.Time(offset).toSeconds() : 0) });
-    tr.on("start", onStart); cleanups.push(() => tr.off("start", onStart));
+    const onRun = () => n.port.postMessage({ run: true }), onHalt = () => n.port.postMessage({ run: false });
+    tr.on("start", onStart); tr.on("start", onRun); tr.on("stop", onHalt); tr.on("pause", onHalt);
+    cleanups.push(() => { tr.off("start", onStart); tr.off("start", onRun); tr.off("stop", onHalt); tr.off("pause", onHalt); });
+    n.port.postMessage({ run: tr.state === "started" });
     apply = p => { wp(n, { ...p, chaos: p.chaos ?? 0, bpm: fxBpm }, ["short", "clock", "starve", "skip", "size", "chaos", "lock", "bpm"]);
       n.port.postMessage({ seed: Math.round(p.seed ?? 0), rate: Math.round(p.rate ?? 2), steps: Math.round(p.steps ?? 16), depth: p.depth ?? 0, smth: p.smth ?? 0, anchor: anchor() }); };
   } else if (type === "spectral") {
