@@ -583,7 +583,7 @@ export function useGroovebox() {
   useEffect(() => {
     const e = engine.current; if (!e) return;
     slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); { const o = e.lfos[i], sir = s.engine === "siren", w = (sir ? s.siren?.lfoWave : s.synth.lfo.wave) ?? "sine", r = (sir ? s.siren?.rate : s.synth.lfo.rate) ?? 1; if (o.type !== w && w !== ("additive" as string)) o.type = w as OscillatorType; o.frequency.setTargetAtTime(r, e.ctx.currentTime, .02); }
-      configureEq(e.outs[i].eq, { ...defaultEQ(), ...s.eq }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02));
+      configureEq(e.outs[i].eq, { ...defaultEQ(), ...(s.engine === "sampler" ? applyXY(s).eq : s.eq) }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02));
       if (syncedFx.current[i] !== s.fx) { syncChain(e, i, s); syncedFx.current[i] = s.fx; }
     });
   }, [slots]);
