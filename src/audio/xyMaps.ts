@@ -47,9 +47,15 @@ export function applyXY(s: Slot): Slot {
     return { ...s, idm: { ...p, decay: oct(p.decay, tw(x, 1.5, 2.2), .005, .25), a: cl(p.a + x * .25, 0, 1), c: cl(p.c + y * .4, 0, 1), b: cl(p.b + y * .2, 0, 1), grit: cl(p.grit + Math.max(0, y) * .45, 0, 1), drive: cl(p.drive + Math.max(0, y) * .3, 0, 1), tune: oct(p.tune, y * .5, 20, 12000) } };
   }
   if (s.engine === "sampler") {
-    const m = s.sampler;
-    return { ...s, sampler: { ...m, env: envXY(m.env, x), grainSize: oct(m.grainSize ?? .08, x, .02, .4), spray: cl((m.spray ?? .1) + x * .25, 0, 1), loopXfade: cl((m.loopXfade ?? 0) + x * .3, 0, 1),
-      fine: cl((m.fine ?? 0) + y * 35, -50, 50), grainDens: oct(m.grainDens ?? 12, y, 2, 40), grainRnd: cl((m.grainRnd ?? 0) + Math.max(0, y) * .6, 0, 4) } };
+    // Never touches pitch or fine tune, so samples stay in key. Y = tone on the channel high shelf in every mode.
+    const m = s.sampler, eq = s.eq ?? { low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 };
+    const tone = { ...eq, high: cl(eq.high + y * 9, -18, 18), highFreq: y < 0 ? oct(eq.highFreq, y * 1.5, 1500, 16000) : eq.highFreq };
+    // Stretch variants are cached buffers: quantise so moving the dot reuses a few renders instead of baking one per hit.
+    const q = (v: number, n: number) => Math.round(v * n) / n;
+    if (m.grain) return { ...s, eq: tone, sampler: { ...m, grainSize: oct(m.grainSize ?? .08, x * 1.5, .02, .4), spray: cl((m.spray ?? .1) + x * .3, 0, 1), start: cl(m.start + y * .3, 0, Math.min(.98, (m.end ?? 1) - .02)) } };
+    if (m.stretch) return { ...s, eq: tone, sampler: { ...m, env: envXY(m.env, x), stretchAmt: q(oct(m.stretchAmt ?? 1, x, .25, 4), 8), stretchGrain: q(oct(m.stretchGrain ?? .05, -y, .01, .2), 200) } };
+    const end = Math.min(m.endFrac ?? 1, m.end ?? 1), e2 = cl(x < 0 ? end * (1 + x * .85) : end + (1 - end) * x, m.start + .02, 1);
+    return { ...s, eq: tone, sampler: { ...m, env: envXY(m.env, x), end: e2, endFrac: e2 } };
   }
   return s;
 }
@@ -61,7 +67,7 @@ export function commitXY(s: Slot): Partial<Slot> {
   if (s.engine === "808") return { bass: a.bass, ...z };
   if (s.engine === "drum") return { drum: a.drum, ...z };
   if (s.engine === "idm") return { idm: a.idm, ...z };
-  if (s.engine === "sampler") return { sampler: a.sampler, ...z };
+  if (s.engine === "sampler") return { sampler: a.sampler, eq: a.eq, ...z };
   return z;
 }
 
@@ -71,5 +77,14 @@ export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ACC", "CUT RES ENV"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "TONE HRM CLK"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
   if (s.engine === "idm") return ["DEC SHAPE", "TONE GRIT"];
-  return ["ENV GRAIN", "FINE DENS"];
+  if (s.sampler.grain) return ["SIZE SPRAY", "POS TONE"];
+  if (s.sampler.stretch) return ["STRCH ENV", "GRAIN TONE"];
+  return ["END ENV", "TONE"];
+}
+
+/** Corner words for the pad: [left, right, top, bottom]. */
+export function xyCorners(s: Slot): [string, string, string, string] {
+  if (s.engine === "sampler" && s.sampler.grain) return ["TIGHT", "WIDE", "FWD", "BACK"];
+  if (s.engine === "sampler" && s.sampler.stretch) return ["SHRT", "LONG", "BRT", "DRK"];
+  return ["TIGHT", "OPEN", "BRT", "DRK"];
 }

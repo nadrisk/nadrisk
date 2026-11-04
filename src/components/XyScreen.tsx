@@ -4,7 +4,7 @@ import { Tap, XYPad, Zone } from "@/pixel/PixelScreen";
 import { Panel } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
-import { commitXY, xyHome, xyLabels, type XY } from "@/audio/xyMaps";
+import { commitXY, xyCorners, xyHome, xyLabels, type XY } from "@/audio/xyMaps";
 import { LFO_DEFAULT, LFO_RATES, REC_LENS, SHAPE_NAME, XY_SHAPES, fillPath, motionOn, recAt, shapeAt, xyAt } from "@/audio/xyMotion";
 import { LFO_ZONES as LZ, PAD, REC_BAR, REC_ZONES as RZ, XY_ZONES as XZ, type Box } from "./xyLayout";
 
@@ -60,14 +60,14 @@ function XyScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
   };
 
   return <Panel name={readout || "XY"} label="Instrument XY pad" pages={PAGES} live={() => () => armed || (motionOn(xy) && stepNow() != null)}
-    deps={[xy.x, xy.y, hold, xy.held, rec, lfo, armed, recLen, readout, slot.engine, slot.bass.mode, lx]}
+    deps={[xy.x, xy.y, hold, xy.held, rec, lfo, armed, recLen, readout, slot.engine, slot.bass.mode, slot.sampler.grain, slot.sampler.stretch, lx]}
     knobs={() => []}
     body={(p, page) => {
       const st = stepNow(), pos = xyAt(xy, st);
       p.box(X0, Y0, PW, PH);
       for (let x = X0 + 4; x < X0 + PW; x += 6) p.dot(x, Y0 + PH / 2);
       for (let y = Y0 + 3; y < Y0 + PH; y += 4) p.dot(X0 + PW / 2, y);
-      p.text("TIGHT", 4, 13); p.text("OPEN", 106, 13); p.text("BRT", 54, 13); p.text("DRK", 54, 39);
+      { const [l, r, t, b] = xyCorners(slot); p.text(l, 4, 13); p.text(r, 124 - r.length * 4, 13); p.textC(t, 64, 13); p.textC(b, 64, 39); }
       // SET origin: small cross so you know where CENTER returns.
       const hx = px(h.x), hy = py(h.y); p.dot(hx - 1, hy); p.dot(hx + 1, hy); p.dot(hx, hy - 1); p.dot(hx, hy + 1);
       // Recorded path (every other step dotted) and LFO preview around the base.
