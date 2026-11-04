@@ -33,7 +33,7 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
   const K = (label: string, short: string, key: Exclude<keyof IdmParams, "model" | "preset">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `PRC ${label}`, short, value: d[key], min, max, step, fmt, log, reset: home[key], set: v => D({ [key]: v }) });
   const knobs = (page: string): Knob[] => page === "MODL"
-    ? [K(names[0].toLowerCase(), names[0], "tune", 20, 12000, 1, hz, true), K(names[1].toLowerCase(), names[1], "a", 0, 1, .01, pct), K(names[2].toLowerCase(), names[2], "b", 0, 1, .01, pct), K(names[3].toLowerCase(), names[3], "c", 0, 1, .01, pct)]
+    ? [{ ...K(names[0].toLowerCase(), names[0], "tune", 20, 12000, .05, noteCents, true), bare: true }, K(names[1].toLowerCase(), names[1], "a", 0, 1, .01, pct), K(names[2].toLowerCase(), names[2], "b", 0, 1, .01, pct), K(names[3].toLowerCase(), names[3], "c", 0, 1, .01, pct)]
     : [K("decay", "DEC", "decay", IDM_MIN_DECAY, IDM_MAX_DECAY, .001, ms), K("bend", "BEND", "bend", -48, 48, 1, st), K("grit", "GRIT", "grit", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
   const body = (p: Px, page: string) => {
     IDM_MODELS.forEach((m, i) => { const x = kx(i); p.box(x, 10, KW, 9); if (m === d.model) p.invert(x + 1, 11, KW - 2, 7); p.textC(IDM_LABEL[m], x + KW / 2, 12, m !== d.model); });
