@@ -1,3 +1,4 @@
+import { ENGINE_TRIM } from "./loudness";
 import { adsr, at, filterEnvAdsr, finish, link, type ADSR, type SynthParams, type Voice } from "./voices";
 
 /** SYN: a clean subtractive voice. WAVE morphs saw > square > triangle > sine; VOICES 1 = mono glide, 2-8 = poly. */
@@ -40,7 +41,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const sub = at(ctx.createOscillator(), t), sg = ctx.createGain(); sub.type = "sine"; sg.gain.value = c.sub * .6; sub.connect(sg).connect(mix); srcs.push(sub); nodes.push(sub, sg);
   freqs.forEach(p => { p.setValueAtTime(from, t); if (from !== f) p.setTargetAtTime(f, t, c.glide / 3); (p as AudioParam & { __base?: number }).__base = f; });
   sub.frequency.setValueAtTime(from / 2, t); if (from !== f) sub.frequency.setTargetAtTime(f / 2, t, c.glide / 3); (sub.frequency as AudioParam & { __base?: number }).__base = f / 2;
-  const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42), amp);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp);
   v.glide = (delta, a, time) => [...freqs, sub.frequency].forEach(p => { const q = p as AudioParam & { __base?: number }; const b = q.__base ?? p.value; p.cancelScheduledValues(a); p.setTargetAtTime(b * 2 ** (delta / 12), a, Math.max(.005, time / 3)); });
   v.update = q => { const nc = (q as { clean?: Partial<CleanParams> }).clean; if (!nc) return; const n = ctx.currentTime, tc = .01;
     if (nc.cutoff) { const ct = 1200 * Math.log2(nc.cutoff / c.cutoff); f1.detune.setTargetAtTime(ct, n, tc); f2.detune.setTargetAtTime(ct, n, tc); }

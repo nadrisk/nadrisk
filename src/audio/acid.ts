@@ -1,3 +1,4 @@
+import { ENGINE_TRIM } from "./loudness";
 import * as Tone from "tone";
 import type { Voice } from "./voices";
 
@@ -91,7 +92,7 @@ export function playAcid(ctx: BaseAudioContext, dest: AudioNode, params: AcidPar
     res?.setTargetAtTime(p.res, at, .007); drive?.setTargetAtTime(p.drive, at, .007);
   };
    envelope(t, 0, true);
-  const peak = vel * .48 * (1 + (accented ? p.accent * .45 : 0));
+  const peak = vel * .48 * ENGINE_TRIM.acid * (1 + (accented ? p.accent * .45 : 0));
    amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(peak, t + ampRise);
    amp.gain.setTargetAtTime(peak * .65, t + ampRise, .18);
   const gateEnd = t + Math.max(.005, gate);
