@@ -35,7 +35,7 @@ function XyScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
       <Tap x={66} y={46} w={20} h={8} label="XY hold position" pressed={hold} onClick={() => onChange({ xy: { ...xy, hold: true } })} />
       <Tap x={87} y={46} w={20} h={8} label="XY snap back to centre" pressed={!hold} onClick={() => onChange(at(h.x, h.y, false))} />
       <Tap x={108} y={46} w={19} h={8} label="Commit XY sound into the knobs" disabled={!off} onClick={() => onChange(commitXY(slot))} />
-      <Tap x={66} y={55} w={61} h={8} label="XY back to centre" onClick={() => onChange({ xy: { x: 0, y: 0, hold } })} />
+      <Tap x={66} y={55} w={61} h={8} label="XY back to centre" onClick={() => onChange(at(h.x, h.y))} />
     </>} />;
 }
 export default memo(XyScreen);

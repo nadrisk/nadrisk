@@ -96,7 +96,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   };
 
   const extra = (page: string) => {
-    if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={DRUM_PRESETS[d.kind].length > 4 ? 2 + (i % 2) * 63 : 2} y={12 + (DRUM_PRESETS[d.kind].length > 4 ? Math.floor(i / 2) : i) * 12} w={DRUM_PRESETS[d.kind].length > 4 ? 61 : 124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ drum: copyDrumPreset(preset) })} />);
+    if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={DRUM_PRESETS[d.kind].length > 4 ? 2 + (i % 2) * 63 : 2} y={12 + (DRUM_PRESETS[d.kind].length > 4 ? Math.floor(i / 2) : i) * 12} w={DRUM_PRESETS[d.kind].length > 4 ? 61 : 124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ name: preset.name, drum: copyDrumPreset(preset) })} />);
     if (page === "TONE" || page === "NOIS") return <>
       {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => k !== d.kind && onChange({ drum: { kind: k, ...DRUM_INIT[k], env: { ...DRUM_INIT[k].env } } })} />)}
       {d.kind === "clap"
