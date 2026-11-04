@@ -199,6 +199,8 @@ export function useGroovebox() {
   const recRef = useRef(rec); recRef.current = rec;
   const lastTick = useRef<{ tick: number; time: number } | null>(null);
   const skip = useRef(new Set<string>());
+  // Sequenced phrase runs: booked one 16th at a time so XY and knob moves reach the very next phrase step.
+  const phraseRun = useRef(new Map<number, { t: number; k: number; end: number; velo: number; semi: number }>());
 
   const ctxOf = () => Tone.getContext().rawContext as unknown as BaseAudioContext;
   const fallbackBuf = () => (fallback.current ??= defaultSample(ctxOf()));
