@@ -115,10 +115,13 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   // Lit steps wait 250 ms: a second tap in that window ties back to the previous note instead of toggling, so the first tap never clears it.
   const pend = useRef<{ k: string; id: ReturnType<typeof setTimeout> } | null>(null);
   useEffect(() => () => { if (pend.current) clearTimeout(pend.current.id); }, []);
-  const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 150) return; lastToggle.current = { k, t };
+  // Empty steps light instantly; a second tap within 300 ms ties that new note back to the previous one.
+  const fresh = useRef({ k: "", t: 0 });
+  const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 35) return; lastToggle.current = { k, t };
     if (pend.current) { const same = pend.current.k === k; clearTimeout(pend.current.id); const [pr, pc] = pend.current.k.split(":").map(Number); pend.current = null; if (same) { onTie?.(r, c); return; } onToggle(pr, pc); }
-    if (!pattern[r]?.[c]) { onToggle(r, c); return; }
-    pend.current = { k, id: setTimeout(() => { pend.current = null; onToggle(r, c); }, 250) }; };
+    if (fresh.current.k === k && t - fresh.current.t < 300) { fresh.current = { k: "", t: 0 }; onTie?.(r, c); return; }
+    if (!pattern[r]?.[c]) { fresh.current = { k, t }; onToggle(r, c); return; }
+    pend.current = { k, id: setTimeout(() => { pend.current = null; onToggle(r, c); }, 300) }; };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const labelTap = useRef({ r: -1, t: 0 });
   // RND keys read raw touches (fire once on lift <8px, preventDefault) so iOS never swallows fast taps
