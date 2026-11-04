@@ -116,7 +116,7 @@ const defaultBank = (): Bank => {
 
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 const defaultFxParams = (type: FxType) => Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, r[0]]));
-const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal"]);
+const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal", "hack"]);
 function syncChain(e: Engine, i: number, s: Slot) {
   const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
