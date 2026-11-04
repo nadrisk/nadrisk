@@ -18,7 +18,15 @@ Today every break style gives all percussion pads one shared lane, so several PR
 - SYN voice count compensation so 1 voice and 8 voices feel equally loud.
 - Sound character is unchanged; only output level. Saved sets keep their channel levels.
 
+## 3. HACK stays silent when nothing plays
+Right now HACK can make clicks and thumps from silence, replay bits of old hits, and keep its pattern running after STOP.
+- When the pad is silent, HACK outputs true silence (no clicks or ghost stutters).
+- SKIP never replays an old, finished hit once the sound has died away.
+- On STOP or pause, the HACK pattern halts, any stutter is cut and its memory cleared; pressing STOP twice cuts HACK too, like the other effects.
+- The sound while playing stays exactly the same.
+
 ## Technical details
+- HACK silence: input envelope follower in `hackWorklet.ts` (fast attack, short hold); below ~-80 dBFS SKIP is disabled and output is gated to 0, so bit-flipping silence (code 2048) can't produce output. Pattern clock reads a transport running flag sent over the port from Tone transport start/stop/pause listeners in `effects.ts`; stop flushes the stutter buffer. Add `hack` to the double-stop FX flush list in `useGroovebox.ts`. Tests in `hack.test.ts`: silent input gives exactly zero output with SHRT/SKIP up, and no stutter output after input stops.
 - `src/audio/patternGen.ts`: detect PRC model from slot (engine `idm` + model), add per-model lane tables and ratchet/chance output; extend `patternGen.test.ts` (distinct lanes per model, no identical PRC rows, ratchets only on PRC/hat).
 - `src/hooks/useGroovebox.ts` `randomizePattern`: route PRC rows through the new generator.
 - Loudness: add a per-engine trim constant table in `src/audio` applied at each voice output (voices.ts / idm.ts / clean.ts / reese.ts / acid.ts); offline render test asserting each engine's peak at defaults sits within the target window.
