@@ -8,7 +8,8 @@ import type { ADSR } from "./voices";
 /** Instrument XY: X = tight (-1) .. open (+1), Y = dark (-1) .. bright (+1). The centre is the patch exactly as saved.
  *  Each engine moves only its own sound controls; the result is never stored until COMMIT. */
 /** ox/oy = where the dot sat at the last SET: the knobs already hold that sound, so offsets are measured from there. */
-export type XY = { x: number; y: number; hold?: boolean; ox?: number; oy?: number };
+/** rec/lfo = optional motion (src/audio/xyMotion.ts); held = finger on the pad right now, which overrides motion. */
+export type XY = { x: number; y: number; hold?: boolean; ox?: number; oy?: number; held?: boolean; rec?: import("./xyMotion").XYRec; lfo?: import("./xyMotion").XYLfo };
 export const XY_CENTER: XY = { x: 0, y: 0 };
 const cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const oct = (v: number, n: number, lo: number, hi: number) => cl(v * 2 ** n, lo, hi);

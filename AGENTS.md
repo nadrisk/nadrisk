@@ -32,3 +32,4 @@
 - CAM owns a local video-only stream with generation-guarded cleanup on model exit, hidden page and unmount; rasterize camera and telemetry into the shared two-colour buffer, while theme changes update colours without reopening hardware.
 - Instrument lineup is DRM, IDM, SYN, BAS ("808" kind with 808/ACID/REESE modes) and SMP; legacy poly/siren kinds convert on load in src/audio/lineup.ts, so old sets keep working without old editors.
 - Instrument XY offsets (slot.xy) are applied at trigger by src/audio/xyMaps.ts and only written into knobs on COMMIT, so the centre always equals the saved patch.
+- XY motion (recorded path + synced LFO) lives in slot.xy and is resolved by pure xyAt() from the transport step (src/audio/xyMotion.ts) at trigger and per grid tick for live voices, so screen and sound agree; XY screen hit-zones come from src/components/xyLayout.ts and a test forbids overlaps.
