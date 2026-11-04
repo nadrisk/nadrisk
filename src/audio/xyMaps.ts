@@ -7,7 +7,8 @@ import type { ADSR } from "./voices";
 
 /** Instrument XY: X = tight (-1) .. open (+1), Y = dark (-1) .. bright (+1). The centre is the patch exactly as saved.
  *  Each engine moves only its own sound controls; the result is never stored until COMMIT. */
-export type XY = { x: number; y: number; hold?: boolean };
+/** ox/oy = where the dot sat at the last SET: the knobs already hold that sound, so offsets are measured from there. */
+export type XY = { x: number; y: number; hold?: boolean; ox?: number; oy?: number };
 export const XY_CENTER: XY = { x: 0, y: 0 };
 const cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const oct = (v: number, n: number, lo: number, hi: number) => cl(v * 2 ** n, lo, hi);
@@ -16,10 +17,13 @@ const tw = (x: number, open: number, tight: number) => x < 0 ? x * tight : x * o
 /** TIGHT = pluck: instant attack, short decay, sustain falls away, short release. OPEN = bloom. */
 const envXY = (e: ADSR, x: number): ADSR => ({ a: oct(e.a, tw(x, 2.5, 4), .001, 4), d: oct(e.d, tw(x, 1.6, 2.6), .008, 6), s: x < 0 ? e.s * (1 + x * .9) : e.s, r: oct(e.r, tw(x, 2.2, 3), .01, 8) });
 
+/** The saved-sound point on the pad (last SET position, centre if never set). */
+export const xyHome = (xy?: XY) => ({ x: xy?.ox ?? 0, y: xy?.oy ?? 0 });
+
 /** Returns the slot with its XY offset applied to the current engine's sound fields. */
 export function applyXY(s: Slot): Slot {
-  const x = cl(s.xy?.x ?? 0, -1, 1), y = cl(s.xy?.y ?? 0, -1, 1);
-  if (!x && !y) return s;
+  const h = xyHome(s.xy), x = cl((s.xy?.x ?? 0) - h.x, -1, 1), y = cl((s.xy?.y ?? 0) - h.y, -1, 1);
+  if (Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6) return s;
   if (s.engine === "synth") {
     const c = cleanOf(s.synth);
     return { ...s, synth: { ...s.synth, clean: { ...c, env: envXY(c.env, x), detune: cl(c.detune + x * .35, 0, 1), sub: cl(c.sub - x * .2, 0, 1), glide: oct(c.glide || .02, x, 0, .5),
@@ -51,7 +55,7 @@ export function applyXY(s: Slot): Slot {
 
 /** Fields an engine's XY touches, so COMMIT writes only those into the pad. */
 export function commitXY(s: Slot): Partial<Slot> {
-  const a = applyXY(s), z = { xy: { ...XY_CENTER, hold: s.xy?.hold } };
+  const x = s.xy?.x ?? 0, y = s.xy?.y ?? 0, a = applyXY(s), z = { xy: { x, y, hold: s.xy?.hold, ox: x, oy: y } };
   if (s.engine === "synth") return { synth: a.synth, ...z };
   if (s.engine === "808") return { bass: a.bass, ...z };
   if (s.engine === "drum") return { drum: a.drum, ...z };
