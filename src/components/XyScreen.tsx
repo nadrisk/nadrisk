@@ -77,8 +77,8 @@ function XyScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
       trail.current.forEach(([x, y]) => p.dot(px(x), py(y)));
       if (motionOn(xy) && st != null) { const mx = px(pos.x), my = py(pos.y); p.rect(mx - 2, my - 2, 5, 5); p.rect(mx - 1, my - 1, 3, 3, false); p.box(px(xy.x) - 1, py(xy.y) - 1, 3, 3); }
       else { const cx = px(xy.x), cy = py(xy.y); p.rect(cx - 2, cy - 2, 5, 5); p.rect(cx - 1, cy - 1, 3, 3, false); }
-      if (armed) { p.rect(X0 + PW - 15, Y0 + 1, 14, 7); p.text("REC", X0 + PW - 14, Y0 + 2, false); }
-      else if (rec?.play || lfo.on) p.text(rec?.play && lfo.on ? "R+L" : rec?.play ? "REC" : "LFO", X0 + PW - 14, Y0 + 2);
+      if (armed) { p.rect(X0 + PW - 15, Y0 + PH - 8, 14, 7); p.text("REC", X0 + PW - 14, Y0 + PH - 7, false); }
+      else if (rec?.play || lfo.on) p.text(rec?.play && lfo.on ? "R+L" : rec?.play ? "REC" : "LFO", X0 + PW - 14, Y0 + PH - 7);
 
       if (page === "XY") {
         p.text(`X ${lx}`.slice(0, 15), 2, 47); p.text(`Y ${ly}`.slice(0, 15), 2, 56);
