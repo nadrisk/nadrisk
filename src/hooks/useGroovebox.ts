@@ -535,7 +535,16 @@ export function useGroovebox() {
             if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } }
         if (eng && !cutMod) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
-        if (v !== 1) return;
+        // Book the active phrase run only up to the end of this 16th, reading the slot's current sound each time.
+        const runPhrase = (bound: number) => {
+          const r = phraseRun.current.get(i); if (!r) return;
+          const a = slotsRef.current[i].arp; if (!a.on || a.mode === "step") { phraseRun.current.delete(i); return; }
+          const sd = stepSeconds(a, bpmRef.current), ord = phraseOrder(a), lim = Math.min(r.end, bound) - 1e-6;
+          while (r.t < lim) { if (phraseStep(i, a, ord[r.k % ord.length], r.t, sd, r.end, r.velo, r.k === 0, r.semi)) { const ft = r.t; Tone.getDraw().schedule(() => flash(i), ft); } r.k++; r.t += sd; }
+          if (r.t >= r.end - 1e-6) phraseRun.current.delete(i);
+        };
+        if (v !== 1) { if (v >= 2) runPhrase(time + sixteenth); else phraseRun.current.delete(i); return; }
+        phraseRun.current.delete(i);
         if (skip.current.delete(`${i}:${tick}`)) return;
         if (Math.random() >= (cb.chance?.[i]?.[st] ?? 1)) return;
         const velo = cb.vel?.[i]?.[st] ?? 1;
@@ -545,9 +554,9 @@ export function useGroovebox() {
         if (!a.on && rn > 1) { const sub = sixteenth / rn; for (let k = 0; k < rn; k++) { const tt = time + k * sub; trigger(i, tt, velo * (1 - k * .04), semiAt, sub * .9); Tone.getDraw().schedule(() => flash(i), tt); } return; }
         if (!a.on) { trigger(i, time, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
         if (a.mode === "step") { if (stepHit(i, time, velo, dur * .98, semiAt)) Tone.getDraw().schedule(() => flash(i), time); return; }
-        // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts.
-        const sd = stepSeconds(a, bpmRef.current), end = time + dur - 0.002, ord = phraseOrder(a);
-        for (let k = 0, t = time; t < end; k++, t += sd) { if (phraseStep(i, a, ord[k % ord.length], t, sd, end, velo, k === 0, semiAt)) { const ft = t; Tone.getDraw().schedule(() => flash(i), ft); } }
+        // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts, booked step by step.
+        phraseRun.current.set(i, { t: time, k: 0, end: time + dur - 0.002, velo, semi: semiAt });
+        runPhrase(time + sixteenth);
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
     }, "16n");
