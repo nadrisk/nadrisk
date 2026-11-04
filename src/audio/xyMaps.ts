@@ -67,7 +67,7 @@ export function commitXY(s: Slot): Partial<Slot> {
   if (s.engine === "808") return { bass: a.bass, ...z };
   if (s.engine === "drum") return { drum: a.drum, ...z };
   if (s.engine === "idm") return { idm: a.idm, ...z };
-  if (s.engine === "sampler") return { sampler: a.sampler, ...z };
+  if (s.engine === "sampler") return { sampler: a.sampler, eq: a.eq, ...z };
   return z;
 }
 
@@ -77,5 +77,14 @@ export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ACC", "CUT RES ENV"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "TONE HRM CLK"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
   if (s.engine === "idm") return ["DEC SHAPE", "TONE GRIT"];
-  return ["ENV GRAIN", "FINE DENS"];
+  if (s.sampler.grain) return ["SIZE SPRAY", "POS TONE"];
+  if (s.sampler.stretch) return ["STRCH ENV", "GRAIN TONE"];
+  return ["END ENV", "TONE"];
+}
+
+/** Corner words for the pad: [left, right, top, bottom]. */
+export function xyCorners(s: Slot): [string, string, string, string] {
+  if (s.engine === "sampler" && s.sampler.grain) return ["TIGHT", "WIDE", "FWD", "BACK"];
+  if (s.engine === "sampler" && s.sampler.stretch) return ["SHRT", "LONG", "BRT", "DRK"];
+  return ["TIGHT", "OPEN", "BRT", "DRK"];
 }
