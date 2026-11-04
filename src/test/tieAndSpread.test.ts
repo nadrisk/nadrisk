@@ -27,3 +27,9 @@ describe("live phrase spread", () => {
     expect(spreadDeg(4, 1)).toBe(8);
   });
 });
+
+import { tieSpan as tieSpan2 } from "@/audio/tie";
+import { it as it2, expect as expect2 } from "vitest";
+it2("ties from an earlier note to an empty step", () => {
+  expect2(tieSpan2([1, 0, 0, 0, 0, 0], 4)).toEqual([1, 2, 2, 2, 2, 0]);
+});
