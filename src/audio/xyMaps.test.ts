@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { applyXY } from "./xyMaps";
-import { blankSlots } from "@/hooks/useGroovebox";
+import type { Slot } from "@/hooks/useGroovebox";
 
-const pad = (sampler: object, x: number, y: number) => { const s = blankSlots()[0]; return { ...s, sampler: { ...s.sampler, fine: 3, ...sampler }, xy: { x, y } }; };
+const pad = (sampler: object, x: number, y: number) => { return { engine: "sampler", eq: { low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 }, sampler: { start: 0, loop: false, pitch: 0, env: { a: .002, d: .3, s: 1, r: .1 }, sampleName: "X", fine: 3, ...sampler }, xy: { x, y } } as unknown as Slot; };
 const corners = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 
 describe("sampler XY", () => {
