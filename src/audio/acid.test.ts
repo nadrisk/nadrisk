@@ -1,3 +1,4 @@
+import { ENGINE_TRIM } from "./loudness";
 import { describe, expect, it, vi } from "vitest";
 import { ACID_WORKLET, acidParams, defaultAcid, playAcid } from "./acid";
 const { createWorklet } = vi.hoisted(() => ({ createWorklet: vi.fn() }));
@@ -55,7 +56,7 @@ describe("acid", () => {
      const peak = Math.min(18000, p.cutoff * 2 ** (p.envMod + accent * 1.5));
      expect(cutoff.setValueAtTime).toHaveBeenCalledWith(accent > 0 ? p.cutoff : peak, .1);
      if (accent > 0) expect(cutoff.exponentialRampToValueAtTime).toHaveBeenCalledWith(peak, .1 + accent * .003);
-     expect(gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledWith(.48 * (1 + accent * .45), .1 + .002 + accent * .0015);
+     expect(gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledWith(.48 * ENGINE_TRIM.acid * (1 + accent * .45), .1 + .002 + accent * .0015);
      // Ordinary velocities retain the existing 2 ms attack, and live edits do not restart the slope.
      cutoff.setValueAtTime.mockClear();
      voice.update?.({ acid: { cutoff: 400 } } as Parameters<NonNullable<typeof voice.update>>[0]);
