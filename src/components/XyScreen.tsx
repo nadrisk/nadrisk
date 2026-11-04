@@ -5,7 +5,7 @@ import { Panel } from "./pixelScreens";
 import type { Px } from "@/pixel/draw";
 import type { Slot } from "@/hooks/useGroovebox";
 import { commitXY, xyHome, xyLabels, type XY } from "@/audio/xyMaps";
-import { LFO_DEFAULT, LFO_RATES, REC_LENS, SHAPE_NAME, XY_SHAPES, fillPath, motionOn, shapeAt, xyAt } from "@/audio/xyMotion";
+import { LFO_DEFAULT, LFO_RATES, REC_LENS, SHAPE_NAME, XY_SHAPES, fillPath, motionOn, recAt, shapeAt, xyAt } from "@/audio/xyMotion";
 import { LFO_ZONES as LZ, PAD, REC_BAR, REC_ZONES as RZ, XY_ZONES as XZ, type Box } from "./xyLayout";
 
 const { x: X0, y: Y0, w: PW, h: PH } = PAD;
@@ -72,7 +72,8 @@ function XyScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
       const hx = px(h.x), hy = py(h.y); p.dot(hx - 1, hy); p.dot(hx + 1, hy); p.dot(hx, hy - 1); p.dot(hx, hy + 1);
       // Recorded path (every other step dotted) and LFO preview around the base.
       if (rec?.pts.length) rec.pts.forEach(([x, y], i) => { if (i % 2 === 0 || rec.play) p.dot(px(x), py(y)); });
-      if (lfo.on && lfo.depth > 0) for (let i = 0; i < 32; i++) { const [dx, dy] = shapeAt(lfo.shape, i / 32, 0); const bx = rec?.play && st != null ? pos.x - 0 : xy.x; if (i % 2 === 0) p.dot(px(Math.max(-1, Math.min(1, (lfo.shape === "sh" ? xy.x : bx - (st != null ? 0 : 0)) + (lfo.shape === "sh" ? 0 : dx * lfo.depth) - (st != null && motionOn(xy) ? pos.x - xy.x - (rec?.play ? pos.x - xy.x : 0) : 0)))), py(Math.max(-1, Math.min(1, xy.y + dy * lfo.depth)))); }
+      if (lfo.on && lfo.depth > 0 && lfo.shape !== "sh") { const [bx, by] = rec?.play && rec.pts.length && st != null ? recAt(rec, st) : [xy.x, xy.y];
+        for (let k = 0; k < 32; k += 2) { const [dx, dy] = shapeAt(lfo.shape, k / 32); p.dot(px(Math.max(-1, Math.min(1, bx + dx * lfo.depth))), py(Math.max(-1, Math.min(1, by + dy * lfo.depth)))); } }
       trail.current.forEach(([x, y]) => p.dot(px(x), py(y)));
       if (motionOn(xy) && st != null) { const mx = px(pos.x), my = py(pos.y); p.rect(mx - 2, my - 2, 5, 5); p.rect(mx - 1, my - 1, 3, 3, false); p.box(px(xy.x) - 1, py(xy.y) - 1, 3, 3); }
       else { const cx = px(xy.x), cy = py(xy.y); p.rect(cx - 2, cy - 2, 5, 5); p.rect(cx - 1, cy - 1, 3, 3, false); }
