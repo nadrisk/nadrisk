@@ -9,7 +9,7 @@ describe("live code", () => {
     const c = new LiveCode();
     c.hit("kick", 1, pad, 0, 0); c.hit("kick", 1, pad, 4, 1);
     const [l] = c.lines(1, 0, 10);
-    expect(l.text.startsWith('p1: s("[bd ~ ~ ~] [bd ~ ~ ~] ~ ~")')).toBe(true);
+    expect(l.text.startsWith('p1: s("[bd - - -] [bd - - -] - -")')).toBe(true);
     expect(l.text.slice(...l.span!)).toBe("bd");
   });
   it("comments idle pads then drops them", () => {
@@ -18,7 +18,7 @@ describe("live code", () => {
     expect(c.lines(20, 0, 1)).toHaveLength(0);
   });
   it("tone pads use note names", () => {
-    expect(lineText({ pad: { ...pad, engine: "synth" }, kind: "tone", tok: ["c3", ...Array(15).fill(null)], vel: .8 }).text).toContain('note("[c3 ~ ~ ~] ~ ~ ~").s("synth")');
+    expect(lineText({ pad: { ...pad, engine: "synth" }, kind: "tone", tok: ["c3", ...Array(15).fill(null)], vel: .8 }).text).toContain('note("[c3 - - -] - - -").s("synth")');
   });
   it("cycles only the four backdrops", () => {
     expect(MODELS).toEqual(["DEPTH", "CAM", "SWEEP", "NONE"]);

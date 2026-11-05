@@ -21,9 +21,9 @@ export function lineText(t: Pick<Track, "pad" | "kind" | "tok" | "vel">, comment
   for (let g = 0; g < 4; g++) {
     const grp = t.tok.slice(g * 4, g * 4 + 4);
     if (g) s += " ";
-    if (grp.every(x => !x)) { const a = s.length; s += "~"; for (let k = 0; k < 4; k++) spans[g * 4 + k] = [a, a + 1]; continue; }
+    if (grp.every(x => !x)) { const a = s.length; s += "-"; for (let k = 0; k < 4; k++) spans[g * 4 + k] = [a, a + 1]; continue; }
     s += "[";
-    grp.forEach((x, k) => { if (k) s += " "; const a = s.length; s += x ?? "~"; spans[g * 4 + k] = [a, s.length]; });
+    grp.forEach((x, k) => { if (k) s += " "; const a = s.length; s += x ?? "-"; spans[g * 4 + k] = [a, s.length]; });
     s += "]";
   }
   s += '")';

@@ -116,7 +116,7 @@ export class VjEngine {
       const [a, b, c] = f.map(i => pts[i]);
       const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
       return { f, z: a[2] + b[2] + c[2], area };
-    }).filter(x => x.area < 0).sort((p, q) => p.z - q.z);
+    }).sort((p, q) => p.z - q.z);
     for (const { f } of faces) {
       const [a, b, c] = f.map(i => pts[i]);
       const u: V3 = [b[3] - a[3], b[4] - a[4], b[2] - a[2]], v: V3 = [c[3] - a[3], c[4] - a[4], c[2] - a[2]];
