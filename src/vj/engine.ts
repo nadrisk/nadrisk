@@ -1,12 +1,14 @@
-// AV: the groovebox rendered as a Strudel REPL over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
+// AV: the groovebox written out as live-code text plus one shared step grid, over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
 import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
-import { activeAtom, strudelDoc, type DocLine } from "./strudelDoc";
+import { activeAtom, codeDoc, padWord, type DocLine } from "./codeDoc";
 import { depthMesh, type V3 } from "./depthcore";
 
 export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const rot = (v: V3, ax: number, ay: number): V3 => {
   let [x, y, z] = v; let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
   c = Math.cos(ay); s = Math.sin(ay); [x, z] = [x * c + z * s, -x * s + z * c]; return [x, y, z];
@@ -18,14 +20,14 @@ export class VjEngine {
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
   camera?: VjCamera;
-  pads: DocPad[] = []; doc: DocLine[] = strudelDoc([], 120, "A");
+  pads: DocPad[] = []; doc: DocLine[] = codeDoc([], 120, "A");
   private lo = false; private slowFrames = 0;
   private cameraCanvas = document.createElement("canvas");
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
 
-  setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; this.doc = strudelDoc(pads, bpm, bank); }
+  setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; this.doc = codeDoc(pads, bpm, bank); }
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -88,28 +90,26 @@ export class VjEngine {
     this.text(c, tw, th, dpr, fgCss, bgCss);
   }
 
-  /** Noise-displaced mesh: flat facets, key + rim light, Bayer-dithered, crest edges in solid colour. */
+  /** Crystal shards: back-face culled, painter-sorted, 3-level hard light, depth fades to sparse dither, ridge lines. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const { pts, faces, seam } = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .24 + this.level * .2 + this.kick * .35, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
-    const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.t * .05) * .2, ay = this.ry;
-    const P = pts.map(p => { const q = rot(p, ax, ay), z = 3 - q[2]; return [W * .62 + q[0] * scale * 2.6 / z, H / 2 + q[1] * scale * 2.6 / z, q[2]]; });
-    const Lk = norm([-.5, -.6, .65]);
-    const list: { i: number; z: number }[] = [];
-    for (let i = 0; i < faces.length; i++) {
-      const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
-
-      if (seam(pts[a], pts[b]) > .5 || seam(pts[b], pts[c]) > .5 || seam(pts[c], pts[a]) > .5) continue;
-      list.push({ i, z: A[2] + B[2] + C[2] });
+    const tris = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .35 + this.level * .25 + this.kick * .5, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
+    const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.t * .05) * .2, ay = this.ry, F = 2.2;
+    const L = norm([-.55, -.65, .55]);
+    const list: { P: number[][]; z: number; s: number; spike: boolean }[] = [];
+    for (const sh of tris) {
+      const R = sh.p.map(p => rot(p, ax, ay));
+      const P = R.map(q => { const z = 3.4 - q[2]; return [W * .6 + q[0] * scale * F / z, H * .5 + q[1] * scale * F / z, q[2]]; });
+      const area = (P[1][0] - P[0][0]) * (P[2][1] - P[0][1]) - (P[1][1] - P[0][1]) * (P[2][0] - P[0][0]);
+      if (area >= 0) continue;
+      const n = norm(cross3(sub3(R[1], R[0]), sub3(R[2], R[0])));
+      const d = -(n[0] * L[0] + n[1] * L[1] - n[2] * L[2]);
+      const lvl = d > .55 ? 1 : d > .1 ? .5 : .12, z = (R[0][2] + R[1][2] + R[2][2]) / 3;
+      list.push({ P, z, s: lvl * (.55 + .45 * Math.max(0, Math.min(1, (z + 1) / 2))), spike: sh.spike });
     }
     list.sort((p, q) => p.z - q.z);
-    for (const { i } of list) {
-      const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
-      const u: V3 = [B[0] - A[0], B[1] - A[1], (B[2] - A[2]) * scale], v: V3 = [C[0] - A[0], C[1] - A[1], (C[2] - A[2]) * scale];
-      const n = norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
-      const key = Math.max(0, -(n[0] * Lk[0] + n[1] * Lk[1]) + Math.abs(n[2]) * Lk[2]), rim = Math.pow(1 - Math.abs(n[2]), 4) * .35;
-      const s = Math.min(1, key * .85 + rim);
-      tri(buf, W, H, [A, B, C], Math.round(s * 5) / 5, FG, BG);
-      if (s > .93) line(buf, W, H, A, B, FG);
+    for (const f of list) {
+      tri(buf, W, H, f.P, f.s, FG, BG);
+      if (f.spike) { const c = f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
     }
   }
 
@@ -138,58 +138,56 @@ export class VjEngine {
     ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
   }
 
-  /** Strudel REPL chrome + program. Text sits straight on the visual with a thin dark outline; long code may run over it. */
+  /** Live-code text on solid line strips, one shared step grid pinned above the control bar. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
     const fs = Math.round(Math.max(10, Math.min(tw / dpr / 70, th / dpr / 38)) * dpr), lh = Math.round(fs * 1.3);
     const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", mono = `${fs}px ${FONT}`;
-    c.textBaseline = "middle"; c.lineJoin = "round";
-    const pad = Math.round(fs * .7), barH = Math.round(fs * 2.2);
-    // Header: wordmark, REPL, play/update buttons, tempo.
-    c.fillStyle = bg; c.globalAlpha = .82; c.fillRect(0, 0, tw, barH); c.globalAlpha = 1;
-    c.fillStyle = fg; c.fillRect(0, barH - dpr, tw, dpr);
-    c.font = `bold ${Math.round(fs * 1.3)}px ${FONT}`; c.fillText("strudel", pad, barH / 2);
-    let x = pad + c.measureText("strudel").width + fs * .5;
-    c.font = mono; c.globalAlpha = .6; c.fillText("REPL", x, barH / 2); c.globalAlpha = 1; x += c.measureText("REPL").width + fs * 1.4;
-    const btn = (label: string, on: boolean) => { const w = c.measureText(label).width + fs; c.strokeStyle = fg; c.lineWidth = dpr; if (on) { c.fillStyle = fg; c.fillRect(x, barH * .2, w, barH * .6); c.fillStyle = bg; } else { c.strokeRect(x, barH * .2, w, barH * .6); c.fillStyle = fg; } c.fillText(label, x + fs / 2, barH / 2); c.fillStyle = fg; x += w + fs * .5; };
-    btn(this.running ? "\u25A0 stop" : "\u25B6 play", this.running); btn("\u21BB update", false);
-    const right = `${this.t < this.hudUntil ? this.hudMsg.toLowerCase() + "   " : ""}${Math.round(this.bpm)} bpm  cps ${(this.bpm / 240).toFixed(3)}  bank ${this.bank}`;
-    c.fillText(right, tw - pad - c.measureText(right).width, barH / 2);
-    // Editor.
-    c.font = mono; const cw = c.measureText("M").width, gut = cw * 4, x0 = pad + gut, tick = this.running ? Math.floor(this.beat * 4) : this.step;
-    let y = barH + lh * .9;
-    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = 1; c.strokeStyle = bg; c.lineWidth = 2.5 * dpr; c.strokeText(s, X, Y); c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
-    const TOK = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|(\.[a-zA-Z_]+)|(\b\d*\.?\d+\b)|(_?\$:)|([^"./\d$_]+|.)/g;
-    const byPad = new Map(this.pads.map(p => [p.index, p]));
+    c.textBaseline = "middle"; c.lineJoin = "round"; c.font = mono;
+    const pad = Math.round(fs * .7), cw = c.measureText("M").width, gut = cw * 4, x0 = pad + gut;
+    const tick = this.running ? Math.floor(this.beat * 4) : this.step, byPad = new Map(this.pads.map(p => [p.index, p]));
+    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
+    // Step grid geometry (bottom), so code knows where to stop.
+    const barH = 52 * dpr, rows = this.pads.length, cell = Math.max(4 * dpr, Math.min(lh * .8, (th * .32) / Math.max(1, rows)));
+    const gridH = rows ? rows * cell + lh * 1.2 : 0, gridTop = th - barH - gridH, codeEnd = gridTop - lh * .3;
+    const TOK = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|`[^`]*`?)|(\.[a-zA-Z_]+)|(\b\d*\.?\d+\b)|(_?[a-z]+:)|([^"`./\d_a-z]+|.)/g;
+    let y = lh * 1.1;
+    if (this.t < this.hudUntil) { const m = this.hudMsg.toLowerCase(); c.fillStyle = bg; c.fillRect(tw - pad - c.measureText(m).width - cw, y - lh / 2, c.measureText(m).width + cw * 1.5, lh); ink(m, tw - pad - c.measureText(m).width, y); }
     this.doc.forEach((ln, li) => {
-      if (y > th + lh) return;
-      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .78; c.fillRect(x0 - cw * .3, y - lh / 2, (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
+      if (y > codeEnd) return;
+      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .92; c.fillRect(pad - cw * .3, y - lh / 2, gut + (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
       ink(String(li + 1).padStart(3, " "), pad, y, .35);
-      const muted = ln.text.startsWith("_$:");
+      const a0 = ln.muted ? .45 : 1;
       let m: RegExpExecArray | null; TOK.lastIndex = 0;
       while ((m = TOK.exec(ln.text)) && m[0]) {
-        const X = x0 + m.index * cw, a = m[1] ? .4 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
-        if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, muted ? a * .5 : a); c.font = mono; } else ink(m[0], X, y, muted ? a * .5 : a);
+        const X = x0 + m.index * cw, a = m[1] ? .45 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
+        if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, a * a0); c.font = mono; } else ink(m[0], X, y, a * a0);
       }
-      const p = ln.pad !== undefined ? byPad.get(ln.pad) : undefined;
-      if (p && !muted && this.running) {
-        const at = activeAtom(ln, p.steps, tick);
+      if (!ln.muted && this.running) for (const l of ln.layers ?? []) {
+        const p = byPad.get(l.pad); if (!p || p.mute) continue;
+        const at = activeAtom(l, p.steps, tick);
         if (at) { c.strokeStyle = fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
       }
       y += lh;
-      if (ln.punch !== undefined) { const q = byPad.get(ln.punch); if (q) { this.punchcard(c, q, x0, y - lh * .35, tw - x0 - pad, lh * .6, fg, bg, tick, dpr); y += lh * .8; } }
     });
+    if (rows) this.grid(c, pad, gridTop, tw - pad * 2, cell, lh, fg, bg, tick, dpr, cw);
   }
 
-  /** Inline _punchcard(): one cell per step, ties drawn as bars, playhead column inverted. */
-  private punchcard(c: CanvasRenderingContext2D, p: DocPad, x: number, y: number, maxW: number, h: number, fg: string, bg: string, tick: number, dpr: number) {
-    const n = p.steps.length, cell = Math.max(3 * dpr, Math.min(h * .9, maxW / n)), cur = ((tick % n) + n) % n;
-    c.fillStyle = bg; c.globalAlpha = .7; c.fillRect(x - dpr, y - dpr, n * cell + 2 * dpr, h + 2 * dpr); c.globalAlpha = 1;
-    for (let i = 0; i < n; i++) {
-      const v = p.steps[i], X = x + i * cell, hh = h * (.35 + .65 * (p.vel[i] ?? 1));
-      if (v) { c.fillStyle = fg; c.globalAlpha = p.mute ? .35 : v >= 2 ? .55 : 1; c.fillRect(X + (v >= 2 ? 0 : dpr), y + h - hh, v >= 2 ? cell : cell - 2 * dpr, hh); }
-      if (this.running && i === cur) { c.globalAlpha = 1; c.strokeStyle = fg; c.lineWidth = dpr; c.strokeRect(X, y, cell, h); }
-      c.globalAlpha = 1;
-    }
+  /** One step sequencer for every active pad: label column, 16 cells, brightness = velocity, ties as bars, playhead. */
+  private grid(c: CanvasRenderingContext2D, x: number, y: number, w: number, cell: number, lh: number, fg: string, bg: string, tick: number, dpr: number, cw: number) {
+    const lab = cw * 4.5, n = 16, cwid = Math.min(cell * 2.2, (w - lab) / n), gw = lab + n * cwid, h = this.pads.length * cell;
+    c.fillStyle = bg; c.fillRect(x - dpr * 3, y, gw + dpr * 6, h + lh * 1.2);
+    c.fillStyle = fg; c.fillRect(x - dpr * 3, y, gw + dpr * 6, dpr);
+    const top = y + lh * .6;
+    this.pads.forEach((p, r) => {
+      const Y = top + r * cell, len = Math.max(1, p.steps.length), cur = ((tick % len) + len) % len;
+      c.globalAlpha = p.mute ? .35 : .8; c.fillStyle = fg; c.fillText(padWord(p), x, Y + cell / 2); c.globalAlpha = 1;
+      for (let i = 0; i < n && i < len; i++) {
+        const v = p.steps[i], X = x + lab + i * cwid;
+        if (i % 4 === 0) { c.globalAlpha = .25; c.fillRect(X, Y + cell / 2 - dpr / 2, dpr, dpr); c.globalAlpha = 1; }
+        if (v) { c.globalAlpha = (p.mute ? .35 : 1) * (v >= 2 ? .5 : .4 + .6 * (p.vel[i] ?? 1)); c.fillRect(X + (v >= 2 ? 0 : dpr), Y + dpr, v >= 2 ? cwid : cwid - 2 * dpr, cell - 2 * dpr); c.globalAlpha = 1; }
+        if (this.running && i === cur % n) { c.strokeStyle = fg; c.lineWidth = dpr; c.strokeRect(X, Y, cwid, cell); }
+      }
+    });
   }
 }
 
