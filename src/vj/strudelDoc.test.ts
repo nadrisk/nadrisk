@@ -11,7 +11,7 @@ describe("strudel doc", () => {
   it("backbeat is [~ sd]*2", () => expect(miniNotation(at({ 4: "sd", 12: "sd" }))).toBe("[~ sd]*2"));
   it("muted pad becomes _$:", () => expect(padBlock(pad({ mute: true }), false)[1].text.startsWith("_$:")).toBe(true));
   it("other pads mute when one is soloed", () => expect(padBlock(pad(), true)[1].text.startsWith("_$:")).toBe(true));
-  it("chance below 100% writes ?", () => { const c = Array(16).fill(1); c[0] = c[4] = c[8] = c[12] = .7; expect(padBlock(pad({ chance: c }), false)[1].text).toBe('$: s("bd?0.3*4")'); });
+  it("chance below 100% writes ?", () => { const c = Array(16).fill(1); c[0] = c[4] = c[8] = c[12] = .7; expect(padBlock(pad({ chance: c }), false)[1].text).toBe('$: s("bd?.3*4")'); });
   it("track length 8 writes .fast(16/8)", () => expect(padBlock(pad({ len: 8, steps: row([0, 4], 8), vel: Array(8).fill(1), chance: Array(8).fill(1) }), false).some(l => l.text.includes(".fast(16/8)"))).toBe(true));
   it("synth pads use note() and .s()", () => { const b = padBlock(pad({ engine: "synth", kind: "tone", note: 60 }), false); expect(b[1].text).toBe('$: note("c4*4")'); expect(b.some(l => l.text.includes('.s("sawtooth")'))).toBe(true); });
   it("highlights the atom playing, following ties", () => {

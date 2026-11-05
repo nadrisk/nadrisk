@@ -113,20 +113,6 @@ export class VjEngine {
     }
   }
 
-  private cameraCanvas = document.createElement("canvas");
-  private signalUntil = 0;
-  private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
-  private small = document.createElement("canvas");
-
-  signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
-    this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
-    if (Number.isFinite(beat)) this.beat = Math.max(0, beat);
-    if (Number.isFinite(bpm)) this.bpm = Math.max(30, Math.min(300, bpm));
-    this.running = running; this.signalUntil = this.t + .3;
-    this.peak = Number.isFinite(peak) ? Math.max(0, peak) : 0;
-    this.rms = Number.isFinite(rms) ? Math.max(0, rms) : 0;
-    this.step = Number.isFinite(step) ? Math.max(0, Math.floor(step)) : 0; this.bank = bank;
-  }
   private sweep(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
     const t = this.t * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
     for (let y = 0; y < H; y++) {
