@@ -316,7 +316,7 @@ export function useGroovebox() {
       const sendHit = (when: number, playedNotes: number[]) => {
         window.setTimeout(() => {
           if (engine.current !== e || e.ctx.state !== "running" || vjGeneration.current[i] !== generation) return;
-          vjSend({ t: "hit", kind, vel, pad: { index: i, name: s.name, engine: s.engine, role, notes: playedNotes } });
+          vjSend({ t: "hit", kind, vel, pad: { index: i, name: s.name, engine: s.engine, role, notes: playedNotes, cut: s.engine === "drum" ? s.drum.cutoff : s.engine === "synth" ? s.synth.cutoff : undefined, fx: s.fx.filter(f => f.on).map(f => ({ type: f.type, mix: f.params.mix ?? f.params.wet ?? .4 })) } });
         }, Math.max(0, (when - e.ctx.currentTime) * 1000));
       };
       // Simpler THRU: a slice plays on to the region end; only the next slice, pad lift or STOP cuts it.
