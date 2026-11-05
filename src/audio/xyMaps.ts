@@ -32,9 +32,10 @@ export function applyXY(s: Slot): Slot {
   }
   if (s.engine === "808") {
     const b = s.bass;
-    if (b.mode === "acid") { const a = acidParams(b.acid); return { ...s, bass: { ...b, acid: { ...a, decay: oct(a.decay, tw(x, 1.4, 2.2), .03, 1.5), accent: cl(a.accent + x * .3, 0, 1), cutoff: oct(a.cutoff, y * 2.2, 40, 8000), res: cl(a.res + y * .25, 0, 1), envMod: cl(a.envMod + y * 1.6, 0, 5), drive: cl(a.drive + Math.max(0, y) * .4, 0, 1) } } }; }
+    // ACID: X = tight (short, little env) <-> open (long, deep env sweep); Y = dark <-> bright, cutoff and resonance rise together.
+    if (b.mode === "acid") { const a = acidParams(b.acid); return { ...s, bass: { ...b, acid: { ...a, decay: oct(a.decay, tw(x, 2.2, 3), .03, 2), envMod: cl(a.envMod + x * 2.5, 0, 5), accent: cl(a.accent + x * .3, 0, 1), cutoff: oct(a.cutoff, y * 2.4, 40, 8000), res: cl(a.res + y * .6, 0, 1), drive: cl(a.drive + Math.max(0, y) * .3, 0, 1) } } }; }
     if (b.mode === "reese") { const r = reeseParams(b.reese); return { ...s, bass: { ...b, reese: { ...r, detune: cl(r.detune + x * 16, 0, 50), width: cl(r.width + x * .35, 0, 1), drift: cl(r.drift + x * .3, 0, 1), env: envXY(r.env, x), cutoff: oct(r.cutoff, y * 2.6, 40, 16000), res: cl(r.res + y * 2.5, 0, 8), sub: cl(r.sub - y * .3, 0, 1) } } }; }
-    return { ...s, bass: { ...b, decay: oct(b.decay, tw(x, 1.5, 2.5), .04, 4), pitchDecay: oct(b.pitchDecay, x, .005, .4), pitchEnv: cl(b.pitchEnv + x * 10, 0, 48), tone: oct(b.tone, y * 2, 200, 16000), harmonics: cl(b.harmonics + y * .45, 0, 1), click: cl(b.click + y * .4, 0, 1), tube: cl(b.tube + Math.max(0, y) * .4, 0, 1) } };
+    return { ...s, bass: { ...b, decay: oct(b.decay, tw(x, 1.5, 2.5), .04, 4), pitchDecay: oct(b.pitchDecay, x, .005, .4), pitchEnv: cl(b.pitchEnv + x * 10, 0, 48), tone: oct(b.tone, y * 2, 200, 16000), harmonics: cl(b.harmonics + Math.max(0, y) * .8, 0, 1), click: cl(b.click + y * .3, 0, 1), tube: cl(b.tube + Math.max(0, y) * .7, 0, 1) } };
   }
   if (s.engine === "drum") {
     // Hats open much further (closed tick -> long open hat); everything chokes harder toward TIGHT.
@@ -74,7 +75,7 @@ export function commitXY(s: Slot): Partial<Slot> {
 /** Short readouts of what the pad is moving, for the XY screen. */
 export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "synth") return ["ENV DET SUB", "CUT RES WAVE"];
-  if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ACC", "CUT RES ENV"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "TONE HRM CLK"];
+  if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
   if (s.engine === "idm") return ["DEC SHAPE", "TONE GRIT"];
   if (s.sampler.grain) return ["SIZE SPRAY", "POS TONE"];

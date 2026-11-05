@@ -23,7 +23,7 @@ export type SamplerParams = { start: number; loop: boolean; pitch: number; env: 
 /** glide(delta) slides the running voice by `delta` semitones over `time` seconds (step-sequencer glide). */
 export type Voice = { stop: (at: number) => void; /** Fades out over r seconds from wherever the envelope is; only ever shortens the tail. */ release?: (at: number, r: number) => void; glide?: (delta: number, at: number, time: number) => void; /** Live edits while the note rings (held-pad tweaks). */ update?: (p: Partial<SynthParams> & Partial<PolyParams> & Partial<SirenParams> & { grainLive?: Partial<SamplerParams> }) => void };
 export type Bass808Params = { mode?: "808" | "acid" | "reese"; acid?: Partial<AcidParams>; reese?: Partial<ReeseParams>; pitchEnv: number; pitchDecay: number; decay: number; tube: number; harmonics: number; tone: number; click: number };
-export const default808 = (): Bass808Params => ({ pitchEnv: 24, pitchDecay: .045, decay: 1.4, tube: .35, harmonics: .4, tone: 4500, click: .3 });
+export const default808 = (): Bass808Params => ({ pitchEnv: 12, pitchDecay: .03, decay: 1.4, tube: 0, harmonics: 0, tone: 4500, click: .1 });
 // Deltas are relative to the voice's original pitch (cached as __base), so chained slides land on the right notes.
 const glideParams = (ps: AudioParam[], delta: number, at: number, time: number) => ps.forEach(p => { const q = p as AudioParam & { __base?: number }; const b = (q.__base ??= p.value); if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); } p.setTargetAtTime(b * 2 ** (delta / 12), at, Math.max(.005, time / 3)); });
 export type PolyParams = { mode?: "poly" | "reese"; reese?: Partial<ReeseParams>; cutoff: number; res: number; detune: number; sub: number; pulse: number; chorus: number; env: ADSR; fenv?: ADSR; fenvAmt?: number };
@@ -439,6 +439,11 @@ export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params
   const end = t + hold + p.decay * 2 + .1;
   const v = finish(srcs, nodes, end, amp);
   v.glide = (delta, a, time) => glideParams([osc.frequency, sub.frequency], delta, a, time);
+  // Live edits (knobs, XY) on a ringing 808: tone, harmonics, drive and sub level follow without retriggering.
+  v.update = q => { const b = (q as { bass?: Partial<Bass808Params> }).bass; if (!b) return; const n = ctx.currentTime;
+    if (b.tone) lp.frequency.setTargetAtTime(b.tone, n, .01);
+    if (b.harmonics !== undefined) { harm.curve = harmCurve(b.harmonics); subG.gain.setTargetAtTime(b.harmonics * .45, n, .01); }
+    if (b.tube !== undefined) { tube.curve = tubeCurve(b.tube); pre.gain.setTargetAtTime(1 + b.tube * 2, n, .01); } };
   return v;
 }
 

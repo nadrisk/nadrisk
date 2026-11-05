@@ -19,6 +19,9 @@ import { motionOn, xyAt } from "@/audio/xyMotion";
 /** Transport position in 1/16 steps at an audio time (or now), null when stopped. */
 const stepAtTime = (time?: number) => { const t = Tone.getTransport(); if (t.state !== "started") return null; return (time !== undefined ? t.getTicksAtTime(time) : t.ticks) / (t.PPQ / 4); };
 /** Slot with its XY motion (recorded path / LFO) resolved to the position at `time`. */
+/** Live-voice patch for a slot after XY: every engine field a ringing voice can follow (SYN, 808, ACID, REESE). */
+const livePatch = (ap: Slot) => ({ clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, bass: ap.engine === "808" && (ap.bass.mode ?? "808") === "808" ? ap.bass : undefined,
+  acid: ap.engine === "808" && ap.bass.mode === "acid" ? acidParams(ap.bass.acid) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined }) as never;
 const withMotion = (s: Slot, time?: number): Slot => motionOn(s.xy) ? { ...s, xy: { ...s.xy!, ...xyAt(s.xy, stepAtTime(time)) } } : s;
 import { migrateEngine } from "@/audio/lineup";
 import type { PatchSound } from "@/audio/patchStore";
@@ -137,6 +140,9 @@ function syncChain(e: Engine, i: number, s: Slot) {
 
 export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
+  /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
+  const pushXyLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
+    [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } }); };
   const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);
@@ -251,19 +257,20 @@ export function useGroovebox() {
     const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
     let notes = noteIdx !== -1 && (s.engine === "sampler" || (s.engine === "synth" && !monoSyn)) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
-    const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
+    const free = s.chord.fit === "fixed";
+    const kc = notes.length > 1 && !free ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
     if (kc) {
       // Global key: chords take the quality of their degree (I maj, ii min, vii° dim…); the chosen type sets the size.
       let ns = [...kc];
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y);
-    } else if (notes.length > 1 && s.arp.on && (s.chord.fit ?? "scale") === "scale") {
+      notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y).slice(0, cl?.voices ?? 8);
+    } else if (notes.length > 1 && !free && s.arp.on) {
       // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
       // The selected chord is kept (with its voicing) when it already fits the scale; otherwise in-key thirds replace it.
       const fit = shapeInScale(s.arp.scale, semi, CHORDS[s.chord.type]) ? null : scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
       if (fit) { let ns = fit;
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns; }
+      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns.slice(0, cl?.voices ?? 8); }
     }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = s.note + semi + (s.engine === "drum" || s.engine === "idm" ? 0 : tuneRef.current);
@@ -322,7 +329,7 @@ export function useGroovebox() {
         reeseLast.current[i] = { midi: pitch, until: Math.max(e.ctx.currentTime, t) + gate + relOf(s) }; }
       const voices = ns.map((offset, k) => s.engine === "808" && s.bass.mode === "reese" ? (rv => playReese(e.ctx, dest, { ...rv, env: scaledEnv(rv.env, factor) }, pitch, t, gate, vel, bpmRef.current, glideFrom))(reeseParams(s.bass.reese))
         : s.engine === "idm" ? (q => playIdm(e.ctx, dest, { ...q, decay: q.decay * factor }, t, vel, semi))(idmParams(s.idm))
-        : s.engine === "synth" && cl ? playClean(e.ctx, dest, { ...cl, env: scaledEnv(cl.env, factor) }, pitch + offset, at(k), gk(k), vel / Math.sqrt(ns.length), glideFrom)
+        : s.engine === "synth" && cl ? playClean(e.ctx, dest, { ...cl, env: scaledEnv(cl.env, factor) }, pitch + offset, at(k), gk(k), vel / ns.length ** .75, glideFrom, ns.length > 1 ? (k / (ns.length - 1) * 2 - 1) * .5 : 0)
         : s.engine === "808" ? (s.bass.mode === "acid" ? playAcid(e.ctx, dest, (ap => ({ ...ap, decay: ap.decay * factor }))(acidParams(s.bass.acid)), pitch, t, gate, vel) : play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel))
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
         : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: sliced ? sp : sp + semi + offset, sliceAt: sliced ? sliceOf(semi, offset) : 0 }, buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), bpmRef.current, sliced ? vel : vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), sliced ? vel : vel / Math.sqrt(ns.length)))
@@ -366,7 +373,7 @@ export function useGroovebox() {
    *  Locked steps play one note each, so the phrase walks the chord instead of stacking it. */
   const chordLock = useCallback((i: number, a: ArpParams): number[] | null => {
     const s = slotsRef.current[i]; if (!a.chordSync || !s.chord.on) return null;
-    return keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length) ?? chordNotes(s.chord);
+    return (s.chord.fit === "fixed" ? null : keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length)) ?? chordNotes(s.chord);
   }, []);
 
   // CHRD walk: TRNC/EUCL phrases step through the chord tones one note per hit; RAND/manual phrases snap to the nearest tone.
@@ -524,9 +531,7 @@ export function useGroovebox() {
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
       // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
-      slotsRef.current.forEach((sl, i) => { const ee = engine.current; if (!ee || !motionOn(sl.xy) || (sl.engine !== "synth" && !(sl.engine === "808" && sl.bass.mode === "reese"))) return;
-        const ap = applyXY(withMotion(sl, time)), q = { clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never;
-        const seen = new Set<unknown>(); [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); });
+      slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushXyLive(i, applyXY(withMotion(sl, time))); });
       cb.pattern.forEach((row, i) => {
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
@@ -726,14 +731,14 @@ export function useGroovebox() {
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); if (patch.xy || patch.bass) pushXyLive(i, applyXY(slotsRef.current[i])); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch);
     // The scheduler books ahead from slotsRef, so refresh it now instead of waiting for React's render.
     { const si = selectedRef.current; slotsRef.current = slotsRef.current.map((x, j) => (j === si ? { ...x, ...patch } : x)); }
     // Live edits reach every ringing/booked voice of the pad, not only the most recently booked one.
     const live = (q: Parameters<NonNullable<Voice["update"]>>[0]) => { const ee = engine.current, si = selectedRef.current; if (!ee) return; const seen = new Set<unknown>(); [ee.mono[si]?.update, ...ee.ring[si].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); };
     if (patch.siren) live(patch.siren as never); if (patch.poly?.mode === "reese") live({ reese: patch.poly.reese } as never); if (patch.synth?.mode === "spec" && patch.synth.spec) live({ spec: patch.synth.spec } as never); if (patch.synth?.clean) live({ clean: patch.synth.clean } as never); if (patch.bass?.mode === "reese") live({ reese: patch.bass.reese } as never);
-    if (patch.xy) { const ap = applyXY({ ...slotsRef.current[selectedRef.current], ...patch }); live({ clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never); }
+    if (patch.xy || patch.bass) pushXyLive(selectedRef.current, applyXY(slotsRef.current[selectedRef.current]));
     if (patch.bass?.mode === "acid") live({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {

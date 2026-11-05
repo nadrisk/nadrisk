@@ -25,13 +25,15 @@ class NadHack extends AudioWorkletProcessor {
   flush() { this.buf[0].fill(0); this.buf[1].fill(0); this.rep = 0; this.rpos = 0; this.drop = 0; this.hold = [0, 0]; this.dx = [0, 0]; this.dy = [0, 0]; this.env = 0; this.sv = [0, 0, 0, 0]; this.step = -1; this.gi = 0; this.gg = 0; }
   process(ins, outs, p) {
     const x = ins[0], y = outs[0]; if (!x || !x.length) return true;
-    const bpm0 = Math.max(40, p.bpm[0]), pat = this.pat, dp = pat ? this.depth : 0, si = pat && this.run ? hackStep(currentTime - this.anchor, bpm0, this.rate, this.steps) : -1; this.step = si;
+    const bpm0 = Math.max(40, p.bpm[0]), pat = this.pat, dp = pat ? this.depth : 0, si = pat && this.run ? hackStep(currentTime - this.anchor, bpm0, this.rate, this.steps) : -1; if (si !== this.step) { this.seg = 0; if (si >= 0) this.r = hackRng((this.seed || 1) * 31 + si * 977 + 7); this.lastShort = -1; } this.step = si;
     const stepSec = 60 / bpm0 / [1, 2, 4, 8][Math.max(0, Math.min(3, Math.round(this.rate)))], k0 = hackSlew(this.smth, x[0].length / sampleRate, stepSec);
     for (let i = 0; i < 4; i++) this.sv[i] += ((pat && si >= 0 ? pat[i * 16 + si] : 0) - this.sv[i]) * k0;
     const lv0 = i => this.sv[i];
-    const sh = hackMod(p.short[0], dp, lv0(0)), ck = hackMod(p.clock[0], dp, lv0(1)), st = hackMod(p.starve[0], dp, lv0(2)), sk = hackMod(p.skip[0], dp, lv0(3)); this.eff = [sh, ck, st, sk];
+    // SKIP follows the lane exactly: with a pattern it only fires on steps whose bar is lit, scaled by the bar height.
+    const skLane = pat && si >= 0 ? pat[48 + si] : 0, sk = p.skip[0] <= .001 ? 0 : pat ? (dp > 0 ? (skLane > 0 ? Math.min(1, p.skip[0] * (1 - dp) + dp * skLane * (.5 + p.skip[0])) : p.skip[0] * (1 - dp)) : p.skip[0]) : p.skip[0];
+    const sh = hackMod(p.short[0], dp, lv0(0)), ck = hackMod(p.clock[0], dp, lv0(1)), st = hackMod(p.starve[0], dp, lv0(2)); this.eff = [sh, ck, st, sk];
     const sz = p.size[0], ch = p.chaos[0], lk = p.lock[0] >= .5, bpm = Math.max(40, p.bpm[0]), r = this.r;
-    if (Math.abs(sh - this.lastShort) > .02) { this.lastShort = sh; this.mask = hackMask(sh, r); }
+    if (Math.abs(sh - this.lastShort) > .02) { this.lastShort = sh; this.mask = hackMask(sh, hackRng(Math.round(sh * 50) * 131 + 3)); }
     if (r() < ch * ch * .06) { const k = r();
       if (k < .4) { this.mask = hackMask(Math.min(1, sh + .3 * ch), r); this.flash = 1; }
       else if (k < .75) this.jump = 1 + r() * 4 * ch;
@@ -45,7 +47,7 @@ class NadHack extends AudioWorkletProcessor {
       b0[this.w] = l; b1[this.w] = rr; this.w = (this.w + 1) % N;
       if (++this.seg >= segLen) { this.seg = 0;
         if (this.rep > 0) { this.rep--; this.rpos = 0; }
-        else if (!quiet && sk > 0 && r() < sk * .7) { this.rep = 1 + Math.floor(r() * (1 + sk * 5)); this.rl = segLen; this.rs = (this.w - segLen + N) % N; this.rev = r() < .25 + ch * .35; this.rpos = 0; } }
+        else if (!quiet && sk > .02) { this.rep = Math.max(1, Math.round(sk * 4)); this.rl = segLen; this.rs = (this.w - segLen + N) % N; this.rev = ch > .5 && r() < ch - .5; this.rpos = 0; } }
       if (this.rep > 0) { const i = Math.min(this.rl - 1, this.rpos++), j = (this.rs + (this.rev ? this.rl - 1 - i : i)) % N, e = Math.min(1, i / 48, (this.rl - i) / 48); l = b0[j] * e; rr = b1[j] * e; }
       const lv = Math.max(Math.abs(l), Math.abs(rr)); this.env += (lv - this.env) * (lv > this.env ? .01 : .0005);
       if (st > 0) { const sag = Math.min(1, this.env * 2), hi = 1 - st * (.45 + .4 * sag), lo = -hi * (1 - .35 * st), g = 1 - st * .4 * sag, d = 1 + st * 2;
@@ -58,11 +60,9 @@ class NadHack extends AudioWorkletProcessor {
       if (a > 0) { l += (bitFlip(l, this.mask) - l) * a; rr += (bitFlip(rr, this.mask) - rr) * a; }
       const o = [l, rr], q = [0, 0];
       for (let c = 0; c < 2; c++) { const v = o[c], d = v - this.dx[c] + .995 * this.dy[c]; this.dx[c] = v; this.dy[c] = d; q[c] = d; }
-      // Leveling: slow loudness match to the input (±12 dB, never touches tone), then a peak limiter at -1 dBFS.
-      this.ro += (q[0] * q[0] + q[1] * q[1] - this.ro) * .00005;
-      if (this.ri > 1e-6) { const t = Math.max(.25, Math.min(4, Math.sqrt(this.ri / Math.max(1e-9, this.ro)) * this.ag)); this.ag += (t - this.ag) * .00002; }
-      const pq = Math.max(Math.abs(q[0]), Math.abs(q[1])) * this.ag; this.pk = pq > this.pk ? pq : this.pk * .9998 + pq * .0002;
-      const lg = this.ag * hackLimit(this.pk, .89);
+      // No loudness matching (it pumped the level); only a safety peak limiter at -1 dBFS.
+      const pq = Math.max(Math.abs(q[0]), Math.abs(q[1])); this.pk = pq > this.pk ? pq : this.pk * .9998 + pq * .0002;
+      const lg = hackLimit(this.pk, .89);
       // Silence gate: below -80 dBFS input the output fades to exact zero, so bit-flipped silence and old buffer never sound.
       this.gg += ((quiet ? 0 : 1) - this.gg) * (quiet ? .002 : .05); const gg = this.gg < 1e-5 ? 0 : this.gg;
       for (let c = 0; c < y.length; c++) y[c][n] = gg === 0 ? 0 : Math.max(-.89, Math.min(.89, q[c & 1] * lg * gg));
