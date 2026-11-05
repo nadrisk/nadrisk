@@ -1,29 +1,31 @@
-// AV: a live-code text layer over one selectable 1-bit backdrop (DEPTH monolith, dithered CAM, GLSL-style SWEEP, or NONE).
-import type { VjKind, VjPad } from "./bus";
+// AV: the groovebox rendered as a Strudel REPL over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
+import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
-import { LiveCode } from "./liveCode";
-import { depthcore, type V3 } from "./depthcore";
+import { activeAtom, strudelDoc, type DocLine } from "./strudelDoc";
+import { depthMesh, type V3 } from "./depthcore";
 
 export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
-
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
-
 const rot = (v: V3, ax: number, ay: number): V3 => {
   let [x, y, z] = v; let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
   c = Math.cos(ay); s = Math.sin(ay); [x, z] = [x * c + z * s, -x * s + z * c]; return [x, y, z];
 };
 
 export class VjEngine {
-  t = 0; rx = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0;
+  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
-  camera?: VjCamera; code = new LiveCode();
+  camera?: VjCamera;
+  pads: DocPad[] = []; doc: DocLine[] = strudelDoc([], 120, "A");
+  private lo = false; private slowFrames = 0;
   private cameraCanvas = document.createElement("canvas");
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
+
+  setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; this.doc = strudelDoc(pads, bpm, bank); }
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -41,15 +43,14 @@ export class VjEngine {
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
     if (kind === "kick") this.kick = Math.max(this.kick, v);
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.ry += Math.PI / 2 * v; }
-    else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .7);
-    else { this.tone = Math.max(this.tone, v); this.twist += .04 * v; }
-    this.code.hit(kind, this.velocity, pad, this.running ? Math.floor(this.beat * 4) : this.step, this.beat);
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.seed += .35 * v; this.ry += Math.PI / 2 * v; }
+    else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
+    else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
   }
 
   ctl(dm: number, ds: number) {
-    if (dm) { this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = `BG ${MODELS[this.model]}`; }
-    if (ds) { this.size = Math.round(Math.max(0.4, Math.min(2.2, this.size + ds * 0.1)) * 10) / 10; this.hudMsg = `SIZE ${Math.round(this.size * 100)}%`; }
+    if (dm) { this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
+    if (ds) { this.size = Math.round(Math.max(0.4, Math.min(2.2, this.size + ds * 0.1)) * 10) / 10; this.hudMsg = `size ${Math.round(this.size * 100)}%`; }
     this.hudUntil = this.t + 1.6;
   }
 
@@ -60,10 +61,10 @@ export class VjEngine {
     if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
-    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(2);
+    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
     const tempo = this.bpm / 120;
-    this.rx += dt * tempo * .05; this.ry += dt * tempo * (.06 + this.level * .1); this.twist *= k(.15);
-    this.code.tick(dt, this.beat, this.bpm);
+    this.ry += dt * tempo * (.07 + this.level * .1); this.phase += dt * .025;
+    if (dt > 1 / 28) { if (++this.slowFrames > 40) this.lo = true; } else this.slowFrames = Math.max(0, this.slowFrames - 1);
 
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
     const W = Math.max(64, Math.floor(cv.clientWidth / px)), H = Math.max(36, Math.floor(cv.clientHeight / px));
@@ -87,25 +88,31 @@ export class VjEngine {
     this.text(c, tw, th, dpr, fgCss, bgCss);
   }
 
-  /** Depthcore fan: twisted ribbons, one light, dithered facets with solid leading-edge highlights; front layers denser. */
+  /** Noise-displaced mesh: flat facets, key + rim light, Bayer-dithered, crest edges in solid colour. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const facets = depthcore({ t: this.t * (this.bpm / 120), open: this.kick, twist: this.twist });
-    const scale = Math.min(W, H) * .5 * this.size, ax = .2 + Math.sin(this.t * .04) * .1, ay = this.ry * .4;
-    const L = norm([-.45, -.55, .7]), proj = (v: V3) => { const p = rot(v, ax, ay), z = 2.6 - p[2]; return [W / 2 + p[0] * scale * 2.4 / z, H / 2 + p[1] * scale * 2.4 / z, p[2]]; };
-    const list = facets.map(f => {
-      const [a, b, c] = f.p, u: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v: V3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-      const nr = norm(rot([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], ax, ay));
-      const P = f.p.map(proj);
-      return { P, z: P[0][2] + P[1][2] + P[2][2], shade: Math.abs(nr[0] * L[0] + nr[1] * L[1] + nr[2] * L[2]), f };
-    }).sort((p, q) => p.z - q.z);
-    for (const { P, shade, f } of list) {
-      const s = Math.round(Math.min(1, shade * (1.05 - f.layer * .22)) * 8) / 8;
-      tri(buf, W, H, P, s, FG, BG);
-      if (f.edge && f.layer === 0 && (this.hat < .5 || Math.floor(this.t * 20) % 2 === 0)) line(buf, W, H, P[0], P[2], FG);
+    const { pts, faces, seam } = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .24 + this.level * .2 + this.kick * .35, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
+    const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.t * .05) * .2, ay = this.ry;
+    const P = pts.map(p => { const q = rot(p, ax, ay), z = 3 - q[2]; return [W * .62 + q[0] * scale * 2.6 / z, H / 2 + q[1] * scale * 2.6 / z, q[2]]; });
+    const Lk = norm([-.5, -.6, .65]);
+    const list: { i: number; z: number }[] = [];
+    for (let i = 0; i < faces.length; i++) {
+      const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
+
+      if (seam(pts[a], pts[b]) > .5 || seam(pts[b], pts[c]) > .5 || seam(pts[c], pts[a]) > .5) continue;
+      list.push({ i, z: A[2] + B[2] + C[2] });
+    }
+    list.sort((p, q) => p.z - q.z);
+    for (const { i } of list) {
+      const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
+      const u: V3 = [B[0] - A[0], B[1] - A[1], (B[2] - A[2]) * scale], v: V3 = [C[0] - A[0], C[1] - A[1], (C[2] - A[2]) * scale];
+      const n = norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
+      const key = Math.max(0, -(n[0] * Lk[0] + n[1] * Lk[1]) + Math.abs(n[2]) * Lk[2]), rim = Math.pow(1 - Math.abs(n[2]), 4) * .35;
+      const s = Math.min(1, key * .85 + rim);
+      tri(buf, W, H, [A, B, C], Math.round(s * 5) / 5, FG, BG);
+      if (s > .93) line(buf, W, H, A, B, FG);
     }
   }
 
-  /** Classic shader sine sweep, banded and Bayer-dithered. */
   private sweep(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
     const t = this.t * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
     for (let y = 0; y < H; y++) {
@@ -118,7 +125,6 @@ export class VjEngine {
       }
     }
   }
-
   private cam(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
     const camera = this.camera, video = camera?.video;
     if (!(camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0)) return;
@@ -132,44 +138,58 @@ export class VjEngine {
     ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
   }
 
-  /** Strudel-style editor: top bar, line-number gutter, wrapped lines on solid blocks, outlined active atoms, block cursor. */
+  /** Strudel REPL chrome + program. Text sits straight on the visual with a thin dark outline; long code may run over it. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
-    const fs = Math.round(Math.max(15, Math.min(tw / dpr / 46, th / dpr / 26)) * dpr), lh = Math.round(fs * 1.12);
-    c.font = `${fs}px VT323, monospace`; c.textBaseline = "top";
-    const cw = c.measureText("M").width, pad = Math.round(fs * .6), gut = 4 * cw;
-    const cols = Math.max(20, Math.floor((tw - pad * 2 - gut) / cw) - 1);
-    // Top bar.
-    const bar = `strudel  ${this.running ? "\u25B6 playing" : "\u25A0 stopped"}  ${Math.round(this.bpm)} bpm  cps ${(this.bpm / 240).toFixed(2)}  ${MODELS[this.model].toLowerCase()}${this.t < this.hudUntil ? `  ${this.hudMsg.toLowerCase()}` : ""}`;
-    c.fillStyle = fg; c.fillRect(0, 0, tw, lh + pad); c.fillStyle = bg; c.fillText(bar, pad, Math.round(pad / 2 + fs * .05));
-    const v = this.code.view(this.running ? Math.floor(this.beat * 4) : this.step);
-    let y = lh + pad * 2;
-    const blink = v.typing || Math.floor(this.t * 1.8) % 2 === 0;
-    v.lines.forEach((ln, i) => {
-      const chunks: string[] = []; for (let k = 0; k < Math.max(1, ln.length); k += cols) chunks.push(ln.slice(k, k + cols));
-      chunks.forEach((ch, j) => {
-        if (y > th - lh * 3) return;
-        const x = pad + gut, txt = j ? "  " + ch : ch, inv = v.flash[i] > .5, off = j ? 2 - j * cols : 0;
-        c.fillStyle = bg; c.fillRect(pad - 2 * dpr, y - dpr, gut, lh);
-        c.fillStyle = fg; c.globalAlpha = .45; c.fillText(j ? "" : String(i + 1).padStart(3, " "), pad - 2 * dpr, y); c.globalAlpha = 1;
-        if (txt.length) { c.fillStyle = inv ? fg : bg; c.fillRect(x - 2 * dpr, y - dpr, txt.length * cw + 4 * dpr, lh); }
-        c.fillStyle = inv ? bg : fg; c.fillText(txt, x, y);
-        const sp = v.spans[i];
-        if (sp && sp[0] - j * cols >= 0 && sp[1] - j * cols <= ch.length) { c.strokeStyle = inv ? bg : fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x + (sp[0] + off) * cw - dpr, y - dpr * .5, (sp[1] - sp[0]) * cw + 2 * dpr, lh - dpr); }
-        const [cl, cc] = v.cursor;
-        if (blink && cl === i && cc >= j * cols && (cc < (j + 1) * cols || j === chunks.length - 1)) { const cx = x + (cc + off) * cw; c.fillStyle = fg; c.fillRect(cx, y, cw, lh - dpr); if (cc < ln.length) { c.fillStyle = bg; c.fillText(ln[cc], cx, y); } }
-        y += lh;
-      });
+    const fs = Math.round(Math.max(10, Math.min(tw / dpr / 70, th / dpr / 38)) * dpr), lh = Math.round(fs * 1.3);
+    const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", mono = `${fs}px ${FONT}`;
+    c.textBaseline = "middle"; c.lineJoin = "round";
+    const pad = Math.round(fs * .7), barH = Math.round(fs * 2.2);
+    // Header: wordmark, REPL, play/update buttons, tempo.
+    c.fillStyle = bg; c.globalAlpha = .82; c.fillRect(0, 0, tw, barH); c.globalAlpha = 1;
+    c.fillStyle = fg; c.fillRect(0, barH - dpr, tw, dpr);
+    c.font = `bold ${Math.round(fs * 1.3)}px ${FONT}`; c.fillText("strudel", pad, barH / 2);
+    let x = pad + c.measureText("strudel").width + fs * .5;
+    c.font = mono; c.globalAlpha = .6; c.fillText("REPL", x, barH / 2); c.globalAlpha = 1; x += c.measureText("REPL").width + fs * 1.4;
+    const btn = (label: string, on: boolean) => { const w = c.measureText(label).width + fs; c.strokeStyle = fg; c.lineWidth = dpr; if (on) { c.fillStyle = fg; c.fillRect(x, barH * .2, w, barH * .6); c.fillStyle = bg; } else { c.strokeRect(x, barH * .2, w, barH * .6); c.fillStyle = fg; } c.fillText(label, x + fs / 2, barH / 2); c.fillStyle = fg; x += w + fs * .5; };
+    btn(this.running ? "\u25A0 stop" : "\u25B6 play", this.running); btn("\u21BB update", false);
+    const right = `${this.t < this.hudUntil ? this.hudMsg.toLowerCase() + "   " : ""}${Math.round(this.bpm)} bpm  cps ${(this.bpm / 240).toFixed(3)}  bank ${this.bank}`;
+    c.fillText(right, tw - pad - c.measureText(right).width, barH / 2);
+    // Editor.
+    c.font = mono; const cw = c.measureText("M").width, gut = cw * 4, x0 = pad + gut, tick = this.running ? Math.floor(this.beat * 4) : this.step;
+    let y = barH + lh * .9;
+    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = 1; c.strokeStyle = bg; c.lineWidth = 2.5 * dpr; c.strokeText(s, X, Y); c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
+    const TOK = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|(\.[a-zA-Z_]+)|(\b\d*\.?\d+\b)|(_?\$:)|([^"./\d$_]+|.)/g;
+    const byPad = new Map(this.pads.map(p => [p.index, p]));
+    this.doc.forEach((ln, li) => {
+      if (y > th + lh) return;
+      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .78; c.fillRect(x0 - cw * .3, y - lh / 2, (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
+      ink(String(li + 1).padStart(3, " "), pad, y, .35);
+      const muted = ln.text.startsWith("_$:");
+      let m: RegExpExecArray | null; TOK.lastIndex = 0;
+      while ((m = TOK.exec(ln.text)) && m[0]) {
+        const X = x0 + m.index * cw, a = m[1] ? .4 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
+        if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, muted ? a * .5 : a); c.font = mono; } else ink(m[0], X, y, muted ? a * .5 : a);
+      }
+      const p = ln.pad !== undefined ? byPad.get(ln.pad) : undefined;
+      if (p && !muted && this.running) {
+        const at = activeAtom(ln, p.steps, tick);
+        if (at) { c.strokeStyle = fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
+      }
+      y += lh;
+      if (ln.punch !== undefined) { const q = byPad.get(ln.punch); if (q) { this.punchcard(c, q, x0, y - lh * .35, tw - x0 - pad, lh * .6, fg, bg, tick, dpr); y += lh * .8; } }
     });
-    // Punchcard + status at the bottom.
-    const rows = this.code.punch().slice(0, 4), cell = Math.max(3 * dpr, Math.min(cw, (tw - pad * 2) / 32)), step = ((Math.floor(this.running ? this.beat * 4 : this.step) % 16) + 16) % 16;
-    let py = th - lh - pad - rows.length * (cell + dpr);
-    for (const r of rows) {
-      c.fillStyle = bg; c.fillRect(pad - 2 * dpr, py - dpr, 16 * (cell + dpr) + 4 * dpr, cell + 2 * dpr);
-      r.forEach((on, k) => { c.fillStyle = fg; c.globalAlpha = k === step ? 1 : on ? .85 : .18; c.fillRect(pad + k * (cell + dpr), py, cell, cell); });
-      c.globalAlpha = 1; py += cell + dpr;
+  }
+
+  /** Inline _punchcard(): one cell per step, ties drawn as bars, playhead column inverted. */
+  private punchcard(c: CanvasRenderingContext2D, p: DocPad, x: number, y: number, maxW: number, h: number, fg: string, bg: string, tick: number, dpr: number) {
+    const n = p.steps.length, cell = Math.max(3 * dpr, Math.min(h * .9, maxW / n)), cur = ((tick % n) + n) % n;
+    c.fillStyle = bg; c.globalAlpha = .7; c.fillRect(x - dpr, y - dpr, n * cell + 2 * dpr, h + 2 * dpr); c.globalAlpha = 1;
+    for (let i = 0; i < n; i++) {
+      const v = p.steps[i], X = x + i * cell, hh = h * (.35 + .65 * (p.vel[i] ?? 1));
+      if (v) { c.fillStyle = fg; c.globalAlpha = p.mute ? .35 : v >= 2 ? .55 : 1; c.fillRect(X + (v >= 2 ? 0 : dpr), y + h - hh, v >= 2 ? cell : cell - 2 * dpr, hh); }
+      if (this.running && i === cur) { c.globalAlpha = 1; c.strokeStyle = fg; c.lineWidth = dpr; c.strokeRect(X, y, cell, h); }
+      c.globalAlpha = 1;
     }
-    const st = v.status || (v.typing ? "-- INSERT --" : "");
-    if (st) { c.fillStyle = bg; c.fillRect(pad - 2 * dpr, th - lh - pad / 2, st.length * cw + 4 * dpr, lh); c.fillStyle = fg; c.fillText(st, pad, th - lh - pad / 2); }
   }
 }
 

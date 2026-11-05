@@ -1,7 +1,7 @@
 import { setSustainProbe } from "@/lib/frameGate";
 import { tieSpan } from "@/audio/tie";
 import { detectSlices } from "@/audio/slices";
-import { vjKindOf, vjSend } from "@/vj/bus";
+import { vjKindOf, vjSend, vjListen, type DocPad } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, migrateFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
@@ -197,6 +197,24 @@ export function useGroovebox() {
   const meterPeak = useRef(-Infinity);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  // AV Strudel screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
+  useEffect(() => {
+    const send = () => {
+      const bk = banksRef.current[bank];
+      const pads: DocPad[] = slots.map((x, i) => ({ x, i })).filter(({ i }) => bk.pattern[i]?.slice(0, bk.lengths[i] || 16).some(v => v === 1)).map(({ x, i }) => {
+        const len = bk.lengths[i] || 16, role = detectRole(x);
+        return { index: i, name: x.name, engine: x.engine, role, kind: vjKindOf(role, x.engine), note: x.note, mute: x.mute, solo: x.solo, len,
+          steps: bk.pattern[i].slice(0, len).map(Number), vel: bk.vel[i].slice(0, len), chance: bk.chance[i].slice(0, len),
+          cut: x.engine === "drum" ? x.drum.cutoff : x.engine === "synth" ? x.synth.cutoff : undefined,
+          env: x.engine === "synth" ? { a: x.synth.env.a, r: x.synth.env.r } : x.engine === "drum" ? { a: x.drum.env.a, r: x.drum.env.d } : undefined,
+          fx: x.fx.filter(f => f.on).map(f => ({ type: f.type, mix: f.params.mix ?? f.params.wet ?? .4 })) };
+      });
+      vjSend({ t: "doc", bank: String.fromCharCode(65 + bank), bpm, pads });
+    };
+    const id = window.setTimeout(send, 150);
+    const off = vjListen(m => { if (m.t === "hello") send(); });
+    return () => { window.clearTimeout(id); off(); };
+  }, [banks, bank, slots, bpm]);
   const reeseLast = useRef<({ midi: number; until: number } | null)[]>(Array(16).fill(null));
   // Swing 50-75%: off-beat 16ths are delayed on the audio clock (MPC-style); 50 = straight.
   const [swing, setSwing] = useState(50);
