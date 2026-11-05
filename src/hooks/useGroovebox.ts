@@ -197,7 +197,7 @@ export function useGroovebox() {
   const meterPeak = useRef(-Infinity);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
-  // AV Strudel screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
+  // AV live-code screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
   useEffect(() => {
     const send = () => {
       const bk = banksRef.current[bank];
