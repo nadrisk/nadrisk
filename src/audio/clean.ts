@@ -24,7 +24,7 @@ export const waveMix = (w: number) => { const i = Math.min(2, Math.floor(w)), f 
 // Squares and saws are louder than sines at equal amplitude; this keeps WAVE sweeps level.
 const WAVE_GAIN = [.55, .5, .85, 1];
 
-export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams, midi: number, t: number, gate: number, vel = 1, glideFrom?: number): Voice {
+export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams, midi: number, t: number, gate: number, vel = 1, glideFrom?: number, pan = 0): Voice {
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [], f = 440 * 2 ** ((midi - 69) / 12);
   const from = glideFrom != null && c.glide > .001 ? 440 * 2 ** ((glideFrom - 69) / 12) : f;
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
@@ -34,11 +34,13 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   filterEnvAdsr(f1.frequency, t, c.env, gate, c.cutoff, c.envAmt * 5); filterEnvAdsr(f2.frequency, t, c.env, gate, c.cutoff, c.envAmt * 5);
   mix.connect(sh).connect(post).connect(f1).connect(f2).connect(amp); nodes.push(mix, sh, post, f1, f2, amp);
   const freqs: AudioParam[] = [], dets: [OscillatorNode, number][] = [];
+  // Each detuned pair is panned apart (and each chord voice gets its own spot), so detune widens in stereo instead of combing in mono.
   const cents = c.detune * 28;
   waveMix(c.wave).forEach((w, k) => { if (w < .01) return;
     [-1, 1].forEach(sg => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); o.type = WAVES[k]; o.detune.value = sg * cents; g.gain.value = w * WAVE_GAIN[k] * .5;
-      o.connect(g).connect(mix); freqs.push(o.frequency); dets.push([o, sg]); srcs.push(o); nodes.push(o, g); }); });
-  const sub = at(ctx.createOscillator(), t), sg = ctx.createGain(); sub.type = "sine"; sg.gain.value = c.sub * .6; sub.connect(sg).connect(mix); srcs.push(sub); nodes.push(sub, sg);
+      const pn = ctx.createStereoPanner(); pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
+      o.connect(g).connect(pn).connect(mix); nodes.push(pn); freqs.push(o.frequency); dets.push([o, sg]); srcs.push(o); nodes.push(o, g); }); });
+  const sub = at(ctx.createOscillator(), t), sg = ctx.createGain(), sp = ctx.createStereoPanner(); sp.pan.value = 0; sub.type = "sine"; sg.gain.value = c.sub * .6; sub.connect(sg).connect(sp).connect(mix); nodes.push(sp); srcs.push(sub); nodes.push(sub, sg);
   freqs.forEach(p => { p.setValueAtTime(from, t); if (from !== f) p.setTargetAtTime(f, t, c.glide / 3); (p as AudioParam & { __base?: number }).__base = f; });
   sub.frequency.setValueAtTime(from / 2, t); if (from !== f) sub.frequency.setTargetAtTime(f / 2, t, c.glide / 3); (sub.frequency as AudioParam & { __base?: number }).__base = f / 2;
   const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp);

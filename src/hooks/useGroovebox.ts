@@ -257,14 +257,14 @@ export function useGroovebox() {
       // Global key: chords take the quality of their degree (I maj, ii min, vii° dim…); the chosen type sets the size.
       let ns = [...kc];
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y);
+      notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y).slice(0, cl?.voices ?? 8);
     } else if (notes.length > 1 && !free && s.arp.on) {
       // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
       // The selected chord is kept (with its voicing) when it already fits the scale; otherwise in-key thirds replace it.
       const fit = shapeInScale(s.arp.scale, semi, CHORDS[s.chord.type]) ? null : scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
       if (fit) { let ns = fit;
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns; }
+      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns.slice(0, cl?.voices ?? 8); }
     }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = s.note + semi + (s.engine === "drum" || s.engine === "idm" ? 0 : tuneRef.current);
@@ -323,7 +323,7 @@ export function useGroovebox() {
         reeseLast.current[i] = { midi: pitch, until: Math.max(e.ctx.currentTime, t) + gate + relOf(s) }; }
       const voices = ns.map((offset, k) => s.engine === "808" && s.bass.mode === "reese" ? (rv => playReese(e.ctx, dest, { ...rv, env: scaledEnv(rv.env, factor) }, pitch, t, gate, vel, bpmRef.current, glideFrom))(reeseParams(s.bass.reese))
         : s.engine === "idm" ? (q => playIdm(e.ctx, dest, { ...q, decay: q.decay * factor }, t, vel, semi))(idmParams(s.idm))
-        : s.engine === "synth" && cl ? playClean(e.ctx, dest, { ...cl, env: scaledEnv(cl.env, factor) }, pitch + offset, at(k), gk(k), vel / Math.sqrt(ns.length), glideFrom)
+        : s.engine === "synth" && cl ? playClean(e.ctx, dest, { ...cl, env: scaledEnv(cl.env, factor) }, pitch + offset, at(k), gk(k), vel / ns.length ** .75, glideFrom, ns.length > 1 ? (k / (ns.length - 1) * 2 - 1) * .5 : 0)
         : s.engine === "808" ? (s.bass.mode === "acid" ? playAcid(e.ctx, dest, (ap => ({ ...ap, decay: ap.decay * factor }))(acidParams(s.bass.acid)), pitch, t, gate, vel) : play808(e.ctx, dest, { ...s.bass, decay: s.bass.decay * factor, pitchEnv: s.bass.pitchEnv * factor, pitchDecay: s.bass.pitchDecay * factor }, pitch, t, gate, vel))
         : s.engine === "drum" ? playDrum(e.ctx, dest, { ...s.drum, env: scaledEnv(s.drum.env, factor), pitchEnv: s.drum.pitchEnv * factor, pitchDecay: s.drum.pitchDecay * factor, filterDecay: s.drum.filterDecay * factor, pitch: s.drum.pitch * 2 ** (semi / 12) }, t, vel)
         : s.engine === "sampler" ? (s.sampler.warp && !s.sampler.grain ? playBreak(e.ctx, dest, { ...s.sampler, env: scaledEnv(s.sampler.env, factor), pitch: sliced ? sp : sp + semi + offset, sliceAt: sliced ? sliceOf(semi, offset) : 0 }, buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), bpmRef.current, sliced ? vel : vel / Math.sqrt(ns.length)) : (s.sampler.grain ? playGrains : playSampler)(e.ctx, dest, samplerRun(s.sampler, raw.duration, semi, offset, factor), buf, at(k), sliced ? thru(sliceOf(semi, offset)) : gk(k), sliced ? vel : vel / Math.sqrt(ns.length)))
