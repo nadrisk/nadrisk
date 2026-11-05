@@ -1,5 +1,10 @@
 # Roadmap
 
+## Controlled AV performance effects (2026-11-05)
+- [ ] Connect real PERFORM controls to AV and TV OUT backgrounds, leaving code/grid clean
+- [ ] Bound feedback and capture memory; clear on release, stop, stale signal, visual changes and visibility/unmount
+- [ ] Test safety rules and verify live playback/effects/release/stop through the app
+
 ## Adaptive AV colour sweep (2026-11-05)
 - [x] Add global colour toggle and C key, synchronised with TV OUT including newly opened windows
 - [x] Adapt DEPTH lighting, CAM luminance, SWEEP flow and NONE sequencer activity; preserve monochrome default and readable code
