@@ -8,8 +8,8 @@ type Tok = string | null;
 
 /** Mini-notation for one sub-span: rests collapse to ~, a lone leading hit collapses to the bare word. */
 function render(a: Tok[]): string {
-  if (a.every(x => !x)) return "~";
-  if (a.length === 1) return a[0] ?? "~";
+  if (a.every(x => !x)) return "-";
+  if (a.length === 1) return a[0] ?? "-";
   if (a[0] && a.slice(1).every(x => !x)) return a[0];
   const h = a.length / 2, wrap = (s: string) => s.includes(" ") ? `[${s}]` : s;
   return `${wrap(render(a.slice(0, h)))} ${wrap(render(a.slice(h)))}`;
@@ -106,7 +106,7 @@ export class LiveCode {
 
   private step() {
     const S = this.screen, T = this.target, r = this.rand;
-    const slow = () => .045 + r() * .09 + (r() < .06 ? .25 + r() * .3 : 0);
+    const slow = () => .03 + r() * .06 + (r() < .06 ? .25 + r() * .3 : 0);
     if (this.typo !== null) { const [l, c] = this.cursor; S[l] = S[l].slice(0, c - 1) + S[l].slice(c); this.cursor = [l, c - 1]; this.typo = null; this.wait += .12 + r() * .1; return; }
     let l = 0; while (l < S.length && l < T.length && S[l] === T[l]) l++;
     if (l >= S.length && l >= T.length) {
