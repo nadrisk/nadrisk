@@ -9,7 +9,7 @@ describe("noise", () => {
   });
 });
 describe("depthcore mesh", () => {
-  it("stays a single bounded mesh", () => expect(MAX_VERTS).toBe(icosphere(4).v.length));
+  it("stays a single bounded mesh", () => expect(MAX_VERTS).toBe(icosphere(3).v.length));
   it("zero amplitude leaves the base sphere untouched", () => {
     const { pts } = depthMesh({ t: 3, phase: 0, amp: 0, warp: 1, detail: 1, seed: 2, twist: 0, lo: true });
     for (const p of pts) expect(Math.hypot(...p)).toBeCloseTo(1, 5);

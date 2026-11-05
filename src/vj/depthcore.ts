@@ -19,7 +19,7 @@ export function icosphere(level: number) {
   return { v: vs, f: fs };
 }
 
-export const MESHES = { hi: icosphere(4), lo: icosphere(3) };
+export const MESHES = { hi: icosphere(3), lo: icosphere(2) };
 export const MAX_VERTS = MESHES.hi.v.length;
 
 /** Base shapes from a unit-sphere direction; returns position and outward direction for displacement. */

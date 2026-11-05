@@ -90,7 +90,7 @@ export class VjEngine {
 
   /** Noise-displaced mesh: flat facets, key + rim light, Bayer-dithered, crest edges in solid colour. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const { pts, faces, seam } = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .32 + this.level * .25 + this.kick * .45, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
+    const { pts, faces, seam } = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .24 + this.level * .2 + this.kick * .35, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
     const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.t * .05) * .2, ay = this.ry;
     const P = pts.map(p => { const q = rot(p, ax, ay), z = 3 - q[2]; return [W * .62 + q[0] * scale * 2.6 / z, H / 2 + q[1] * scale * 2.6 / z, q[2]]; });
     const Lk = norm([-.5, -.6, .65]);
@@ -106,9 +106,9 @@ export class VjEngine {
       const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
       const u: V3 = [B[0] - A[0], B[1] - A[1], (B[2] - A[2]) * scale], v: V3 = [C[0] - A[0], C[1] - A[1], (C[2] - A[2]) * scale];
       const n = norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
-      const key = Math.max(0, -(n[0] * Lk[0] + n[1] * Lk[1]) + Math.abs(n[2]) * Lk[2]), rim = Math.pow(1 - Math.abs(n[2]), 3) * .55;
+      const key = Math.max(0, -(n[0] * Lk[0] + n[1] * Lk[1]) + Math.abs(n[2]) * Lk[2]), rim = Math.pow(1 - Math.abs(n[2]), 4) * .35;
       const s = Math.min(1, key * .85 + rim);
-      tri(buf, W, H, [A, B, C], Math.round(s * 7) / 7, FG, BG);
+      tri(buf, W, H, [A, B, C], Math.round(s * 5) / 5, FG, BG);
       if (s > .93) line(buf, W, H, A, B, FG);
     }
   }
@@ -140,14 +140,14 @@ export class VjEngine {
 
   /** Strudel REPL chrome + program. Text sits straight on the visual with a thin dark outline; long code may run over it. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
-    const fs = Math.round(Math.max(13, Math.min(tw / dpr / 50, th / dpr / 30)) * dpr), lh = Math.round(fs * 1.3);
-    const mono = `${fs}px VT323, monospace`;
+    const fs = Math.round(Math.max(10, Math.min(tw / dpr / 70, th / dpr / 38)) * dpr), lh = Math.round(fs * 1.3);
+    const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", mono = `${fs}px ${FONT}`;
     c.textBaseline = "middle"; c.lineJoin = "round";
     const pad = Math.round(fs * .7), barH = Math.round(fs * 2.2);
     // Header: wordmark, REPL, play/update buttons, tempo.
     c.fillStyle = bg; c.globalAlpha = .82; c.fillRect(0, 0, tw, barH); c.globalAlpha = 1;
     c.fillStyle = fg; c.fillRect(0, barH - dpr, tw, dpr);
-    c.font = `bold ${Math.round(fs * 1.25)}px VT323, monospace`; c.fillText("strudel", pad, barH / 2);
+    c.font = `bold ${Math.round(fs * 1.3)}px ${FONT}`; c.fillText("strudel", pad, barH / 2);
     let x = pad + c.measureText("strudel").width + fs * .5;
     c.font = mono; c.globalAlpha = .6; c.fillText("REPL", x, barH / 2); c.globalAlpha = 1; x += c.measureText("REPL").width + fs * 1.4;
     const btn = (label: string, on: boolean) => { const w = c.measureText(label).width + fs; c.strokeStyle = fg; c.lineWidth = dpr; if (on) { c.fillStyle = fg; c.fillRect(x, barH * .2, w, barH * .6); c.fillStyle = bg; } else { c.strokeRect(x, barH * .2, w, barH * .6); c.fillStyle = fg; } c.fillText(label, x + fs / 2, barH / 2); c.fillStyle = fg; x += w + fs * .5; };
@@ -157,17 +157,18 @@ export class VjEngine {
     // Editor.
     c.font = mono; const cw = c.measureText("M").width, gut = cw * 4, x0 = pad + gut, tick = this.running ? Math.floor(this.beat * 4) : this.step;
     let y = barH + lh * .9;
-    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = 1; c.strokeStyle = bg; c.lineWidth = 3 * dpr; c.strokeText(s, X, Y); c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
+    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = 1; c.strokeStyle = bg; c.lineWidth = 2.5 * dpr; c.strokeText(s, X, Y); c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
     const TOK = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|(\.[a-zA-Z_]+)|(\b\d*\.?\d+\b)|(_?\$:)|([^"./\d$_]+|.)/g;
     const byPad = new Map(this.pads.map(p => [p.index, p]));
     this.doc.forEach((ln, li) => {
       if (y > th + lh) return;
+      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .62; c.fillRect(x0 - cw * .3, y - lh / 2, (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
       ink(String(li + 1).padStart(3, " "), pad, y, .35);
       const muted = ln.text.startsWith("_$:");
       let m: RegExpExecArray | null; TOK.lastIndex = 0;
       while ((m = TOK.exec(ln.text)) && m[0]) {
         const X = x0 + m.index * cw, a = m[1] ? .4 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
-        if (m[3] || m[5]) { c.font = `bold ${fs}px VT323, monospace`; ink(m[0], X, y, muted ? a * .5 : a); c.font = mono; } else ink(m[0], X, y, muted ? a * .5 : a);
+        if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, muted ? a * .5 : a); c.font = mono; } else ink(m[0], X, y, muted ? a * .5 : a);
       }
       const p = ln.pad !== undefined ? byPad.get(ln.pad) : undefined;
       if (p && !muted && this.running) {
@@ -175,13 +176,13 @@ export class VjEngine {
         if (at) { c.strokeStyle = fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
       }
       y += lh;
-      if (ln.punch !== undefined) { const q = byPad.get(ln.punch); if (q) { this.punchcard(c, q, x0, y - lh * .3, tw - x0 - pad, lh * .9, fg, bg, tick, dpr); y += lh; } }
+      if (ln.punch !== undefined) { const q = byPad.get(ln.punch); if (q) { this.punchcard(c, q, x0, y - lh * .35, tw - x0 - pad, lh * .6, fg, bg, tick, dpr); y += lh * .8; } }
     });
   }
 
   /** Inline _punchcard(): one cell per step, ties drawn as bars, playhead column inverted. */
   private punchcard(c: CanvasRenderingContext2D, p: DocPad, x: number, y: number, maxW: number, h: number, fg: string, bg: string, tick: number, dpr: number) {
-    const n = p.steps.length, cell = Math.max(3 * dpr, Math.min(h * 1.4, (Math.min(maxW, h * 40)) / n)), cur = ((tick % n) + n) % n;
+    const n = p.steps.length, cell = Math.max(3 * dpr, Math.min(h * .9, maxW / n)), cur = ((tick % n) + n) % n;
     c.fillStyle = bg; c.globalAlpha = .7; c.fillRect(x - dpr, y - dpr, n * cell + 2 * dpr, h + 2 * dpr); c.globalAlpha = 1;
     for (let i = 0; i < n; i++) {
       const v = p.steps[i], X = x + i * cell, hh = h * (.35 + .65 * (p.vel[i] ?? 1));
