@@ -140,6 +140,9 @@ function syncChain(e: Engine, i: number, s: Slot) {
 
 export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
+  /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
+  const pushLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
+    [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } }); };
   const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);
@@ -728,14 +731,14 @@ export function useGroovebox() {
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); if (patch.xy || patch.bass) pushLive(i, applyXY(slotsRef.current[i])); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch);
     // The scheduler books ahead from slotsRef, so refresh it now instead of waiting for React's render.
     { const si = selectedRef.current; slotsRef.current = slotsRef.current.map((x, j) => (j === si ? { ...x, ...patch } : x)); }
     // Live edits reach every ringing/booked voice of the pad, not only the most recently booked one.
     const live = (q: Parameters<NonNullable<Voice["update"]>>[0]) => { const ee = engine.current, si = selectedRef.current; if (!ee) return; const seen = new Set<unknown>(); [ee.mono[si]?.update, ...ee.ring[si].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); };
     if (patch.siren) live(patch.siren as never); if (patch.poly?.mode === "reese") live({ reese: patch.poly.reese } as never); if (patch.synth?.mode === "spec" && patch.synth.spec) live({ spec: patch.synth.spec } as never); if (patch.synth?.clean) live({ clean: patch.synth.clean } as never); if (patch.bass?.mode === "reese") live({ reese: patch.bass.reese } as never);
-    if (patch.xy) { const ap = applyXY({ ...slotsRef.current[selectedRef.current], ...patch }); live({ clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never); }
+    if (patch.xy || patch.bass) pushLive(selectedRef.current, applyXY(slotsRef.current[selectedRef.current]));
     if (patch.bass?.mode === "acid") live({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
