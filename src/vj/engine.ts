@@ -97,7 +97,7 @@ export class VjEngine {
     const list: { i: number; z: number }[] = [];
     for (let i = 0; i < faces.length; i++) {
       const [a, b, c] = faces[i], A = P[a], B = P[b], C = P[c];
-      if ((B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]) >= 0) continue;
+
       if (seam(pts[a], pts[b]) > .5 || seam(pts[b], pts[c]) > .5 || seam(pts[c], pts[a]) > .5) continue;
       list.push({ i, z: A[2] + B[2] + C[2] });
     }
@@ -162,7 +162,7 @@ export class VjEngine {
     const byPad = new Map(this.pads.map(p => [p.index, p]));
     this.doc.forEach((ln, li) => {
       if (y > th + lh) return;
-      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .62; c.fillRect(x0 - cw * .3, y - lh / 2, (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
+      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .78; c.fillRect(x0 - cw * .3, y - lh / 2, (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
       ink(String(li + 1).padStart(3, " "), pad, y, .35);
       const muted = ln.text.startsWith("_$:");
       let m: RegExpExecArray | null; TOK.lastIndex = 0;
