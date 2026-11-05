@@ -1,5 +1,10 @@
 # Roadmap
 
+## Adaptive AV colour sweep (2026-11-05)
+- [ ] Add global colour toggle and C key, synchronised with TV OUT including newly opened windows
+- [ ] Adapt DEPTH lighting, CAM luminance, SWEEP flow and NONE sequencer activity; preserve monochrome default and readable code
+- [ ] Run AV regressions and verify real groovebox playback on desktop and phone
+
 ## Sound engine overhaul (2026-10-31)
 - [x] Lineup DRM / IDM / SYN / BAS / SMP; siren removed; old POLY/SIREN sets convert
 - [x] Clean SYN (OSC/FLT/ENV, 1-8 voices), BAS REESE mode, DRM trimmed, new IDM engine
