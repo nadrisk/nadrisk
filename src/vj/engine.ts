@@ -182,7 +182,8 @@ export class VjEngine {
       const typed = l.text.slice(0, l.typed), caret = l.typed < l.text.length ? "_" : "";
       row(typed + caret, l.span && l.span[1] <= l.typed ? l.span : null, l.flash);
     }
-    if (lines.length) { row(""); row(`stack(${lines.filter(l => !l.comment).map((_, i, a) => a.length ? "" : "").length ? lines.filter(l => !l.comment).map(l => l.text.split(":")[0]).join(", ") : ""}).out()`); }
+    const live = lines.filter(l => !l.comment).map(l => l.text.split(":")[0]);
+    if (live.length) { row(""); row(`stack(${live.join(", ")}).out()`); }
   }
 }
 
