@@ -5,6 +5,7 @@ import { BAYER, ditherCamera } from "./raster";
 import { activeAtom, codeDoc, padWord, type DocLine } from "./codeDoc";
 import { depthMesh, type V3 } from "./depthcore";
 import { cosineColor, colorCss } from "./colorSweep";
+import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
 
 export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
@@ -28,6 +29,16 @@ export class VjEngine {
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
+  perf: AvPerformance = { ...NEUTRAL_PERFORMANCE };
+  readonly performanceFrames = new AvPerformanceFrames();
+  private visualTime = 0;
+  private visualKey = "";
+  setPerformance(p: AvPerformance) {
+    const next = avPerformance(p);
+    if ((this.perf.echoSend ?? 0) > .001 && (next.echoSend ?? 0) <= .001 || this.perf.mode !== next.mode) this.performanceFrames.clear();
+    this.perf = next;
+  }
+  clearPerformance() { this.performanceFrames.clear(); }
 
   setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; this.doc = codeDoc(pads, bpm, bank); }
 
@@ -36,6 +47,7 @@ export class VjEngine {
     if (Number.isFinite(beat)) this.beat = Math.max(0, beat);
     if (Number.isFinite(bpm)) this.bpm = Math.max(30, Math.min(300, bpm));
     this.running = running; this.signalUntil = this.t + .3;
+    if (!running) this.clearPerformance();
     this.peak = Number.isFinite(peak) ? Math.max(0, peak) : 0;
     this.rms = Number.isFinite(rms) ? Math.max(0, rms) : 0;
     this.step = Number.isFinite(step) ? Math.max(0, Math.floor(step)) : 0; this.bank = bank;
@@ -66,8 +78,12 @@ export class VjEngine {
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
-    const tempo = this.bpm / 120;
-    this.ry += dt * tempo * (.07 + this.level * .1); this.phase += dt * .025;
+    const active = this.running && this.t < this.signalUntil && !document.hidden;
+    const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
+    if (!active) this.clearPerformance();
+    const tempo = this.bpm / 120, speed = this.performanceFrames.speed(perf, dt);
+    this.visualTime += dt * speed;
+    this.ry += dt * speed * tempo * (.07 + this.level * .1); this.phase += dt * speed * .025;
     if (dt > 1 / 28) { if (++this.slowFrames > 40) this.lo = true; } else this.slowFrames = Math.max(0, this.slowFrames - 1);
 
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
@@ -75,11 +91,15 @@ export class VjEngine {
     if (W !== this.w || H !== this.h) { this.w = W; this.h = H; this.small.width = W; this.small.height = H; this.img = new ImageData(W, H); this.buf = new Uint32Array(this.img.data.buffer); }
     const buf = this.buf, img = this.img;
     if (!buf || !img) return;
+    const key = `${W}:${H}:${this.model}:${this.color}:${fg}:${bg}`;
+    if (key !== this.visualKey) { this.clearPerformance(); this.visualKey = key; }
     buf.fill(bg);
     const m = MODELS[this.model];
     if (m === "DEPTH") this.depth(buf, W, H, fg, bg);
     else if (m === "SWEEP") this.sweep(buf, W, H, fg, bg);
     else if (m === "CAM") this.cam(buf, W, H, fg, bg);
+    if (active && m !== "NONE") this.performanceFrames.apply(buf, W, H, perf, this.t, this.bpm, bg, fg, this.color);
+    else this.clearPerformance();
 
     const sc = this.small.getContext("2d"); if (!sc) return;
     sc.putImageData(img, 0, 0);
@@ -94,8 +114,9 @@ export class VjEngine {
 
   /** Crystal shards: back-face culled, painter-sorted, 3-level hard light, depth fades to sparse dither, ridge lines. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const tris = depthMesh({ t: this.t * (this.bpm / 120), phase: this.phase, amp: .35 + this.level * .25 + this.kick * .5, warp: .6 + this.tone * 1.2, detail: this.hat, seed: this.seed, twist: this.twist, lo: this.lo });
-    const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.t * .05) * .2, ay = this.ry, F = 2.2;
+    const tension = this.running && this.t < this.signalUntil ? this.perf.tension : 0;
+    const tris = depthMesh({ t: this.visualTime * (this.bpm / 120), phase: this.phase, amp: .35 + this.level * .25 + this.kick * .5 + tension * .4, warp: .6 + this.tone * 1.2 + tension * 1.5, detail: Math.min(1, this.hat + tension * .5), seed: this.seed, twist: this.twist, lo: this.lo });
+    const scale = Math.min(W, H) * .5 * this.size, ax = .35 + Math.sin(this.visualTime * .05) * .2, ay = this.ry, F = 2.2;
     const L = norm([-.55, -.65, .55]);
     const list: { P: number[][]; z: number; s: number; spike: boolean }[] = [];
     for (const sh of tris) {
@@ -110,21 +131,21 @@ export class VjEngine {
     }
     list.sort((p, q) => p.z - q.z);
     for (const f of list) {
-      const ink = this.color ? (x: number, y: number) => cosineColor(x / W, 1 - y / H, this.t, .1 + .9 * f.s, f.z * .55 + this.kick * .15) : undefined;
+      const ink = this.color ? (x: number, y: number) => cosineColor(x / W, 1 - y / H, this.visualTime, .1 + .9 * f.s, f.z * .55 + this.kick * .15) : undefined;
       tri(buf, W, H, f.P, f.s, FG, BG, ink);
-      if (f.spike) { const c = this.color ? cosineColor(f.P[2][0] / W, 1 - f.P[2][1] / H, this.t, .45 + f.s * .45, f.z * .55) : f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
+      if (f.spike) { const c = this.color ? cosineColor(f.P[2][0] / W, 1 - f.P[2][1] / H, this.visualTime, .45 + f.s * .45, f.z * .55) : f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
     }
   }
 
   private sweep(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const t = this.t * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
+    const t = this.visualTime * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
     for (let y = 0; y < H; y++) {
       const ny = y / H - .5, br = (y & 7) * 8;
       for (let x = 0; x < W; x++) {
         const nx = (x / W - .5) * W / H;
         let v = Math.sin(nx * 4 * sz + t + Math.sin(ny * 3 * sz + t * .7) * 2 + push) * .5 + Math.sin(Math.hypot(nx, ny) * 9 * sz - t * 1.3) * .3;
         v = Math.round((v * .5 + .5) * 8) / 8 * (.55 + this.level * .35);
-        buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, this.t, .28 + .72 * Math.max(0, Math.min(1, v)), push + this.tone * Math.sin(ny * 3) * .2) : v > BAYER[br + (x & 7)] ? FG : BG;
+        buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, this.visualTime, .28 + .72 * Math.max(0, Math.min(1, v)), push + this.tone * Math.sin(ny * 3) * .2) : v > BAYER[br + (x & 7)] ? FG : BG;
       }
     }
   }
@@ -145,7 +166,7 @@ export class VjEngine {
       const light = Math.max(0, Math.min(1, (l - .5) * (1.12 + this.level * .45) + .5 + this.kick * .14));
       // Luminance preserves the face/image; ordered quantisation keeps the pixel texture.
       const q = Math.min(1, (Math.floor(light * 6) + (light * 6 % 1 > BAYER[(y & 7) * 8 + (x & 7)] ? 1 : 0)) / 6);
-      buf[y * W + x] = cosineColor(x / W, 1 - y / H, this.t, q, l * .4);
+      buf[y * W + x] = cosineColor(x / W, 1 - y / H, this.visualTime, q, l * .4);
     }
   }
 

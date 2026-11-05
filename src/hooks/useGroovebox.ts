@@ -612,6 +612,11 @@ export function useGroovebox() {
   }, [slots]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
+  useEffect(() => {
+    const send = () => vjSend({ t: "perf", params: performanceRef.current });
+    send(); const off = vjListen(m => { if (m.t === "hello") send(); });
+    return off;
+  }, [performance]);
   useEffect(() => { Tone.getTransport().bpm.value = bpm; setFxBpm(bpm); const e = engine.current; if (e) slotsRef.current.forEach((s, i) => syncChain(e, i, s)); }, [bpm]);
   // Shorter scheduler look-ahead = tighter sequencer response; eco keeps a safer buffer for weak CPUs.
   useEffect(() => {
@@ -632,9 +637,9 @@ export function useGroovebox() {
       for (const value of data) { peak = Math.max(peak, Math.abs(value)); square += value * value; }
       const activeBank = banksRef.current[bankRef.current];
       const step = running ? Math.floor(beat * 4) % (activeBank?.steps ?? 16) : 0;
-      vjSend({ t: "signal", wave, beat, bpm: bpmRef.current, running, peak, rms: Math.sqrt(square / data.length), step, bank: String.fromCharCode(65 + bankRef.current) });
+      vjSend({ t: "signal", wave, beat, bpm: bpmRef.current, running, peak, rms: Math.sqrt(square / data.length), step, bank: String.fromCharCode(65 + bankRef.current), perf: performanceRef.current });
     }, 50);
-    return () => window.clearInterval(id);
+    return () => { window.clearInterval(id); vjSend({ t: "signal", wave: [], beat: 0, bpm: bpmRef.current, running: false }); };
   }, []);
   useEffect(() => () => {
     const e = engine.current, t = Tone.getTransport();
