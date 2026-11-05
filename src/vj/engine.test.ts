@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { VjEngine } from "./engine";
 import { avPerformance } from "./performance";
+
+beforeAll(() => {
+  vi.stubGlobal("ImageData", class { data: Uint8ClampedArray; constructor(w: number, h: number) { this.data = new Uint8ClampedArray(w * h * 4); } });
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+});
+afterAll(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function captured() {
   const engine = new VjEngine();
@@ -27,7 +33,7 @@ describe("AV lifecycle hard gates", () => {
   });
   it("missing heartbeat clears feedback and stops transport after 300 ms", () => {
     const engine = captured(), canvas = document.createElement("canvas");
-    // Zero dimensions return before drawing, after the safety gate.
+    // The canvas context stub skips drawing, not the lifecycle gates.
     for (let i = 0; i < 7; i++) engine.frame(canvas, 0xffffffff, 0xff000000, .05);
     expect(engine.running).toBe(false); expect(engine.performanceFrames.frames).toBe(0);
   });
