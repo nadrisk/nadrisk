@@ -8,7 +8,7 @@ const at = (m: Record<number, string>) => Array.from({ length: 16 }, (_, i) => m
 
 describe("mini-notation", () => {
   it("four on the floor is bd*4", () => expect(miniNotation(at({ 0: "bd", 4: "bd", 8: "bd", 12: "bd" }))).toBe("bd*4"));
-  it("backbeat snare is [- sd]*2", () => expect(miniNotation(at({ 4: "sd", 12: "sd" }))).toBe("[~ sd]*2"));
+  it("backbeat snare is [- sd]*2", () => expect(miniNotation(at({ 4: "sd", 12: "sd" }))).toBe("[- sd]*2"));
   it("eighth hats are hh*8", () => expect(miniNotation(at({ 0: "hh", 2: "hh", 4: "hh", 6: "hh", 8: "hh", 10: "hh", 12: "hh", 14: "hh" }))).toBe("hh*8"));
   it("finds the k-th sounding atom", () => { const l = '$: note("[c3 e3]*4")'; expect(l.slice(...atomSpan(l, 1)!)).toBe("e3"); });
 });
