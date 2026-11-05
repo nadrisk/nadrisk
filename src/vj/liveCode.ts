@@ -86,7 +86,7 @@ export class LiveCode {
     for (const [k, t] of [...this.tracks].sort((a, b) => a[0] - b[0])) {
       const idle = beat - t.last;
       if (idle > DROP) { this.tracks.delete(k); continue; }
-      t.tok = t.tok.map((x, i) => x && beat - t.at[i] > STALE ? null : x);
+      if (idle <= MUTE) t.tok = t.tok.map((x, i) => x && beat - t.at[i] > STALE ? null : x);
       const ls = blockLines(t, idle > MUTE);
       this.blocks.push({ pad: k, start: out.length, len: ls.length });
       out.push(...ls, "");
