@@ -1,29 +1,13 @@
-// VJ: a live-code text layer over one selectable 1-bit backdrop (DEPTH monolith, dithered CAM, GLSL-style SWEEP, or NONE).
+// AV: a live-code text layer over one selectable 1-bit backdrop (DEPTH monolith, dithered CAM, GLSL-style SWEEP, or NONE).
 import type { VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
 import { LiveCode } from "./liveCode";
+import { depthcore, type V3 } from "./depthcore";
 
 export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
 
-type V3 = [number, number, number];
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
-const PHI = (1 + Math.sqrt(5)) / 2;
-
-function icosphere(level: number) {
-  const vs: V3[] = [[-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI], [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1]].map(v => norm(v as V3));
-  let fs = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
-  for (let l = 0; l < level; l++) {
-    const cache = new Map<string, number>(), mid = (a: number, b: number) => {
-      const k = a < b ? `${a}_${b}` : `${b}_${a}`; let i = cache.get(k);
-      if (i === undefined) { const p = vs[a], q = vs[b]; i = vs.push(norm([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2])) - 1; cache.set(k, i); }
-      return i;
-    };
-    fs = fs.flatMap(([a, b, c]) => { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]; });
-  }
-  return { v: vs, f: fs };
-}
-const MESH = icosphere(2);
 
 const rot = (v: V3, ax: number, ay: number): V3 => {
   let [x, y, z] = v; let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
@@ -31,7 +15,7 @@ const rot = (v: V3, ax: number, ay: number): V3 => {
 };
 
 export class VjEngine {
-  t = 0; rx = 0; ry = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0;
+  t = 0; rx = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
@@ -57,9 +41,9 @@ export class VjEngine {
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
     if (kind === "kick") this.kick = Math.max(this.kick, v);
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.ry += .35 * v; }
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.ry += Math.PI / 2 * v; }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .7);
-    else this.tone = Math.max(this.tone, v);
+    else { this.tone = Math.max(this.tone, v); this.twist += .04 * v; }
     this.code.hit(kind, this.velocity, pad, this.running ? Math.floor(this.beat * 4) : this.step, this.beat);
   }
 
@@ -78,7 +62,8 @@ export class VjEngine {
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(2);
     const tempo = this.bpm / 120;
-    this.rx += dt * tempo * (.11 + this.level * .2); this.ry += dt * tempo * (.17 + this.level * .3);
+    this.rx += dt * tempo * .05; this.ry += dt * tempo * (.06 + this.level * .1); this.twist *= k(.15);
+    this.code.tick(dt, this.beat, this.bpm);
 
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
     const W = Math.max(64, Math.floor(cv.clientWidth / px)), H = Math.max(36, Math.floor(cv.clientHeight / px));
@@ -99,30 +84,24 @@ export class VjEngine {
     const c = cv.getContext("2d"); if (!c) return;
     c.imageSmoothingEnabled = false;
     c.drawImage(this.small, 0, 0, tw, th);
-    this.text(c, tw, th, dpr, fgCss, bgCss, dt);
+    this.text(c, tw, th, dpr, fgCss, bgCss);
   }
 
-  /** One faceted crystalline monolith: terraced spikes, flat-lit, dithered. Kick extrudes, snare turns, tone breathes. */
+  /** Depthcore fan: twisted ribbons, one light, dithered facets with solid leading-edge highlights; front layers denser. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const t = this.t * .25, scale = Math.min(W, H) * .34 * this.size * (1 + this.kick * .1);
-    const pts = MESH.v.map(d => {
-      const n = Math.sin(d[0] * 3.1 + t) * Math.sin(d[1] * 2.3 - t * .7) * Math.sin(d[2] * 2.7 + t * .5);
-      const r = .78 + Math.round(Math.abs(n) * 5) / 5 * (.42 + this.kick * .35 + this.tone * .15) + this.level * .05;
-      const p = rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry), z = 3.2 - p[2];
-      return [W / 2 + p[0] * scale * 3 / z, H / 2 + p[1] * scale * 3 / z, p[2], p[0], p[1]];
-    });
-    const L = norm([-.5, -.6, .7]);
-    const faces = MESH.f.map(f => {
-      const [a, b, c] = f.map(i => pts[i]);
-      const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-      return { f, z: a[2] + b[2] + c[2], area };
+    const facets = depthcore({ t: this.t * (this.bpm / 120), open: this.kick, twist: this.twist });
+    const scale = Math.min(W, H) * .62 * this.size, ax = .35 + Math.sin(this.t * .04) * .15, ay = this.ry * .4;
+    const L = norm([-.45, -.55, .7]), proj = (v: V3) => { const p = rot(v, ax, ay), z = 2.6 - p[2]; return [W / 2 + p[0] * scale * 2.4 / z, H / 2 + p[1] * scale * 2.4 / z, p[2]]; };
+    const list = facets.map(f => {
+      const [a, b, c] = f.p, u: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v: V3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const nr = norm(rot([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], ax, ay));
+      const P = f.p.map(proj);
+      return { P, z: P[0][2] + P[1][2] + P[2][2], shade: Math.abs(nr[0] * L[0] + nr[1] * L[1] + nr[2] * L[2]), f };
     }).sort((p, q) => p.z - q.z);
-    for (const { f } of faces) {
-      const [a, b, c] = f.map(i => pts[i]);
-      const u: V3 = [b[3] - a[3], b[4] - a[4], b[2] - a[2]], v: V3 = [c[3] - a[3], c[4] - a[4], c[2] - a[2]];
-      const nrm = norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
-      const shade = Math.abs(nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]) * (.75 + this.hat * .25);
-      tri(buf, W, H, [a, b, c], Math.round(shade * 6) / 6, FG, BG);
+    for (const { P, shade, f } of list) {
+      const s = Math.round(Math.min(1, shade * (1.05 - f.layer * .22)) * 8) / 8;
+      tri(buf, W, H, P, s, FG, BG);
+      if (f.edge && (f.layer === 0 || this.hat > .2)) line(buf, W, H, P[0], P[2], FG);
     }
   }
 
@@ -153,37 +132,44 @@ export class VjEngine {
     ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
   }
 
-  /** Code lines on solid blocks so they stay readable over any backdrop; the playing step's token is inverted. */
-  private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string, dt: number) {
-    const fs = Math.round(Math.max(14, Math.min(tw / dpr / 52, th / dpr / 24)) * dpr), lh = Math.round(fs * 1.15);
+  /** Strudel-style editor: top bar, line-number gutter, wrapped lines on solid blocks, outlined active atoms, block cursor. */
+  private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
+    const fs = Math.round(Math.max(15, Math.min(tw / dpr / 46, th / dpr / 26)) * dpr), lh = Math.round(fs * 1.12);
     c.font = `${fs}px VT323, monospace`; c.textBaseline = "top";
-    const cw = c.measureText("M").width, x0 = Math.round(fs * .9);
-    let y = Math.round(fs * .9) + Math.round(8 * dpr);
-    const row = (s: string, span: [number, number] | null = null, flash = 0) => {
-      if (!s) { y += lh; return; }
-      const w = Math.ceil(s.length * cw + 8 * dpr);
-      c.fillStyle = flash > .5 ? fg : bg; c.fillRect(x0 - 4 * dpr, y - 2 * dpr, w, lh);
-      c.fillStyle = flash > .5 ? bg : fg; c.fillText(s, x0, y);
-      if (span && span[1] <= s.length) {
-        const sx = x0 + span[0] * cw, sw = (span[1] - span[0]) * cw;
-        c.fillStyle = flash > .5 ? bg : fg; c.fillRect(sx - 1 * dpr, y - 2 * dpr, sw + 2 * dpr, lh);
-        c.fillStyle = flash > .5 ? fg : bg; c.fillText(s.slice(span[0], span[1]), sx, y);
-      }
-      y += lh;
-    };
-    const bar = Math.floor(this.beat / 4) + 1;
-    const hud = this.t < this.hudUntil ? `  ${this.hudMsg}` : "";
-    row(`// NAD_VJ  ${this.bpm} BPM  BAR ${String(bar).padStart(2, "0")}  ${this.bank}  ${this.running ? "PLAY" : "STOP"}${hud}`);
-    row(`setcps(${this.bpm}/60/4)`);
-    row("");
-    const lines = this.code.lines(this.beat, this.running ? Math.floor(this.beat * 4) : this.step, dt);
-    if (!lines.length) row(`// play a pad${Math.floor(this.t * 2) % 2 ? "_" : ""}`);
-    for (const l of lines) {
-      const typed = l.text.slice(0, l.typed), caret = l.typed < l.text.length ? "_" : "";
-      row(typed + caret, l.span && l.span[1] <= l.typed ? l.span : null, l.flash);
+    const cw = c.measureText("M").width, pad = Math.round(fs * .6), gut = 4 * cw;
+    const cols = Math.max(20, Math.floor((tw - pad * 2 - gut) / cw) - 1);
+    // Top bar.
+    const bar = `strudel  ${this.running ? "\u25B6 playing" : "\u25A0 stopped"}  ${Math.round(this.bpm)} bpm  cps ${(this.bpm / 240).toFixed(2)}  ${MODELS[this.model].toLowerCase()}${this.t < this.hudUntil ? `  ${this.hudMsg.toLowerCase()}` : ""}`;
+    c.fillStyle = fg; c.fillRect(0, 0, tw, lh + pad); c.fillStyle = bg; c.fillText(bar, pad, Math.round(pad / 2 + fs * .05));
+    const v = this.code.view(this.running ? Math.floor(this.beat * 4) : this.step);
+    let y = lh + pad * 2;
+    const blink = v.typing || Math.floor(this.t * 1.8) % 2 === 0;
+    v.lines.forEach((ln, i) => {
+      const chunks: string[] = []; for (let k = 0; k < Math.max(1, ln.length); k += cols) chunks.push(ln.slice(k, k + cols));
+      chunks.forEach((ch, j) => {
+        if (y > th - lh * 3) return;
+        const x = pad + gut, txt = j ? "  " + ch : ch, inv = v.flash[i] > .5, off = j ? 2 - j * cols : 0;
+        c.fillStyle = bg; c.fillRect(pad - 2 * dpr, y - dpr, gut, lh);
+        c.fillStyle = fg; c.globalAlpha = .45; c.fillText(j ? "" : String(i + 1).padStart(3, " "), pad - 2 * dpr, y); c.globalAlpha = 1;
+        if (txt.length) { c.fillStyle = inv ? fg : bg; c.fillRect(x - 2 * dpr, y - dpr, txt.length * cw + 4 * dpr, lh); }
+        c.fillStyle = inv ? bg : fg; c.fillText(txt, x, y);
+        const sp = v.spans[i];
+        if (sp && sp[0] - j * cols >= 0 && sp[1] - j * cols <= ch.length) { c.strokeStyle = inv ? bg : fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x + (sp[0] + off) * cw - dpr, y - dpr * .5, (sp[1] - sp[0]) * cw + 2 * dpr, lh - dpr); }
+        const [cl, cc] = v.cursor;
+        if (blink && cl === i && cc >= j * cols && (cc < (j + 1) * cols || j === chunks.length - 1)) { const cx = x + (cc + off) * cw; c.fillStyle = fg; c.fillRect(cx, y, cw, lh - dpr); if (cc < ln.length) { c.fillStyle = bg; c.fillText(ln[cc], cx, y); } }
+        y += lh;
+      });
+    });
+    // Punchcard + status at the bottom.
+    const rows = this.code.punch().slice(0, 4), cell = Math.max(3 * dpr, Math.min(cw, (tw - pad * 2) / 32)), step = ((Math.floor(this.running ? this.beat * 4 : this.step) % 16) + 16) % 16;
+    let py = th - lh - pad - rows.length * (cell + dpr);
+    for (const r of rows) {
+      c.fillStyle = bg; c.fillRect(pad - 2 * dpr, py - dpr, 16 * (cell + dpr) + 4 * dpr, cell + 2 * dpr);
+      r.forEach((on, k) => { c.fillStyle = fg; c.globalAlpha = k === step ? 1 : on ? .85 : .18; c.fillRect(pad + k * (cell + dpr), py, cell, cell); });
+      c.globalAlpha = 1; py += cell + dpr;
     }
-    const live = lines.filter(l => !l.comment).map(l => l.text.split(":")[0]);
-    if (live.length) { row(""); row(`stack(${live.join(", ")}).out()`); }
+    const st = v.status || (v.typing ? "-- INSERT --" : "");
+    if (st) { c.fillStyle = bg; c.fillRect(pad - 2 * dpr, th - lh - pad / 2, st.length * cw + 4 * dpr, lh); c.fillStyle = fg; c.fillText(st, pad, th - lh - pad / 2); }
   }
 }
 
@@ -198,4 +184,10 @@ function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: numbe
     const rowI = y * W, br = (y & 7) * 8;
     for (let x = l; x <= r; x++) buf[rowI + x] = shade > BAYER[br + (x & 7)] ? FG : BG;
   }
+}
+
+function line(buf: Uint32Array, W: number, H: number, a: number[], b: number[], c: number) {
+  const n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))) + 1;
+  if (n > 4000) return;
+  for (let i = 0; i <= n; i++) { const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c; }
 }
