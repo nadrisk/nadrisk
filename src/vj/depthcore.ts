@@ -12,8 +12,8 @@ export function depthcore({ t, open, twist, ribbons = 30 }: DepthParams): Facet[
   for (let i = 0; i < n; i++) {
     const f = i / n, layer = i % 3; // 0 front, 2 back
     const base = f * Math.PI * 2 * (.62 + open * .12) + t * .07 + Math.sin(t * .05 + i) * .04;
-    const len = .75 + .45 * Math.abs(Math.sin(i * 2.17 + 1.3)), curl = 1.6 + .5 * Math.sin(i * 1.31) + twist * .4;
-    const w0 = (.07 + .06 * Math.abs(Math.sin(i * 3.7))) * (1 - layer * .25), lift = (layer - 1) * .35;
+    const len = .6 + .35 * Math.abs(Math.sin(i * 2.17 + 1.3)), curl = 1.6 + .5 * Math.sin(i * 1.31) + twist * .4;
+    const w0 = (.13 + .09 * Math.abs(Math.sin(i * 3.7))) * (1 - layer * .25), lift = (layer - 1) * .35;
     const pts: [V3, V3][] = [];
     for (let s = 0; s <= SEG; s++) {
       const u = s / SEG, R = .08 + u * len * (1 + open * .25), a = base + u * curl;

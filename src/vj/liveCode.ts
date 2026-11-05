@@ -121,8 +121,7 @@ export class LiveCode {
       else { S.splice(l, 1); this.cursor = [Math.max(0, l - 1), S[Math.max(0, l - 1)]?.length ?? 0]; this.wait += .05; }
       return;
     }
-    if (l >= S.length || (S.length < T.length && T[l + 1] === S[l] && S[l] !== T[l])) { S.splice(l, 0, ""); this.cursor = [l, 0]; this.wait += .1; return; }
-    if (S.length > T.length && S[l + 1] === T[l]) { if (S[l]) { S[l] = S[l].slice(0, -Math.min(S[l].length, 3)); this.wait += .02; } else S.splice(l, 1); this.cursor = [l, S[l]?.length ?? 0]; return; }
+    if (l >= S.length) { S.push(""); this.cursor = [l, 0]; this.wait += .1; return; }
     const a = S[l], b = T[l];
     let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
     let q = 0; while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;

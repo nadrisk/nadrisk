@@ -90,7 +90,7 @@ export class VjEngine {
   /** Depthcore fan: twisted ribbons, one light, dithered facets with solid leading-edge highlights; front layers denser. */
   private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
     const facets = depthcore({ t: this.t * (this.bpm / 120), open: this.kick, twist: this.twist });
-    const scale = Math.min(W, H) * .62 * this.size, ax = .35 + Math.sin(this.t * .04) * .15, ay = this.ry * .4;
+    const scale = Math.min(W, H) * .5 * this.size, ax = .2 + Math.sin(this.t * .04) * .1, ay = this.ry * .4;
     const L = norm([-.45, -.55, .7]), proj = (v: V3) => { const p = rot(v, ax, ay), z = 2.6 - p[2]; return [W / 2 + p[0] * scale * 2.4 / z, H / 2 + p[1] * scale * 2.4 / z, p[2]]; };
     const list = facets.map(f => {
       const [a, b, c] = f.p, u: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v: V3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -101,7 +101,7 @@ export class VjEngine {
     for (const { P, shade, f } of list) {
       const s = Math.round(Math.min(1, shade * (1.05 - f.layer * .22)) * 8) / 8;
       tri(buf, W, H, P, s, FG, BG);
-      if (f.edge && (f.layer === 0 || this.hat > .2)) line(buf, W, H, P[0], P[2], FG);
+      if (f.edge && f.layer === 0 && (this.hat < .5 || Math.floor(this.t * 20) % 2 === 0)) line(buf, W, H, P[0], P[2], FG);
     }
   }
 
