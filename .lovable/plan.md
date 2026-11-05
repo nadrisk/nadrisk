@@ -1,31 +1,33 @@
-# AV: compact Strudel layout + one shared step grid
+# AV: clean live-code screen + one shared step grid
 
-## How Strudel users keep a project tidy
-- **All drums in one line.** Kick, snare and hats go into a single pattern using commas (`s("bd*4, [~ sd]*2, hh*8")`), not one block per drum.
-- **Only a few blocks.** There is usually one `$:` each for drums, bass, chords and lead.
-- **Short chains.** Effects are listed only when they move away from the default value.
-- **One shared view.** Players draw one combined `_pianoroll()` or `_punchcard()` instead of one strip under every block. This is the step-sequencer view in your blue example.
+## Goal
+Keep the look of live-coded music, with code written over the visual, but brand it as the Nadrisk groovebox only. Remove the Strudel name, the REPL top bar and every Strudel reference, and cut the clutter.
 
 ## What changes
-1. **Grouped code.** Each pad goes into one of four groups:
-   - **drums:** every DRM and IDM pad, combined into one `s("…, …, …")` line
-   - **bass:** BAS
-   - **synth:** SYN
-   - **samples:** SMP
+1. **No Strudel.** Remove the `strudel REPL` bar and the stop and update buttons. Remove any wording that mentions Strudel, both on screen and in the code comments the screen displays. The top of the screen shows one small line: `// nadrisk groovebox · bank A · 124 bpm`.
+2. **Grouped code, the way live coders avoid clutter.** Pads are combined into at most four short blocks:
+   - **drums:** every DRM and IDM pad in one line with comma layers, e.g. `s("bd*4, [~ sd]*2, hh*8")`
+   - **bass**
+   - **synth**
+   - **samples**
    
-   Each group gets one `$:` block. Pads that share a group and play the same notes are merged as well.
-2. **Lean chains.** A pad's effects only show when they differ from the default sound. Per-pad `.velocity()` lines are removed, and chance stays visible as `?` inside the pattern. Most banks then fit in about 10–20 lines, not 45 or more.
-3. **One step sequencer at the bottom.** A single grid replaces all the small punchcard strips:
+   Each block shows effects only when they differ from the default sound. The per-pad velocity lines are removed, and chance stays visible as `?`. A busy bank then fits in about 10–20 lines.
+3. **One step sequencer.** A single grid at the bottom replaces all the small strips:
    - one row per active pad, labelled `bd`, `sd`, `hh`, `c3` and so on
-   - 16 columns that follow the bank's step count
-   - lit cells for steps that are on, with brighter cells for higher velocity
-   - a moving playhead column
+   - 16 steps
+   - lit cells for steps that are on, brighter for louder steps
+   - a moving playhead
    
-   It is drawn in the 1-bit style and pinned above the AV controls, so the code above it stays short.
-4. **Readability.** The text strips behind each line become more solid. The `< BG > + TV OUT CLOSE` controls get their own clear bar so they no longer sit on top of the code.
+   It mirrors your sequencer exactly and is drawn in the 1-bit style.
+4. **Readability.** The text strips behind each line become more solid. The `< BG > + TV OUT CLOSE` controls get their own clear bar so they never sit on top of the code.
+5. **Highlighting stays.** The currently sounding word keeps its outline box, in time with playback.
 
 ## Technical notes
-- `src/vj/strudelDoc.ts`: add `groupPads()`. Build drums as a comma stack with `.bank("nad")`, and drop default-valued calls. `activeAtom` highlighting goes per stack layer.
-- `src/vj/engine.ts`: remove the per-block punchcard. Add `drawSeqGrid(pads, step)` from the existing doc and step bus. No new audio routing.
+- `src/vj/strudelDoc.ts` → rename to `codeDoc.ts`. Add `groupPads()`, build drums as one comma stack, drop default-valued calls, and drop the `setcps` and header lines.
+- `src/vj/engine.ts`: remove the REPL header and per-block punchcards. Add `drawSeqGrid(pads, step)` from the existing doc and step bus. No audio changes.
 - `VjOverlay.tsx`: give the controls a solid bar.
-- Update `strudelDoc.test.ts`: four drum pads give one `$:` line, and chains leave out default values.
+- Update the tests (renamed to `codeDoc.test.ts`):
+  - four drum pads give one block
+  - default values are left out
+  - no output contains "strudel"
+- Update the AGENTS.md AV rule to drop the Strudel wording.
