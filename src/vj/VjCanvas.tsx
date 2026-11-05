@@ -40,6 +40,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
       else if (m.t === "doc") eng.setDoc(m.pads, m.bpm, m.bank);
       else if (m.t === "ctl") { const before = eng.model; eng.ctl(m.model, m.size); if (eng.model !== before) syncCamera(); }
     });
+    vjSend({ t: "hello" });
     document.addEventListener("visibilitychange", syncCamera);
     // ←/→ switch model, ↑/↓ resize it; broadcast so the TV window and the overlay stay in step.
     const key = (e: KeyboardEvent) => {
