@@ -4,6 +4,7 @@ import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
 import { activeAtom, codeDoc, padWord, type DocLine } from "./codeDoc";
 import { depthMesh, type V3 } from "./depthcore";
+import { cosineColor, colorCss } from "./colorSweep";
 
 export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
@@ -17,6 +18,7 @@ const rot = (v: V3, ax: number, ay: number): V3 => {
 export class VjEngine {
   t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
+  color = false;
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
   camera?: VjCamera;
@@ -108,8 +110,9 @@ export class VjEngine {
     }
     list.sort((p, q) => p.z - q.z);
     for (const f of list) {
-      tri(buf, W, H, f.P, f.s, FG, BG);
-      if (f.spike) { const c = f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
+      const ink = this.color ? (x: number, y: number) => cosineColor(x / W, 1 - y / H, this.t, .1 + .9 * f.s, f.z * .55 + this.kick * .15) : undefined;
+      tri(buf, W, H, f.P, f.s, FG, BG, ink);
+      if (f.spike) { const c = this.color ? cosineColor(f.P[2][0] / W, 1 - f.P[2][1] / H, this.t, .45 + f.s * .45, f.z * .55) : f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
     }
   }
 
@@ -121,7 +124,7 @@ export class VjEngine {
         const nx = (x / W - .5) * W / H;
         let v = Math.sin(nx * 4 * sz + t + Math.sin(ny * 3 * sz + t * .7) * 2 + push) * .5 + Math.sin(Math.hypot(nx, ny) * 9 * sz - t * 1.3) * .3;
         v = Math.round((v * .5 + .5) * 8) / 8 * (.55 + this.level * .35);
-        buf[y * W + x] = v > BAYER[br + (x & 7)] ? FG : BG;
+        buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, this.t, .28 + .72 * Math.max(0, Math.min(1, v)), push + this.tone * Math.sin(ny * 3) * .2) : v > BAYER[br + (x & 7)] ? FG : BG;
       }
     }
   }
@@ -135,7 +138,15 @@ export class VjEngine {
     const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
     context.translate(W, 0); context.scale(-1, 1);
     context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
-    ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
+    const data = context.getImageData(0, 0, W, H).data;
+    if (!this.color) ditherCamera(data, buf, W, H, FG, BG, this.kick, this.level);
+    else for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4, l = (data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114) / 255;
+      const light = Math.max(0, Math.min(1, (l - .5) * (1.12 + this.level * .45) + .5 + this.kick * .14));
+      // Luminance preserves the face/image; ordered quantisation keeps the pixel texture.
+      const q = Math.min(1, (Math.floor(light * 6) + (light * 6 % 1 > BAYER[(y & 7) * 8 + (x & 7)] ? 1 : 0)) / 6);
+      buf[y * W + x] = cosineColor(x / W, 1 - y / H, this.t, q, l * .4);
+    }
   }
 
   /** Live-code text on solid line strips, one shared step grid pinned above the control bar. */
@@ -162,10 +173,10 @@ export class VjEngine {
         const X = x0 + m.index * cw, a = m[1] ? .45 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
         if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, a * a0); c.font = mono; } else ink(m[0], X, y, a * a0);
       }
-      if (!ln.muted && this.running) for (const l of ln.layers ?? []) {
+        if (!ln.muted && this.running) for (const l of ln.layers ?? []) {
         const p = byPad.get(l.pad); if (!p || p.mute) continue;
         const at = activeAtom(l, p.steps, tick);
-        if (at) { c.strokeStyle = fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
+        if (at) { c.strokeStyle = this.color ? colorCss(cosineColor((x0 + at.at * cw) / tw, 1 - y / th, this.t)) : fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
       }
       y += lh;
     });
@@ -183,15 +194,16 @@ export class VjEngine {
       c.globalAlpha = p.mute ? .35 : .8; c.fillStyle = fg; c.fillText(padWord(p), x, Y + cell / 2); c.globalAlpha = 1;
       for (let i = 0; i < n && i < len; i++) {
         const v = p.steps[i], X = x + lab + i * cwid;
+        c.fillStyle = this.color ? colorCss(cosineColor(i / n, 1 - r / Math.max(1, this.pads.length), this.t)) : fg;
         if (i % 4 === 0) { c.globalAlpha = .25; c.fillRect(X, Y + cell / 2 - dpr / 2, dpr, dpr); c.globalAlpha = 1; }
         if (v) { c.globalAlpha = (p.mute ? .35 : 1) * (v >= 2 ? .5 : .4 + .6 * (p.vel[i] ?? 1)); c.fillRect(X + (v >= 2 ? 0 : dpr), Y + dpr, v >= 2 ? cwid : cwid - 2 * dpr, cell - 2 * dpr); c.globalAlpha = 1; }
-        if (this.running && i === cur % n) { c.strokeStyle = fg; c.lineWidth = dpr; c.strokeRect(X, Y, cwid, cell); }
+        if (this.running && i === cur % n) { c.strokeStyle = this.color ? c.fillStyle : fg; c.lineWidth = dpr; c.strokeRect(X, Y, cwid, cell); }
       }
     });
   }
 }
 
-function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: number, FG: number, BG: number) {
+function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: number, FG: number, BG: number, ink?: (x: number, y: number) => number) {
   const s = [...p].sort((a, b) => a[1] - b[1]);
   const [x0, y0] = s[0], [x1, y1] = s[1], [x2, y2] = s[2];
   const yA = Math.max(0, Math.ceil(y0)), yB = Math.min(H - 1, Math.floor(y2));
@@ -200,7 +212,7 @@ function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: numbe
     const xb = y < y1 ? x0 + (x1 - x0) * (y1 === y0 ? 0 : (y - y0) / (y1 - y0)) : x1 + (x2 - x1) * (y2 === y1 ? 0 : (y - y1) / (y2 - y1));
     const l = Math.max(0, Math.ceil(Math.min(xa, xb))), r = Math.min(W - 1, Math.floor(Math.max(xa, xb)));
     const rowI = y * W, br = (y & 7) * 8;
-    for (let x = l; x <= r; x++) buf[rowI + x] = shade > BAYER[br + (x & 7)] ? FG : BG;
+    for (let x = l; x <= r; x++) buf[rowI + x] = ink ? ink(x, y) : shade > BAYER[br + (x & 7)] ? FG : BG;
   }
 }
 
