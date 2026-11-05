@@ -28,7 +28,7 @@
 - Pad patches (src/audio/patchStore.ts) store one slot's sound fields + FX rack and load through the same hydration as set recall, so patterns, names and chokes are never touched.
 - src/hooks and src/audio have scoped AGENTS.md rules; read them before edits.
 - ACID uses clocked pool resets and silent pre-start cancellation to prevent note blips.
-- VJ is a live-code text layer (src/vj/liveCode.ts, built from real pad hits) drawn on solid blocks over one selectable 1-bit backdrop (DEPTH monolith, CAM, SWEEP, NONE), so code stays legible and reflects what plays. Reuse the silent final-output analyser for a bounded 20 Hz waveform/transport bus, never React audio-frame state or new audible routing.
+- AV (code in src/vj) is a Strudel-style editor document (src/vj/liveCode.ts) built from real pad hits and edited by a seeded simulated typist, drawn on solid blocks over one selectable 1-bit backdrop (Depthcore ribbon fan in depthcore.ts, CAM, SWEEP, NONE), so code stays legible and reflects what plays. Reuse the silent final-output analyser for a bounded 20 Hz waveform/transport bus, never React audio-frame state or new audible routing.
 - CAM owns a local video-only stream with generation-guarded cleanup on model exit, hidden page and unmount; rasterize camera and telemetry into the shared two-colour buffer, while theme changes update colours without reopening hardware.
 - Instrument lineup is DRM, IDM, SYN, BAS ("808" kind with 808/ACID/REESE modes) and SMP; legacy poly/siren kinds convert on load in src/audio/lineup.ts, so old sets keep working without old editors.
 - Instrument XY offsets (slot.xy) are applied at trigger by src/audio/xyMaps.ts and only written into knobs on COMMIT, so the centre always equals the saved patch.
