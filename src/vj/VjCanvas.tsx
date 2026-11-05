@@ -37,6 +37,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
       if (m.t === "hit") eng.hit(m.kind, m.vel, m.pad);
       else if (m.t === "level") eng.level += (m.v - eng.level) * 0.5;
       else if (m.t === "signal") eng.signal(m.wave, m.beat, m.bpm, m.running, m.peak, m.rms, m.step, m.bank);
+      else if (m.t === "doc") eng.setDoc(m.pads, m.bpm, m.bank);
       else if (m.t === "ctl") { const before = eng.model; eng.ctl(m.model, m.size); if (eng.model !== before) syncCamera(); }
     });
     document.addEventListener("visibilitychange", syncCamera);
