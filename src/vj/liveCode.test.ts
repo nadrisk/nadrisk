@@ -19,7 +19,7 @@ describe("typist", () => {
     for (const s of [0, 4, 8, 12]) c.hit("kick", 1, pad, s, s / 4);
     for (let i = 0; i < 4000; i++) c.tick(.02, 1, 128);
     expect(c.screen).toContain('$: s("bd*4")');
-    for (let i = 0; i < 4000; i++) c.tick(.02, 10, 128);
+    for (let i = 0; i < 4000; i++) c.tick(.02, 12, 128);
     expect(c.screen.some(l => l.startsWith('_$: s("bd*4")'))).toBe(true);
     for (let i = 0; i < 4000; i++) c.tick(.02, 30, 128);
     expect(c.screen.some(l => l.includes("$:"))).toBe(false);
