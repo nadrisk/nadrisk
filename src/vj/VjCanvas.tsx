@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VjEngine } from "./engine";
 import { vjListen, vjSend } from "./bus";
-import { MODELS } from "./models";
+import { MODELS } from "./engine";
 import { VjCamera, type CameraStatus } from "./camera";
 import { Button } from "@/components/ui/button";
 import { noteName } from "./raster";
@@ -20,10 +20,10 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
     const cv = ref.current, eng = engineRef.current;
     if (!cv || !eng) return;
     const cs = getComputedStyle(cv);
-    colours.current = { fg: packed(`hsl(${cs.getPropertyValue("--foreground")})`), bg: packed(`hsl(${cs.getPropertyValue("--background")})`) };
+    { const f = `hsl(${cs.getPropertyValue("--foreground")})`, b = `hsl(${cs.getPropertyValue("--background")})`; colours.current = { fg: packed(f), bg: packed(b), f, b }; }
     eng.theme = theme;
   }, [theme]);
-  const colours = useRef({ fg: 0, bg: 0 });
+  const colours = useRef({ fg: 0, bg: 0, f: "#fff", b: "#000" });
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const eng = new VjEngine();
@@ -48,16 +48,16 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
     };
     window.addEventListener("keydown", key, true);
     const cs = getComputedStyle(cv);
-    colours.current = { fg: packed(`hsl(${cs.getPropertyValue("--foreground")})`), bg: packed(`hsl(${cs.getPropertyValue("--background")})`) };
+    { const f = `hsl(${cs.getPropertyValue("--foreground")})`, b = `hsl(${cs.getPropertyValue("--background")})`; colours.current = { fg: packed(f), bg: packed(b), f, b }; }
     eng.theme = cv.closest("[data-lcd]")?.getAttribute("data-lcd") ?? "oled";
     let raf = 0, prev = performance.now(), n = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      eng.frame(cv, colours.current.fg, colours.current.bg, (now - prev) / 1000); prev = now;
+      eng.frame(cv, colours.current.fg, colours.current.bg, (now - prev) / 1000, colours.current.f, colours.current.b); prev = now;
       if (++n % 6 === 0) {
         const cam = MODELS[eng.model] === "CAM";
-        if (hudRef.current) { hudRef.current.hidden = cam; hudRef.current.textContent = `NAD_VJ // ${eng.shapeName()} // ${eng.t < eng.hudUntil ? eng.hudMsg : eng.last || "IDLE"} // LVL ${Math.round(eng.level * 99).toString().padStart(2, "0")}`; }
-        cv.setAttribute("aria-label", cam ? `CAM ${camera.status}: ${eng.pad ? `PAD ${eng.pad.index + 1} ${eng.pad.name}, notes ${eng.pad.notes.map(noteName).join(" ")}` : "no pad"}, ${eng.bpm} BPM, ${eng.running ? "PLAY" : "STOP"}, step ${eng.step + 1}, peak ${eng.peak.toFixed(3)}, RMS ${eng.rms.toFixed(3)}` : `Audio-reactive visual ${eng.shapeName()}`);
+        if (hudRef.current) { hudRef.current.hidden = true; hudRef.current.textContent = `NAD_VJ // ${eng.shapeName()} // ${eng.t < eng.hudUntil ? eng.hudMsg : eng.last || "IDLE"} // LVL ${Math.round(eng.level * 99).toString().padStart(2, "0")}`; }
+        cv.setAttribute("aria-label", cam ? `CAM ${camera.status}: ${eng.pad ? `PAD ${eng.pad.index + 1} ${eng.pad.name}, notes ${eng.pad.notes.map(noteName).join(" ")}` : "no pad"}, ${eng.bpm} BPM, ${eng.running ? "PLAY" : "STOP"}, step ${eng.step + 1}, peak ${eng.peak.toFixed(3)}, RMS ${eng.rms.toFixed(3)}` : `Live-code visual over ${eng.shapeName()} backdrop`);
       }
     };
     raf = requestAnimationFrame(loop);
@@ -65,7 +65,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
   }, []);
   return <div className="vj-stage">
     <canvas ref={ref} className="vj-canvas" role="img" aria-label="Audio-reactive visual" />
-    {hud && <div ref={hudRef} className="vj-hud" aria-hidden />}
+    {hud && <div ref={hudRef} className="vj-hud" aria-hidden hidden />}
     {["denied", "missing", "unavailable"].includes(cameraState) && <div className="vj-camera-error" role="status" onClick={e => e.stopPropagation()}>
       <span>{cameraState === "denied" ? "Allow camera access in your browser, then retry." : cameraState === "missing" ? "Connect a camera, then retry." : "Camera unavailable. Close other camera apps, then retry."}</span>
       <Button variant="outline" size="sm" className="gb-cycle" onClick={() => void cameraRef.current?.start()}>RETRY CAMERA</Button>
