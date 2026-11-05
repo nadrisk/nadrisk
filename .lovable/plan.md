@@ -22,6 +22,14 @@ Keep the look of live-coded music, with code written over the visual, but brand 
 4. **Readability.** The text strips behind each line become more solid. The `< BG > + TV OUT CLOSE` controls get their own clear bar so they never sit on top of the code.
 5. **Highlighting stays.** The currently sounding word keeps its outline box, in time with playback.
 
+6. **More Depthcore background.** The current shape reads as a noisy blob. Real Depthcore art is built from hard, glassy shards with strong light and shadow and a deep sense of space. The shape changes in four ways:
+   - **Low-poly facets:** fewer, larger flat faces with crisp edges, so it looks like cut crystal, not fuzz.
+   - **Shards:** stepped noise pushes whole faces out into sharp spikes that radiate from the centre.
+   - **Hard lighting:** one strong light gives faces either solid fill, dither or black, with bright edge lines on the ridges.
+   - **Depth:** faces further away fade into a sparser dither. The shape slowly turns, with a kick pushing shards out and a snare re-cutting the facets.
+   
+   It stays one single shape with no extra objects.
+
 ## Technical notes
 - `src/vj/strudelDoc.ts` → rename to `codeDoc.ts`. Add `groupPads()`, build drums as one comma stack, drop default-valued calls, and drop the `setcps` and header lines.
 - `src/vj/engine.ts`: remove the REPL header and per-block punchcards. Add `drawSeqGrid(pads, step)` from the existing doc and step bus. No audio changes.
@@ -30,4 +38,9 @@ Keep the look of live-coded music, with code written over the visual, but brand 
   - four drum pads give one block
   - default values are left out
   - no output contains "strudel"
+- `src/vj/depthcore.ts`:
+  - switch to `icosphere(1–2)` with per-face (not per-vertex) displacement along the face normal using quantised ridged noise
+  - backface culling, painter's sort, and flat Lambert shading mapped to 3 dither levels
+  - edge pass on high-angle ridges and depth-based dither fade
+  - update `depthcore.test.ts` (faces stay planar, displacement is bounded)
 - Update the AGENTS.md AV rule to drop the Strudel wording.
