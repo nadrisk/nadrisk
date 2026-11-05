@@ -13,7 +13,7 @@ const queryClient = new QueryClient();
 const nativePreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has("native");
 const nativeApp = Capacitor.isNativePlatform() || nativePreview;
 
-const vjWindow = new URLSearchParams(window.location.search).has("vj");
+const vjWindow = new URLSearchParams(window.location.search).has("vj") || new URLSearchParams(window.location.search).has("av");
 
 const App = () => vjWindow ? <VjPage /> : (
   <QueryClientProvider client={queryClient}>
