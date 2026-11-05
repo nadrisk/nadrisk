@@ -58,7 +58,7 @@ export class AvPerformanceFrames {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, yy = Math.round((y - H / 2) / squash + H / 2);
       let sx = p.mode === 1 ? W - 1 - x : x;
-      sx += shake + (held && (y & 7) < 2 ? Math.round(Math.sin(t * 30) * 3) : 0);
+      sx += shake + (held && (y & 7) < 2 ? Math.round(Math.sin((t - this.holdStart) / seconds * Math.PI * 2) * 3) : 0);
       const sy = Math.floor(yy / grain) * grain;
       sx = Math.floor(sx / grain) * grain;
       let v = sx >= 0 && sx < W && sy >= 0 && sy < H ? source[sy * W + sx] : bg;
