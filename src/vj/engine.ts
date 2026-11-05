@@ -1,22 +1,18 @@
-// 1-bit software 3D renderer: one morphing polyhedron, flat-lit and Bayer-dithered into two theme colours.
+// VJ: a live-code text layer over one selectable 1-bit backdrop (DEPTH monolith, dithered CAM, GLSL-style SWEEP, or NONE).
 import type { VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
-import { cameraHud } from "./cameraHud";
-import { MODELS, hasSatellites, vectorSegments, wireRadius, type Reaction, type Segment } from "./models";
-import { opticalField } from "./fields";
-import { terrainRows, monoliths, camera as flyCam, terrainHeight } from "./terrain";
-export { MODELS } from "./models";
+import { LiveCode } from "./liveCode";
+
+export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
 
 type V3 = [number, number, number];
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const PHI = (1 + Math.sqrt(5)) / 2;
 
-// Icosphere: the shared cage every solid is projected onto, so any two shapes interpolate vertex by vertex.
 function icosphere(level: number) {
   const vs: V3[] = [[-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI], [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1]].map(v => norm(v as V3));
   let fs = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
-  const ico = { v: vs.slice(), f: fs.slice() }; let f1 = fs;
   for (let l = 0; l < level; l++) {
     const cache = new Map<string, number>(), mid = (a: number, b: number) => {
       const k = a < b ? `${a}_${b}` : `${b}_${a}`; let i = cache.get(k);
@@ -24,54 +20,26 @@ function icosphere(level: number) {
       return i;
     };
     fs = fs.flatMap(([a, b, c]) => { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]; });
-    if (l === 0) f1 = fs;
   }
-  return { v: vs, f: fs, ico, f1 };
+  return { v: vs, f: fs };
 }
+const MESH = icosphere(2);
 
-const cage = icosphere(4);
-// Wireframe edges come from the level-1 cage (its 42 vertices are the first 42 of the full cage).
-const EDGES = (() => { const e = new Set<string>(); for (const [a, b, c] of cage.f1) for (const [x, y] of [[a, b], [b, c], [c, a]]) e.add(x < y ? `${x}_${y}` : `${y}_${x}`); return [...e].map(k => k.split("_").map(Number)); })();
-const signs = (n: number) => Array.from({ length: 1 << n }, (_, m) => Array.from({ length: n }, (_, k) => (m >> k) & 1 ? -1 : 1));
-// Each solid = its face normals. Radius along a direction d is 1 / max(n·d), rescaled so every solid has unit circumradius.
-const SOLIDS: { name: string; n: V3[] }[] = [
-  { name: "OCTA", n: signs(3).map(s => norm(s as V3)) },
-  { name: "TETRA", n: signs(3).filter(s => s[0] * s[1] * s[2] > 0).map(s => norm(s as V3)) },
-  { name: "CUBE", n: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] },
-  { name: "ICOSA", n: cage.ico.f.map(([a, b, c]) => norm([0, 1, 2].map(k => cage.ico.v[a][k] + cage.ico.v[b][k] + cage.ico.v[c][k]) as V3)) },
-  { name: "DODECA", n: cage.ico.v },
-  { name: "SPHERE", n: [] },
-];
-const RADII = SOLIDS.map(({ n }) => {
-  if (!n.length) return cage.v.map(() => 1);
-  const r = cage.v.map(d => 1 / Math.max(...n.map(m => m[0] * d[0] + m[1] * d[1] + m[2] * d[2])));
-  const mx = Math.max(...r); return r.map(x => x / mx);
-});
-const ORDER = [0, 2, 1, 4, 3, 5];
-
-const STARS: V3[] = Array.from({ length: 260 }, (_, i) => { const y = 1 - 2 * (i + 0.5) / 260, r = Math.sqrt(1 - y * y), a = i * 2.39996; return [Math.cos(a) * r, y, Math.sin(a) * r] as V3; });
-
-const rot = (v: V3, ax: number, ay: number, az: number): V3 => {
+const rot = (v: V3, ax: number, ay: number): V3 => {
   let [x, y, z] = v; let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
-  c = Math.cos(ay); s = Math.sin(ay); [x, z] = [x * c + z * s, -x * s + z * c];
-  c = Math.cos(az); s = Math.sin(az); [x, y] = [x * c - y * s, x * s + y * c]; return [x, y, z];
+  c = Math.cos(ay); s = Math.sin(ay); [x, z] = [x * c + z * s, -x * s + z * c]; return [x, y, z];
 };
 
 export class VjEngine {
-  // Ambient state (always moving) plus decaying audio envelopes.
-  t = 0; morph = 0; rx = 0; ry = 0; rz = 0; env = 0; lightA = 0;
-  kick = 0; snare = 0; hat = 0; kal = 0; tone = 0; level = 0; flash = 0; spinX = 0; spinY = 0; envSpin = 0;
-  last = ""; model = 0; size = 1; fade = 1; hudUntil = 0; hudMsg = "";
-  beat = 0; bpm = 120; running = false; snap = 0; wave: number[] = [];
+  t = 0; rx = 0; ry = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0;
+  last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
+  beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
-  camera?: VjCamera;
+  camera?: VjCamera; code = new LiveCode();
   private cameraCanvas = document.createElement("canvas");
   private signalUntil = 0;
-  private invertPending = false; private lastInvert = -10;
-  private prevR: number[] | null = null; private curR: number[] = [];
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
-  private fly = 0; private horizon = new Float32Array(0);
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -83,56 +51,34 @@ export class VjEngine {
     this.step = Number.isFinite(step) ? Math.max(0, Math.floor(step)) : 0; this.bank = bank;
   }
 
-  reaction(): Reaction { return { kick: this.kick, snare: this.snare, hat: this.hat, perc: this.kal, tone: this.tone, snap: this.snap }; }
-
   hit(kind: VjKind, vel: number, pad?: VjPad) {
     const v = Number.isFinite(vel) ? Math.max(0.2, Math.min(1, vel)) : 1;
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) this.pad = pad;
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.flash = Math.max(this.flash, v); if (MODELS[this.model] === "WIRE") { this.spinY += (Math.random() < .5 ? -1 : 1) * .7 * v; this.spinX += .35 * v; } }
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.spinX += (Math.random() < .5 ? -1 : 1) * 0.9 * v; this.snap = (this.snap + Math.PI / 2) % (Math.PI * 2); }
-    else if (kind === "hat") { this.hat = Math.max(this.hat, v * 0.6); this.envSpin += 0.12 * v; }
-    else if (kind === "open" || kind === "perc") { this.kal = Math.max(this.kal, v); this.spinY += 0.6 * v; }
-    else { this.tone = Math.max(this.tone, v); this.morph += 0.18 * v; }
-    // A local, one-frame optical accent; never a sustained full-screen strobe.
-    if (kind === "snare" && v >= .95 && this.t - this.lastInvert > .8) { this.invertPending = true; this.lastInvert = this.t; }
+    if (kind === "kick") this.kick = Math.max(this.kick, v);
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.ry += .35 * v; }
+    else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .7);
+    else this.tone = Math.max(this.tone, v);
+    this.code.hit(kind, this.velocity, pad, this.running ? Math.floor(this.beat * 4) : this.step, this.beat);
   }
 
-  /** Step model (±1) and/or size (±1); the previous shape crossfades into the next. */
   ctl(dm: number, ds: number) {
-    if (dm) { this.prevR = this.curR.slice(); this.fade = 0; this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
+    if (dm) { this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = `BG ${MODELS[this.model]}`; }
     if (ds) { this.size = Math.round(Math.max(0.4, Math.min(2.2, this.size + ds * 0.1)) * 10) / 10; this.hudMsg = `SIZE ${Math.round(this.size * 100)}%`; }
     this.hudUntil = this.t + 1.6;
   }
 
-  shapeName() { const m = MODELS[this.model]; if (m !== "POLY" && m !== "WIRE") return m; const i = Math.floor(this.morph); return `${m} ${SOLIDS[ORDER[i % 6]].name}>${SOLIDS[ORDER[(i + 1) % 6]].name}`; }
+  shapeName() { return MODELS[this.model]; }
 
-  private radii() {
-    const m = MODELS[this.model], i0 = Math.floor(this.morph), f = this.morph - i0, u = f * f * (3 - 2 * f);
-    const A = RADII[ORDER[i0 % 6]], B = RADII[ORDER[(i0 + 1) % 6]];
-    let r = A.map((a, j) => a + (B[j] - a) * u);
-    if (this.prevR && this.fade < 1) { const e = this.fade * this.fade * (3 - 2 * this.fade), P = this.prevR; r = r.map((x, j) => P[j] + (x - P[j]) * e); }
-    this.curR = r; return r;
-  }
-
-
-  frame(cv: HTMLCanvasElement, fg: number, bg: number, dt: number) {
+  frame(cv: HTMLCanvasElement, fg: number, bg: number, dt: number, fgCss = "#fff", bgCss = "#000") {
     dt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.05)) : 0; this.t += dt;
     if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
-    else if (this.t >= this.signalUntil) this.running = false;
-    if (this.t >= this.signalUntil) { this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
-    const phase = this.running ? Math.floor(this.beat * 16) / 16 : this.t * this.bpm / 60;
+    else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
-    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.kal *= k(1.6); this.tone *= k(2); this.flash *= k(18);
-    // Continuous motion: slow irrational tumbling, morph always drifting, impulses eased in.
-    const ease = 1 - k(6);
-    const sx = this.spinX * ease, sy = this.spinY * ease, se = this.envSpin * ease;
-    this.spinX -= sx; this.spinY -= sy; this.envSpin -= se;
+    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(2);
     const tempo = this.bpm / 120;
-    this.rx += dt * tempo * (0.21 + this.level * 0.4) + sx; this.ry += dt * tempo * (0.34 + this.level * 0.6) + sy; this.rz += dt * tempo * 0.13;
-    this.env += dt * 0.03 + se; this.lightA += dt * 0.25;
-    this.morph += dt * 0.06; this.fade = Math.min(1, this.fade + dt * 2.2);
+    this.rx += dt * tempo * (.11 + this.level * .2); this.ry += dt * tempo * (.17 + this.level * .3);
 
     const px = Math.max(2, Math.round(cv.clientHeight / 260));
     const W = Math.max(64, Math.floor(cv.clientWidth / px)), H = Math.max(36, Math.floor(cv.clientHeight / px));
@@ -140,184 +86,103 @@ export class VjEngine {
     const buf = this.buf, img = this.img;
     if (!buf || !img) return;
     buf.fill(bg);
-    const FG = fg, BG = bg;
+    const m = MODELS[this.model];
+    if (m === "DEPTH") this.depth(buf, W, H, fg, bg);
+    else if (m === "SWEEP") this.sweep(buf, W, H, fg, bg);
+    else if (m === "CAM") this.cam(buf, W, H, fg, bg);
 
-    if (MODELS[this.model] === "CAM") {
-      const camera = this.camera, video = camera?.video;
-      if (camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0) {
-        if (this.cameraCanvas.width !== W || this.cameraCanvas.height !== H) { this.cameraCanvas.width = W; this.cameraCanvas.height = H; }
-        const context = this.cameraCanvas.getContext("2d", { willReadFrequently: true });
-        if (context) {
-          context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, W, H);
-          const cover = Math.max(W / video.videoWidth, H / video.videoHeight) * this.size;
-          const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
-          context.translate(W, 0); context.scale(-1, 1);
-          context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
-          ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
-        }
-      }
-      cameraHud(buf, W, H, FG, BG, { pad: this.pad, vel: this.velocity, bpm: this.bpm, beat: this.beat, step: this.step, bank: this.bank, running: this.running, peak: this.peak, rms: this.rms, size: this.size, theme: this.theme, status: camera?.status ?? "off" });
-      this.invertPending = false;
-    } else {
-    const cx = W / 2, cy = H / 2, focal = H * 1.1;
-    const camZ = 3.4 - this.kick * 0.9 - Math.sin(this.t * 0.11) * 0.5;
-
-    // Environment: a slowly rotating field of points around the camera.
-    for (const s of MODELS[this.model] === "POLY" ? STARS : []) {
-      const p = rot(s, this.env * 0.7, this.env, 0.2), z = p[2] * 6 + camZ;
-      if (z < 0.5) continue;
-      const x = Math.round(cx + p[0] * 6 * focal / z), y = Math.round(cy + p[1] * 6 * focal / z);
-      if (x >= 0 && y >= 0 && x < W && y < H && (this.hat > 0.15 || ((x * 7 + y * 13) & 3) !== 0)) buf[y * W + x] = FG;
-    }
-
-    // Morph radii between two consecutive solids with a smoothstep.
-    const R = this.radii(), wire = MODELS[this.model] === "WIRE";
-    const scale = (1 + this.kick * 0.12 + this.level * 0.08) * this.size * Math.min(1, W / H);
-    const light = norm([Math.cos(this.lightA) * 0.9, 0.55 + Math.sin(this.lightA * 0.7) * 0.3, -0.8]);
-    const amb = 0.04 + this.level * 0.06, gain = 0.85 + this.level * 0.5 + this.flash * 0.4;
-    const explode = this.snare * 0.35 + this.kal * 0.12;
-    const audio = this.reaction();
-    const model = MODELS[this.model];
-    const field = opticalField(model, phase, audio, this.wave);
-    const drawField = (segments: Segment[]) => {
-      const project = (p: V3) => {
-        // Measurement planes keep their own gentle drift rather than obscuring the object with its tumble.
-        const q = rot(p.map(x => x * scale) as V3, Math.sin(phase * .04) * .12, Math.sin(phase * .03) * .2, 0);
-        const z = Math.max(.5, q[2] + camZ);
-        return [cx + q[0] * focal / z, cy - q[1] * focal / z];
-      };
-      for (const [a, b] of segments) line(buf, W, H, project(a), project(b), FG);
-    };
-    drawField(field.back);
-
-    const draw = (ox: number, oy: number, oz: number, sc: number, extraY: number, thresh = 1) => {
-      const P = cage.v.map((d, j) => { const r = (wire ? wireRadius(R[j], d, audio) : R[j]) * sc; return rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry + extraY, this.rz); });
-      if (wire) {
-        const proj = (q: number[]) => { const z = q[2] + oz + camZ; return [cx + (q[0] + ox) * focal / z, cy - (q[1] + oy) * focal / z]; };
-        const S = P.slice(0, 42).map(proj);
-        // Echo cage: a lagging, slightly larger dotted ghost trails drum and synth energy.
-        const echo = Math.max(this.kick, this.tone * .8, this.snare * .7);
-        if (echo > .08) {
-          const lag = .35 * echo, gs = 1 + echo * .18;
-          const G = cage.v.slice(0, 42).map((d, j) => { const r = wireRadius(R[j], d, audio) * sc * gs; return proj(rot([d[0] * r, d[1] * r, d[2] * r], this.rx - lag, this.ry + extraY - lag * 1.3, this.rz)); });
-          for (const [a, b] of EDGES) line(buf, W, H, G[a], G[b], FG, 3);
-        }
-        // Hats chop the solid edges into a rhythmic stipple.
-        const dash = this.hat > .2 ? 2 : 0;
-        for (const [a, b] of EDGES) line(buf, W, H, S[a], S[b], FG, dash);
-        // Kick sparks: brief crosshair ticks on every vertex.
-        if (this.kick > .35) {
-          const s = Math.round(1 + this.kick * 2);
-          for (const [x, y] of S) { line(buf, W, H, [x - s, y], [x + s, y], FG); line(buf, W, H, [x, y - s], [x, y + s], FG); }
-        }
-        return;
-      }
-      const faces: { z: number; p: number[][]; shade: number }[] = [];
-      for (const [a, b, c] of cage.f) {
-        const pa = P[a], pb = P[b], pc = P[c];
-        const e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]], e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
-        const n = norm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
-        const off = [n[0] * explode * sc, n[1] * explode * sc, n[2] * explode * sc];
-        const pts = [pa, pb, pc].map(q => { const z = q[2] + off[2] + oz + camZ; return [cx + (q[0] + off[0] + ox) * focal / z, cy - (q[1] + off[1] + oy) * focal / z, z]; });
-        // Back-face cull in screen space (camera looks down +z).
-        const area = (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]) - (pts[2][0] - pts[0][0]) * (pts[1][1] - pts[0][1]);
-        if (area >= 0) continue;
-        const lam = Math.max(0, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
-        faces.push({ z: (pts[0][2] + pts[1][2] + pts[2][2]) / 3, p: pts, shade: Math.min(1, (amb + lam * gain) * thresh) });
-      }
-      faces.sort((x, y) => y.z - x.z);
-      for (const fc of faces) tri(buf, W, H, fc.p, fc.shade, FG, BG);
-    };
-
-    if (model === "TERRAIN") {
-      // Floating-horizon fly-through: nearest rows draw first and hide everything behind them.
-      this.fly += dt * 1.4 * (1 + this.level * .8 + this.kick * .9) * tempo;
-      if (this.horizon.length !== W) this.horizon = new Float32Array(W);
-      const hz = this.horizon; hz.fill(H);
-      const f = H * .9 * this.size, hy = H * .38, cam = flyCam(this.fly, this.t);
-      const cr = Math.cos(cam.roll), sr = Math.sin(cam.roll);
-      const proj = (p: number[]) => { const z = Math.max(.2, p[2]); const x = p[0] * f / z, y = p[1] * f / z; return [cx + x * cr - y * sr, hy - (x * sr + y * cr)]; };
-      const rows = terrainRows(this.fly, this.t, audio, this.wave);
-      const mono = monoliths(this.fly, this.t, audio);
-      const cy0 = Math.cos(cam.yaw), sy0 = Math.sin(cam.yaw);
-      const toCam = (x: number, y: number, z: number) => { const dx = x - cam.x, dz = z - this.fly; return [dx * cy0 - dz * sy0, y - cam.y, dx * sy0 + dz * cy0]; };
-      const next = new Float32Array(W);
-      const seg = (a: number[], b: number[], dotted: boolean) => {
-        const n = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
-        for (let i = 0; i <= n; i++) {
-          const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n);
-          if (x < 0 || x >= W) continue;
-          if (y < hz[x] && y >= 0 && (!dotted || ((x + y) & 1) === 0)) buf[y * W + x] = FG;
-          if (y < next[x]) next[x] = y;
-        }
-      };
-      let mi = 0; mono.sort((p, q) => p.z - q.z);
-      const dz = rows.length > 1 ? rows[1][0][2] - rows[0][0][2] : 1;
-      rows.forEach((row, r) => {
-        next.set(hz);
-        const P = row.map(proj), dotted = r > rows.length * .6 || (this.hat > .3 && r % 2 === 1);
-        for (let i = 1; i < P.length; i++) seg(P[i - 1], P[i], dotted);
-        // Sparse cross-ribs every few columns give the contours depth.
-        if (r > 0 && r % 1 === 0) { const Q = rows[r - 1].map(proj); for (let i = 0; i < P.length; i += 4) seg(Q[i], P[i], r > rows.length * .5); }
-        while (mi < mono.length && mono[mi].z - this.fly < row[0][2] + dz * .5) {
-          const m = mono[mi++], g = terrainHeight(m.x, m.z, this.t, audio);
-          const c = [-1, 1].flatMap(sx => [-1, 1].map(sz => [toCam(m.x + sx * m.w, g, m.z + sz * m.w), toCam(m.x + sx * m.w, g + m.h, m.z + sz * m.w)]));
-          for (const [lo, hi] of c) if (lo[2] > .3) seg(proj(lo), proj(hi), false);
-          const tops = c.map(([, hi]) => hi).filter(p => p[2] > .3).map(proj);
-          if (tops.length === 4) { seg(tops[0], tops[1], false); seg(tops[1], tops[3], false); seg(tops[3], tops[2], false); seg(tops[2], tops[0], false); }
-        }
-        hz.set(next);
-      });
-      // Sun disc low on the horizon, banded like a dithered print, swelling with level.
-      const sr2 = H * (.1 + this.level * .03 + this.kick * .02), sx = cx - cam.yaw * f * .5, sy = hy - H * .08;
-      for (let y = Math.floor(sy - sr2); y < sy + sr2; y++) for (let x = Math.floor(sx - sr2); x < sx + sr2; x++) {
-        if (x < 0 || y < 0 || x >= W || y >= H || y >= hz[x]) continue;
-        const d = Math.hypot(x - sx, y - sy) / sr2, band = Math.floor((y - sy + sr2) / 3) % 3;
-        if (d < 1 && (band !== 0 || y < sy - sr2 * .2) && BAYER[(y & 7) * 8 + (x & 7)] < .55 + (1 - d) * .4) buf[y * W + x] = FG;
-      }
-    } else if (model === "POLY" || model === "WIRE") draw(0, 0, 0, scale, 0);
-    else {
-      const energy = this.kick + this.snare * .6 + this.tone * .3;
-      const segments = vectorSegments(model, phase, energy, audio);
-      // The medallion rocks rather than tumbling away from its readable face.
-      const face = model === "SMILEY" || model === "EYE";
-      const ax = face ? Math.sin(this.rx) * .3 : this.rx;
-      const ay = face ? Math.sin(this.ry) * .65 : this.ry;
-      const az = face ? Math.sin(this.rz) * .15 : this.rz;
-      const sc = scale * (.8 + .2 * this.fade);
-      const project = (p: V3) => {
-        const q = rot(p.map(x => x * sc) as V3, ax, ay, az), z = Math.max(.35, q[2] + camZ);
-        return [cx + q[0] * focal / z, cy - q[1] * focal / z];
-      };
-      for (const [a, b] of segments) line(buf, W, H, project(a), project(b), FG);
-    }
-    // Kaleidoscope expansion: mirrored satellites unfold from the core on open hats / percussion.
-    if (hasSatellites(model) && this.kal > 0.04) {
-      const n = 6, rad = 0.4 + this.kal * 1.6, sc = 0.14 + this.kal * 0.22;
-      for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2 + this.t * 0.3; draw(Math.cos(a) * rad, Math.sin(a) * rad, 0.3, sc, j % 2 ? Math.PI : 0, 0.5 + this.kal); }
-    }
-    drawField(field.front);
-    if (this.invertPending) {
-      const quadrant = Math.floor(phase) % 4, left = quadrant % 2 === 0 ? 0 : Math.floor(W / 2), top = quadrant < 2 ? 0 : Math.floor(H / 2);
-      // Only invert a narrow edge band, preserving the central contour and negative space.
-      const endX = left + Math.floor(W / 2), endY = top + Math.floor(H / 2), band = Math.max(1, Math.floor(H / 90));
-      for (let y = top; y < endY; y++) for (let x = left; x < endX; x++) {
-        if (x - left < band || endX - x <= band || y - top < band || endY - y <= band) buf[y * W + x] = buf[y * W + x] === FG ? BG : FG;
-      }
-      this.invertPending = false;
-    }
-    }
-    img.data.set(new Uint8ClampedArray(buf.buffer));
-    const smallContext = this.small.getContext("2d");
-    if (!smallContext) return;
-    smallContext.putImageData(img, 0, 0);
+    const sc = this.small.getContext("2d"); if (!sc) return;
+    sc.putImageData(img, 0, 0);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
     if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
-    const c = cv.getContext("2d");
-    if (!c) return;
+    const c = cv.getContext("2d"); if (!c) return;
     c.imageSmoothingEnabled = false;
     c.drawImage(this.small, 0, 0, tw, th);
+    this.text(c, tw, th, dpr, fgCss, bgCss, dt);
+  }
+
+  /** One faceted crystalline monolith: terraced spikes, flat-lit, dithered. Kick extrudes, snare turns, tone breathes. */
+  private depth(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
+    const t = this.t * .25, scale = Math.min(W, H) * .34 * this.size * (1 + this.kick * .1);
+    const pts = MESH.v.map(d => {
+      const n = Math.sin(d[0] * 3.1 + t) * Math.sin(d[1] * 2.3 - t * .7) * Math.sin(d[2] * 2.7 + t * .5);
+      const r = .78 + Math.round(Math.abs(n) * 5) / 5 * (.42 + this.kick * .35 + this.tone * .15) + this.level * .05;
+      const p = rot([d[0] * r, d[1] * r, d[2] * r], this.rx, this.ry), z = 3.2 - p[2];
+      return [W / 2 + p[0] * scale * 3 / z, H / 2 + p[1] * scale * 3 / z, p[2], p[0], p[1]];
+    });
+    const L = norm([-.5, -.6, .7]);
+    const faces = MESH.f.map(f => {
+      const [a, b, c] = f.map(i => pts[i]);
+      const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      return { f, z: a[2] + b[2] + c[2], area };
+    }).filter(x => x.area < 0).sort((p, q) => p.z - q.z);
+    for (const { f } of faces) {
+      const [a, b, c] = f.map(i => pts[i]);
+      const u: V3 = [b[3] - a[3], b[4] - a[4], b[2] - a[2]], v: V3 = [c[3] - a[3], c[4] - a[4], c[2] - a[2]];
+      const nrm = norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
+      const shade = Math.abs(nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]) * (.75 + this.hat * .25);
+      tri(buf, W, H, [a, b, c], Math.round(shade * 6) / 6, FG, BG);
+    }
+  }
+
+  /** Classic shader sine sweep, banded and Bayer-dithered. */
+  private sweep(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
+    const t = this.t * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
+    for (let y = 0; y < H; y++) {
+      const ny = y / H - .5, br = (y & 7) * 8;
+      for (let x = 0; x < W; x++) {
+        const nx = (x / W - .5) * W / H;
+        let v = Math.sin(nx * 4 * sz + t + Math.sin(ny * 3 * sz + t * .7) * 2 + push) * .5 + Math.sin(Math.hypot(nx, ny) * 9 * sz - t * 1.3) * .3;
+        v = Math.round((v * .5 + .5) * 8) / 8 * (.55 + this.level * .35);
+        buf[y * W + x] = v > BAYER[br + (x & 7)] ? FG : BG;
+      }
+    }
+  }
+
+  private cam(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
+    const camera = this.camera, video = camera?.video;
+    if (!(camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0)) return;
+    if (this.cameraCanvas.width !== W || this.cameraCanvas.height !== H) { this.cameraCanvas.width = W; this.cameraCanvas.height = H; }
+    const context = this.cameraCanvas.getContext("2d", { willReadFrequently: true }); if (!context) return;
+    context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, W, H);
+    const cover = Math.max(W / video.videoWidth, H / video.videoHeight) * this.size;
+    const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
+    context.translate(W, 0); context.scale(-1, 1);
+    context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
+    ditherCamera(context.getImageData(0, 0, W, H).data, buf, W, H, FG, BG, this.kick, this.level);
+  }
+
+  /** Code lines on solid blocks so they stay readable over any backdrop; the playing step's token is inverted. */
+  private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string, dt: number) {
+    const fs = Math.round(Math.max(14, Math.min(tw / dpr / 52, th / dpr / 24)) * dpr), lh = Math.round(fs * 1.15);
+    c.font = `${fs}px VT323, monospace`; c.textBaseline = "top";
+    const cw = c.measureText("M").width, x0 = Math.round(fs * .9);
+    let y = Math.round(fs * .9) + Math.round(8 * dpr);
+    const row = (s: string, span: [number, number] | null = null, flash = 0) => {
+      if (!s) { y += lh; return; }
+      const w = Math.ceil(s.length * cw + 8 * dpr);
+      c.fillStyle = flash > .5 ? fg : bg; c.fillRect(x0 - 4 * dpr, y - 2 * dpr, w, lh);
+      c.fillStyle = flash > .5 ? bg : fg; c.fillText(s, x0, y);
+      if (span && span[1] <= s.length) {
+        const sx = x0 + span[0] * cw, sw = (span[1] - span[0]) * cw;
+        c.fillStyle = flash > .5 ? bg : fg; c.fillRect(sx - 1 * dpr, y - 2 * dpr, sw + 2 * dpr, lh);
+        c.fillStyle = flash > .5 ? fg : bg; c.fillText(s.slice(span[0], span[1]), sx, y);
+      }
+      y += lh;
+    };
+    const bar = Math.floor(this.beat / 4) + 1;
+    const hud = this.t < this.hudUntil ? `  ${this.hudMsg}` : "";
+    row(`// NAD_VJ  ${this.bpm} BPM  BAR ${String(bar).padStart(2, "0")}  ${this.bank}  ${this.running ? "PLAY" : "STOP"}${hud}`);
+    row(`setcps(${this.bpm}/60/4)`);
+    row("");
+    const lines = this.code.lines(this.beat, this.running ? Math.floor(this.beat * 4) : this.step, dt);
+    if (!lines.length) row(`// play a pad${Math.floor(this.t * 2) % 2 ? "_" : ""}`);
+    for (const l of lines) {
+      const typed = l.text.slice(0, l.typed), caret = l.typed < l.text.length ? "_" : "";
+      row(typed + caret, l.span && l.span[1] <= l.typed ? l.span : null, l.flash);
+    }
+    if (lines.length) { row(""); row(`stack(${lines.filter(l => !l.comment).map((_, i, a) => a.length ? "" : "").length ? lines.filter(l => !l.comment).map(l => l.text.split(":")[0]).join(", ") : ""}).out()`); }
   }
 }
 
@@ -329,16 +194,7 @@ function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: numbe
     const xa = x0 + (x2 - x0) * (y2 === y0 ? 0 : (y - y0) / (y2 - y0));
     const xb = y < y1 ? x0 + (x1 - x0) * (y1 === y0 ? 0 : (y - y0) / (y1 - y0)) : x1 + (x2 - x1) * (y2 === y1 ? 0 : (y - y1) / (y2 - y1));
     const l = Math.max(0, Math.ceil(Math.min(xa, xb))), r = Math.min(W - 1, Math.floor(Math.max(xa, xb)));
-    const row = y * W, br = (y & 7) * 8;
-    for (let x = l; x <= r; x++) buf[row + x] = shade > BAYER[br + (x & 7)] ? FG : BG;
-  }
-}
-
-function line(buf: Uint32Array, W: number, H: number, a: number[], b: number[], c: number, gap = 0) {
-  const n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))) + 1;
-  if (n > 4000) return;
-  for (let i = 0; i <= n; i++) {
-    if (gap && i % (gap + 1) !== 0) continue;
-    const x = Math.round(a[0] + (b[0] - a[0]) * i / n), y = Math.round(a[1] + (b[1] - a[1]) * i / n); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c;
+    const rowI = y * W, br = (y & 7) * 8;
+    for (let x = l; x <= r; x++) buf[rowI + x] = shade > BAYER[br + (x & 7)] ? FG : BG;
   }
 }
