@@ -778,20 +778,20 @@ export function useGroovebox() {
   const pushLive = (p: Partial<LiveStatus> = {}) => setLiveState(x => ({ ...x, armed: liveTarget.current, rec: live.current?.recording ?? "off", peak: live.current?.peak ?? 0, ...p }));
   const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
   const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
-  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushXyLive({ armed: -1, rec: "off", peak: 0 }); }, []);
+  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
   const armInput = useCallback(async (i: number) => {
     if (liveOpening.current) return;
     if (liveTarget.current === i) { disarmInput(); return; }
     liveOpening.current = true;
     let stream: MediaStream | undefined;
     try {
-    pushXyLive({ error: "" });
+    pushLive({ error: "" });
     // Begin permission/capture in the user gesture, before asynchronous worklet setup.
     if (!live.current?.stream) stream = await requestInputStream();
     const e = await ensure();
     if (!live.current) {
       const L = new LiveInput(e.ctx as AudioContext, n => Tone.getContext().createAudioWorkletNode(n, { outputChannelCount: [2] }) as unknown as AudioWorkletNode);
-      L.onState = () => pushXyLive();
+      L.onState = () => pushLive();
       L.onTake = (l, r, sr) => { const k = liveTarget.current, o = liveOptsRef.current; applyLive(); if (k < 0) return;
         const t = o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
@@ -800,14 +800,14 @@ export function useGroovebox() {
       live.current = L;
     }
     await live.current.open(stream);
-    live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushXyLive({ error: "" });
+    live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushLive({ error: "" });
     } catch (error) {
       stream?.getTracks().forEach(t => t.stop());
       live.current?.close(); liveTarget.current = -1;
       const nav = navigator as Navigator & { audioSession?: { type: string } };
       if (nav.audioSession?.type === "play-and-record") nav.audioSession.type = "playback";
       const message = inputError(error);
-      pushXyLive({ armed: -1, error: message });
+      pushLive({ armed: -1, error: message });
       setError(message === "MIC BLOCKED" ? "Allow microphone access for this address in browser settings." : message === "MIC BUSY" ? "Microphone is busy. Close other recording apps and tap ARM again." : message === "NO MIC FOUND" ? "Connect a microphone or audio interface, then tap ARM again." : "Input could not start. Open the site directly in Safari or Chrome and retry ARM.");
     } finally { liveOpening.current = false; }
   }, [ensure, disarmInput, setBuffer]);
