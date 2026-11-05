@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import VjCanvas from "@/vj/VjCanvas";
 import { vjListen, vjSend } from "@/vj/bus";
+import AvControls from "@/vj/AvControls";
 
 // Pop-out projector window: drag to the TV, click once for fullscreen. Follows the groovebox theme live.
 export default function VjPage() {
@@ -9,5 +10,6 @@ export default function VjPage() {
   const full = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); };
   return <div className="site-shell vj-page" data-lcd={theme} onClick={full} title="Click for fullscreen">
     <VjCanvas theme={theme} />
+    <AvControls />
   </div>;
 }

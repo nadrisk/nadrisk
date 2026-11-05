@@ -1,5 +1,10 @@
 # Roadmap
 
+## Adaptive AV colour sweep (2026-11-05)
+- [x] Add global colour toggle and C key, synchronised with TV OUT including newly opened windows
+- [x] Adapt DEPTH lighting, CAM luminance, SWEEP flow and NONE sequencer activity; preserve monochrome default and readable code
+- [x] Run 23 AV regressions and verify real drum sequence playback, every backdrop, TV sync, keyboard toggle, transport stop and 393px phone controls (camera checked with simulated video; physical camera/HDMI remain device checks)
+
 ## Sound engine overhaul (2026-10-31)
 - [x] Lineup DRM / IDM / SYN / BAS / SMP; siren removed; old POLY/SIREN sets convert
 - [x] Clean SYN (OSC/FLT/ENV, 1-8 voices), BAS REESE mode, DRM trimmed, new IDM engine
