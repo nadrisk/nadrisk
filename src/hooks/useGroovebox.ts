@@ -141,7 +141,7 @@ function syncChain(e: Engine, i: number, s: Slot) {
 export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
   /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
-  const pushLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
+  const pushXyLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
     [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } }); };
   const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
@@ -531,7 +531,7 @@ export function useGroovebox() {
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
       // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
-      slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushLive(i, applyXY(withMotion(sl, time))); });
+      slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushXyLive(i, applyXY(withMotion(sl, time))); });
       cb.pattern.forEach((row, i) => {
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
@@ -731,14 +731,14 @@ export function useGroovebox() {
     const now = e.ctx.currentTime, held = pressed.current.has(i) ? e.mono[i]?.stop : undefined;
     e.ring[i].forEach(x => { if (x.stop !== held) x.release(now, r); });
   };
-  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); if (patch.xy || patch.bass) pushLive(i, applyXY(slotsRef.current[i])); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
+  const updateSlot = useCallback((i: number, patch: Partial<Slot>) => { resetCursor(i, patch); slotsRef.current = slotsRef.current.map((x, j) => (j === i ? { ...x, ...patch } : x)); const hv = engine.current?.mono[i]; if (hv?.update && (patch.synth || patch.poly || patch.siren)) hv.update((patch.synth ?? patch.poly ?? patch.siren) as Parameters<NonNullable<Voice["update"]>>[0]); if (hv?.update && patch.sampler?.grain) hv.update({ grainLive: patch.sampler }); if (patch.xy || patch.bass) pushXyLive(i, applyXY(slotsRef.current[i])); setSlots(s => s.map((x, j) => (j === i ? { ...x, ...patch } : x))); }, []);
   const updateSelected = useCallback((patch: Partial<Slot>) => { resetCursor(selectedRef.current, patch);
     // The scheduler books ahead from slotsRef, so refresh it now instead of waiting for React's render.
     { const si = selectedRef.current; slotsRef.current = slotsRef.current.map((x, j) => (j === si ? { ...x, ...patch } : x)); }
     // Live edits reach every ringing/booked voice of the pad, not only the most recently booked one.
     const live = (q: Parameters<NonNullable<Voice["update"]>>[0]) => { const ee = engine.current, si = selectedRef.current; if (!ee) return; const seen = new Set<unknown>(); [ee.mono[si]?.update, ...ee.ring[si].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); };
     if (patch.siren) live(patch.siren as never); if (patch.poly?.mode === "reese") live({ reese: patch.poly.reese } as never); if (patch.synth?.mode === "spec" && patch.synth.spec) live({ spec: patch.synth.spec } as never); if (patch.synth?.clean) live({ clean: patch.synth.clean } as never); if (patch.bass?.mode === "reese") live({ reese: patch.bass.reese } as never);
-    if (patch.xy || patch.bass) pushLive(selectedRef.current, applyXY(slotsRef.current[selectedRef.current]));
+    if (patch.xy || patch.bass) pushXyLive(selectedRef.current, applyXY(slotsRef.current[selectedRef.current]));
     if (patch.bass?.mode === "acid") live({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
@@ -778,20 +778,20 @@ export function useGroovebox() {
   const pushLive = (p: Partial<LiveStatus> = {}) => setLiveState(x => ({ ...x, armed: liveTarget.current, rec: live.current?.recording ?? "off", peak: live.current?.peak ?? 0, ...p }));
   const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
   const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
-  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
+  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushXyLive({ armed: -1, rec: "off", peak: 0 }); }, []);
   const armInput = useCallback(async (i: number) => {
     if (liveOpening.current) return;
     if (liveTarget.current === i) { disarmInput(); return; }
     liveOpening.current = true;
     let stream: MediaStream | undefined;
     try {
-    pushLive({ error: "" });
+    pushXyLive({ error: "" });
     // Begin permission/capture in the user gesture, before asynchronous worklet setup.
     if (!live.current?.stream) stream = await requestInputStream();
     const e = await ensure();
     if (!live.current) {
       const L = new LiveInput(e.ctx as AudioContext, n => Tone.getContext().createAudioWorkletNode(n, { outputChannelCount: [2] }) as unknown as AudioWorkletNode);
-      L.onState = () => pushLive();
+      L.onState = () => pushXyLive();
       L.onTake = (l, r, sr) => { const k = liveTarget.current, o = liveOptsRef.current; applyLive(); if (k < 0) return;
         const t = o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
@@ -800,14 +800,14 @@ export function useGroovebox() {
       live.current = L;
     }
     await live.current.open(stream);
-    live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushLive({ error: "" });
+    live.current.cancel(); liveTarget.current = i; live.current.route(e.outs[i].input); applyLive(); pushXyLive({ error: "" });
     } catch (error) {
       stream?.getTracks().forEach(t => t.stop());
       live.current?.close(); liveTarget.current = -1;
       const nav = navigator as Navigator & { audioSession?: { type: string } };
       if (nav.audioSession?.type === "play-and-record") nav.audioSession.type = "playback";
       const message = inputError(error);
-      pushLive({ armed: -1, error: message });
+      pushXyLive({ armed: -1, error: message });
       setError(message === "MIC BLOCKED" ? "Allow microphone access for this address in browser settings." : message === "MIC BUSY" ? "Microphone is busy. Close other recording apps and tap ARM again." : message === "NO MIC FOUND" ? "Connect a microphone or audio interface, then tap ARM again." : "Input could not start. Open the site directly in Safari or Chrome and retry ARM.");
     } finally { liveOpening.current = false; }
   }, [ensure, disarmInput, setBuffer]);
