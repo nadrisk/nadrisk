@@ -251,13 +251,14 @@ export function useGroovebox() {
     const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
     let notes = noteIdx !== -1 && (s.engine === "sampler" || (s.engine === "synth" && !monoSyn)) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
-    const kc = notes.length > 1 ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
+    const free = s.chord.fit === "fixed";
+    const kc = notes.length > 1 && !free ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
     if (kc) {
       // Global key: chords take the quality of their degree (I maj, ii min, vii° dim…); the chosen type sets the size.
       let ns = [...kc];
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
       notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y);
-    } else if (notes.length > 1 && s.arp.on && (s.chord.fit ?? "scale") === "scale") {
+    } else if (notes.length > 1 && !free && s.arp.on) {
       // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
       // The selected chord is kept (with its voicing) when it already fits the scale; otherwise in-key thirds replace it.
       const fit = shapeInScale(s.arp.scale, semi, CHORDS[s.chord.type]) ? null : scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
@@ -366,7 +367,7 @@ export function useGroovebox() {
    *  Locked steps play one note each, so the phrase walks the chord instead of stacking it. */
   const chordLock = useCallback((i: number, a: ArpParams): number[] | null => {
     const s = slotsRef.current[i]; if (!a.chordSync || !s.chord.on) return null;
-    return keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length) ?? chordNotes(s.chord);
+    return (s.chord.fit === "fixed" ? null : keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length)) ?? chordNotes(s.chord);
   }, []);
 
   // CHRD walk: TRNC/EUCL phrases step through the chord tones one note per hit; RAND/manual phrases snap to the nearest tone.

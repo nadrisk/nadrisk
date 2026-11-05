@@ -92,22 +92,25 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
     { label: "Strum time", short: "STRM", value: c.strum ?? 30, min: 5, max: 150, step: 1, fmt: v => `${v}MS`, set: v => set({ strum: v }) },
     { label: "Chord arp rate", short: "RATE", value: Math.max(0, RT.indexOf(c.rate ?? "1/16")), min: 0, max: RT.length - 1, step: 1, fmt: v => RT[v], set: v => set({ rate: RT[v] }) },
   ];
-  return <Panel name="CHORD" label="Chord pad" pages={["CHD"]} deps={[JSON.stringify(c)]} knobs={() => knobs}
+  // Strum time only matters for STRUM, rate and order only for ARP, so other modes hide them.
+  const shown = knobs.filter(k => k.short === "STRM" ? play === "strum" : k.short === "RATE" ? play === "arp" : true);
+  const inKey = c.fit !== "fixed";
+  return <Panel name="CHORD" label="Chord pad" pages={["CHD"]} deps={[JSON.stringify(c)]} knobs={() => shown}
     body={p => {
       key(p, c.on ? "ON" : "OFF", 1, 11, 20, c.on);
       key(p, "SPRD", 23, 11, 22, c.spread);
       PLAY.forEach((m, i) => key(p, m.slice(0, 4).toUpperCase(), 47 + i * 27, 11, 26, play === m));
       p.text(String(c.type).toUpperCase().slice(0, 12), 2, 24);
       p.text(`INV ${c.inversion}`, 48, 24);
-      key(p, (c.fit ?? "scale") === "scale" ? "SCL" : "FIX", 72, 22, 20, (c.fit ?? "scale") === "scale");
-      key(p, ord.slice(0, 4).toUpperCase(), 94, 22, 33, play === "arp");
+      key(p, inKey ? "KEY" : "FREE", 72, 22, 20, inKey);
+      if (play === "arp") key(p, ord.slice(0, 4).toUpperCase(), 94, 22, 33, true);
     }}
     extra={() => <>
       <Tap x={1} y={11} w={20} h={9} label="Chord on" pressed={c.on} onClick={() => set({ on: !c.on })} />
       <Tap x={23} y={11} w={22} h={9} label="Chord spread" pressed={c.spread} onClick={() => set({ spread: !c.spread })} />
       {PLAY.map((m, i) => <Tap key={m} x={47 + i * 27} y={11} w={26} h={9} label={`Chord play ${m}`} pressed={play === m} onClick={() => set({ play: m })} />)}
-      <Tap x={72} y={22} w={20} h={9} label="Chord fit to scale" pressed={(c.fit ?? "scale") === "scale"} onClick={() => set({ fit: (c.fit ?? "scale") === "scale" ? "fixed" : "scale" })} />
-      <Tap x={94} y={22} w={33} h={9} label="Chord arp order" onClick={() => set({ arp: ORD[(ORD.indexOf(ord) + 1) % ORD.length] })} />
+      <Tap x={72} y={22} w={20} h={9} label="Chord follows master key" pressed={inKey} onClick={() => set({ fit: inKey ? "fixed" : "scale" })} />
+      {play === "arp" && <Tap x={94} y={22} w={33} h={9} label="Chord arp order" onClick={() => set({ arp: ORD[(ORD.indexOf(ord) + 1) % ORD.length] })} />}
     </>} />;
 }
 
