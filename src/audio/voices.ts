@@ -439,6 +439,11 @@ export function play808(ctx: BaseAudioContext, dest: AudioNode, p: Bass808Params
   const end = t + hold + p.decay * 2 + .1;
   const v = finish(srcs, nodes, end, amp);
   v.glide = (delta, a, time) => glideParams([osc.frequency, sub.frequency], delta, a, time);
+  // Live edits (knobs, XY) on a ringing 808: tone, harmonics, drive and sub level follow without retriggering.
+  v.update = q => { const b = (q as { bass?: Partial<Bass808Params> }).bass; if (!b) return; const n = ctx.currentTime;
+    if (b.tone) lp.frequency.setTargetAtTime(b.tone, n, .01);
+    if (b.harmonics !== undefined) { harm.curve = harmCurve(b.harmonics); subG.gain.setTargetAtTime(b.harmonics * .45, n, .01); }
+    if (b.tube !== undefined) { tube.curve = tubeCurve(b.tube); pre.gain.setTargetAtTime(1 + b.tube * 2, n, .01); } };
   return v;
 }
 

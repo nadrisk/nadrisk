@@ -19,6 +19,9 @@ import { motionOn, xyAt } from "@/audio/xyMotion";
 /** Transport position in 1/16 steps at an audio time (or now), null when stopped. */
 const stepAtTime = (time?: number) => { const t = Tone.getTransport(); if (t.state !== "started") return null; return (time !== undefined ? t.getTicksAtTime(time) : t.ticks) / (t.PPQ / 4); };
 /** Slot with its XY motion (recorded path / LFO) resolved to the position at `time`. */
+/** Live-voice patch for a slot after XY: every engine field a ringing voice can follow (SYN, 808, ACID, REESE). */
+const livePatch = (ap: Slot) => ({ clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, bass: ap.engine === "808" && (ap.bass.mode ?? "808") === "808" ? ap.bass : undefined,
+  acid: ap.engine === "808" && ap.bass.mode === "acid" ? acidParams(ap.bass.acid) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined }) as never;
 const withMotion = (s: Slot, time?: number): Slot => motionOn(s.xy) ? { ...s, xy: { ...s.xy!, ...xyAt(s.xy, stepAtTime(time)) } } : s;
 import { migrateEngine } from "@/audio/lineup";
 import type { PatchSound } from "@/audio/patchStore";
@@ -525,9 +528,7 @@ export function useGroovebox() {
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
       // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
-      slotsRef.current.forEach((sl, i) => { const ee = engine.current; if (!ee || !motionOn(sl.xy) || (sl.engine !== "synth" && !(sl.engine === "808" && sl.bass.mode === "reese"))) return;
-        const ap = applyXY(withMotion(sl, time)), q = { clean: ap.engine === "synth" ? cleanOf(ap.synth) : undefined, reese: ap.engine === "808" && ap.bass.mode === "reese" ? ap.bass.reese : undefined } as never;
-        const seen = new Set<unknown>(); [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); u(q); } }); });
+      slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushLive(i, applyXY(withMotion(sl, time))); });
       cb.pattern.forEach((row, i) => {
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
