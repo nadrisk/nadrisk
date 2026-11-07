@@ -1,5 +1,9 @@
 # Roadmap
 
+## NAD tracker AV (2026-11-07)
+- [x] Replace replica notation with a distinct NAD tracker: actual notes, hexadecimal velocities, ties, chance flags, sound/FX readouts and a shared 16-row playhead
+- [x] 41 AV tests pass; programmed sequence playback, TV OUT colour sync, transport-stop clearing and 393px phone framing verified. Physical camera/HDMI remain device checks.
+
 ## Controlled AV performance effects (2026-11-05)
 - [x] Connect real PERFORM controls to AV and TV OUT backgrounds, leaving code/grid clean
 - [x] Bound feedback and capture memory; clear on release, stop, stale signal, visual changes and visibility/unmount

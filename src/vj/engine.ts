@@ -1,8 +1,8 @@
-// AV: the groovebox written out as live-code text plus one shared step grid, over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
+// AV: the groovebox written out as a NAD tracker matrix, over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
 import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
-import { activeAtom, codeDoc, padWord, type DocLine } from "./codeDoc";
+import { trackerDoc, hex } from "./trackerDoc";
 import { depthMesh, type V3 } from "./depthcore";
 import { cosineColor, colorCss } from "./colorSweep";
 import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
@@ -23,7 +23,7 @@ export class VjEngine {
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
   camera?: VjCamera;
-  pads: DocPad[] = []; doc: DocLine[] = codeDoc([], 120, "A");
+  pads: DocPad[] = [];
   private lo = false; private slowFrames = 0;
   private cameraCanvas = document.createElement("canvas");
   private signalUntil = 0;
@@ -40,7 +40,7 @@ export class VjEngine {
   }
   clearPerformance() { this.performanceFrames.clear(); }
 
-  setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; this.doc = codeDoc(pads, bpm, bank); }
+  setDoc(pads: DocPad[], bpm: number, bank: string) { this.pads = pads; this.bank = bank; if (Number.isFinite(bpm)) this.bpm = bpm; }
 
   signal(wave: readonly number[], beat: number, bpm: number, running: boolean, peak = 0, rms = 0, step = 0, bank = "A") {
     this.wave = wave.slice(0, 128).map(v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
@@ -170,57 +170,48 @@ export class VjEngine {
     }
   }
 
-  /** Live-code text on solid line strips, one shared step grid pinned above the control bar. */
+  /** NAD tracker matrix on solid strips: telemetry header, one column per pad, 16 rows, playhead row inverted. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
-    const fs = Math.round(Math.max(10, Math.min(tw / dpr / 70, th / dpr / 38)) * dpr), lh = Math.round(fs * 1.3);
-    const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", mono = `${fs}px ${FONT}`;
-    c.textBaseline = "middle"; c.lineJoin = "round"; c.font = mono;
-    const pad = Math.round(fs * .7), cw = c.measureText("M").width, gut = cw * 4, x0 = pad + gut;
-    const tick = this.running ? Math.floor(this.beat * 4) : this.step, byPad = new Map(this.pads.map(p => [p.index, p]));
-    const ink = (s: string, X: number, Y: number, alpha = 1) => { c.globalAlpha = alpha; c.fillStyle = fg; c.fillText(s, X, Y); c.globalAlpha = 1; };
-    // Step grid geometry (bottom), so code knows where to stop.
-    const barH = 52 * dpr, rows = this.pads.length, cell = Math.max(4 * dpr, Math.min(lh * .8, (th * .32) / Math.max(1, rows)));
-    const gridH = rows ? rows * cell + lh * 1.2 : 0, gridTop = th - barH - gridH, codeEnd = gridTop - lh * .3;
-    const TOK = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|`[^`]*`?)|(\.[a-zA-Z_]+)|(\b\d*\.?\d+\b)|(_?[a-z]+:)|([^"`./\d_a-z]+|.)/g;
-    let y = lh * 1.1;
-    if (this.t < this.hudUntil) { const m = this.hudMsg.toLowerCase(); c.fillStyle = bg; c.fillRect(tw - pad - c.measureText(m).width - cw, y - lh / 2, c.measureText(m).width + cw * 1.5, lh); ink(m, tw - pad - c.measureText(m).width, y); }
-    this.doc.forEach((ln, li) => {
-      if (y > codeEnd) return;
-      if (ln.text) { c.fillStyle = bg; c.globalAlpha = .92; c.fillRect(pad - cw * .3, y - lh / 2, gut + (ln.text.length + .6) * cw, lh); c.globalAlpha = 1; }
-      ink(String(li + 1).padStart(3, " "), pad, y, .35);
-      const a0 = ln.muted ? .45 : 1;
-      let m: RegExpExecArray | null; TOK.lastIndex = 0;
-      while ((m = TOK.exec(ln.text)) && m[0]) {
-        const X = x0 + m.index * cw, a = m[1] ? .45 : m[2] ? 1 : m[3] ? .75 : m[4] ? .9 : m[5] ? 1 : .85;
-        if (m[3] || m[5]) { c.font = `bold ${fs}px ${FONT}`; ink(m[0], X, y, a * a0); c.font = mono; } else ink(m[0], X, y, a * a0);
-      }
-        if (!ln.muted && this.running) for (const l of ln.layers ?? []) {
-        const p = byPad.get(l.pad); if (!p || p.mute) continue;
-        const at = activeAtom(l, p.steps, tick);
-        if (at) { c.strokeStyle = this.color ? colorCss(cosineColor((x0 + at.at * cw) / tw, 1 - y / th, this.t)) : fg; c.lineWidth = Math.max(1, dpr); c.strokeRect(x0 + at.at * cw - dpr, y - lh * .42, at.len * cw + 2 * dpr, lh * .84); }
-      }
+    const tick = this.step;
+    const d = trackerDoc(this.pads, this.bpm, this.bank, tick), cur = ((tick % 16) + 16) % 16;
+    const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace";
+    const barH = 52 * dpr, CW = 8, chars = Math.max(48, 4 + Math.max(1, d.cols.length) * CW), lines = 22;
+    const fs = Math.round(Math.max(9 * dpr, Math.min(tw / (chars * .62 + 2), (th - barH) / (lines * 1.25), 15 * dpr)));
+    const lh = Math.round(fs * 1.25), mono = `${fs}px ${FONT}`; c.font = mono; c.textBaseline = "middle";
+    const cw = c.measureText("M").width, pad = Math.round(fs * .7), x0 = pad + cw * 4;
+    const fit = Math.max(1, Math.floor((tw - x0 - pad) / (cw * CW)));
+    const offset = Math.floor((this.running ? this.beat / 4 : this.t / 4)) % Math.max(1, Math.ceil(d.cols.length / fit)) * fit;
+    const cols = d.cols.slice(offset, offset + fit), w = cw * (4 + cols.length * CW);
+    const tint = (i: number, r: number) => this.color ? colorCss(cosineColor(i / Math.max(1, cols.length), 1 - r / 16, this.t)) : fg;
+    const ink = (s: string, X: number, Y: number, a = 1, col = fg) => { c.globalAlpha = a; c.fillStyle = col; c.fillText(s, X, Y); c.globalAlpha = 1; };
+    const strip = (Y: number, W = w) => { c.globalAlpha = .92; c.fillStyle = bg; c.fillRect(pad - cw * .3, Y - lh / 2, W + cw * .6, lh); c.globalAlpha = 1; };
+    let y = lh;
+    const p = this.running ? this.perf : NEUTRAL_PERFORMANCE, perf = `ECO:${hex(p.echoSend ?? 0)} TNS:${hex(p.tension ?? 0)} ${["---", "REV", "STU", "STP"][p.mode ?? 0] ?? "---"}`;
+    const maxChars = Math.floor((tw - pad * 2) / cw);
+    const header = `NAD.TRACK // ${this.bank} ${Math.round(this.bpm)} BPM // ${this.running ? "RUN" : "STOP"}`;
+    strip(y, Math.max(w, cw * Math.min(header.length, maxChars))); ink(header.slice(0, maxChars), pad, y);
+    y += lh; strip(y, Math.max(w, cw * Math.min(perf.length, maxChars))); ink(perf.slice(0, maxChars), pad, y, .7);
+    if (this.t < this.hudUntil) { const m = this.hudMsg.toUpperCase(), mw = c.measureText(m).width; c.fillStyle = bg; c.fillRect(tw - pad - mw - cw, lh / 2, mw + cw * 1.5, lh); ink(m, tw - pad - mw, lh); }
+    y += lh * 1.4; strip(y);
+    ink("ST", pad, y, .45);
+    cols.forEach((col, i) => ink(col.title, x0 + i * CW * cw, y, col.muted ? .35 : 1, tint(i, 0)));
+    y += lh; strip(y);
+    cols.forEach((col, i) => {
+      const p = this.pads.find(p => p.index === col.pad), fx = p?.fx.find(f => f.mix > .02);
+      const label = fx ? fx.type.toUpperCase().slice(0, 7) : p?.cut != null && p.cut < 16000 ? `F${Math.round(p.cut).toString().padStart(5, "0")}` : "NOTE VL";
+      ink(label, x0 + i * CW * cw, y, col.muted ? .2 : .5);
+    });
+    y += lh * .55; c.fillStyle = fg; c.fillRect(pad, y, w, dpr); y += lh * .55;
+    if (!cols.length) { strip(y); ink("··  EMPTY BANK", pad, y, .6); return; }
+    d.rows.forEach((row, r) => {
+      const on = this.running && r === cur;
+      strip(y); if (on) { c.fillStyle = fg; c.fillRect(pad - cw * .3, y - lh / 2, w + cw * .6, lh); }
+      const tc = on ? bg : fg;
+      ink((d.page * 16 + r).toString(16).toUpperCase().padStart(2, "0"), pad, y, on ? 1 : r % 4 === 0 ? .8 : .4, tc);
+      cols.forEach((col, i) => { const s = row.cells[offset + i], hit = !s.startsWith("·"); ink(s, x0 + i * CW * cw, y, (col.muted ? .35 : 1) * (hit ? 1 : .32), on ? bg : tint(i, r)); });
       y += lh;
     });
-    if (rows) this.grid(c, pad, gridTop, tw - pad * 2, cell, lh, fg, bg, tick, dpr, cw);
-  }
-
-  /** One step sequencer for every active pad: label column, 16 cells, brightness = velocity, ties as bars, playhead. */
-  private grid(c: CanvasRenderingContext2D, x: number, y: number, w: number, cell: number, lh: number, fg: string, bg: string, tick: number, dpr: number, cw: number) {
-    const lab = cw * 4.5, n = 16, cwid = Math.min(cell * 2.2, (w - lab) / n), gw = lab + n * cwid, h = this.pads.length * cell;
-    c.fillStyle = bg; c.fillRect(x - dpr * 3, y, gw + dpr * 6, h + lh * 1.2);
-    c.fillStyle = fg; c.fillRect(x - dpr * 3, y, gw + dpr * 6, dpr);
-    const top = y + lh * .6;
-    this.pads.forEach((p, r) => {
-      const Y = top + r * cell, len = Math.max(1, p.steps.length), cur = ((tick % len) + len) % len;
-      c.globalAlpha = p.mute ? .35 : .8; c.fillStyle = fg; c.fillText(padWord(p), x, Y + cell / 2); c.globalAlpha = 1;
-      for (let i = 0; i < n && i < len; i++) {
-        const v = p.steps[i], X = x + lab + i * cwid;
-        c.fillStyle = this.color ? colorCss(cosineColor(i / n, 1 - r / Math.max(1, this.pads.length), this.t)) : fg;
-        if (i % 4 === 0) { c.globalAlpha = .25; c.fillRect(X, Y + cell / 2 - dpr / 2, dpr, dpr); c.globalAlpha = 1; }
-        if (v) { c.globalAlpha = (p.mute ? .35 : 1) * (v >= 2 ? .5 : .4 + .6 * (p.vel[i] ?? 1)); c.fillRect(X + (v >= 2 ? 0 : dpr), Y + dpr, v >= 2 ? cwid : cwid - 2 * dpr, cell - 2 * dpr); c.globalAlpha = 1; }
-        if (this.running && i === cur % n) { c.strokeStyle = this.color ? c.fillStyle : fg; c.lineWidth = dpr; c.strokeRect(X, Y, cwid, cell); }
-      }
-    });
+    if (d.cols.length > cols.length) { strip(y); ink(`CH ${offset + 1}-${offset + cols.length} / ${d.cols.length}`, pad, y, .5); }
   }
 }
 
