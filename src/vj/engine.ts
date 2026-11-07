@@ -172,37 +172,48 @@ export class VjEngine {
 
   /** NAD tracker matrix on solid strips: telemetry header, one column per pad, 16 rows, playhead row inverted. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
-    const tick = this.running ? Math.floor(this.beat * 4) : this.step;
+    const tick = this.step;
     const d = trackerDoc(this.pads, this.bpm, this.bank, tick), cur = ((tick % 16) + 16) % 16;
     const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace";
-    const barH = 52 * dpr, CW = 8, chars = 4 + Math.max(1, d.cols.length) * CW, lines = 21;
-    const fs = Math.round(Math.max(7 * dpr, Math.min(tw / (chars * .62 + 2), (th - barH) / (lines * 1.25), 15 * dpr)));
+    const barH = 52 * dpr, CW = 8, chars = Math.max(48, 4 + Math.max(1, d.cols.length) * CW), lines = 22;
+    const fs = Math.round(Math.max(9 * dpr, Math.min(tw / (chars * .62 + 2), (th - barH) / (lines * 1.25), 15 * dpr)));
     const lh = Math.round(fs * 1.25), mono = `${fs}px ${FONT}`; c.font = mono; c.textBaseline = "middle";
     const cw = c.measureText("M").width, pad = Math.round(fs * .7), x0 = pad + cw * 4;
-    const fit = Math.max(1, Math.floor((tw - x0 - pad) / (cw * CW))), cols = d.cols.slice(0, fit), w = cw * (4 + cols.length * CW);
+    const fit = Math.max(1, Math.floor((tw - x0 - pad) / (cw * CW)));
+    const offset = Math.floor((this.running ? this.beat / 4 : this.t / 4)) % Math.max(1, Math.ceil(d.cols.length / fit)) * fit;
+    const cols = d.cols.slice(offset, offset + fit), w = cw * (4 + cols.length * CW);
     const tint = (i: number, r: number) => this.color ? colorCss(cosineColor(i / Math.max(1, cols.length), 1 - r / 16, this.t)) : fg;
     const ink = (s: string, X: number, Y: number, a = 1, col = fg) => { c.globalAlpha = a; c.fillStyle = col; c.fillText(s, X, Y); c.globalAlpha = 1; };
     const strip = (Y: number, W = w) => { c.globalAlpha = .92; c.fillStyle = bg; c.fillRect(pad - cw * .3, Y - lh / 2, W + cw * .6, lh); c.globalAlpha = 1; };
     let y = lh;
-    const p = this.perf, perf = `PERF ECO ${hex(p.echoSend ?? 0)} TNS ${hex(p.tension ?? 0)} MODE ${["---", "REV", "STU", "STP"][p.mode ?? 0] ?? "---"}`;
-    strip(y, Math.max(w, cw * d.header.length)); ink(d.header, pad, y);
-    y += lh; strip(y, Math.max(w, cw * perf.length)); ink(`${perf} // ${this.running ? "RUN" : "STOP"} ${String(cur).padStart(2, "0")}`, pad, y, .7);
+    const p = this.running ? this.perf : NEUTRAL_PERFORMANCE, perf = `ECO:${hex(p.echoSend ?? 0)} TNS:${hex(p.tension ?? 0)} ${["---", "REV", "STU", "STP"][p.mode ?? 0] ?? "---"}`;
+    const maxChars = Math.floor((tw - pad * 2) / cw);
+    const header = `NAD.TRACK // ${this.bank} ${Math.round(this.bpm)} BPM // ${this.running ? "RUN" : "STOP"}`;
+    strip(y, Math.max(w, cw * Math.min(header.length, maxChars))); ink(header.slice(0, maxChars), pad, y);
+    y += lh; strip(y, Math.max(w, cw * Math.min(perf.length, maxChars))); ink(perf.slice(0, maxChars), pad, y, .7);
     if (this.t < this.hudUntil) { const m = this.hudMsg.toUpperCase(), mw = c.measureText(m).width; c.fillStyle = bg; c.fillRect(tw - pad - mw - cw, lh / 2, mw + cw * 1.5, lh); ink(m, tw - pad - mw, lh); }
     y += lh * 1.4; strip(y);
     ink("ST", pad, y, .45);
     cols.forEach((col, i) => ink(col.title, x0 + i * CW * cw, y, col.muted ? .35 : 1, tint(i, 0)));
+    y += lh; strip(y);
+    cols.forEach((col, i) => {
+      const p = this.pads.find(p => p.index === col.pad), fx = p?.fx.find(f => f.mix > .02);
+      const label = fx ? fx.type.toUpperCase().slice(0, 7) : p?.cut != null && p.cut < 16000 ? `F${Math.round(p.cut).toString().padStart(5, "0")}` : "NOTE VL";
+      ink(label, x0 + i * CW * cw, y, col.muted ? .2 : .5);
+    });
     y += lh * .55; c.fillStyle = fg; c.fillRect(pad, y, w, dpr); y += lh * .55;
-    if (!cols.length) { strip(y); ink("··  NO STEPS  // PROGRAM THE SEQUENCER", pad, y, .6); return; }
+    if (!cols.length) { strip(y); ink("··  EMPTY BANK", pad, y, .6); return; }
     d.rows.forEach((row, r) => {
       const on = this.running && r === cur;
       strip(y); if (on) { c.fillStyle = fg; c.fillRect(pad - cw * .3, y - lh / 2, w + cw * .6, lh); }
       const tc = on ? bg : fg;
       ink((d.page * 16 + r).toString(16).toUpperCase().padStart(2, "0"), pad, y, on ? 1 : r % 4 === 0 ? .8 : .4, tc);
-      cols.forEach((col, i) => { const s = row.cells[i], hit = !s.startsWith("·"); ink(s, x0 + i * CW * cw, y, (col.muted ? .35 : 1) * (hit ? 1 : .32), on ? bg : tint(i, r)); });
+      cols.forEach((col, i) => { const s = row.cells[offset + i], hit = !s.startsWith("·"); ink(s, x0 + i * CW * cw, y, (col.muted ? .35 : 1) * (hit ? 1 : .32), on ? bg : tint(i, r)); });
       y += lh;
     });
-    if (d.cols.length > cols.length) { strip(y); ink(`+${d.cols.length - cols.length} CH`, pad, y, .5); }
+    if (d.cols.length > cols.length) { strip(y); ink(`CH ${offset + 1}-${offset + cols.length} / ${d.cols.length}`, pad, y, .5); }
   }
+}
 
 function tri(buf: Uint32Array, W: number, H: number, p: number[][], shade: number, FG: number, BG: number, ink?: (x: number, y: number) => number) {
   const s = [...p].sort((a, b) => a[1] - b[1]);
