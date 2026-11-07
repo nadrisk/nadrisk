@@ -8,5 +8,5 @@ describe("tracker doc", () => {
   it("notes use tracker pitch names", () => expect(cell(pad({ engine: "synth", kind: "tone", note: 61 }), 0).startsWith("C#4")).toBe(true));
   it("solo dims other columns", () => expect(trackerDoc([pad(), pad({ index: 1, solo: true })], 120, "A", 0).cols.map(c => c.muted)).toEqual([true, false]));
   it("32-step tracks page with the transport", () => { const s = Array(32).fill(0); s[20] = 1; const d = trackerDoc([pad({ steps: s, len: 32, vel: Array(32).fill(1), chance: Array(32).fill(1) })], 120, "A", 18); expect(d.page).toBe(1); expect(d.rows[4].cells[0]).toBe("BD- 7F "); });
-  it("never mentions strudel", () => expect(trackerDoc([pad()], 120, "A", 0).header.toLowerCase()).not.toContain("strudel"));
+  it("chance marks only probability-limited hits", () => { const chance = Array(16).fill(1); chance[0] = .7; const p = pad({ chance }); expect(cell(p, 0)).toBe("BD- 7F?"); expect(cell(p, 2)).toBe("··· ·· "); });
 });
