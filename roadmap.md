@@ -1,5 +1,5 @@
 # Roadmap
 - [x] Stage 1: performance rack removed from sequencer, PERF tab dropped
 - [x] Stage 2: full-screen PERF mode from top bar
-- [ ] Stage 3: link phones to iPad two-deck mixer (needs Lovable Cloud enabled — awaiting user go-ahead)
-- [ ] Stage 4: 64-step chaining / jam (after stage 3)
+- [x] Stage 3: LINK — any device hosts a two-deck mixer; others join as Deck A/B by room code
+- [ ] Stage 4: 64-step chaining / jam (next)
