@@ -1151,3 +1151,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-mod-deck { grid-column: 1 / -1; }
 .perf-xy-pad { width: 100% !important; min-width: 100% !important; align-self: stretch; min-height: 220px; box-sizing: border-box; display: block !important; }
 .perf-body .perf-xy-pad { background-color: hsl(var(--background)) !important; color: hsl(var(--foreground)); }
+.perf-overlay { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.perf-overlay > .perf-body.instrument-workspace { flex: 0 0 auto; overflow: visible !important; height: auto !important; min-height: 0; }
+.perf-overlay .perf-head { flex: 0 0 auto; position: sticky; top: 0; z-index: 2; background: hsl(var(--background)); }
+body.perf-lock { overflow: hidden; }
