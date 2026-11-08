@@ -1252,9 +1252,10 @@ body.perf-lock { overflow: hidden; }
 }
 
 /* PERF grid: XY left; TAPE + PERFORM stacked right; patterns/mutes across the bottom. */
-.perf-console { grid-template-areas: "link link" "main tape" "main fx" "deck deck"; grid-template-rows: auto auto 1fr auto; align-items: stretch !important; }
+.perf-console { grid-template-areas: "link link" "main tape" "main fx" "deck deck"; grid-template-rows: auto auto 1fr auto; align-items: stretch !important; align-content: start; height: max-content; }
 .perf-mod-link { grid-area: link; } .perf-mod-main { grid-area: main; }
-.perf-mod-fx .gb-perf { height: 100%; justify-content: center; }
+.perf-mod-fx .gb-perf { justify-content: flex-start; }
+.perf-mod-deck .gb-perf-side { flex-direction: row; flex: 0 0 auto; } .perf-mod-deck .gb-perf-side button { width: 56px; }
 .perf-mod-tape { grid-area: tape; } .perf-mod-fx { grid-area: fx; } .perf-mod-deck { grid-area: deck; }
 @media (max-width: 900px) { .perf-console { grid-template-areas: "link" "main" "tape" "fx" "deck"; grid-template-rows: none; } }
 /* Mixer on: mute keys stand in a vertical column beside the mixer. */
