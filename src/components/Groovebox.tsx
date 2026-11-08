@@ -260,6 +260,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   useEffect(() => { setTransportPlaying(g.playing); }, [g.playing]);
   const [vj, setVj] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
+  useEffect(() => { if (!perfOpen) return; document.body.classList.add("perf-lock"); return () => document.body.classList.remove("perf-lock"); }, [perfOpen]);
   // Feed the VJ (overlay or TV window): theme on request, master level at ~30 Hz.
   useEffect(() => { vjSend({ t: "theme", theme }); return vjListen(m => { if (m.t === "hello") vjSend({ t: "theme", theme }); }); }, [theme]);
   useEffect(() => {
