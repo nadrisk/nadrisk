@@ -156,7 +156,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   const views = ["note", "vel", "chance", "roll", "cond", "nudge", "mod"];
   const ks: K[] = [
     ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 11, w: 30, h: 10, on: bank === b, fn: () => selectBank(b) })),
-    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v === "nudge" ? "NUDG" : v.toUpperCase(), label: `View ${v}`, x: 1 + i * 18, y: 22, w: 17, h: 10, on: view === v, fn: () => setView(v) })),
+    ...views.map((v, i) => ({ s: ({ note: "NOTE", vel: "VEL", chance: "CHN", roll: "ROL", cond: "CND", nudge: "NDG", mod: "MOD" } as Record<string, string>)[v], label: `View ${v}`, x: i === 0 ? 1 : 22 + (i - 1) * 17, y: 22, w: i === 0 ? 20 : 16, h: 10, on: view === v, fn: () => setView(v) })),
     { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 33, w: 24, h: 10, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 26, y: 33, w: 24, h: 10, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: () => clear(view) },
