@@ -1,26 +1,37 @@
-# Groovebox upgrades: more scales + cleaner, richer sounds
+# Groovebox upgrade: rhythm, harmony, filters, oscillators, conditions
 
-MIDI and stem export are out. Two parts, built in this order so each can be checked on its own.
+Built in three stages. Each one is tested and checked in the preview before the next starts. Saved sets keep loading exactly as they do now.
 
-## Part 1 — More scales (no sound risk)
-Today the KEY screen offers 9 scales (major, minor, dorian, phrygian, lydian, mixolydian, harm min, pent maj, pent min).
-- Add electronic/exotic scales: melodic minor, phrygian dominant, hungarian minor, hirajoshi, in-sen, blues, whole tone, locrian, double harmonic, egyptian, and a few more (about 20 total).
-- NOTE knobs, phrases and in-key chords keep working the same way with every new scale.
-- Chord quality labels (I, ii, vii°) stay correct; scales with fewer than 7 notes keep plain numbers like today.
-- Saved sets keep their exact notes and scale.
+## Stage 1 — Groove and theory
+1. **True Euclidean rhythms (Bjorklund)**
+   - The current EUCL arp gets swapped for the real Bjorklund method, so patterns like tresillo (3/8) and cinquillo (5/8) come out right.
+   - The GEN screen gets an EUCL tab with HITS, STEPS and ROTATE knobs. It fills the selected pad's steps and can be undone like the other GEN tabs.
+2. **Voice leading for chords and phrases**
+   - The same 9 scales and 8 chord types stay.
+   - Each new chord picks the inversion and octave closest to the last one. Shared notes stay put and the other notes move by the smallest step.
+   - A VOICE switch per pad (ON/OFF, default OFF) keeps old sets sounding the same.
 
-## Part 2 — Sound upgrades from hardware DSP (DaisySP-style)
-Only additions — 808, ACID, REESE, drums and sampler presets sound the same unless you pick something new.
-1. **Cleaner high synth notes**: anti-aliased saw/square in SYN so high notes stop sounding harsh or buzzy. Will be A/B checked against the current sound; if it changes the character too much, it becomes an option instead of the default.
-2. **New IDM/percussion model — RESO**: struck metal/wood/glass hits (modal resonator) with tune, decay and material knobs.
-3. **New SYN model — STRING**: plucked string (Karplus-Strong) with damping and brightness.
-4. Kept within the existing pad CPU limits and the current 1-bit screens and knob layouts.
+## Stage 2 — Sound
+3. **Analog-style filter models** (based on the Faust filter libraries)
+   - New filter types next to the current filter: LADDER (Moog-style, 24 dB), SEM (morphs low/notch/high), MS20 (aggressive resonance).
+   - They live in the existing filter selector, are saved per pad and are kept safe from blowing up.
+4. **Clean oscillators** (PolyBLEP, from DaisySP)
+   - Saw, square and triangle on SYN and BAS stop sounding harsh or whistly on high notes.
+   - Low notes keep the same character.
+
+## Stage 3 — Tracker conditions (Dirtywave-style)
+5. **Conditional steps**: each lit step can be set to always, 1:2, 2:2, 1:4…4:4, FILL or NOT FILL, edited on the step's options page.
+6. **Micro-timing nudge**: each step can be moved ±1/2 of a 1/96 tick, for a looser feel.
+   - The AV tracker shows the conditions as a small flag.
+   - Ratchets and glides aren't touched (they already exist).
 
 ## Not included
-MIDI export, stem export, replacing Tone.js, changing how sets are saved.
+MIDI export, stem export, new scales or chord types.
 
 ## Technical details
-- Scales: add `tonal` (MIT) only to generate interval tables at build time into `SCALES` in `src/audio/arp.ts`; runtime code keeps using our own degree math, so no new runtime behaviour. Extend `HARMONY_SCALES`; add tests in `scaleChord.test.ts` for snap/degree/chord on new scales and that old set scales still load.
-- PolyBLEP: port the formula (not the library) into the synth oscillator path in `src/audio/voices.ts`/worklet bundle; test for finite output and reduced energy above Nyquist-folded bands.
-- RESO and STRING: small pure-TS/worklet voices on the shared Tone context, registered as new model choices; old sets hydrate unchanged (lineup/hydration test). Tests: finite output, silence after release, no stuck voices on stop.
-- Update `src/audio/AGENTS.md` with a rule: ported DSP lives as our own code, additive models only.
+- `src/audio/arp.ts`: pure `bjorklund(k,n,rot)` with tests against known Toussaint rhythms. `euclid()` is reused for patternGen and the GEN EUCL tab.
+- `src/audio/harmony.ts`: pure `voiceLead(prev, chord)` that keeps total semitone movement as small as possible. Tests cover common-tone holding and range limits.
+- Filters: new AudioWorklet DSP in the existing worklet bundle. Uses zero-delay-feedback ladder/SVF math and a tanh limit on resonance. A test checks the output stays finite.
+- PolyBLEP: worklet oscillator used by synth voices. Falls back to Tone oscillators if the worklet doesn't load.
+- Step banks get `cond[]` and `nudge[]` arrays next to vel/chance. They are read by the scheduler through `stepAt()`, missing values default to always/0, and they are shown in trackerDoc.
+- AGENTS.md: one rule per new module.
