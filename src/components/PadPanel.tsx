@@ -10,7 +10,7 @@ import { useNoteKnob } from "@/components/harmonyKnob";
 
 const CT = Object.keys(CHORDS) as (keyof typeof CHORDS)[];
 const sg = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)}`;
-const CAT = (n: string) => /RHODES| EP$/.test(n) ? "EPNO" : /PNO|MKS|JAZZ/.test(n) ? "PNO" : /VOX|CHOIR/.test(n) ? "VOX" : /STR|SOLINA|SAW/.test(n) ? "STRG" : /BELL|CELESTE|FM/.test(n) ? "BELL" : /STAB/.test(n) ? "STAB" : "ATMS";
+const CAT = (n: string) => /E-PNO|RHODES| EP$/.test(n) ? "EPNO" : /PNO|MKS|JAZZ/.test(n) ? "PNO" : /VOX|CHOIR/.test(n) ? "VOX" : /STR|SOLINA|SAW/.test(n) ? "STRG" : /BELL|CELESTE|FM/.test(n) ? "BELL" : /STAB/.test(n) ? "STAB" : "ATMS";
 
 const PAGES = ["PRST", "TONE", "ENV"] as const;
 const N = PAD_PRESETS.length;
