@@ -66,10 +66,11 @@ describe("hack click regressions", () => {
     expect(error).toBe(0);
   });
   it("GEN steps never strand the stutter cursor past its captured segment", () => {
-    const { n, p, render } = makeHack(); Object.assign(p, { short: [0], clock: [0], starve: [0], skip: [1], size: [.5], lock: [1] });
+    const { n, p, render } = makeHack(); Object.assign(p, { short: [0], clock: [0], starve: [0], skip: [1], size: [.25], lock: [0] });
     n.port.onmessage({ data: { seed: 42, depth: 0, run: true } });
-    let stranded = false;
-    for (let b = 0; b < 1400; b++) { render(Float32Array.from({ length: 128 }, (_, i) => .3 * Math.sin((b * 128 + i) * .02)), b); stranded ||= n.rep > 0 && n.rpos > n.rl; }
+    let stranded = false, replays = 0;
+    for (let b = 0; b < 1400; b++) { render(Float32Array.from({ length: 128 }, (_, i) => .3 * Math.sin((b * 128 + i) * .02)), b); stranded ||= n.rep > 0 && n.rpos > n.rl; if (n.rep > 0) replays++; }
+    expect(replays).toBeGreaterThan(100);
     expect(stranded).toBe(false);
   });
   it("stutter entry, repeats and exit crossfade without waveform jumps", () => {
