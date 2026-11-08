@@ -1,4 +1,4 @@
-import { midiOf, phraseOrder, type ArpParams } from "./arp";
+import { euclid, midiOf, phraseOrder, type ArpParams } from "./arp";
 
 /** Pure, seeded pattern generators for the sequencer GEN screen. */
 export type Role = "kick" | "snare" | "hat" | "open" | "perc" | "none";
