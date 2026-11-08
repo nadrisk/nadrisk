@@ -12,7 +12,7 @@ export function colorCss(packed: number) {
   return `rgb(${packed & 255},${(packed >>> 8) & 255},${(packed >>> 16) & 255})`;
 }
 
-export const MODEL_COUNT = 6;
+export const MODEL_COUNT = 5;
 export type VisualState = { model: number; size: number; color: boolean; code: boolean };
 export const DEFAULT_VISUAL: VisualState = { model: 0, size: 1, color: false, code: false };
 export function visualControl(state: VisualState, model: number, size: number): VisualState {
