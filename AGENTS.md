@@ -36,3 +36,4 @@
 - Instrument XY offsets (slot.xy) are applied at trigger by src/audio/xyMaps.ts and only written into knobs on COMMIT, so the centre always equals the saved patch.
 - XY motion (recorded path + synced LFO) lives in slot.xy and is resolved by pure xyAt() from the transport step (src/audio/xyMotion.ts) at trigger and per grid tick for live voices, so screen and sound agree; XY screen hit-zones come from src/components/xyLayout.ts and a test forbids overlaps.
 - Note length is edited by right-edge drag via src/audio/noteSpan.ts on the existing tie encoding (cells >= 2), so scheduler, sets and AV stay unchanged.
+- Live performance tools (PerformanceRack) live only in the full-screen PERF overlay opened from the top bar, not in the sequencer, so the step grid keeps the full frame.
