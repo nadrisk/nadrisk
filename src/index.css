@@ -1142,7 +1142,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-xy-pad { position: relative; aspect-ratio: 16 / 10; max-height: 52vh; border: 3px solid hsl(var(--foreground)); touch-action: none; cursor: crosshair; overflow: hidden;
   background-image: radial-gradient(hsl(var(--foreground) / .35) 1px, transparent 1px); background-size: 12px 12px; }
 .perf-xy-pad::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed hsl(var(--foreground) / .5); }
-.perf-xy-pad.live { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
+.perf-xy-pad.perf-xy-on { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
 .perf-xy-h, .perf-xy-v { position: absolute; background: hsl(var(--foreground)); pointer-events: none; }
 .perf-xy-h { left: 0; right: 0; height: 1px; } .perf-xy-v { top: 0; bottom: 0; width: 1px; }
 .perf-xy-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; background: hsl(var(--foreground)); pointer-events: none; }
