@@ -4,6 +4,8 @@ import { type DeckId, type DeckState, validRoom, eqDb } from "@/link/deck";
 import { Button } from "@/components/ui/button";
 import MixerControl from "./MixerControl";
 import type { useMidi } from "@/hooks/useMidi";
+import type { ReactNode } from "react";
+import { MIXTOUR_MAP } from "@/link/mixtour";
 
 type Link = ReturnType<typeof useLink>;
 const BANDS: [keyof DeckState, string][] = [["high", "HI"], ["mid", "MID"], ["low", "LOW"]];
@@ -20,7 +22,7 @@ function Strip({ id, link }: { id: DeckId; link: Link }) {
   </div>;
 }
 
-export default function PerfLink({ link, midi }: { link: Link; midi: ReturnType<typeof useMidi> }) {
+export default function PerfLink({ link, midi, center }: { link: Link; midi: ReturnType<typeof useMidi>; center?: ReactNode }) {
   const [code, setCode] = useState("");
   if (link.role === "solo") return <div className="lk-join">
     <div className="lk-row" data-midi-ui><Button variant="outline" aria-pressed={link.mode === "tabs"} onClick={() => link.setMode("tabs")}>LOCAL TABS</Button><Button variant="outline" aria-pressed={link.mode === "devices"} onClick={() => link.setMode("devices")}>DEVICES</Button></div>
@@ -36,11 +38,11 @@ export default function PerfLink({ link, midi }: { link: Link; midi: ReturnType<
   </div>;
   const m = link.mix;
   return <div className="lk-mixer">{status}
-    <div className="lk-midi" data-midi-ui><Button variant="outline" onClick={midi.connect} aria-label="Connect mixer MIDI">MIDI</Button><Button variant="outline" aria-label="Mixer MIDI learn" aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>LEARN</Button><span>{midi.target ?? (midi.status || (midi.devices?.join(" · ") ?? ""))}</span></div>
+    <div className="lk-midi" data-midi-ui><Button variant="outline" onClick={midi.connect} aria-label="Connect mixer MIDI">MIDI</Button><Button variant="outline" aria-label="Mixer MIDI learn" aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>LEARN</Button><Button variant="outline" aria-label="Load Reloop Mixtour mapping" onClick={() => { midi.preset(MIXTOUR_MAP); void midi.connect(); }}>MIXTOUR</Button><span>{midi.target ?? (midi.status || (midi.devices?.join(" · ") ?? ""))}</span></div>
     <div className="lk-strips"><Strip id="A" link={link} />
       <div className="lk-center"><span>NAD<br />2 CH</span><div className="lk-tempo"><Button variant="outline" aria-label="Mixer tempo down" onClick={() => link.setMix({ ...m, bpm: Math.max(60, m.bpm - 1) })}>−</Button><b>{m.bpm}<small>BPM</small></b><Button variant="outline" aria-label="Mixer tempo up" onClick={() => link.setMix({ ...m, bpm: Math.min(180, m.bpm + 1) })}>+</Button></div>
         <div className="lk-meters" aria-label="Deck output meters">{(["A", "B"] as const).map(id => <div className="lk-meter" key={id}><div>{Array.from({ length: 8 }, (_, i) => <i key={i} className={link.decks[id] && (link.decks[id]?.out ?? -60) > -48 + i * 6 ? "on" : ""} />)}</div><span>{id}</span></div>)}</div>
-        <Button variant="outline" aria-label="Crossfader curve" onClick={() => link.setMix({ ...m, curve: m.curve === "blend" ? "cut" : "blend" })}>{m.curve === "blend" ? "BLEND" : "CUT"}</Button></div>
+        <Button variant="outline" aria-label="Crossfader curve" onClick={() => link.setMix({ ...m, curve: m.curve === "blend" ? "cut" : "blend" })}>{m.curve === "blend" ? "BLEND" : "CUT"}</Button>{center && <div className="lk-center-pads">{center}</div>}</div>
       <Strip id="B" link={link} /></div>
     <div className="lk-xf"><span>A</span><MixerControl label="Crossfader" name="CROSSFADER" min={-1} max={1} home={0} value={m.xf} onChange={xf => link.setMix({ ...m, xf })} fader="horizontal" readout={m.xf === 0 ? "CENTRE" : `${m.xf < 0 ? "A" : "B"} ${Math.round(Math.abs(m.xf) * 100)}`} /><span>B</span></div>
   </div>;
