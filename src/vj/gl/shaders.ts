@@ -141,7 +141,7 @@ void travel(inout vec3 ro, inout vec3 rd, float spd){
   mat3 R = camY((iTime-10.)*.8); vec3 c = vec3(at.x, ro.y, at.z); ro = c + (ro-c)*R; rd = rd*R;
 #elif CAM == 3
   float t = iTime*.5, k = max(.5, length(at-ro))*.35;
-  vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.4, spd*iTime); ro += off; gAt += off;
+  vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.12, spd*iTime); ro += off; gAt += off;
   rd = rd*camY(cos(t)*.22); rd.xy *= r2(-cos(t)*.12);
 #endif
 }
@@ -495,7 +495,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 }`;
 
 // ---------- CLOUDS: "Cloud diving" (lighter march: 300-unit steps to 80000 with early exit, same colours) ----------
-const CLOUDS = `
+const CLOUDS = `${OBJ}
 vec3 skytop = vec3(0.05, 0.2, 0.5);
 vec3 light = normalize(vec3(0.1, 0.25, 0.9));
 vec2 cloudrange = vec2(0.0, 10000.0);
@@ -532,8 +532,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 uv = 2. * fragCoord.xy / iResolution.xy - 1.0;
     uv.x *= iResolution.x / iResolution.y;
     float time = (iTime + 13.5 + 44.) * 1.0;
+#if CAM == 0
+    vec3 campos = camera(57.5), camtar = camera(57.9);
+#elif CAM == 1
+    vec3 campos = vec3(0., 5000., 6000.*time), camtar = campos + vec3(0., 0., 1.);
+#elif CAM == 2
+    vec3 campos = vec3(0., 5000., 0.), camtar = campos + vec3(sin(iTime*.25), 0., cos(iTime*.25));
+#else
     vec3 campos = camera(time);
     vec3 camtar = camera(time + 0.4);
+#endif
     vec3 front = normalize(camtar - campos);
     vec3 right = normalize(cross(front, vec3(0.0, 1.0, 0.0)));
     vec3 up = normalize(cross(right, front));
@@ -560,10 +568,71 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     sum.rgb -= 0.6 * vec3(0.8, 0.75, 0.7) * pow(sundot, 13.0) * alpha;
     sum.rgb += 0.2 * vec3(1.3, 1.2, 1.0) * pow(sundot, 5.0) * (1.0 - alpha);
     col = mix(col, sum.rgb, sum.a);
+#if OBJ != 0
+    // The shape rides with the camera through the clouds, lit by the same sun and cloud colours.
+    gAt = vec3(0., 0., 4.5); gSize = 1.;
+    vec3 ro = vec3(0.), rd = normalize(vec3(uv, 1.)); float ot = 0.;
+    for (int i = 0; i < 72; i++) { float d = objSdf(ro+rd*ot); if (d < .002 || ot > 12.) break; ot += d; }
+    if (ot < 12.) {
+      vec3 p = ro+rd*ot; vec2 e = vec2(.002, 0.);
+      vec3 n = normalize(vec3(objSdf(p+e.xyy)-objSdf(p-e.xyy), objSdf(p+e.yxy)-objSdf(p-e.yxy), objSdf(p+e.yyx)-objSdf(p-e.yyx)));
+      vec3 L = normalize(vec3(.3, .6, -.7));
+      float dif = clamp(dot(n, L), 0., 1.), rim = pow(clamp(1. + dot(rd, n), 0., 1.), 3.);
+      vec3 oc = mix(vec3(0.3, 0.3, 0.2), vec3(1.1, 1.05, 1.0), dif*.8 + .2) + 0.47*vec3(1.6, 1.4, 1.0)*pow(clamp(dot(reflect(rd, n), L), 0., 1.), 40.) + rim*0.8*skytop;
+      oc = skin(p, oc);
+      col = mix(col, oc, 1. - .35*sum.a);
+    }
+#endif
     fragColor = vec4(col, 1.0);
 }`;
 
-export const SPACE_SOURCES = [FLOOR, SKY, ENDLESS, CLOUDS];
+// ---------- OCEAN: open water under the Ambient sky (rolling swells, misty horizon, sun glint) ----------
+const OCEAN = `${OBJ}
+float wave(vec2 p){
+  float h = 0., a = .18; vec2 d = vec2(1., .3); mat2 R = mat2(.8, .6, -.6, .8);
+  for (int i = 0; i < 5; i++) { h += a*sin(dot(p, d)*1.1 + iTime*(1.2 - float(i)*.12)); d = R*d*1.7; a *= .45; }
+  return h*(1. + uBand.x*.25);
+}
+vec3 skyCol(vec3 dir){
+  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
+  vec3 cl = mix(vec3(0.8, 0.9, 1.0), vec3(0.4, 0.6, 0.8), pow(max(dir.y, 0.), 0.45));
+  return mix(cl, vec3(2.5, 1.8, 0.6), pow(max(0.0, dot(dir, sun)), 600.0));
+}
+void mainImage(out vec4 fragColor, in vec2 fragCoord){
+  vec2 uv = (fragCoord.xy*2. - iResolution.xy)/iResolution.y;
+  vec3 ro = vec3(0., 1.2, 0.), rd = normalize(vec3(uv.x, uv.y - .25, 2.2));
+  gAt = vec3(0., .75, 6.); gSize = .8;
+  travel(ro, rd, 3.);
+  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
+  vec3 col = skyCol(rd);
+  float t = .1; bool water = false, obj = false;
+  for (int i = 0; i < 110; i++) {
+    vec3 p = ro + rd*t; float dw = (p.y - wave(p.xz))*.6, dob = objSdf(p);
+    float d = min(dw, dob);
+    if (d < .002*t) { water = dw < dob; obj = !water; break; }
+    t += d; if (t > 60.) break;
+  }
+  vec3 p = ro + rd*t;
+  if (water) {
+    vec2 e = vec2(.02, 0.);
+    vec3 n = normalize(vec3(wave(p.xz-e.xy) - wave(p.xz+e.xy), 2.*e.x, wave(p.xz-e.yx) - wave(p.xz+e.yx)));
+    vec3 r = reflect(rd, n);
+    float fr = .04 + .96*pow(1. - max(dot(-rd, n), 0.), 5.);
+    vec3 refl = skyCol(r);
+    if (OBJ != 0) { float ot = .05; for (int i = 0; i < 40; i++) { float d = objSdf(p + r*ot); if (d < .004) { refl = vec3(0.4, 0.3, 0.1); break; } ot += d; if (ot > 12.) break; } }
+    col = mix(vec3(0.05, 0.2, 0.5)*.35, refl, fr);
+  } else if (obj) {
+    vec2 e = vec2(.002, 0.);
+    vec3 n = normalize(vec3(objSdf(p+e.xyy)-objSdf(p-e.xyy), objSdf(p+e.yxy)-objSdf(p-e.yxy), objSdf(p+e.yyx)-objSdf(p-e.yyx)));
+    vec3 env = skyCol(reflect(rd, n));
+    col = skin(p, env*(.45 + .55*clamp(dot(n, sun), 0., 1.)));
+  }
+  if (water || obj) col = mix(col, vec3(0.8, 0.9, 1.0), clamp(t/(60. - uBand.w*10.), 0., 1.));
+  col = mix(col, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(rd.y), 40.0));
+  fragColor = vec4(col, 1.0);
+}`;
+
+export const SPACE_SOURCES = [FLOOR, SKY, ENDLESS, CLOUDS, OCEAN];
 
 // ---------- PLASMA family: each form verbatim, with its own palette as ORIG ----------
 const PAL = `
@@ -628,11 +697,8 @@ void form(out vec3 col, out float v, in vec2 f){
 }`;
 const P_DEMO = `const vec2 vp = vec2(320.0, 200.0);
 void form(out vec3 col, out float v, in vec2 fragCoord){
-    vec2 o_scale_factor = vec2(0.3*0.3) * (1080. / max(iResolution.y, 1.)) ;
-    vec2 o_fc = floor(fragCoord.xy * o_scale_factor);
-    vec2 o_ires = floor(iResolution.xy * o_scale_factor);
 	float t = iTime * 10.0;
-	vec2 uv = o_fc.xy / o_ires.xy;
+	vec2 uv = fragCoord.xy / iResolution.xy;
     vec2 p0 = (uv - 0.5) * vp;
     vec2 hvp = vp * 0.5;
 	vec2 p1d = vec2(cos( t / 98.0),  sin( t / 178.0)) * hvp - p0;
@@ -675,6 +741,8 @@ void form(out vec3 col, out float v, in vec2 fragCoord){
     col = (mix(color1 , color + .8, color  )) * fade * fade * (1. + uBand.x*.15);
     v = clamp(lum(col), 0., 1.);
 }`;
+export const FORM_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL];
+export const SKIN_PAL = PAL;
 export const PLASMA_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL].map(f => `${PAL}
 ${f}
 void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col), 1.); }`);

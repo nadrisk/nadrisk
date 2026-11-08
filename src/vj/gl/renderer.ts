@@ -1,5 +1,5 @@
 // WebGL2 full-screen renderer for SPACE and PLASMA. Programs are compiled per option combination and cached.
-import { HEAD, TAIL, SPACE_SOURCES, PLASMA_SOURCES } from "./shaders";
+import { HEAD, TAIL, SPACE_SOURCES, PLASMA_SOURCES, FORM_SOURCES, SKIN_PAL } from "./shaders";
 import type { SceneOpts } from "./options";
 
 const VERT = `#version 300 es
@@ -10,7 +10,12 @@ type Prog = { p: WebGLProgram; u: Record<string, WebGLUniformLocation | null> };
 
 /** Build the define header + body for a world/options combination (pure, testable). */
 export function sceneSource(world: "SPACE" | "PLASMA", o: SceneOpts) {
-  if (world === "SPACE") return { key: `S${o.ground}.${o.object}.${o.motion}`, src: `${HEAD}#define OBJ ${o.object}\n#define MOTION ${o.motion}\n${SPACE_SOURCES[o.ground]}${TAIL}` };
+  if (world === "SPACE") {
+    const skin = o.object ? o.skin : 0;
+    const body = SPACE_SOURCES[o.ground].replace("SKIN_SRC", skin ? `${SKIN_PAL}\n${FORM_SOURCES[skin - 1]}` : "");
+    const fx = o.effect === 1 ? "#define PIXEL\n" : o.effect === 2 ? "#define DITHER\n" : "";
+    return { key: `S${o.ground}.${o.object}.${o.motion}.${o.cam}.${skin}.${skin ? o.palette : 0}.${o.effect}`, src: `${HEAD}${fx}#define OBJ ${o.object}\n#define MOTION ${o.motion}\n#define CAM ${o.cam}\n#define SKIN ${skin}\n#define PAL ${o.palette}\n${body}${TAIL}` };
+  }
   const fx = o.effect === 1 ? "#define PIXEL\n" : o.effect === 2 ? "#define DITHER\n" : "";
   const pal = o.palette === 6 ? 0 : o.palette;
   return { key: `P${o.form}.${o.effect}.${pal}`, src: `${HEAD}${fx}#define PAL ${pal}\n${PLASMA_SOURCES[o.form]}${TAIL}` };
