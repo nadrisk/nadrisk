@@ -5,6 +5,8 @@ import { MODELS } from "./engine";
 import { VjCamera, type CameraStatus } from "./camera";
 import { Button } from "@/components/ui/button";
 import { noteName } from "./raster";
+import { GlScene } from "./gl/renderer";
+import { cleanOpts } from "./gl/options";
 
 // Resolve a CSS colour to a packed little-endian RGBA word for ImageData.
 function packed(css: string) {
@@ -13,7 +15,7 @@ function packed(css: string) {
 }
 
 export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: boolean }) {
-  const ref = useRef<HTMLCanvasElement>(null), hudRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLCanvasElement>(null), glRef = useRef<HTMLCanvasElement>(null), hudRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VjEngine | null>(null), cameraRef = useRef<VjCamera | null>(null);
   const [cameraState, setCameraState] = useState<CameraStatus>("off");
   useEffect(() => {
@@ -27,8 +29,9 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const eng = new VjEngine();
-    const initial = vjVisualState(); eng.model = initial.model; eng.size = initial.size; eng.color = initial.color; eng.code = initial.code;
+    const initial = vjVisualState(); eng.model = initial.model; eng.size = initial.size; eng.color = initial.color; eng.code = initial.code; eng.opts = cleanOpts(initial.opts);
     engineRef.current = eng;
+    const glScene = glRef.current ? new GlScene(glRef.current) : undefined; eng.gl = glScene;
     const camera = new VjCamera(setCameraState); cameraRef.current = camera; eng.camera = camera;
     const syncCamera = () => {
       eng.clearPerformance();
@@ -43,8 +46,9 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
       else if (m.t === "doc") eng.setDoc(m.pads, m.bpm, m.bank);
       else if (m.t === "ctl") { const before = eng.model; eng.ctl(m.model, m.size); if (eng.model !== before) syncCamera(); }
       else if (m.t === "color") eng.color = m.enabled;
+      else if (m.t === "opt") { eng.opts = vjVisualState().opts!; }
       else if (m.t === "code") eng.code = m.enabled;
-      else if (m.t === "visual") { const before = eng.model; eng.model = m.state.model; eng.size = m.state.size; eng.color = m.state.color; eng.code = !!m.state.code; if (before !== eng.model) syncCamera(); }
+      else if (m.t === "visual") { const before = eng.model; eng.model = m.state.model; eng.size = m.state.size; eng.color = m.state.color; eng.code = !!m.state.code; eng.opts = cleanOpts(m.state.opts); if (before !== eng.model) syncCamera(); }
     });
     vjSend({ t: "hello" });
     syncCamera();
@@ -68,16 +72,17 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
       if (++n % 6 === 0) {
         const cam = MODELS[eng.model] === "CAM";
         if (hudRef.current) { hudRef.current.hidden = true; hudRef.current.textContent = `NAD_VJ // ${eng.shapeName()} // ${eng.t < eng.hudUntil ? eng.hudMsg : eng.last || "IDLE"} // LVL ${Math.round(eng.level * 99).toString().padStart(2, "0")}`; }
-        cv.dataset.backdrop = eng.shapeName(); cv.dataset.color = String(eng.color); cv.dataset.running = String(eng.running); cv.dataset.step = String(eng.step); cv.dataset.pads = String(eng.pads.length);
+        cv.dataset.backdrop = eng.shapeName(); cv.dataset.opts = JSON.stringify(eng.opts); cv.dataset.glError = eng.gl?.error ?? "none"; cv.dataset.color = String(eng.color); cv.dataset.running = String(eng.running); cv.dataset.step = String(eng.step); cv.dataset.pads = String(eng.pads.length);
         cv.dataset.perfMode = String(eng.perf.mode); cv.dataset.echoSend = String(eng.perf.echoSend ?? 0); cv.dataset.feedbackFrames = String(eng.performanceFrames.frames); cv.dataset.feedbackBytes = String(eng.performanceFrames.bytes);
         cv.setAttribute("aria-label", cam ? `CAM ${camera.status}: ${eng.pad ? `PAD ${eng.pad.index + 1} ${eng.pad.name}, notes ${eng.pad.notes.map(noteName).join(" ")}` : "no pad"}, ${eng.bpm} BPM, ${eng.running ? "PLAY" : "STOP"}, step ${eng.step + 1}, peak ${eng.peak.toFixed(3)}, RMS ${eng.rms.toFixed(3)}, colour ${eng.color ? "on" : "off"}` : `${eng.code ? "NAD code overlay" : "Visual"}, ${eng.pads.length} pads, bank ${eng.bank}, step ${eng.step + 1}, ${eng.running ? "PLAY" : "STOP"}, over ${eng.shapeName()} backdrop, colour ${eng.color ? "on" : "off"}`);
       }
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); off(); eng.clearPerformance(); camera.stop(); engineRef.current = null; cameraRef.current = null; document.removeEventListener("visibilitychange", syncCamera); window.removeEventListener("keydown", key, true); };
+    return () => { cancelAnimationFrame(raf); off(); eng.clearPerformance(); camera.stop(); glScene?.dispose(); engineRef.current = null; cameraRef.current = null; document.removeEventListener("visibilitychange", syncCamera); window.removeEventListener("keydown", key, true); };
   }, []);
   return <div className="vj-stage">
-    <canvas ref={ref} className="vj-canvas" role="img" aria-label="Audio-reactive visual" />
+    <canvas ref={glRef} className="vj-canvas vj-gl" aria-hidden />
+    <canvas ref={ref} className="vj-canvas vj-top" role="img" aria-label="Audio-reactive visual" />
     {hud && <div ref={hudRef} className="vj-hud" aria-hidden hidden />}
     {["denied", "missing", "unavailable"].includes(cameraState) && <div className="vj-camera-error" role="status" onClick={e => e.stopPropagation()}>
       <span>{cameraState === "denied" ? "Allow camera access in your browser, then retry." : cameraState === "missing" ? "Connect a camera, then retry." : "Camera unavailable. Close other camera apps, then retry."}</span>

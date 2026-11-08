@@ -1077,6 +1077,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .vj-overlay { cursor: default; }
 .vj-stage { position: absolute; inset: 0 0 calc(49px + env(safe-area-inset-bottom)); display: block; }
 .vj-canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.vj-gl { position: absolute; inset: 0; image-rendering: auto; }
+.vj-top { position: relative; }
 .vj-hud { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Silkscreen', monospace; font-size: 10px; letter-spacing: .08em; color: hsl(var(--foreground)); opacity: .55; pointer-events: none; }
 .vj-keys { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: hsl(var(--background)); border-top: 1px solid hsl(var(--foreground)); }
 .vj-keys .av-key { height: 32px; min-width: 0; padding: 0 7px; gap: 2px; border-radius: 0; border-color: hsl(var(--foreground)); font: 8px 'Silkscreen', monospace; letter-spacing: 0; }
