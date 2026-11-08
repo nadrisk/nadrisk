@@ -5,7 +5,6 @@ import type { Slot } from "@/hooks/useGroovebox";
 import type { Px } from "@/pixel/draw";
 import { PAD_PRESETS } from "@/audio/padPresets";
 import { padFromPreset, padParams, padPreset, type PadParams } from "@/audio/pad";
-import { FX_DEFS } from "@/audio/effects";
 import { CHORDS } from "@/audio/musical";
 import { useNoteKnob } from "@/components/harmonyKnob";
 
@@ -25,9 +24,8 @@ function PadPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
   const noteK = useNoteKnob(slot, onChange), ch = slot.chord, C = (q: Partial<typeof ch>) => onChange({ chord: { ...ch, ...q } });
   const D = (q: Partial<PadParams>) => onChange({ pad: { ...d, ...q } });
   const load = (i: number) => {
-    const r = padPreset(i), fx = slot.fx.map(f => f.type === "reverb" ? { ...f, on: true, params: { ...f.params, size: r.verb.size, mix: r.verb.mix, damp: r.verb.damp } } : f);
-    if (!fx.some(f => f.type === "reverb")) fx.push({ id: Date.now() % 1e9 + Math.floor(Math.random() * 1000), type: "reverb", on: true, params: { ...Object.fromEntries(Object.entries(FX_DEFS.reverb.params).map(([k, v]) => [k, v[0]])), size: r.verb.size, mix: r.verb.mix, damp: r.verb.damp } });
-    onChange({ name: r.name.slice(0, 10), pad: padFromPreset(i), fx });
+    const r = padPreset(i);
+    onChange({ name: r.name.slice(0, 10), pad: padFromPreset(i) });
   };
   const K = (label: string, short: string, key: Exclude<keyof PadParams, "preset" | "oct" | "coct"> | "oct" | "coct", min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `PAD ${label}`, short, value: d[key] ?? 0, min, max, step, fmt, log, reset: home[key], set: v => D({ [key]: v }) });
@@ -35,7 +33,7 @@ function PadPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
     fmt: v => Math.round(v) ? CT[Math.round(v) - 1].toUpperCase() : "OFF", set: v => { const i = Math.round(v); C(i ? { on: true, type: CT[i - 1] } : { on: false }); } };
   const valK: Knob = { label: "PAD preset value", short: "VAL", value: d.preset, min: 0, max: N - 1, step: 1, reset: 0, fmt: v => String(Math.round(v) + 1).padStart(3, "0"), set: v => { const i = Math.round(v); if (i !== d.preset) load(i); } };
   const knobs = (page: string): Knob[] => page === "PRST" ? [valK, noteK, K("octave", "OCT", "oct", -3, 3, 1, sg), chK]
-    : page === "TONE" ? [K("bright", "BRT", "bright", 0, 1, .01, pct), K("motion", "MOTN", "motion", 0, 1, .01, pct), K("space", "SPCE", "space", 0, 1, .01, pct), K("age", "AGE", "age", 0, 1, .01, pct)]
+    : page === "TONE" ? [K("bright", "BRT", "bright", 0, 1, .01, pct), K("age", "AGE", "age", 0, 1, .01, pct)]
     : [K("attack", "ATK", "atk", .002, 6, .001, ms, true), K("release", "REL", "rel", .05, 8, .01, ms, true),
       { label: "PAD chord inversion", short: "INV", value: ch.inversion, min: 0, max: 4, step: 1, reset: 0, fmt: v => `${Math.round(v)}`, set: v => C({ inversion: Math.round(v) }) },
       K("chord octave", "C-OCT", "coct", -2, 2, 1, sg)];
