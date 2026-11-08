@@ -1114,4 +1114,5 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-body { flex: 1; padding: 12px; display: flex; justify-content: center; }
 .perf-body > * { width: 100%; max-width: 900px; }
 .perf-body .px-wrap { width: 100%; }
-.perf-body .gb-perf-live button { min-height: 44px; }
+.perf-body.instrument-workspace .gb-perf-live button { min-height: 48px; font-size: 13px; }
+.perf-body .px-wrap { max-width: none; }
