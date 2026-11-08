@@ -132,7 +132,7 @@ export function ChannelEqScreen({ slot, onChange, index = 0, getSpectrum, noSpec
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
     { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
-  return <Panel name={pg === "SCP" ? "SPECTRUM" : "EQ"} label="Channel EQ insert" pages={noSpectrum ? ["LVL", "FRQ"] : ["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
+  return <Panel name={pg === "SCP" ? "SPECTRUM" : "EQ"} label="Channel EQ insert" pages={noSpectrum ? ["LVL", "FRQ"] : ["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, !!noSpectrum, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
     body={(p, page) => {
       if (page === "SCP") { drawSpectrum(p, scope.bars, scope.peaks); return; }
       // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
