@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultIdm, IDM_MODELS, idmParams } from "./idm";
 import { applyXY, xyLabels } from "./xyMaps";
 
-const slot = (model: string) => ({ engine: "idm", idm: idmParams({ model: model as never }) }) as never;
+const slot = (model: string, x = 0, y = 0) => ({ engine: "idm", idm: idmParams({ model: model as never }), xy: { x, y } }) as never;
 
 describe("PRC modular engines", () => {
   it("has exactly three engines, all starting with DRV 0", () => {
@@ -18,9 +18,9 @@ describe("PRC modular engines", () => {
   it("XY moves each engine's own controls and labels", () => {
     expect(xyLabels(slot("vco"))[0]).toBe("FOLD");
     expect(xyLabels(slot("modl"))[0]).toBe("STRK");
-    const v = applyXY(slot("vco"), 1, 0) as { idm: { b: number } };
+    const v = applyXY(slot("vco", 1, 0)) as { idm: { b: number } };
     expect(v.idm.b).toBeGreaterThan(defaultIdm("vco").b);
-    const m = applyXY(slot("modl"), 0, 1) as { idm: { b: number; c: number } };
+    const m = applyXY(slot("modl", 0, 1)) as { idm: { b: number; c: number } };
     expect(m.idm.b).toBeLessThan(defaultIdm("modl").b);
     expect(m.idm.c).toBeGreaterThan(defaultIdm("modl").c);
   });
