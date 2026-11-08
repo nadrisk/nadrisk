@@ -1,6 +1,7 @@
 import { PAD_PRESETS, padPartials, vowelAt, type PadRecipe, type PadTable } from "./padPresets";
 import { adsr, at, finish, link, noiseBuffer, type Voice } from "./voices";
 import { ENGINE_TRIM } from "./loudness";
+import { pianoBuffers, pianoPick, preloadPiano } from "./pianoSamples";
 
 /** Saved PAD sound: preset index + four macros (0..1) + attack/release seconds. Missing fields come from the preset. */
 export type PadParams = { preset: number; bright: number; motion: number; space: number; age: number; atk: number; rel: number; /** Pad octave −3..+3. */ oct?: number; /** Chord-tone octave −2..+2 (root stays). */ coct?: number };
@@ -31,6 +32,7 @@ function waveOf(ctx: BaseAudioContext, t: PadTable) {
 }
 
 export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, midi: number, t: number, gate: number, vel = 1, pan = 0): Voice {
+  if (typeof fetch !== "undefined" && typeof window !== "undefined") void preloadPiano(ctx);
   const p = padParams(p0), r = padPreset(p.preset), f = 440 * 2 ** ((midi - 69) / 12);
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [];
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
@@ -89,14 +91,15 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
   // Higher notes decay faster, like real strings / tines.
   const ring = r.d * 2 ** (-(midi - 60) / 24), flt = ctx.createBiquadFilter(); flt.type = "lowpass"; flt.Q.value = .5; flt.connect(pn); nodes.push(flt);
   if (r.keys === "grand") {
-    const top = cl(f * (6 + v01 * 22) * 2 ** (p.bright * 2) * (1 - p.age * .3), 200, 18000), floor = cl(f * 3 * 2 ** p.bright, 150, 12000);
-    flt.frequency.setValueAtTime(top, t); flt.frequency.setTargetAtTime(floor, t + .01, ring * .25);
-    [-1, 0, 1].forEach(k => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); o.setPeriodicWave(waveOf(ctx, "pno")); o.frequency.value = f; o.detune.value = k * r.detune * (midi > 40 ? 1 : .4); g.gain.value = .33; o.connect(g).connect(flt); srcs.push(o); nodes.push(o, g); });
-    // Two-stage decay: bright prompt sound then a long quiet sustain.
-    const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(.35, t + .005, ring * .08); st.gain.setTargetAtTime(0, t + ring * .3, ring * .45); flt.disconnect(); flt.connect(st).connect(pn); nodes.push(st);
-    // Felt hammer thump.
-    const n = at(ctx.createBufferSource(), t), bp = ctx.createBiquadFilter(), hg = ctx.createGain(); n.buffer = noiseBuffer(ctx); bp.type = "bandpass"; bp.frequency.value = cl(f * 4, 800, 5000); bp.Q.value = 1.2;
-    hg.gain.setValueAtTime(.25 * v01 * (.6 + p.bright * .6), t); hg.gain.exponentialRampToValueAtTime(1e-4, t + .04); n.connect(bp).connect(hg).connect(pn); srcs.push(n); nodes.push(n, bp, hg);
+    // Real recorded grand (Salamander): nearest sample re-pitched; velocity sets level + brightness; BRT opens the tone filter.
+    const bufs = pianoBuffers(ctx); if (!bufs) { void preloadPiano(ctx); }
+    flt.frequency.value = cl(2500 * 2 ** (v01 * 1.6 + p.bright * 2) * (1 - p.age * .3), 400, 20000);
+    const keep = at(ctx.createConstantSource(), t), kg = ctx.createGain(); kg.gain.value = 0; keep.connect(kg).connect(pn); srcs.push(keep); nodes.push(keep, kg);
+    if (bufs) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), b = at(ctx.createBufferSource(), t), g = ctx.createGain();
+      b.buffer = bufs.get(root)!; b.playbackRate.value = rate; g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); }
+    const env = { a: .002, d: 30, s: 1, r: Math.max(.25, p.rel * .5) };
+    const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad)), amp);
+    v.update = () => {}; return v;
   } else {
     flt.frequency.value = cl(r.cutoff * 2 ** (p.bright * 1.5) * (1 - p.age * .3), 300, 18000);
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
