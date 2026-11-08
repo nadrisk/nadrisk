@@ -36,7 +36,7 @@ export default function PerfLink({ link, midi }: { link: Link; midi: ReturnType<
   </div>;
   const m = link.mix;
   return <div className="lk-mixer">{status}
-    <div className="lk-midi" data-midi-ui><Button variant="outline" onClick={midi.connect} aria-label="Connect mixer MIDI">MIDI</Button><Button variant="outline" aria-label="Mixer MIDI learn" aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>LEARN</Button><span>{midi.target ?? midi.status || (midi.devices?.join(" · ") ?? "")}</span></div>
+    <div className="lk-midi" data-midi-ui><Button variant="outline" onClick={midi.connect} aria-label="Connect mixer MIDI">MIDI</Button><Button variant="outline" aria-label="Mixer MIDI learn" aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>LEARN</Button><span>{midi.target ?? (midi.status || (midi.devices?.join(" · ") ?? ""))}</span></div>
     <div className="lk-strips"><Strip id="A" link={link} />
       <div className="lk-center"><span>NAD<br />2 CH</span><div className="lk-tempo"><Button variant="outline" aria-label="Mixer tempo down" onClick={() => link.setMix({ ...m, bpm: Math.max(60, m.bpm - 1) })}>−</Button><b>{m.bpm}<small>BPM</small></b><Button variant="outline" aria-label="Mixer tempo up" onClick={() => link.setMix({ ...m, bpm: Math.min(180, m.bpm + 1) })}>+</Button></div>
         <div className="lk-meters" aria-label="Deck output meters">{(["A", "B"] as const).map(id => <div className="lk-meter" key={id}><div>{Array.from({ length: 8 }, (_, i) => <i key={i} className={link.decks[id] && (link.decks[id]?.out ?? -60) > -48 + i * 6 ? "on" : ""} />)}</div><span>{id}</span></div>)}</div>
