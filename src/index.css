@@ -1283,3 +1283,5 @@ body.perf-lock { overflow: hidden; }
 .perf-mod-tape > :not(header), .perf-mod-fx > :not(header) { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .perf-mod-link .lk-mixer { max-width: none !important; }
 .perf-link-body .lk-strips { justify-content: space-between; }
+.perf-mod .node-body, .perf-mod .px-panel, .perf-mod .px-wrap { padding: 0 !important; margin: 0 !important; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
+.perf-mod .px-screen { max-width: 100%; }
