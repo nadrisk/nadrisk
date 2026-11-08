@@ -51,3 +51,19 @@ describe("CAM privacy and raster", () => {
     expect(noteName(37)).toBe("C#2"); expect(meterDb(.5)).toBeCloseTo(-6.0206);
   });
 });
+import { sobelEdges, feedTrail } from "./raster";
+describe("cam contour feed", () => {
+  it("finds the edge of a bright square and nothing in flat areas", () => {
+    const W = 10, lum = new Float32Array(100), out = new Float32Array(100);
+    for (let y = 3; y < 7; y++) for (let x = 3; x < 7; x++) lum[y * W + x] = 1;
+    sobelEdges(lum, out, W, W);
+    expect(out[3 * W + 3]).toBeGreaterThan(.5);
+    expect(out[1 * W + 1]).toBe(0);
+    expect(out[5 * W + 5]).toBe(0);
+  });
+  it("trails fade but never exceed 1", () => {
+    const e = new Float32Array(4).fill(1), tr = new Float32Array(4);
+    feedTrail(e, tr, 2, 2, .9); e.fill(0); feedTrail(e, tr, 2, 2, .9);
+    for (const v of tr) { expect(v).toBeLessThanOrEqual(.9); expect(v).toBeGreaterThan(0); }
+  });
+});
