@@ -1,28 +1,24 @@
-# Fix note start / release behaviour
+# Piano-roll note lengths on the step sequencer
 
-Goal: notes always start, hold and fade the way the knobs say — no stuck tails, sudden cuts, clicks or "confused" releases, especially with long release times and fast retriggers.
+Keep the 16-pad step grid, but let notes be stretched and shortened like a piano roll.
 
-## What we know so far
-- Every voice has two fade paths: its own envelope (planned ahead when the note starts) and a separate release stage used when a pad is let go, choked or retriggered.
-- A release request is ignored if it would end later than the tail already planned ("only ever shortens"). That's on purpose, but it's the most likely place where long releases seem to get confused.
-- The filter envelope is planned ahead too, and it doesn't follow an early release, so the tone can keep sweeping while the note fades.
-- The exact cause of what you're hearing isn't confirmed yet. Step 1 pins it down before anything changes.
+## What changes for you
+1. **Right-edge handle** on every lit note (NOTE view only). Drag right to make it longer, left to shorten it back to one step.
+   - Mouse: small pixel grip on the note's right edge, resize cursor.
+   - Phone: the right 40% of the note is the grab zone, so a fingertip can catch it. A short tap still turns the note off.
+2. **Length badge** floats above your finger while dragging: `2 STP 1/8`, `4 STP 1/4`, `8 STP 1/2`.
+3. **Light buzz** on phones each time the note crosses a step (where the phone supports it).
+4. **Stops at the next note**: a stretched note can't run into a note ahead of it in the same row, and stops at the row's length/loop end.
+5. **Old double-tap tie removed**; drag replaces it. Saved sets keep their existing long notes and play the same.
+6. Notes over a page edge (32-step mode) can be stretched across into the next page.
 
-## Steps
-1. **Reproduce first.** Build offline test renders for these cases: a held pad released early, a fast retrigger during a long release, a tap shorter than the attack, a sequencer step whose release crosses the next hit, and hitting the 6-voice limit. For each one, measure clicks, jumps and leftover sound. Keep only the cases that actually fail.
-2. **One release path per voice.** Releasing, retriggering and choking all go through the same fade, which always starts from the voice's current level and never jumps to silence or to full volume. If a release gets ignored, the planned tail must already be shorter.
-3. **Filter follows the release.** When a note is released early, the filter envelope moves into its release stage at the same moment as the volume.
-4. **Click-free retrigger and voice limit.** When a pad goes over its voice limit, the oldest or quietest voice fades out over about 5 ms instead of being cut. Retriggering a mono pad (BAS, REESE, sampler slices) fades the previous note the same way.
-5. **Mono note priority (BAS / REESE).** Holding several keys keeps a note stack: the newest note plays (last-note priority) and lifting it glides back to a note still held. Legato skips the envelope restart only when the pad's glide is on.
-6. Apply the same fixes to drum, synth, sampler and siren/laser voices. ACID keeps its own envelope engine and is only checked against the step 1 cases.
-
-## Not changing
-- Sound presets, saved sets and knob ranges. Old sets sound the same apart from losing the clicks.
-- Poly SYN chords. They keep today's allocation and only get the click-free steal from step 4.
+## Not in this build
+Swipe-to-paint, one-tap legato, moving notes by their middle, duplicating blocks — can be added afterwards.
 
 ## Technical details
-- `src/audio/voices.ts`: `finish()`, the sampler and siren voice `release` and `stop` functions, `fadeOut()`, and `filterEnvAdsr()`. The filter param is stored on the voice so `release()` can cancel-and-hold it, then aim it at base cutoff over r.
-- `stop()` keeps using `amp.gain.cancelScheduledValues`. Check whether Safari reads stale values there, and if so move it onto the `__rg` stage (that stage already exists for this reason).
-- The pad voice cap in the engine or hook replaces its hard stop with a 5 ms fade on the stage.
-- Tests go in a new `src/audio/envelope.test.ts`, rendering through OfflineAudioContext or a pure gain-curve model, one test per case from step 1.
-- Update the voice release rule in AGENTS.md.
+- Lengths stay as today's tie values (row cells >= 2 after a hit), so the scheduler, AV tracker, undo and sets are untouched.
+- New pure helper `src/audio/noteSpan.ts`: `spanOf(row, start, len)` and `setSpan(row, start, steps, len)` (writes/clears ties, clamps before next hit and row end). Tests: stretch, shrink, clamp at next note, clamp at row length, shrink to 1.
+- `StepGrid` in Groovebox.tsx: pointer events with 6px deadzone; edge zone = 6px (mouse) / 40% (touch, `pointerType`); one undo entry per drag; badge rendered above the touch point; `navigator.vibrate?.(4)` per boundary.
+- Remove the 250/300 ms tie-tap timers and `onTie` path; taps toggle instantly.
+- Tie cells get a visible joined bar so length reads clearly; grip pixel on the last cell.
+- AGENTS.md rule: note length is edited only through noteSpan helpers on the existing tie encoding.
