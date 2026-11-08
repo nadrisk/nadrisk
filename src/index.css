@@ -1133,3 +1133,21 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-mod > header { display: flex; gap: 8px; align-items: center; margin: 0 -8px 8px; padding: 4px 8px; border-bottom: 2px solid hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 10px; letter-spacing: .15em; }
 .perf-mod > header span { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 4px; }
 @media (max-width: 520px) { .perf-title i { display: none; } .perf-head { flex-wrap: wrap; } }
+
+/* PERF DJ console: XY performance pad. */
+.perf-xy { display: flex; flex-direction: column; gap: 6px; font-family: Silkscreen, monospace; }
+.perf-xy-modes, .perf-xy-holds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.perf-xy-key { min-height: 44px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: .08em; touch-action: none; -webkit-tap-highlight-color: transparent; }
+.perf-xy-key[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.perf-xy-pad { position: relative; aspect-ratio: 16 / 10; max-height: 52vh; border: 3px solid hsl(var(--foreground)); touch-action: none; cursor: crosshair; overflow: hidden;
+  background-image: radial-gradient(hsl(var(--foreground) / .35) 1px, transparent 1px); background-size: 12px 12px; }
+.perf-xy-pad::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed hsl(var(--foreground) / .5); }
+.perf-xy-pad.perf-xy-on { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
+.perf-xy-h, .perf-xy-v { position: absolute; background: hsl(var(--foreground)); pointer-events: none; }
+.perf-xy-h { left: 0; right: 0; height: 1px; } .perf-xy-v { top: 0; bottom: 0; width: 1px; }
+.perf-xy-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; background: hsl(var(--foreground)); pointer-events: none; }
+.perf-xy-x, .perf-xy-y { position: absolute; font-size: 9px; letter-spacing: .15em; padding: 1px 4px; background: hsl(var(--background)); pointer-events: none; }
+.perf-xy-x { bottom: 4px; left: 50%; transform: translateX(-50%); } .perf-xy-y { top: 4px; left: 4px; }
+.perf-mod-deck { grid-column: 1 / -1; }
+.perf-xy-pad { width: 100% !important; min-width: 100% !important; align-self: stretch; min-height: 220px; box-sizing: border-box; display: block !important; }
+.perf-body .perf-xy-pad { background-color: hsl(var(--background)) !important; color: hsl(var(--foreground)); }
