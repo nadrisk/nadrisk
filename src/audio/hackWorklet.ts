@@ -68,11 +68,12 @@ class NadHack extends AudioWorkletProcessor {
       const per = 1 + ck * ck * 47 * this.jump * (1 + .35 * ck * Math.sin(this.wp)); this.per = per;
       this.ph += 1 / per; if (this.ph >= 1) { this.ph -= Math.floor(this.ph); this.hold[0] = l; this.hold[1] = rr; }
       l = this.hold[0]; rr = this.hold[1];
-      this.maskFade = Math.min(1, this.maskFade + 1 / 64);
-      this.shortAmt += Math.max(-1 / 64, Math.min(1 / 64, a - this.shortAmt));
+      this.maskFade = Math.min(1, this.maskFade + 1 / 128);
+      this.shortAmt += Math.max(-1 / 128, Math.min(1 / 128, a - this.shortAmt));
       if (this.shortAmt > 0) {
-        const flip = v => bitFlip(v, this.oldMask) * (1 - this.maskFade) + bitFlip(v, this.mask) * this.maskFade;
-        l += (flip(l) - l) * this.shortAmt; rr += (flip(rr) - rr) * this.shortAmt;
+        const fl = bitFlip(l, this.oldMask) * (1 - this.maskFade) + bitFlip(l, this.mask) * this.maskFade;
+        const fr = bitFlip(rr, this.oldMask) * (1 - this.maskFade) + bitFlip(rr, this.mask) * this.maskFade;
+        l += (fl - l) * this.shortAmt; rr += (fr - rr) * this.shortAmt;
       }
       const o = [l, rr], q = [0, 0];
       for (let c = 0; c < 2; c++) { const v = o[c], d = v - this.dx[c] + .995 * this.dy[c]; this.dx[c] = v; this.dy[c] = d; q[c] = d; }
