@@ -209,7 +209,7 @@ export function useGroovebox() {
       const pads: DocPad[] = slots.map((x, i) => ({ x, i })).filter(({ i }) => bk.pattern[i]?.slice(0, bk.lengths[i] || 16).some(v => v === 1)).map(({ x, i }) => {
         const len = bk.lengths[i] || 16, role = detectRole(x);
         return { index: i, name: x.name, engine: x.engine, role, kind: vjKindOf(role, x.engine), note: x.note, mute: x.mute, solo: x.solo, len,
-          steps: bk.pattern[i].slice(0, len).map(Number), vel: bk.vel[i].slice(0, len), chance: bk.chance[i].slice(0, len),
+          steps: bk.pattern[i].slice(0, len).map(Number), vel: bk.vel[i].slice(0, len), chance: bk.chance[i].slice(0, len), ...(bk.cond ? { cond: bk.cond[i].slice(0, len) } : {}),
           cut: x.engine === "drum" ? x.drum.cutoff : x.engine === "synth" ? x.synth.cutoff : undefined,
           env: x.engine === "synth" ? { a: x.synth.env.a, r: x.synth.env.r } : x.engine === "drum" ? { a: x.drum.env.a, r: x.drum.env.d } : undefined,
           fx: x.fx.filter(f => f.on).map(f => ({ type: f.type, mix: f.params.mix ?? f.params.wet ?? .4 })) };

@@ -12,7 +12,7 @@ const GROUP: Record<string, string> = { drums: "DRM", bass: "BAS", synth: "SYN",
 /** Cell: NOTE VEL FLAG ("BD- 7F?"), tie "--- -- ", rest "··· ·· ". */
 export function cell(p: DocPad, i: number) {
   const v = p.steps[i];
-  if (v === 1) return `${trackerNote(p)} ${hex(p.vel[i] ?? 1)}${(p.chance[i] ?? 1) < .995 ? "?" : " "}`;
+  if (v === 1) return `${trackerNote(p)} ${hex(p.vel[i] ?? 1)}${(p.cond?.[i] ?? 0) > 0 ? ":" : (p.chance[i] ?? 1) < .995 ? "?" : " "}`;
   return v >= 2 ? "|   |  " : "··· ·· ";
 }
 
