@@ -8,7 +8,7 @@ describe("NAD code overlay lines", () => {
   it("writes one patch line per pad with its steps", () => {
     const l = codeLines([pad()], 0, "A", 124);
     expect(l[0].text).toBe("nad.rack[A] @ 124bpm >>");
-    expect(l[1].text.startsWith("$01 kick.ukgkic |> x . . . x")).toBe(true);
+    expect(l[1].text.startsWith("$01 kick.ukgkic  |> x . . . x")).toBe(true);
   });
   it("highlights the playing step and dims muted pads", () => {
     const l = codeLines([pad({ mute: true })], 4, "A", 120)[1];
