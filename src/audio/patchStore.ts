@@ -10,8 +10,8 @@ const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export function capturePatch(s: Slot, name: string): Patch {
-  const { engine, note, drum, synth, sampler, poly, bass, siren, idm, chord, eq, fx } = s;
-  return { v: 1, id: newId(), name: name.trim() || "PATCH", engine, savedAt: Date.now(), sound: copy({ engine, note, drum, synth, sampler, poly, bass, siren, idm, chord, eq, fx }) };
+  const { engine, note, drum, synth, sampler, poly, bass, siren, idm, pad, chord, eq, fx } = s;
+  return { v: 1, id: newId(), name: name.trim() || "PATCH", engine, savedAt: Date.now(), sound: copy({ engine, note, drum, synth, sampler, poly, bass, siren, idm, pad, chord, eq, fx }) };
 }
 
 /** Accepts anything parsed from JSON and returns a safe patch, or null. */
