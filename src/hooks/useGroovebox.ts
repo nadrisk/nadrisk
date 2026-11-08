@@ -5,7 +5,7 @@ import { vjKindOf, vjSend, vjListen, type DocPad } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, migrateFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
-import { defaultHarmony, harmonyOn, keyChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
+import { defaultHarmony, harmonyOn, keyChord, voiceLead, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale, spreadDeg } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
@@ -224,6 +224,7 @@ export function useGroovebox() {
   const [repeat, setRepeatState] = useState<RepeatParams>({ on: false, latch: false, rate: "1/16" });
   const repeatRef = useRef(repeat); repeatRef.current = repeat;
   const padVel = useRef<number[]>(Array(16).fill(1));
+  const lastChord = useRef<(number[] | null)[]>(Array(16).fill(null));
   // Live recording: hits are quantized to the nearest 16th and written into the active pattern.
   const [rec, setRec] = useState(false);
   const recRef = useRef(rec); recRef.current = rec;
@@ -290,6 +291,11 @@ export function useGroovebox() {
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
       ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns.slice(0, cl?.voices ?? 8); }
     }
+    // LEAD: move each chord to the inversion/octave nearest the last one this pad played (shared notes hold).
+    if (s.chord.lead && notes.length > 1) {
+      const base = s.note + semi, led = voiceLead(lastChord.current[i], notes.map(x => x + base));
+      lastChord.current[i] = led; notes = led.map(x => x - base);
+    } else lastChord.current[i] = null;
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = s.note + semi + (s.engine === "drum" || s.engine === "idm" ? 0 : tuneRef.current);
     // Sampler: NOTE relative to the sample's own key (S-KEY), plus FINE cents; C4 with S-KEY C plays the file as recorded.

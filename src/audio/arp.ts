@@ -136,9 +136,21 @@ export function trancePhrase(scale: ScaleName, t: TranceParams): ArpStep[] {
 /** Euclidean rhythm on the phrase: HITS spread evenly over STPS (Bjorklund), rotated by ROT. Notes are kept. */
 export type EuclParams = { on: boolean; hits: number; steps: number; rot: number; gate: number };
 export const defaultEucl = (): EuclParams => ({ on: false, hits: 5, steps: 8, rot: 0, gate: .5 });
+/** True Bjorklund: repeatedly pairs the remainder groups with the leading groups (Euclid's algorithm on sequences), so
+ * the hits come out maximally even, e.g. 5/8 = x.xx.xx. (cinquillo). Patterns always start on a hit before rotation. */
+export function bjorklund(hits: number, steps: number): boolean[] {
+  const n = Math.max(1, Math.min(64, Math.round(steps))), k = Math.max(0, Math.min(n, Math.round(hits)));
+  if (k === 0) return Array(n).fill(false);
+  let a: boolean[][] = Array.from({ length: k }, () => [true]), b: boolean[][] = Array.from({ length: n - k }, () => [false]);
+  while (b.length > 1) {
+    const m = Math.min(a.length, b.length), na = Array.from({ length: m }, (_, i) => [...a[i], ...b[i]]);
+    const rest = a.length > m ? a.slice(m) : b.slice(m);
+    a = na; b = rest;
+  }
+  return [...a, ...b].flat();
+}
 export function euclid(hits: number, steps: number, rot = 0): boolean[] {
-  const n = Math.max(1, Math.min(16, Math.round(steps))), k = Math.max(0, Math.min(n, Math.round(hits)));
-  const base = Array.from({ length: n }, (_, i) => k > 0 && (i * k) % n < k);
+  const base = bjorklund(hits, Math.min(16, steps)), n = base.length;
   const r = ((Math.round(rot) % n) + n) % n;
   return base.map((_, i) => base[(i - r + n) % n]);
 }
