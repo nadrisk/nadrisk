@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Minus, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { vjListen, vjSend, vjVisualState } from "./bus";
-import { WORLDS, GROUNDS, OBJECTS, MOTIONS, FORMS, EFFECTS, PALETTES, cleanOpts, type OptKey } from "./gl/options";
+import { WORLDS, GROUNDS, OBJECTS, MOTIONS, CAMS, SKINS, FORMS, EFFECTS, PALETTES, cleanOpts, type OptKey } from "./gl/options";
 
 const ROWS: Record<string, [OptKey, string, readonly string[]][]> = {
-  SPACE: [["ground", "WORLD", GROUNDS], ["object", "OBJ", OBJECTS], ["motion", "MOVE", MOTIONS]],
+  SPACE: [["ground", "WORLD", GROUNDS], ["object", "OBJ", OBJECTS], ["motion", "MOVE", MOTIONS], ["cam", "CAM", CAMS], ["skin", "SKIN", SKINS], ["palette", "PAL", PALETTES]],
   PLASMA: [["form", "FORM", FORMS], ["effect", "FX", EFFECTS], ["palette", "PAL", PALETTES]],
 };
 
