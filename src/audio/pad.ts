@@ -45,6 +45,7 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
     const dryA = ctx.createGain(), wetA = ctx.createGain(); dryA.gain.value = 1 - Math.min(1, p.age * 2); wetA.gain.value = Math.min(1, p.age * 2);
     out.connect(dryA).connect(amp); out.connect(pre).connect(sh).connect(post).connect(lp1).connect(lp2).connect(wetA).connect(amp); nodes.push(pre, sh, post, lp1, lp2, dryA, wetA);
   } else out.connect(amp);
+  if (r.keys) return playKeys(ctx, out, amp, srcs, nodes, r, p, f, midi, t, gate, vel, pan);
   // Dry voice: no internal chorus/ensemble; space comes from the slot FX rack.
   mix.connect(out); nodes.push(mix, out, amp);
   // Filter with a slow swell (or a falling stab when swell < 0) over the attack.
@@ -79,4 +80,35 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   v.update = q => { const np = (q as { pad?: Partial<PadParams> }).pad; if (!np) return; const n = ctx.currentTime;
     if (np.bright !== undefined) flt.detune.setTargetAtTime(1200 * Math.log2(padCutoff(r, padParams({ ...p, ...np })) / cut), n, .05); };
   void freqs; return v;
+}
+
+/** Procedural keys: "grand" = three detuned strings + hammer + velocity/time-closing filter (mdaPiano idea);
+ *  "epiano" = DX7 E.PIANO style FM (body pair 1:1, tine pair 14:1 with a fast-decaying index). Natural decay even while held. */
+function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: AudioScheduledSourceNode[], nodes: AudioNode[], r: PadRecipe, p: PadParams, f: number, midi: number, t: number, gate: number, vel: number, pan: number): Voice {
+  const v01 = cl(vel, .05, 1), pn = ctx.createStereoPanner(); pn.pan.value = cl(pan + (midi - 60) / 60 * .3, -1, 1); pn.connect(out); nodes.push(out, amp, pn);
+  // Higher notes decay faster, like real strings / tines.
+  const ring = r.d * 2 ** (-(midi - 60) / 24), flt = ctx.createBiquadFilter(); flt.type = "lowpass"; flt.Q.value = .5; flt.connect(pn); nodes.push(flt);
+  if (r.keys === "grand") {
+    const top = cl(f * (6 + v01 * 22) * 2 ** (p.bright * 2) * (1 - p.age * .3), 200, 18000), floor = cl(f * 3 * 2 ** p.bright, 150, 12000);
+    flt.frequency.setValueAtTime(top, t); flt.frequency.setTargetAtTime(floor, t + .01, ring * .25);
+    [-1, 0, 1].forEach(k => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); o.setPeriodicWave(waveOf(ctx, "pno")); o.frequency.value = f; o.detune.value = k * r.detune * (midi > 40 ? 1 : .4); g.gain.value = .33; o.connect(g).connect(flt); srcs.push(o); nodes.push(o, g); });
+    // Two-stage decay: bright prompt sound then a long quiet sustain.
+    const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(.35, t + .005, ring * .08); st.gain.setTargetAtTime(0, t + ring * .3, ring * .45); flt.disconnect(); flt.connect(st).connect(pn); nodes.push(st);
+    // Felt hammer thump.
+    const n = at(ctx.createBufferSource(), t), bp = ctx.createBiquadFilter(), hg = ctx.createGain(); n.buffer = noiseBuffer(ctx); bp.type = "bandpass"; bp.frequency.value = cl(f * 4, 800, 5000); bp.Q.value = 1.2;
+    hg.gain.setValueAtTime(.25 * v01 * (.6 + p.bright * .6), t); hg.gain.exponentialRampToValueAtTime(1e-4, t + .04); n.connect(bp).connect(hg).connect(pn); n.stop(t + .06); nodes.push(n, bp, hg);
+  } else {
+    flt.frequency.value = cl(r.cutoff * 2 ** (p.bright * 1.5) * (1 - p.age * .3), 300, 18000);
+    const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
+    const pair = (ratio: number, index: number, idxDecay: number, level: number, det: number) => {
+      const c = at(ctx.createOscillator(), t), m = at(ctx.createOscillator(), t), mg = ctx.createGain(), cg = ctx.createGain();
+      c.frequency.value = f; c.detune.value = det; m.frequency.value = f * ratio; m.detune.value = det;
+      const d = f * index; mg.gain.setValueAtTime(d, t); mg.gain.setTargetAtTime(d * .08, t, idxDecay); m.connect(mg).connect(c.frequency);
+      cg.gain.value = level; c.connect(cg).connect(st); srcs.push(c, m); nodes.push(c, m, mg, cg); return cg; };
+    pair(1, .4 + v01 * 1.4, ring * .2, .45, -r.detune); pair(1, .4 + v01 * 1.4, ring * .2, .45, r.detune);
+    const tine = pair(14, .6 + v01 * 2.5 * (.5 + p.bright), .03, 0, 0); tine.gain.setValueAtTime(.25 * v01 * (.4 + p.bright), t); tine.gain.setTargetAtTime(0, t, .25);
+  }
+  const env = { a: r.a, d: ring * 3, s: 0, r: p.rel };
+  const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad), amp);
+  v.update = () => {}; return v;
 }

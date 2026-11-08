@@ -6,6 +6,7 @@ export type PadRecipe = {
   name: string; layers: PadLayer[]; detune: number; cutoff: number; res: number; swell: number;
   vowel?: [number, number]; fm?: { ratio: number; amt: number; decay: number }; air: number;
   a: number; d: number; s: number; r: number; verb: { size: number; mix: number; damp: number };
+  /** Dedicated keys model instead of the pad stack (procedural, mdaPiano / DX7 E.PIANO style). */ keys?: "grand" | "epiano";
   /** Macro start values (0..1). */ bright: number; motion: number; space: number; age: number;
 };
 export const PAD_PRESETS: PadRecipe[] = [
@@ -21,11 +22,8 @@ export const PAD_PRESETS: PadRecipe[] = [
   { name: "FAR SAW", layers: [{ table: "saw", oct: 0, gain: .8 }, { table: "saw", oct: -1, gain: .4 }, { table: "saw", oct: 1, gain: .2 }], detune: 24, cutoff: 2000, res: 1, swell: .4, air: .04, a: .6, d: 2, s: .85, r: 2.4, verb: { size: 8, mix: .45, damp: 6000 }, bright: 0, motion: 0, space: 0, age: 0 },
   { name: "FM HAZE", layers: [{ table: "sine", oct: 0, gain: 1 }, { table: "warm", oct: 0, gain: .3 }], detune: 9, cutoff: 3500, res: .6, swell: .2, fm: { ratio: 2, amt: 1.2, decay: 2.5 }, air: .12, a: .7, d: 2.4, s: .7, r: 2.6, verb: { size: 7, mix: .45, damp: 6500 }, bright: 0, motion: 0, space: 0, age: 0 },
   { name: "DUB DRONE", layers: [{ table: "warm", oct: -1, gain: 1 }, { table: "saw", oct: 0, gain: .35 }], detune: 11, cutoff: 700, res: 2, swell: .6, air: .08, a: 1.4, d: 3, s: .95, r: 3, verb: { size: 12, mix: .5, damp: 3500 }, bright: 0, motion: 0, space: 0, age: 0 },
-  { name: "JUNGLE PNO", layers: [{ table: "pno", oct: 0, gain: 1 }, { table: "pno", oct: 1, gain: .25 }], detune: 5, cutoff: 4000, res: 1.2, swell: -.6, fm: { ratio: 3.5, amt: 1.4, decay: .08 }, air: 0, a: .002, d: 1.6, s: .02, r: .7, verb: { size: 3, mix: .25, damp: 7000 }, bright: 0, motion: 0, space: 0, age: 0 },
-  { name: "BUKEM RHODES", layers: [{ table: "epno", oct: 0, gain: 1 }, { table: "sine", oct: 1, gain: .15 }], detune: 8, cutoff: 1800, res: .6, swell: -.3, fm: { ratio: 1, amt: .6, decay: .4 }, air: 0, a: .004, d: 4, s: .05, r: 1.8, verb: { size: 6, mix: .4, damp: 5000 }, bright: 0, motion: 0, space: 0, age: 0 },
-  { name: "JD SPACE EP", layers: [{ table: "epno", oct: 0, gain: .9 }, { table: "cel", oct: 1, gain: .45 }], detune: 7, cutoff: 5000, res: .6, swell: -.3, fm: { ratio: 7, amt: 2, decay: .12 }, air: .03, a: .003, d: 3.5, s: .08, r: 2.5, verb: { size: 8, mix: .5, damp: 8000 }, bright: 0, motion: 0, space: 0, age: 0 },
-  { name: "MKS DIGITAL", layers: [{ table: "pno", oct: 0, gain: .8 }, { table: "glass", oct: 0, gain: .35 }], detune: 12, cutoff: 3500, res: .9, swell: -.5, fm: { ratio: 4, amt: .8, decay: .06 }, air: 0, a: .002, d: 1.8, s: .03, r: .9, verb: { size: 2.5, mix: .25, damp: 6500 }, bright: 0, motion: 0, space: 0, age: 0 },
-  { name: "VINYL JAZZ", layers: [{ table: "pno", oct: 0, gain: 1 }, { table: "warm", oct: -1, gain: .2 }], detune: 10, cutoff: 1400, res: .7, swell: -.4, air: .06, a: .005, d: 3, s: .04, r: 1.4, verb: { size: 4, mix: .3, damp: 4000 }, bright: 0, motion: 0, space: 0, age: 0 },
+  { name: "MIDI GRAND", keys: "grand", layers: [{ table: "pno", oct: 0, gain: 1 }], detune: 3, cutoff: 5000, res: .5, swell: 0, air: 0, a: .002, d: 6, s: 0, r: .35, verb: { size: 0, mix: 0, damp: 8000 }, bright: 0, motion: 0, space: 0, age: 0 },
+  { name: "MIDI E-PNO", keys: "epiano", layers: [{ table: "sine", oct: 0, gain: 1 }], detune: 4, cutoff: 6000, res: .5, swell: 0, air: 0, a: .002, d: 5, s: 0, r: .4, verb: { size: 0, mix: 0, damp: 8000 }, bright: 0, motion: 0, space: 0, age: 0 },
 ];/** Wavetable partial amplitudes (harmonics 1..32), shaped after classic ROM pad / string / choir spectra. */
 export function padPartials(t: PadTable): number[] {
   return Array.from({ length: 32 }, (_, k) => { const n = k + 1;
