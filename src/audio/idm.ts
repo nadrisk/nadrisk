@@ -41,7 +41,7 @@ const q20 = (v: number) => Math.round(v * 20) / 20;
 /** Bit-step curve: GRIT 0 = 8 bit, 1 = 2 bit. */
 const stepCurve = (g: number) => { const k = q20(g), lv = 2 ** (8 - k * 6) / 2; return curve(`s${k}`, x => Math.round(x * lv) / lv); };
 /** Serge-style sine folder blended with the clean signal; f 0 = clean. */
-export const foldCurve = (f: number) => { const k = q20(f), g = 1 + k * 5; return curve(`f${k}`, x => (1 - k) * x + k * Math.sin(g * x * Math.PI / 2)); };
+export const foldCurve = (f: number) => { const k = q20(f), g = 1 + k * k * 15; return curve(`f${k}`, x => { const y = (1 - k) * x + k * Math.sin(g * x * Math.PI / 2); return Math.tanh(y * (1 + k)) / Math.tanh(1 + k); }); };
 const tanhCurve = (d: number) => { const k = q20(d), g = 1 + k * 12; return curve(`t${k}`, x => Math.tanh(g * x) / Math.tanh(g)); };
 const SOFT = () => curve("soft", x => Math.tanh(x * 1.5));
 
@@ -95,7 +95,7 @@ export function playIdm(ctx: BaseAudioContext, dest: AudioNode, p0: IdmParams, t
         fold.connect(G(.9)).connect(vca); }
     }
   } else {
-    const fold = (src: AudioNode, amt: number) => src.connect(G(1 + amt * 2)).connect(W(foldCurve(amt)));
+    const fold = (src: AudioNode, amt: number) => src.connect(G(1 + amt * amt * 9)).connect(W(foldCurve(amt)));
     switch (p.rout) {
       case 0: { // C-FM: VCO1 → linear FM → VCO2 → folder
         const m = osc("sine", hz * 1.4), mg = G(0); mg.gain.setValueAtTime(hz * (1 + A * 8), t); mg.gain.setTargetAtTime(hz * .3, t, dec * .3); m.connect(mg);
@@ -110,7 +110,7 @@ export function playIdm(ctx: BaseAudioContext, dest: AudioNode, p0: IdmParams, t
         lp.connect(G(1.2)).connect(vca); break; }
       case 3: { // R-FLD: VCO → folder → modal resonator bank
         const o = osc("triangle", hz), f = fold(o, .3 + A * .7);
-        [1, 2.76, 5.4].forEach((r, k) => { const b = F("bandpass", hz * r, 25); f.connect(b).connect(G(3 / (k + 1))).connect(vca); }); f.connect(G(.3)).connect(vca); break; }
+        [1, 2.76, 5.4].forEach((r, k) => { const b = F("bandpass", hz * r, 7); f.connect(b).connect(G(1.4 / (k + 1))).connect(vca); }); f.connect(G(.7)).connect(vca); break; }
       case 4: { // SYNC: master-locked slave sweep (AM by master saw) → frequency shifter (ring)
         const mst = osc("sawtooth", hz), slv = osc("sawtooth", hz * (2 + A * 6), 1.5), am = ring(slv, mst), car = osc("sine", hz * .5);
         const sh = ring(am, car); am.connect(G(.5)).connect(vca); sh.connect(G(.7)).connect(vca); break; }
