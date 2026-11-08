@@ -1,3 +1,5 @@
+import { createDeckStage } from "@/audio/deckStage";
+import type { DeckState } from "@/link/deck";
 import { setSustainProbe } from "@/lib/frameGate";
 import { tieSpan } from "@/audio/tie";
 import { setSpan } from "@/audio/noteSpan";
@@ -548,11 +550,14 @@ export function useGroovebox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelBooked]);
 
+  const deckRef = useRef<ReturnType<typeof createDeckStage> | null>(null);
+  /** Linked mixer control of this device's whole output (neutral when not linked). */
+  const setDeckOut = useCallback((d: DeckState, xf: number) => { deckRef.current?.update(d, xf); }, []);
   const ensure = useCallback(async () => {
     await Tone.start(); await loadWorklets();
     if (engine.current) return engine.current;
     const ctx = ctxOf();
-    const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); master.connect(perf.input); perf.update(performanceRef.current, bpmRef.current); perf.setNad(nadRef.current);
+    const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); const deck = createDeckStage(ctx); master.connect(deck.input); deck.output.connect(perf.input); deckRef.current = deck; perf.update(performanceRef.current, bpmRef.current); perf.setNad(nadRef.current);
     perf.meter.port.onmessage = (ev: MessageEvent<{ m: number; s: number; i: number; sub: number; peak: number }>) => { const v = ev.data; meterPeak.current = Math.max(v.peak, meterPeak.current - .6); setMeter({ m: v.m, s: v.s, i: v.i, sub: v.sub, subPeak: meterPeak.current }); };
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; input.connect(gain); gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
@@ -1012,7 +1017,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
