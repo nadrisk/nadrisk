@@ -1,19 +1,20 @@
-// AV: one of four slow late-night scenes (AQUA, TOTEM, BLOBS, CAM) or NONE, driven only by kick/snare/hat/level, with the optional NAD code overlay.
+// AV: SPACE / PLASMA (WebGL ports of the reference shaders, see ./gl), CAM or NONE, driven only by kick/snare/hat/level, with the optional NAD code overlay.
 import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, sobelEdges, feedTrail } from "./raster";
 import { hex } from "./trackerDoc";
 import { codeLines } from "./nadCode";
-import { aqua, blobs, totemShape, totemFeedback, type SceneIn } from "./scenes/scenes";
+import { WORLDS, DEFAULT_OPTS, type SceneOpts } from "./gl/options";
+import type { GlScene } from "./gl/renderer";
 import { cosineColor, colorCss } from "./colorSweep";
 import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
 
-export const MODELS = ["AQUA", "TOTEM", "BLOBS", "CAM", "NONE"] as const;
+export const MODELS = WORLDS;
 export class VjEngine {
   t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
-  color = false; code = false;
-  private ring = 1; private smokeA = new Float32Array(0); private smokeB = new Float32Array(0); private shapeBuf = new Float32Array(0); private smokeHit = 0;
+  color = true; code = false; opts: SceneOpts = { ...DEFAULT_OPTS }; gl?: GlScene; glTime = 0;
+  private ring = 1;
   private flash = new Map<number, number>();
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
@@ -54,8 +55,8 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); if (this.ring > .6) this.ring = 0; this.smokeHit = Math.max(this.smokeHit, v); }
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.smokeHit = Math.max(this.smokeHit, v * .8); }
+    if (kind === "kick") { this.kick = Math.max(this.kick, v); if (this.ring > .6) this.ring = 0; }
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
     else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
   }
@@ -74,7 +75,7 @@ export class VjEngine {
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
-    this.ring = Math.min(1, this.ring + dt * .35); this.smokeHit *= k(6);
+    this.ring = Math.min(1, this.ring + dt * .35);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
     if (!active) this.clearPerformance();
@@ -89,12 +90,21 @@ export class VjEngine {
     const buf = this.buf, img = this.img;
     if (!buf || !img) return;
     const key = `${W}:${H}:${this.model}:${this.color}:${fg}:${bg}`;
-    if (key !== this.visualKey) { this.clearPerformance(); this.visualKey = key; this.smokeA.fill(0); this.smokeB.fill(0); }
-    buf.fill(bg);
+    if (key !== this.visualKey) { this.clearPerformance(); this.visualKey = key; }
     const m = MODELS[this.model];
-    if (m === "AQUA" || m === "BLOBS") this.field(m === "AQUA" ? aqua : blobs, buf, W, H, fg, bg);
-    else if (m === "TOTEM") this.totem(buf, W, H, fg, bg);
-    else if (m === "CAM") this.cam(buf, W, H, fg, bg);
+    if (m === "SPACE" || m === "PLASMA") {
+      // Shader's own pace, nudged forward a touch by kick and loudness, never faster on silence.
+      this.glTime += dt * (1 + this.kick * .35 + this.level * .1);
+      const rgb = (v: number): [number, number, number] => [(v & 255) / 255, ((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255];
+      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, hat: this.hat, level: this.level }, this.size, !this.color, rgb(fg), rgb(bg), dt);
+      const dpr = Math.min(2, window.devicePixelRatio || 1), tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
+      if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
+      const c = cv.getContext("2d"); if (!c) return;
+      c.clearRect(0, 0, tw, th); this.text(c, tw, th, dpr, fgCss, bgCss);
+      return;
+    }
+    buf.fill(bg);
+    if (m === "CAM") this.cam(buf, W, H, fg, bg);
     if (active && m !== "NONE") this.performanceFrames.apply(buf, W, H, perf, this.t, this.bpm, bg, fg, this.color);
     else this.clearPerformance();
 
@@ -109,22 +119,6 @@ export class VjEngine {
     this.text(c, tw, th, dpr, fgCss, bgCss);
   }
 
-  private input(): SceneIn { return { t: this.visualTime * (.75 + this.bpm / 480), kick: this.kick, snare: this.snare, hat: this.hat, level: this.level, size: this.size, ring: this.ring }; }
-  private ink(u: number, v: number, f: number, FG: number, BG: number, x: number, y: number) {
-    return this.color ? cosineColor(u * .5, v * .5, this.visualTime * .06, .04 + .96 * f, f * .6) : f > BAYER[(y & 7) * 8 + (x & 7)] ? FG : BG;
-  }
-  private field(fn: (x: number, y: number, s: SceneIn) => number, buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const s = this.input(), asp = W / H;
-    for (let y = 0; y < H; y++) { const v = y / H; for (let x = 0; x < W; x++) { const u = x / W; buf[y * W + x] = this.ink(u, 1 - v, fn((u - .5) * asp, v - .5, s), FG, BG, x, y); } }
-  }
-  private totem(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const n = W * H, s = this.input(), asp = W / H;
-    if (this.smokeA.length !== n) { this.smokeA = new Float32Array(n); this.smokeB = new Float32Array(n); this.shapeBuf = new Float32Array(n); }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) this.shapeBuf[y * W + x] = totemShape((x / W - .5) * asp, y / H - .5, s);
-    totemFeedback(this.smokeA, this.smokeB, this.shapeBuf, W, H, s.t, this.smokeHit);
-    [this.smokeA, this.smokeB] = [this.smokeB, this.smokeA];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; buf[i] = this.ink(x / W, 1 - y / H, Math.max(this.shapeBuf[i], this.smokeA[i] * .75), FG, BG, x, y); }
-  }
   private cam(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
     const camera = this.camera, video = camera?.video;
     if (!(camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0)) return;
