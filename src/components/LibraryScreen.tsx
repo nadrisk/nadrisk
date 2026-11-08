@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel } from "@/components/pixelScreens";
-import { listCached, type SampleRef } from "@/audio/sampleStore";
+import { listCached, deleteCached, type SampleRef } from "@/audio/sampleStore";
 
 const ROWS = 3;
 
@@ -21,9 +21,10 @@ export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { val
       body={p => {
         vis.forEach((s, i) => {
           const y = 11 + i * 9, idx = top + i, on = idx === sel;
-          if (on) p.rect(0, y, 120, 9);
-          p.text(`${String(idx + 1).padStart(2, "0")} ${s.name.toUpperCase().replace(/\.[A-Z0-9]+$/, "")}`.slice(0, 26), 2, y + 2, !on);
-          if (s.id === value) p.text("*", 114, y + 2, !on);
+          if (on) p.rect(0, y, 116, 9);
+          p.text(`${String(idx + 1).padStart(2, "0")} ${s.name.toUpperCase().replace(/\.[A-Z0-9]+$/, "")}`.slice(0, 22), 2, y + 2, !on);
+          if (s.id === value) p.text("*", 96, y + 2, !on);
+          if (on) { p.rect(104, y + 1, 11, 7, false); p.text("X", 108, y + 2, true); }
         });
         // stepped scrollbar
         p.box(122, 11, 5, 27);
@@ -33,8 +34,9 @@ export default function LibraryScreen({ value, onPick, onFolder, onLoad }: { val
         p.text((msg || `${all.length} SAMPLES`).toUpperCase().slice(0, 31), 2, 57);
       }}
       extra={() => <>
-        {vis.map((s, i) => <Tap key={s.id} x={0} y={11 + i * 9} w={120} h={9} label={`Sample ${s.name}`} pressed={top + i === sel} onClick={() => setSel(top + i)} />)}
-        <Zone x={121} y={11} w={7} h={27} label="Scroll samples" value={all.length - 1 - sel} min={0} max={Math.max(0, all.length - 1)} onChange={v => setSel(all.length - 1 - v)} />
+        {vis.map((s, i) => <Tap key={s.id} x={0} y={11 + i * 9} w={102} h={9} label={`Sample ${s.name}`} pressed={top + i === sel} onClick={() => setSel(top + i)} />)}
+        {all[sel] && sel >= top && sel < top + ROWS && <Tap x={103} y={11 + (sel - top) * 9} w={13} h={9} label={`Remove sample ${all[sel].name}`} onClick={async () => { const r = all[sel]; await deleteCached(r.id).catch(() => {}); setSel(Math.max(0, Math.min(sel, all.length - 2))); setMsg(`REMOVED ${r.name}`); refresh(); }} />}
+        <Zone x={119} y={11} w={9} h={27} label="Scroll samples" value={all.length - 1 - sel} min={0} max={Math.max(0, all.length - 1)} onChange={v => setSel(all.length - 1 - v)} />
         <Tap x={1} y={42} w={42} h={11} label="Load sample" onClick={() => { const r = all[sel]; if (r) onPick(r.id, r.name); }} />
         <Tap x={43} y={42} w={42} h={11} label="Load folder" onClick={() => folder.current?.click()} />
         <Tap x={85} y={42} w={42} h={11} label="Import sample" onClick={() => file.current?.click()} />
