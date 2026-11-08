@@ -979,7 +979,7 @@ export function useGroovebox() {
   // GEN: write generated rows into the current bank in one undo step; X/S row keys gate which rows change.
   const genRows = () => { const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2); return sl0.map((_, r) => r).filter(r => anySolo ? sl0[r].rnd === 2 : sl0[r].rnd !== 1); };
   const genRoles = () => slotsRef.current.map(detectRole);
-  const genModels = () => slotsRef.current.map(x => x.engine === "idm" ? ({ nois: "nois", vco: "zap", modl: "metl" } as const)[idmParams(x.idm).model] : undefined);
+  const genModels = () => slotsRef.current.map(x => x.engine === "idm" ? ({ nois: "nois", vco: "zap" } as const)[idmParams(x.idm).model] : undefined);
   const applyGenerated = (res: GenResult) => {
     editBank(b => ({ ...b,
       pattern: b.pattern.map((row, r) => res[r] ? res[r].pattern.map(v => v as StepVal) : row),

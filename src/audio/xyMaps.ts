@@ -51,10 +51,8 @@ export function applyXY(s: Slot): Slot {
   }
   if (s.engine === "idm") {
     const p = idmParams(s.idm);
-    const up = Math.max(0, y);
-    if (p.model === "nois") return { ...s, idm: { ...p, tune: oct(p.tune, x * 1.5, 20, 12000), b: cl(p.b + y * .45, 0, 1), a: cl(p.a + y * .35, 0, 1), decay: oct(p.decay, y * 1.6, .005, .25) } };
-    if (p.model === "vco") return { ...s, idm: { ...p, b: cl(p.b + x * .6, 0, 1), a: cl(p.a + y * .5, 0, 1), c: cl(p.c + y * .45, 0, 1), drive: cl(p.drive + up * .2, 0, 1) } };
-    return { ...s, idm: { ...p, a: cl(p.a + x * .55, 0, 1), b: cl(p.b - y * .45, 0, 1), c: cl(p.c + y * .4, 0, 1), decay: oct(p.decay, y * 1.4, .005, .25) } };
+    // X = model knob (COLR / FOLD); Y = TUNE (±1.5 oct) + P.ENV together.
+    return { ...s, idm: { ...p, a: cl(p.a + x * .6, 0, 1), tune: oct(p.tune, y * 1.5, 20, 12000), penv: cl(p.penv + y * .6, -1, 1) } };
   }
   if (s.engine === "sampler") {
     // Never touches pitch or fine tune, so samples stay in key. Y = tone on the channel high shelf in every mode.
@@ -88,7 +86,7 @@ export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "pad") return ["BRIGHT VOWL", "ATK REL"];
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
-  if (s.engine === "idm") { const m = idmParams(s.idm).model; return m === "nois" ? ["TONE", "RES DEC SWP"] : m === "vco" ? ["FOLD", "FM DIVE"] : ["STRK", "DAMP INHR DEC"]; }
+  if (s.engine === "idm") return [idmParams(s.idm).model === "nois" ? "COLR" : "FOLD", "TUNE P.ENV"];
   if (s.sampler.grain) return ["SIZE SPRAY", "POS TONE"];
   if (s.sampler.stretch) return ["STRCH ENV", "GRAIN TONE"];
   return ["END ENV", "TONE"];

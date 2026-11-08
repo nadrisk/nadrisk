@@ -27,7 +27,7 @@ describe("instrument lineup", () => {
     expect(cleanOf({ clean: { voices: 0 } }).voices).toBe(1);
     expect(cleanOf({ clean: { voices: 12 } }).voices).toBe(8);
   });
-  it("falls back to METL for unknown IDM models", () => {
+  it("falls back to NOIS for unknown IDM models", () => {
     expect(idmParams({ model: "nope" as never }).model).toBe("nois");
   });
 });
