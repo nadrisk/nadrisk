@@ -117,3 +117,8 @@
 - [x] Sequencer X2: per-bank 16/32 steps with half paging
 
 - [x] LIVE/PROD buffer key on MASTER OUT (needs ear test on laptop)
+
+## Groovebox upgrade (2026-11-08)
+- [x] Stage 1: true Bjorklund EUCL (phrases + GEN EUCL page), chord LEAD voice leading
+- [ ] Stage 2: LADDER / SEM / MS20 filter models; PolyBLEP oscillators
+- [ ] Stage 3: conditional steps (1:2…FILL) and micro-timing nudge
