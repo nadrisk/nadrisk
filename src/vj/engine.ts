@@ -21,7 +21,7 @@ export class VjEngine {
   pads: DocPad[] = [];
   private lo = false; private slowFrames = 0;
   private cameraCanvas = document.createElement("canvas");
-  private camLum = new Float32Array(0); private camEdge = new Float32Array(0); private camTrail = new Float32Array(0);
+  private camLum = new Float32Array(0); private camEdge = new Float32Array(0); private camTrail = new Float32Array(0); private camPrev = new Float32Array(0);
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
@@ -74,7 +74,7 @@ export class VjEngine {
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
-    this.ring = Math.min(1, this.ring + dt * .35); this.smokeHit *= k(6); this.level += ((this.rms * 3 > 1 ? 1 : this.rms * 3) - this.level) * (1 - k(2));
+    this.ring = Math.min(1, this.ring + dt * .35); this.smokeHit *= k(6);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
     if (!active) this.clearPerformance();
@@ -89,7 +89,7 @@ export class VjEngine {
     const buf = this.buf, img = this.img;
     if (!buf || !img) return;
     const key = `${W}:${H}:${this.model}:${this.color}:${fg}:${bg}`;
-    if (key !== this.visualKey) { this.clearPerformance(); this.visualKey = key; }
+    if (key !== this.visualKey) { this.clearPerformance(); this.visualKey = key; this.smokeA.fill(0); this.smokeB.fill(0); }
     buf.fill(bg);
     const m = MODELS[this.model];
     if (m === "AQUA" || m === "BLOBS") this.field(m === "AQUA" ? aqua : blobs, buf, W, H, fg, bg);
@@ -139,7 +139,10 @@ export class VjEngine {
     if (this.camLum.length !== n) { this.camLum = new Float32Array(n); this.camEdge = new Float32Array(n); this.camTrail = new Float32Array(n); }
     const lum = this.camLum, edge = this.camEdge, trail = this.camTrail;
     for (let i = 0; i < n; i++) lum[i] = (data[i * 4] * .299 + data[i * 4 + 1] * .587 + data[i * 4 + 2] * .114) / 255;
+    if (this.camPrev.length !== n) this.camPrev = lum.slice();
     sobelEdges(lum, edge, W, H, 2.2 + this.level * 1.5 + this.kick * 1.5);
+    // Motion difference: only what moves leaves a slow phosphor ghost.
+    for (let i = 0; i < n; i++) { edge[i] = Math.min(1, edge[i] * .55 + Math.abs(lum[i] - this.camPrev[i]) * 4); this.camPrev[i] = lum[i]; }
     feedTrail(edge, trail, W, H, Math.min(.94, .78 + this.tone * .14 + this.level * .05));
     const t = this.visualTime;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
