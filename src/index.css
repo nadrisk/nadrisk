@@ -890,7 +890,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .gb-ed-chord { grid-column: 1; grid-row: 2; }
   .instrument-workspace .gb-ed-library { grid-column: 2; grid-row: 2; }
   .instrument-workspace .gb-ed-voice { grid-column: 2; grid-row: 2; }
-  .instrument-workspace .gb-ed-scope { grid-column: 3; grid-row: 2; }
+  .instrument-workspace .gb-ed-scope { grid-column: 2; grid-row: 2; }
+  .instrument-workspace .gb-ed-spectrum { grid-column: 1; grid-row: 2; min-width: 0; width: 100%; }
   .instrument-workspace .gb-ed-xy { grid-column: 3; grid-row: 2; }
   /* One chassis owner: legacy node-body/px-wrap padding must never stack here. */
   .instrument-workspace .device-panel {
@@ -936,7 +937,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
   .instrument-workspace .device-panel .patch-small { display: block; margin: 0; padding: 2px 3px; }
   .instrument-workspace .gb-mobile-utility { display: none; }
   .instrument-workspace .gb-desktop-views { display: block; width: 100%; min-width: 0; }
-  .instrument-workspace .gb-view-switch { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
+  .instrument-workspace .gb-view-switch { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
   .instrument-workspace .gb-view-switch button { min-height: 34px; border: 1px solid hsl(var(--foreground)); border-radius: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font: 9px 'Silkscreen', monospace; }
   .instrument-workspace .gb-view-switch button + button { border-left: 0; }
   .instrument-workspace .gb-desktop-view { display: none; }
@@ -951,11 +952,12 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
     gap: 0;
     width: 100%;
   }
-  .instrument-workspace .gb-seq-controls { grid-column: 1; }
+  .instrument-workspace .gb-seq-controls { grid-column: 1 / -1; display: flex; justify-content: center; }
+  .instrument-workspace .gb-seq-controls .px-strip { width: 100%; max-width: 1136px; }
   .instrument-workspace .gb-seq-performance { display: contents; }
   .instrument-workspace .gb-seq-performance > .gb-perf { display: contents; }
   .instrument-workspace .gb-seq-controls .px-wrap,
-  .instrument-workspace .gb-seq-performance .px-wrap { width: 100%; max-width: 568px; }
+  .instrument-workspace .gb-seq-performance .px-wrap { width: 100%; max-width: 1136px; }
   .instrument-workspace .gb-seq-performance .px-wrap { grid-column: 2; grid-row: 1; border-left: 1px solid hsl(var(--foreground) / .5); padding-left: 0; }
   .instrument-workspace .gb-seq-performance .gb-perf-live { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid hsl(var(--foreground) / .5); padding: 0; margin: 0; gap: 0; }
   .instrument-workspace .gb-seq-performance .gb-perf-banks { gap: 0; }
@@ -1109,8 +1111,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 @media (max-width: 760px) { .gb-step-pitch { display: none; } .gb-ruler-cell { font-size: 10px; } }
 
 .perf-overlay { --perf-safe-top: env(safe-area-inset-top, 0px); position: fixed; inset: 0; z-index: 80; background: hsl(var(--background)); color: hsl(var(--foreground)); display: flex; flex-direction: column; overflow: auto; box-sizing: border-box; padding-top: calc(var(--perf-safe-top) + 8px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
-@media (display-mode: standalone) and (max-width: 640px) {
-  .perf-overlay { padding-top: calc(max(48px, var(--perf-safe-top)) + 8px); }
+@media (max-width: 640px) {
+  .perf-overlay { padding-top: calc(max(56px, var(--perf-safe-top) + 16px)); }
 }
 .perf-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 3px solid hsl(var(--foreground)); }
 .perf-head > span:first-child { flex: 1; }
@@ -1234,7 +1236,7 @@ body.perf-lock { overflow: hidden; }
 .lk-midi { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .lk-midi span { overflow-wrap: anywhere; font: 14px VT323, monospace; }
 .lk-deck-readback { display: flex; gap: 16px; font: 20px VT323, monospace; }
-.perf-mod-link .lk-mixer { max-width: 580px; margin-inline: auto; }
+.perf-mod-link .lk-mixer { max-width: 760px; margin-inline: auto; width: 100%; }
 @media (max-width: 520px) {
   .lk-strips { grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); gap: 4px; }
   .lk-eq-row { gap: 4px; }
@@ -1248,3 +1250,21 @@ body.perf-lock { overflow: hidden; }
   .lk-status { gap: 4px; font-size: 9px; }
   .lk-status button { padding: 0 6px; }
 }
+
+/* PERF grid: XY left; TAPE + PERFORM stacked right; patterns/mutes across the bottom. */
+.perf-console { grid-template-areas: "link link" "main tape" "main fx" "deck deck"; grid-template-rows: auto auto 1fr auto; align-items: stretch !important; }
+.perf-mod-link { grid-area: link; } .perf-mod-main { grid-area: main; display: flex; flex-direction: column; }
+.perf-mod-main .perf-xy { flex: 1; } .perf-mod-main .perf-xy-pad { flex: 1; }
+.perf-mod-tape { grid-area: tape; } .perf-mod-fx { grid-area: fx; } .perf-mod-deck { grid-area: deck; }
+@media (max-width: 900px) { .perf-console { grid-template-areas: "link" "main" "tape" "fx" "deck"; grid-template-rows: none; } }
+/* Mixer on: mute keys stand in a vertical column beside the mixer. */
+.perf-link-body { display: flex; gap: 10px; align-items: stretch; min-width: 0; }
+.perf-link-body > .lk-mixer, .perf-link-body > .lk-join { flex: 1; min-width: 0; }
+.perf-side-mutes { flex: 0 0 180px; min-width: 0; }
+.perf-side-mutes .gb-perf-live { margin: 0; height: 100%; }
+.perf-side-mutes .gb-perf-mutes { flex-direction: column; flex: 1; }
+.perf-side-mutes .gb-perf-mute-grid { grid-template-columns: repeat(2, 1fr) !important; grid-auto-rows: 1fr; flex: 1; }
+.perf-body .perf-side-mutes .gb-perf-mute-grid button { height: auto; min-height: 36px; }
+.perf-side-mutes .gb-perf-side { flex-direction: row; flex: 0 0 auto; }
+.perf-side-mutes .gb-perf-side button { min-height: 40px; }
+@media (max-width: 700px) { .perf-link-body { flex-direction: column; } .perf-side-mutes { flex: none; } .perf-side-mutes .gb-perf-mute-grid { grid-template-columns: repeat(8, 1fr) !important; } }

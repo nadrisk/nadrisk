@@ -26,7 +26,7 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, o
       {slot.engine === "808" && <Sub808Panel slot={slot} index={index} getWave={getWave} onChange={onChange} />}
       {slot.engine === "sampler" && <WispdiskPanel slot={slot} peaks={peaks} onChange={onChange} getSlices={getSlices ? sm => getSlices(index, sm) : undefined} live={live} />}
     </DevicePanel>
-    <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getSpectrum={getSpectrum} noSpectrum={!chords && slot.engine !== "sampler"} /></DevicePanel>
+    <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getSpectrum={getSpectrum} noSpectrum={!chords} /></DevicePanel>
     <DevicePanel className="gb-ed-xy gb-ed-device" label="XY"><XyScreen slot={slot} onChange={onChange} /></DevicePanel>
     {slot.engine !== "sampler" && <DevicePanel className="gb-ed-scope gb-ed-device" label="Scope"><ScopeScreen slot={index} name={slot.name} getWave={getWave} /></DevicePanel>}
     {!chords && <DevicePanel className="gb-ed-spectrum gb-ed-device" label="Spectrum"><SpectrumScreen slot={index} name={slot.name} getSpectrum={getSpectrum} /></DevicePanel>}

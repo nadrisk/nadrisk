@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { gatedLoop } from "@/lib/frameGate";
 import type { Px } from "@/pixel/draw";
+import { memo } from "react";
+import { Panel } from "@/components/pixelScreens";
 
 /** Fills `out` with the pad's dB spectrum (2048-point FFT) and returns the sample rate, or 0 when audio isn't running. */
 export type GetSpectrum = (slot: number, out: Float32Array<ArrayBuffer>) => number;
@@ -44,3 +46,11 @@ export function drawSpectrum(p: Px, bars: Float32Array, peaks: Float32Array) {
   p.line(at(250), y0 + h + 1, at(250), y0 + h + 3); p.line(at(4000), y0 + h + 1, at(4000), y0 + h + 3);
   p.text("BASS", x0, 52); p.textC("MID", (at(250) + at(4000)) / 2, 52); p.text("HIGH", 106, 52);
 }
+
+/** Standalone SPECTRUM tile for pads without a CHORD device (the EQ then drops its own SCP page). */
+function SpectrumScreen({ slot, name, getSpectrum }: { slot: number; name: string; getSpectrum?: GetSpectrum }) {
+  const sp = useSpectrum(slot, getSpectrum);
+  return <Panel name="SPECTRUM" label={`Spectrum ${name}`} pages={["FFT"]} deps={[sp.tick, name]} knobs={() => []}
+    body={p => drawSpectrum(p, sp.bars, sp.peaks)} />;
+}
+export default memo(SpectrumScreen);
