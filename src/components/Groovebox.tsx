@@ -109,7 +109,7 @@ type View = "note" | "mod" | "vel" | "chance" | "roll" | "cond" | "nudge";
 const LANE_VIEWS: View[] = ["vel", "chance", "roll", "cond", "nudge"];
 const homeOf = (v: View) => v === "mod" || v === "nudge" ? .5 : v === "roll" || v === "cond" ? 0 : 1;
 const condName = (x: number) => CONDS[Math.round(x * (CONDS.length - 1))];
-const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, cond, nudge, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock, onAudition, modLane, onModLane, onRnd, steps = 16, onSteps, onSpan }: { steps?: number; onSteps?: () => void; onSpan?: (r: number, c: number, n: number, begin?: boolean) => void;
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, cond, nudge, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock, onAudition, modLane, onModLane, onRnd, steps = 16, onSteps, onSpan }: { steps?: number; onSteps?: () => void; onSpan?: (r: number, c: number, n: number, begin?: boolean, absorb?: boolean) => void;
   pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; cond: number[][]; nudge: number[][]; offset: number; loop: number; onClearRow: (r: number) => void; onAudition: (r: number) => void; modLane: number; onModLane: () => void; onRnd: (r: number) => void; lenLock: boolean; onLenLock: () => void; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onRow: (view: View, r: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
   // Relative drag: tap sets the value at tap height, then the whole drag distance refines it (1% per 2px).
@@ -119,7 +119,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const lastToggle = useRef({ k: "", t: 0 });
   // Taps toggle instantly. Lit notes resize from their right edge (6px mouse / right 40% touch) like a piano roll; one undo per drag.
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 35) return; lastToggle.current = { k, t }; onToggle(r, c); };
-  const rz = useRef<{ id: number; r: number; c: number; x0: number; w: number; n0: number; n: number; moved: boolean } | null>(null);
+  const rz = useRef<{ id: number; r: number; c: number; x0: number; w: number; n0: number; n: number; moved: boolean; abs: boolean; t: number } | null>(null);
   const [rzBadge, setRzBadge] = useState<{ text: string; x: number; y: number } | null>(null);
   const edgeHit = (ev: React.PointerEvent<HTMLButtonElement>) => { const b = ev.currentTarget.getBoundingClientRect(); return ev.pointerType === "mouse" ? b.right - ev.clientX <= 6 : ev.clientX - b.left >= b.width * .6; };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
