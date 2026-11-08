@@ -36,7 +36,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       if (c.voices === 1) p.text("MONO", 104, 13); else for (let i = 0; i < 8; i++) { if (i < c.voices) p.rect(92 + i * 4, 13, 3, 4); else p.dot(93 + i * 4, 16); }
     } else if (page === "FLT") {
       drawFilterCurve(p, "lowpass", c.cutoff, Math.max(...modelQ(c.flt ?? 0, c.res)) * (c.flt === 1 ? 1 + c.res * 8 : 1), 2, 11, 124, 32);
-      p.rect(2, 11, 28, 8); p.textC(FILTER_MODELS[c.flt ?? 0], 16, 12, true);
+      p.rect(2, 11, 28, 8); p.textC(FILTER_MODELS[c.flt ?? 0], 16, 12, false);
       const xOf = (f: number) => 2 + Math.round(Math.log(Math.min(16000, Math.max(40, f)) / 40) / Math.log(400) * 123);
       if (c.envAmt > 0) { const a = xOf(c.cutoff), b = xOf(c.cutoff * 2 ** (c.envAmt * 5)); p.line(a, 44, b, 44); p.line(b, 42, b, 44); }
       if (c.drive > 0) p.text(`DRV ${Math.round(c.drive * 100)}`, 92, 13);
