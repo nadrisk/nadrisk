@@ -6,7 +6,7 @@ export type LinkRole = "solo" | "mixer" | DeckId;
 export type DeckStatus = { playing: boolean; bpm: number; out: number; seen: number };
 type Local = { playing: boolean; bpm: number; togglePlay: () => void; setBpm: (b: number) => void; setDeckOut: (d: DeckState, xf: number) => void; out: () => number };
 
-/** Room link over a Cloud realtime broadcast channel: the mixer sends absolute mix state (heartbeat-repeated, idempotent); decks report status and follow it. */
+/** Local tabs by default, optional device transport; absolute state repeats so newly joined decks catch up. */
 export function useLink(local: Local) {
   const [role, setRole] = useState<LinkRole>("solo");
   const [mode, setMode] = useState<LinkMode>("tabs");
