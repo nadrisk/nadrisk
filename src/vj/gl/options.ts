@@ -25,7 +25,7 @@ export function stepOpt(o: SceneOpts, key: OptKey, d: number): SceneOpts {
   if (key === "object") { const a = objectsFor(o.ground), i = Math.max(0, a.indexOf(o.object)); n.object = a[wrap(i + d, a.length)]; return n; }
   const len = { ground: GROUNDS.length, motion: MOTIONS.length, form: FORMS.length, effect: EFFECTS.length, palette: PALETTES.length }[key];
   n[key] = wrap(o[key] + d, len);
-  if (key === "ground") n.object = validObject(n.ground, n.object === 6 || GROUNDS[n.ground] === "ENDLESS" && o.object === 0 ? n.object : n.object);
+  if (key === "ground") n.object = validObject(n.ground, n.object);
   return n;
 }
 export function cleanOpts(o: Partial<SceneOpts> | undefined): SceneOpts {
