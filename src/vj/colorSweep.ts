@@ -12,8 +12,9 @@ export function colorCss(packed: number) {
   return `rgb(${packed & 255},${(packed >>> 8) & 255},${(packed >>> 16) & 255})`;
 }
 
-export type VisualState = { model: number; size: number; color: boolean };
-export const DEFAULT_VISUAL: VisualState = { model: 0, size: 1, color: false };
+export const MODEL_COUNT = 6;
+export type VisualState = { model: number; size: number; color: boolean; code: boolean };
+export const DEFAULT_VISUAL: VisualState = { model: 0, size: 1, color: false, code: false };
 export function visualControl(state: VisualState, model: number, size: number): VisualState {
-  return { ...state, model: ((state.model + model) % 4 + 4) % 4, size: Math.round(Math.max(.4, Math.min(2.2, state.size + size * .1)) * 10) / 10 };
+  return { ...state, model: ((state.model + model) % MODEL_COUNT + MODEL_COUNT) % MODEL_COUNT, size: Math.round(Math.max(.4, Math.min(2.2, state.size + size * .1)) * 10) / 10 };
 }
