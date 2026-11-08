@@ -638,7 +638,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) [data-orientation="horizontal"].relative { height: 8px !important; }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) { height: 8px !important; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .35) 0 1px, transparent 1px 4px) !important; border: 1px solid hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) > span { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 3px, transparent 3px 4px) !important; }
-.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial):not(.px-zone) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial):not(.px-zone):not(.lk-control) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
 /* knobs: hairline 1-bit */
 .instrument-workspace:not([data-lcd="studio"]) .hw-track { stroke: hsl(var(--foreground) / .35); stroke-width: 1; }
 .instrument-workspace:not([data-lcd="studio"]) .hw-fill { stroke: hsl(var(--foreground)); stroke-width: 2; }
@@ -1189,3 +1189,59 @@ body.perf-lock { overflow: hidden; }
 .lk-strips > * { min-width: 0; }
 .lk-strip-head { overflow: hidden; }
 .lk-xf input, .lk-knob input { width: 100%; }
+
+/* Compact dual-channel controller: EQ columns, centre meters, long faders. */
+.lk-mixer, .lk-join { letter-spacing: 0; }
+.lk-strips { grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr); gap: 10px; }
+.lk-strip { border: 0; border-top: 2px solid hsl(var(--foreground)); padding: 8px 4px; gap: 12px; }
+.lk-strip-head { min-height: 38px; font-size: 10px; }
+.lk-strip-head i { width: 100%; font: 16px VT323, monospace; }
+.lk-eq-stack { display: grid; gap: 10px; }
+.lk-eq-row { display: flex; justify-content: center; align-items: center; gap: 10px; }
+.lk-eq-row .lk-kill { width: 32px; min-height: 32px; height: 32px; padding: 0; font-size: 22px; }
+.lk-control { display: flex; flex-direction: column; align-items: center; gap: 3px; touch-action: none; user-select: none; cursor: ns-resize; min-width: 0; outline-offset: 4px; }
+.lk-control-name { font: 9px Silkscreen, monospace; }
+.lk-control-value { font: 16px/1 VT323, monospace; height: 16px; white-space: nowrap; }
+.lk-control-rotary { width: 60px; }
+.lk-control-rotary svg { width: 46px; height: 46px; }
+.lk-control svg { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 2; }
+.lk-control .lk-dial-ring { stroke-dasharray: 2 4; stroke-width: 1; }
+.lk-filter { display: flex; gap: 8px; align-items: center; justify-content: center; border-top: 1px solid hsl(var(--foreground) / .3); padding-top: 10px; }
+.lk-filter .lk-control svg { width: 60px; height: 60px; }
+.lk-filter > button { padding: 0; width: 32px; font-size: 22px; }
+.lk-control-vertical { height: 182px; width: 64px; justify-self: center; }
+.lk-control-vertical svg { width: 44px; flex: 1; min-height: 0; }
+.lk-travel rect { fill: hsl(var(--foreground)); }
+.lk-control-horizontal { width: 100%; cursor: ew-resize; }
+.lk-control-horizontal svg { height: 44px; width: 100%; }
+.lk-xf { border: 0; border-top: 2px solid hsl(var(--foreground)); padding: 10px 0 0; }
+.lk-center { grid-column: 2; grid-row: 1; flex-direction: column; border-inline: 1px solid hsl(var(--foreground) / .3); padding: 8px 4px; justify-content: start; text-align: center; }
+.lk-tempo { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 12px; }
+.lk-tempo b { width: 100%; order: -1; }
+.lk-tempo small { display: block; font: 8px Silkscreen, monospace; }
+.lk-tempo button { width: 26px; height: 30px; min-height: 30px; padding: 0; }
+.lk-center > button { padding: 0 3px; font-size: 8px; margin-top: auto; width: 100%; }
+.lk-meters { display: flex; gap: 8px; margin-top: 28px; }
+.lk-meter > div { display: flex; flex-direction: column-reverse; gap: 4px; }
+.lk-meter i { width: 10px; height: 14px; border: 1px solid hsl(var(--foreground) / .4); }
+.lk-meter i.on { background: hsl(var(--foreground)); }
+.lk-meter span { display: block; margin-top: 5px; }
+.lk-transport { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.lk-transport button { padding: 0 4px; min-width: 0; font-size: 9px; }
+.lk-midi { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lk-midi span { overflow-wrap: anywhere; font: 14px VT323, monospace; }
+.lk-deck-readback { display: flex; gap: 16px; font: 20px VT323, monospace; }
+.perf-mod-link .lk-mixer { max-width: 580px; margin-inline: auto; }
+@media (max-width: 520px) {
+  .lk-strips { grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); gap: 4px; }
+  .lk-eq-row { gap: 4px; }
+  .lk-strip { padding-inline: 0; }
+  .lk-control-rotary { width: 48px; }
+  .lk-center { grid-row: 1; grid-column: 2; flex-direction: column; }
+  .lk-center > span { font-size: 8px; }
+  .lk-filter { gap: 2px; }
+  .lk-filter .lk-control svg { width: 48px; height: 48px; }
+  .lk-tempo button { width: 21px; }
+  .lk-status { gap: 4px; font-size: 9px; }
+  .lk-status button { padding: 0 6px; }
+}

@@ -16,7 +16,7 @@ function fire(el: HTMLElement, type: string, x: number, y: number) {
 const isSlider = (el: HTMLElement) => el.hasAttribute("data-orientation") && !!el.querySelector('[role="slider"]');
 const isHold = (el: HTMLElement) => el.classList.contains("gb-pad") || /^Hold /.test(el.getAttribute("aria-label") ?? "");
 
-export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, release: (i: number) => void, keyOn?: (note: number, v: number) => void, keyOff?: (note: number) => void) {
+export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, release: (i: number) => void, keyOn?: (note: number, v: number) => void, keyOff?: (note: number) => void, extraRoot?: RefObject<HTMLElement>, extraOpen = false) {
   const [keys, setKeys] = useState(() => localStorage.getItem(KEY + ".keys") === "1");
   const [maps, setMaps] = useState<Maps>(() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } });
   const [learn, setLearn] = useState(false);
@@ -30,28 +30,29 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
 
   // Learn mode: tapping a control selects it instead of using it.
   useEffect(() => {
-    const el = root.current; if (!el || !learn) return;
+    const roots = [root.current, extraRoot?.current].filter((el): el is HTMLElement => !!el); if (!roots.length || !learn) return;
     const pick = (e: Event) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>("[aria-label]");
-      if (!t || !el.contains(t) || t.closest("[data-midi-ui]")) return;
+      if (!t || !roots.some(el => el.contains(t)) || t.closest("[data-midi-ui]")) return;
       e.preventDefault(); e.stopPropagation();
       if (e.type === "pointerdown") setTarget(t.getAttribute("aria-label"));
     };
-    ["pointerdown", "click"].forEach(ev => el.addEventListener(ev, pick, true));
-    return () => ["pointerdown", "click"].forEach(ev => el.removeEventListener(ev, pick, true));
-  }, [learn, root]);
+    roots.forEach(el => ["pointerdown", "click"].forEach(ev => el.addEventListener(ev, pick, true)));
+    return () => roots.forEach(el => ["pointerdown", "click"].forEach(ev => el.removeEventListener(ev, pick, true)));
+  }, [learn, root, extraRoot, extraOpen]);
 
   // Outline mapped controls and the one waiting for a MIDI message while learning.
   useEffect(() => {
-    const el = root.current; if (!el) return;
-    el.querySelectorAll("[data-midi-mapped],[data-midi-target]").forEach(n => { n.removeAttribute("data-midi-mapped"); n.removeAttribute("data-midi-target"); });
+    const roots = [root.current, extraRoot?.current].filter((el): el is HTMLElement => !!el);
+    roots.forEach(el => el.querySelectorAll("[data-midi-mapped],[data-midi-target]").forEach(n => { n.removeAttribute("data-midi-mapped"); n.removeAttribute("data-midi-target"); }));
     if (!learn) return;
     const labels = new Set(Object.values(maps));
-    el.querySelectorAll<HTMLElement>("[aria-label]").forEach(n => { const l = n.getAttribute("aria-label")!; if (labels.has(l)) n.setAttribute("data-midi-mapped", ""); if (l === target) n.setAttribute("data-midi-target", ""); });
-  }, [learn, maps, target, root]);
+    roots.forEach(el => el.querySelectorAll<HTMLElement>("[aria-label]").forEach(n => { const l = n.getAttribute("aria-label"); if (!l) return; if (labels.has(l)) n.setAttribute("data-midi-mapped", ""); if (l === target) n.setAttribute("data-midi-target", ""); }));
+  }, [learn, maps, target, root, extraRoot, extraOpen]);
 
   const act = useCallback((label: string, kind: "cc" | "on" | "off", v: number, key: string) => {
-    const el = root.current?.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`); if (!el) return;
+    const selector = `[aria-label="${CSS.escape(label)}"]`;
+    const el = extraRoot?.current?.querySelector<HTMLElement>(selector) ?? root.current?.querySelector<HTMLElement>(selector); if (!el) return;
     const f = v / 127;
     if (el.hasAttribute("data-midi-value")) {
       if (kind !== "off") el.dispatchEvent(new CustomEvent("midivalue", { detail: f }));
@@ -71,7 +72,7 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
       if (isHold(el)) { if (down) fire(el, "pointerdown", x, y); else if (up) fire(el, "pointerup", x, y); }
       else if (down) el.click();
     }
-  }, [root]);
+  }, [root, extraRoot]);
 
   const onMsg = useCallback((e: { data: Uint8Array }) => {
     const [s0, d1, d2 = 0] = e.data, type = s0 & 0xf0, ch = s0 & 0x0f;
