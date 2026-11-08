@@ -1,5 +1,6 @@
 import { setSustainProbe } from "@/lib/frameGate";
 import { tieSpan } from "@/audio/tie";
+import { setSpan } from "@/audio/noteSpan";
 import { detectSlices } from "@/audio/slices";
 import { vjKindOf, vjSend, vjListen, type DocPad } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
@@ -880,6 +881,8 @@ export function useGroovebox() {
     if (v === 0) return 1; if (v >= 2) return 0; return col > 0 && r[col - 1] !== 0 ? 2 : 0;
   }) : r))), []);
   // Double-tap tie: one undo step that joins the nearest earlier note through this step.
+  /** Piano-roll resize: snap once at drag start (begin=true), then rewrite ties on the live row. */
+  const setNoteSpan = useCallback((row: number, col: number, n: number, begin = false) => { if (begin) snap(); setPattern(p => p.map((r, i) => { if (i !== row) return r; const len = banksRef.current[bankRef.current].lengths[row] ?? r.length; return setSpan(r, col, n, len) ?? r; })); }, [snap]);
   const tieStep = useCallback((row: number, col: number) => { const r0 = banksRef.current[bankRef.current].pattern[row], next = r0 && tieSpan(r0, col); if (!next) return; snap(); setPattern(p => p.map((r, i) => (i === row ? next : r))); }, [snap]);
   // Mod rows live on each slot per pattern bank, so A/B can automate differently.
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => { snap(); setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current + modLaneRef.current * NBANKS ? f(l) : l)) } : x))); }, [snap]);
@@ -1003,7 +1006,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
