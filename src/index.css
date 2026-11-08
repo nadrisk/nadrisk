@@ -1269,3 +1269,17 @@ body.perf-lock { overflow: hidden; }
 .perf-side-mutes .gb-perf-side { flex-direction: row; flex: 0 0 auto; }
 .perf-side-mutes .gb-perf-side button { min-height: 40px; }
 @media (max-width: 700px) { .perf-link-body { flex-direction: column; } .perf-side-mutes { flex: none; } .perf-side-mutes .gb-perf-mute-grid { grid-template-columns: repeat(8, 1fr) !important; } }
+
+/* Sequencer header: three equal screens spanning the frame, like the device row. */
+.instrument-workspace .gb-seq-controls .px-strip.gb-seq-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; max-width: none; width: 100%; }
+.instrument-workspace .gb-seq-trio > * + * { border-left: 1px solid hsl(var(--foreground)); }
+.instrument-workspace .gb-seq-trio .px-wrap { width: 100%; max-width: none; justify-content: center; }
+@media (max-width: 700px) { .instrument-workspace .gb-seq-controls .px-strip.gb-seq-trio { grid-template-columns: 1fr; } .instrument-workspace .gb-seq-trio > * + * { border-left: 0; border-top: 3px solid hsl(var(--foreground)); } }
+/* PERF slots: screens scale to their module so nothing is cropped. */
+.perf-mod .px-wrap { display: block; padding: 0 !important; border: 0 !important; overflow: visible !important; }
+.perf-mod .px-screen { width: 100% !important; height: auto !important; aspect-ratio: 2 / 1; border: 0; box-sizing: border-box; }
+.perf-mod .px-screen canvas { width: 100% !important; height: 100% !important; }
+.perf-mod-tape, .perf-mod-fx { display: flex; flex-direction: column; }
+.perf-mod-tape > :not(header), .perf-mod-fx > :not(header) { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.perf-mod-link .lk-mixer { max-width: none !important; }
+.perf-link-body .lk-strips { justify-content: space-between; }
