@@ -153,10 +153,10 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
 }) {
   const [genOpen, setGenOpen] = useState(false);
-  const views = ["note", "vel", "chance", "roll", "mod"];
+  const views = ["note", "vel", "chance", "roll", "cond", "nudge", "mod"];
   const ks: K[] = [
     ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 11, w: 30, h: 10, on: bank === b, fn: () => selectBank(b) })),
-    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v.toUpperCase(), label: `View ${v}`, x: 1 + i * 25, y: 22, w: i === 4 ? 26 : 24, h: 10, on: view === v, fn: () => setView(v) })),
+    ...views.map((v, i) => ({ s: v === "chance" ? "CHNC" : v === "nudge" ? "NUDG" : v.toUpperCase(), label: `View ${v}`, x: 1 + i * 18, y: 22, w: 17, h: 10, on: view === v, fn: () => setView(v) })),
     { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 33, w: 24, h: 10, on: false, fn: copy },
     { s: "RAND", label: "Random pattern", x: 26, y: 33, w: 24, h: 10, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 51, y: 33, w: 24, h: 10, on: false, fn: () => clear(view) },
@@ -166,7 +166,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 44, y: 44, w: 41, h: 10, on: false, disabled: !canRedo, fn: redo },
     ...(gen ? [{ s: "GEN", label: "Open pattern generator", x: 87, y: 44, w: 40, h: 10, on: false, fn: () => setGenOpen(true) }] : []),
   ];
-  const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : "HIT>TIE>OFF";
+  const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : view === "cond" ? "DRAG CONDITION" : view === "nudge" ? "DRAG EARLY/LATE" : "HIT>TIE>OFF";
   if (gen && genOpen) return <div className="px-strip"><GenScreen g={gen} close={() => setGenOpen(false)} /></div>;
   return <div className="px-strip"><Panel name="STEPSEQ" label="Step sequencer" pages={[BANK_NAMES[bank]]} deps={[bank, queued, view, playing, paused, canUndo, canRedo]} knobs={() => []}
     body={p => { drawKeys(p, ks); p.textC(hint, 64, 56); }}
