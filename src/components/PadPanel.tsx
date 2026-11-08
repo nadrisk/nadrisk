@@ -40,13 +40,6 @@ function PadPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
       const oc = `OCT ${sg(d.oct ?? 0)}${d.age > 0 ? " SP12" : ""}`; p.text(oc, 125 - oc.length * 4, 36);
       return;
     }
-    if (page === "TONE") {
-      if (d.age > 0) { p.rect(106, 11, 20, 7); p.text("SP12", 108, 12, false); }
-      const amp = 1 + d.bright * 7, w = 1 + d.motion * 3, spread = 1 + Math.round(d.space * 3);
-      for (let l = 0; l < spread; l++) for (let x = 4; x < 124; x++) { const y = Math.round(31 + Math.sin(x / (9 + l * 3) + l) * amp * (1 - l * .18) + Math.sin(x / 3) * w * .5);
-        if (d.age > .05 && ((x * 7 + l * 13) % 11) / 11 < d.age * .5) continue; p.dot(x, Math.max(19, Math.min(44, y))); }
-      return;
-    }
     const tot = d.atk + 1 + d.rel, sx = (s: number) => 4 + Math.round(s / tot * 118), top = 20, bot = 44, sy = bot - Math.round(r.s * (bot - top));
     p.line(4, bot, sx(d.atk), top); p.line(sx(d.atk), top, sx(d.atk + .3), sy); p.line(sx(d.atk + .3), sy, sx(d.atk + 1), sy); p.line(sx(d.atk + 1), sy, 122, bot);
     const lab = `A ${ms(d.atk)} R ${ms(d.rel)}`; p.text(lab, 3, 12);
