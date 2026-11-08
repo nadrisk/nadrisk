@@ -1157,3 +1157,31 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 body.perf-lock { overflow: hidden; }
 @media (max-width: 640px) { .perf-overlay .perf-head { flex-wrap: nowrap !important; gap: 4px; padding: 4px 6px; font-size: 10px; border-bottom-width: 2px; } .perf-overlay .perf-head .perf-title { flex: 1; white-space: nowrap; } .perf-overlay .perf-head .gb-cycle, .perf-overlay .perf-head > span { white-space: nowrap; font-size: 10px; min-height: 32px; padding: 0 6px; } }
 .perf-overlay { overflow: hidden; } .perf-overlay > .perf-body.instrument-workspace { flex: 1 1 auto !important; overflow-y: auto !important; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/* LINK · two-deck DJ mixer inside PERF */
+.perf-mod-link { grid-column: 1 / -1; }
+.lk-join, .lk-mixer { display: grid; gap: 8px; font-family: Silkscreen, monospace; font-size: 10px; letter-spacing: .1em; }
+.lk-join p { margin: 0; opacity: .8; }
+.lk-big-label { font-size: 28px; opacity: 1 !important; }
+.lk-row { display: flex; gap: 6px; align-items: center; }
+.lk-join button, .lk-mixer button { min-height: 40px; padding: 0 10px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font: inherit; border-radius: 0; touch-action: manipulation; }
+.lk-join button[aria-pressed="true"], .lk-mixer button[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.lk-join button:disabled, .lk-mixer button:disabled { opacity: .35; }
+.lk-big { min-height: 56px !important; font-size: 14px !important; }
+.lk-code { width: 6ch; min-height: 40px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font: 20px VT323, monospace; text-align: center; border-radius: 0; }
+.lk-status { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.lk-status .on, .lk-strip-head i.on { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 4px; }
+.lk-strips { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; }
+.lk-strip { display: grid; gap: 6px; border: 2px solid hsl(var(--foreground)); padding: 6px; }
+.lk-strip-head { display: flex; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
+.lk-strip-head i { font-style: normal; }
+.lk-kill { width: 100%; }
+.lk-center { display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; }
+.lk-center b { font: 24px VT323, monospace; min-width: 3ch; text-align: center; }
+.lk-knob, .lk-fader, .lk-xf { display: flex; gap: 6px; align-items: center; }
+.lk-fader { flex-direction: column; height: 150px; }
+.lk-fader input { writing-mode: vertical-lr; direction: rtl; flex: 1; width: 40px; }
+.lk-knob input, .lk-xf input { flex: 1; min-width: 0; }
+.lk-xf { border: 2px solid hsl(var(--foreground)); padding: 8px; }
+.lk-mixer input[type="range"] { accent-color: hsl(var(--foreground)); height: 36px; touch-action: none; }
+@media (max-width: 520px) { .lk-strips { grid-template-columns: 1fr 1fr; } .lk-center { grid-column: 1 / -1; grid-row: 1; flex-direction: row; } }
