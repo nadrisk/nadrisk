@@ -12,9 +12,11 @@ export function colorCss(packed: number) {
   return `rgb(${packed & 255},${(packed >>> 8) & 255},${(packed >>> 16) & 255})`;
 }
 
-export const MODEL_COUNT = 5;
-export type VisualState = { model: number; size: number; color: boolean; code: boolean };
-export const DEFAULT_VISUAL: VisualState = { model: 0, size: 1, color: false, code: false };
+import { DEFAULT_OPTS, WORLDS, type SceneOpts } from "./gl/options";
+export const MODEL_COUNT = WORLDS.length;
+/** color = the reference shaders' own colours; off = 1-bit dither in the theme's ink. */
+export type VisualState = { model: number; size: number; color: boolean; code: boolean; opts?: SceneOpts };
+export const DEFAULT_VISUAL: VisualState = { model: 0, size: 1, color: true, code: false, opts: { ...DEFAULT_OPTS } };
 export function visualControl(state: VisualState, model: number, size: number): VisualState {
   return { ...state, model: ((state.model + model) % MODEL_COUNT + MODEL_COUNT) % MODEL_COUNT, size: Math.round(Math.max(.4, Math.min(2.2, state.size + size * .1)) * 10) / 10 };
 }
