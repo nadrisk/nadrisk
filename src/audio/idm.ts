@@ -1,37 +1,42 @@
 import { at, finish, link, noiseBuffer, type Voice } from "./voices";
 
-/** IDM: short experimental percussion. METL = FM metal cluster, ZAP = FM pitch-sweep blip, NOIS = noise snap/crackle,
- *  CLIK = glitch micro-impulse, SHRD = bit-crushed chopped tick. a/b/c are the model's three tone knobs.
- *  Every model is a percussive hit: DECAY is capped at IDM_MAX_DECAY so nothing grows into a long sound. */
-export type IdmModel = "metl" | "zap" | "nois" | "clik" | "shrd";
+/** PRC: three modular percussion engines for intricate IDM hits.
+ *  NOIS = noise pinging a resonant filter (TONE, SWP, RES, COLR), VCO = West Coast folded/FM oscillator (TUNE, FM, FOLD, DIVE),
+ *  MODL = struck modal resonator (TUNE, STRK, DAMP, INHR). a/b/c are the engine's three tone knobs after TUNE.
+ *  Every engine is a percussive hit: DECAY is capped at IDM_MAX_DECAY so nothing grows into a long sound. */
+export type IdmModel = "nois" | "vco" | "modl";
 export type IdmParams = { model: IdmModel; tune: number; a: number; b: number; c: number; decay: number; bend: number; grit: number; drive: number; preset?: string };
-export const IDM_MODELS: IdmModel[] = ["metl", "zap", "nois", "clik", "shrd"];
-export const IDM_LABEL: Record<IdmModel, string> = { metl: "METL", zap: "ZAP", nois: "NOIS", clik: "CLIK", shrd: "SHRD" };
+export const IDM_MODELS: IdmModel[] = ["nois", "vco", "modl"];
+export const IDM_LABEL: Record<IdmModel, string> = { nois: "NOIS", vco: "VCO", modl: "MODL" };
 export const IDM_MIN_DECAY = .005, IDM_MAX_DECAY = .25;
-/** Knob names for a/b/c per model (TUNE is always first). */
+/** Knob names for tune/a/b/c per engine. */
 export const IDM_KNOBS: Record<IdmModel, [string, string, string, string]> = {
-  metl: ["TUNE", "FM", "RATIO", "BRIT"], zap: ["TUNE", "SWP", "SPD", "FM"], nois: ["TONE", "SNAP", "Q", "CRKL"], clik: ["PTCH", "SNAP", "CRSH", "TONE"], shrd: ["TONE", "RATE", "STEP", "Q"],
+  nois: ["TONE", "SWP", "RES", "COLR"], vco: ["TUNE", "FM", "FOLD", "DIVE"], modl: ["TUNE", "STRK", "DAMP", "INHR"],
 };
-/** Starting sound per model: loaded when the model changes and used as each knob's double-tap home. */
+/** Starting sound per engine (DRV always starts at 0). */
 export const IDM_INIT: Record<IdmModel, Omit<IdmParams, "model">> = {
-  metl: { tune: 520, a: .55, b: .35, c: .6, decay: .18, bend: 0, grit: 0, drive: .1 },
-  zap: { tune: 110, a: .7, b: .35, c: .15, decay: .1, bend: 0, grit: 0, drive: .2 },
-  nois: { tune: 3500, a: .6, b: .3, c: .2, decay: .06, bend: 0, grit: 0, drive: .1 },
-  clik: { tune: 900, a: .2, b: .4, c: .6, decay: .03, bend: -24, grit: .2, drive: .2 },
-  shrd: { tune: 3000, a: .45, b: .5, c: .3, decay: .12, bend: 0, grit: .35, drive: .15 },
+  nois: { tune: 3200, a: .5, b: .45, c: .2, decay: .06, bend: 0, grit: 0, drive: 0 },
+  vco: { tune: 180, a: .3, b: .35, c: .4, decay: .1, bend: 0, grit: 0, drive: 0 },
+  modl: { tune: 620, a: .5, b: .4, c: .35, decay: .16, bend: 0, grit: 0, drive: 0 },
 };
-export const defaultIdm = (model: IdmModel = "metl"): IdmParams => ({ model, ...IDM_INIT[model] });
+export const defaultIdm = (model: IdmModel = "nois"): IdmParams => ({ model, ...IDM_INIT[model] });
+/** Retired models load as the closest current engine with that engine's starting tone (shared DEC/BEND/GRIT/DRV kept). */
+const LEGACY: Record<string, IdmModel> = { metl: "modl", ping: "vco", zap: "vco", clik: "nois", shrd: "nois" };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 export function idmParams(p?: Partial<IdmParams>): IdmParams {
-  // Old sets used a PING model; it loads as ZAP with ZAP's starting tone.
-  const legacy = (p?.model as string) === "ping", model = legacy ? "zap" : p?.model && IDM_MODELS.includes(p.model) ? p.model : "metl";
+  const raw = p?.model as string | undefined, legacy = raw ? LEGACY[raw] : undefined;
+  const model: IdmModel = legacy ?? (raw && IDM_MODELS.includes(raw as IdmModel) ? raw as IdmModel : "nois");
   const q = { ...defaultIdm(model), ...(legacy ? { decay: p?.decay, bend: p?.bend, grit: p?.grit, drive: p?.drive } : p), model } as IdmParams;
-  return { ...q, tune: clamp(q.tune, 20, 12000), a: clamp(q.a, 0, 1), b: clamp(q.b, 0, 1), c: clamp(q.c, 0, 1), decay: clamp(q.decay, IDM_MIN_DECAY, IDM_MAX_DECAY), bend: clamp(q.bend, -48, 48), grit: clamp(q.grit, 0, 1), drive: clamp(q.drive, 0, 1) };
+  const d = defaultIdm(model);
+  return { ...q, tune: clamp(q.tune ?? d.tune, 20, 12000), a: clamp(q.a ?? d.a, 0, 1), b: clamp(q.b ?? d.b, 0, 1), c: clamp(q.c ?? d.c, 0, 1), decay: clamp(q.decay ?? d.decay, IDM_MIN_DECAY, IDM_MAX_DECAY), bend: clamp(q.bend ?? 0, -48, 48), grit: clamp(q.grit ?? 0, 0, 1), drive: clamp(q.drive ?? 0, 0, 1) };
 }
 
 const stepCache = new Map<number, Float32Array<ArrayBuffer>>();
 /** Bit-step curve: GRIT 0 = 8 bit, 1 = 2 bit. */
 const stepCurve = (g: number) => { const k = Math.round(g * 20) / 20; let c = stepCache.get(k); if (c) return c; const lv = 2 ** (8 - k * 6) / 2; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.round(x * lv) / lv; } stepCache.set(k, c); return c; };
+const foldCache = new Map<number, Float32Array<ArrayBuffer>>();
+/** Lockhart/Serge-style folder: sine fold blended with the clean core; FOLD 0 = clean triangle. */
+const foldCurve = (f: number) => { const k = Math.round(f * 20) / 20; let c = foldCache.get(k); if (c) return c; const g = 1 + k * 5; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = (1 - k) * x + k * Math.sin(g * x * Math.PI / 2); } foldCache.set(k, c); return c; };
 const tanhCache = new Map<number, Float32Array<ArrayBuffer>>();
 const tanhCurve = (d: number) => { const k = Math.round(d * 20) / 20; let c = tanhCache.get(k); if (c) return c; const g = 1 + k * 12; c = new Float32Array(new ArrayBuffer(1024 * 4)); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(g * x) / Math.tanh(g); } tanhCache.set(k, c); return c; };
 
@@ -48,37 +53,26 @@ export function playIdm(ctx: BaseAudioContext, dest: AudioNode, p0: IdmParams, t
   const osc = (type: OscillatorType, hz: number) => { const o = at(ctx.createOscillator(), t); o.type = type; bendTo(o.frequency, hz); srcs.push(o); nodes.push(o); return o; };
   const noise = () => { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; srcs.push(n); nodes.push(n); return n; };
   const env = (lvl: number, d: number) => { const g = ctx.createGain(); g.gain.setValueAtTime(lvl, t); g.gain.setTargetAtTime(0, t + .0005, Math.max(.001, d) / 3); nodes.push(g); return g; };
-  if (p.model === "metl") {
-    // Three inharmonic FM pairs (carrier square, modulator sine) through a bright band: cymbal and bell clusters.
-    const ratio = 1.41 + p.b * 3.1, hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 400 + p.c * 5000; hp.Q.value = .7; nodes.push(hp); hp.connect(bus);
-    [1, 1.483, 2.17].forEach((r, k) => { const c = osc(k ? "square" : "sine", base * r), m = osc("sine", base * r * ratio), mg = env(base * r * p.a * 9, dec * (.6 + p.a * .6));
-      m.connect(mg).connect(c.frequency); c.connect(env(.33, dec * (1 - k * .2))).connect(hp); });
-  } else if (p.model === "zap") {
-    // FM blip: a sine falling from up to 5 octaves above TUNE (SWP) in 2-60 ms (SPD), with a decaying FM modulator.
-    const o = osc("sine", base), sweep = base * 2 ** (p.a * 5), spd = .002 + (1 - p.b) * .06;
-    o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(Math.min(20000, sweep), t); o.frequency.exponentialRampToValueAtTime(Math.max(20, base * 2 ** (p.bend / 12)), t + spd);
-    if (p.c > 0) { const m = osc("sine", base * 2.01), mg = env(base * p.c * 12, dec * .5); m.connect(mg).connect(o.frequency); }
-    o.connect(env(1.1, dec)).connect(bus);
-  } else if (p.model === "nois") {
-    // Noise snap: a band-passed noise body (TONE, Q) behind a sharp high snap (SNAP); CRKL steps it into crackle.
-    const n = noise(), bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bendTo(bp.frequency, base, .01); bp.Q.value = .4 + p.b * 12; nodes.push(bp);
-    let src: AudioNode = bp; if (p.c > 0) { const w = ctx.createWaveShaper(); w.curve = stepCurve(.5 + p.c * .5); nodes.push(w); bp.connect(w); src = w; }
-    n.connect(bp); src.connect(env(1.4 + p.b, dec)).connect(bus);
-    if (p.a > 0) { const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 5000; nodes.push(hp); noise().connect(hp).connect(env(p.a * 1.4, .004)).connect(bus); }
-  } else if (p.model === "clik") {
-    // Micro impulse: a sine dropping several octaves in a few ms plus a pulse tick; CRSH folds it, TONE sets brightness.
-    const o = osc("sine", base), snap = .002 + p.a * .03; o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(Math.min(20000, base * 8), t); o.frequency.exponentialRampToValueAtTime(Math.max(20, base * 2 ** (p.bend / 12)), t + snap);
-    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 600 + p.c * 14000; nodes.push(lp); lp.connect(bus);
-    let n: AudioNode = o; if (p.b > 0) { const w = ctx.createWaveShaper(); w.curve = stepCurve(.4 + p.b * .6); nodes.push(w); o.connect(w); n = w; }
-    n.connect(env(1, dec)).connect(lp);
-    const tick = osc("square", base * 2); tick.connect(env(.4 * (1 - p.a), .0015)).connect(lp);
+  if (p.model === "nois") {
+    // Noise into a resonant band: SWP dives the filter from up to 4 octaves above TONE, RES sets the ping, COLR steps the noise into crackle.
+    const n = noise(), bp = ctx.createBiquadFilter(), hz = Math.min(18000, base); bp.type = "bandpass"; bp.Q.value = .5 + p.b * 30; nodes.push(bp);
+    bp.frequency.setValueAtTime(Math.min(20000, hz * 2 ** (p.a * 4)), t); bp.frequency.exponentialRampToValueAtTime(Math.max(20, hz * 2 ** (p.bend / 12)), t + .003 + dec * (.15 + (1 - p.a) * .3));
+    let src: AudioNode = n; if (p.c > 0) { const w = ctx.createWaveShaper(), wet = ctx.createGain(), dry = ctx.createGain(), sum = ctx.createGain(); w.curve = stepCurve(.5 + p.c * .5); wet.gain.value = p.c; dry.gain.value = 1 - p.c; n.connect(w).connect(wet).connect(sum); n.connect(dry).connect(sum); nodes.push(w, wet, dry, sum); src = sum; }
+    src.connect(bp).connect(env(1.2 + p.b * 2, dec)).connect(bus);
+  } else if (p.model === "vco") {
+    // Triangle core diving DIVE octaves into TUNE, an inharmonic FM modulator decaying fast, then a Lockhart-style folder (FOLD).
+    const o = osc("triangle", base), dive = p.c * 4, spd = .004 + dec * .4;
+    o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(Math.min(20000, base * 2 ** dive), t); o.frequency.exponentialRampToValueAtTime(Math.max(20, base * 2 ** (p.bend / 12)), t + spd);
+    if (p.a > 0) { const m = osc("sine", base * 1.73), mg = env(base * p.a * 8, dec * .4); m.connect(mg).connect(o.frequency); }
+    const pre = ctx.createGain(), w = ctx.createWaveShaper(), post = ctx.createGain(); pre.gain.value = 1; w.curve = foldCurve(p.b); post.gain.value = .9; nodes.push(pre, w, post);
+    o.connect(pre).connect(w).connect(post).connect(env(1, dec)).connect(bus);
   } else {
-    // Shredded noise: band-passed noise chopped by a square gate at RATE, then stepped by STEP.
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bendTo(bp.frequency, base); bp.Q.value = .5 + p.c * 14; nodes.push(bp);
-    const chop = ctx.createGain(); chop.gain.value = .5; nodes.push(chop);
-    const lfo = at(ctx.createOscillator(), t), lg = ctx.createGain(); lfo.type = "square"; lfo.frequency.value = 8 + p.a * 260; lg.gain.value = .5; lfo.connect(lg).connect(chop.gain); srcs.push(lfo); nodes.push(lfo, lg);
-    let n: AudioNode = bp; if (p.b > 0) { const w = ctx.createWaveShaper(); w.curve = stepCurve(p.b); nodes.push(w); bp.connect(w); n = w; }
-    noise().connect(bp); n.connect(chop).connect(env(1.4 + p.c, dec)).connect(bus);
+    // Modal: a short noise strike (STRK = brightness) rings five high-Q partials; DAMP shortens and darkens the upper modes, INHR spreads them.
+    const strike = noise(), lp = ctx.createBiquadFilter(), sg = env(1.5, .002 + (1 - p.a) * .006); lp.type = "lowpass"; lp.frequency.value = 800 + p.a * 15000; nodes.push(lp);
+    strike.connect(lp).connect(sg);
+    const ratios = [1, 2.0, 3.0, 4.0, 5.0].map((h, k) => k ? h + p.c * [0, .76, 2.4, 4.1, 6.7][k] : 1), ring = dec * (1.4 - p.b);
+    ratios.forEach((r, k) => { const hz = base * r * 2 ** (p.bend / 12); if (hz > 18000) return; const f = ctx.createBiquadFilter(), g = ctx.createGain(); f.type = "bandpass"; f.frequency.value = hz;
+      const tau = ring * (1 - p.b * k * .15); f.Q.value = Math.max(2, Math.min(400, Math.PI * hz * Math.max(.005, tau) / 3)); g.gain.value = (k ? .7 / (1 + k * p.b * 1.5) : 1) * 6; nodes.push(f, g); sg.connect(f).connect(g).connect(bus); });
   }
   amp.gain.setValueAtTime(0, t); amp.gain.linearRampToValueAtTime(vel, t + .001);
   const end = t + dec * 2 + .08; amp.gain.setTargetAtTime(0, t + dec * 1.3, .02);
