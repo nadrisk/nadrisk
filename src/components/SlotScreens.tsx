@@ -101,7 +101,7 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
       key(p, "SPRD", 23, 11, 22, c.spread);
       PLAY.forEach((m, i) => key(p, m.slice(0, 4).toUpperCase(), 47 + i * 27, 11, 26, play === m));
       p.text(String(c.type).toUpperCase().slice(0, 12), 2, 24);
-      p.text(`INV ${c.inversion}`, 48, 24);
+      key(p, "LEAD", 48, 22, 22, !!c.lead);
       key(p, inKey ? "KEY" : "FREE", 72, 22, 20, inKey);
       if (play === "arp") key(p, ord.slice(0, 4).toUpperCase(), 94, 22, 33, true);
     }}
@@ -109,6 +109,7 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
       <Tap x={1} y={11} w={20} h={9} label="Chord on" pressed={c.on} onClick={() => set({ on: !c.on })} />
       <Tap x={23} y={11} w={22} h={9} label="Chord spread" pressed={c.spread} onClick={() => set({ spread: !c.spread })} />
       {PLAY.map((m, i) => <Tap key={m} x={47 + i * 27} y={11} w={26} h={9} label={`Chord play ${m}`} pressed={play === m} onClick={() => set({ play: m })} />)}
+      <Tap x={48} y={22} w={22} h={9} label="Chord voice leading" pressed={!!c.lead} onClick={() => set({ lead: !c.lead })} />
       <Tap x={72} y={22} w={20} h={9} label="Chord follows master key" pressed={inKey} onClick={() => set({ fit: inKey ? "fixed" : "scale" })} />
       {play === "arp" && <Tap x={94} y={22} w={33} h={9} label="Chord arp order" onClick={() => set({ arp: ORD[(ORD.indexOf(ord) + 1) % ORD.length] })} />}
     </>} />;

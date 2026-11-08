@@ -39,3 +39,6 @@
 - hack~ GEN patterns are a seeded 4x16 S&H table (hackPattern) rebuilt from params.seed in both worklet and screen, offset around the knobs by DEPTH and stepped from the transport anchor and glided by SMTH; knobs at 0 disable their stage; runtime randomness is reseeded per step from the seed so every loop repeats exactly, and output has only a safety peak limiter (no loudness matching, which pumped) then peak-limited in the worklet, so the grit never changes level.
 - Per-engine output trims live in src/audio/loudness.ts (ENGINE_TRIM) and multiply each voice's amp peak, so instruments sit level with the drums without touching tone or saved channel levels.
 - hack~ gates to exact zero below -80 dBFS input and stops its pattern/flushes stutter memory on transport stop/pause (run port message), so it never sounds from silence.
+
+- EUCL rhythms use true Bjorklund (arp.ts bjorklund/euclid) for both phrases and the GEN EUCL page, so patterns match canonical Euclidean rhythms.
+- Chord LEAD (chord.lead, default off) re-voices each chord to the nearest voicing of the pad's last chord via pure harmony.voiceLead, so old sets sound unchanged.

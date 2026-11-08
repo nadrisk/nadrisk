@@ -5,12 +5,14 @@ import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import type { PerformanceParams } from "@/audio/performance";
 import type { MasterMeter } from "@/hooks/useGroovebox";
-import { BREAK_STYLES, ROLES, genBreak, genRandom, type GenResult, type Role } from "@/audio/patternGen";
+import { euclid } from "@/audio/arp";
+import { BREAK_STYLES, ROLES, genBreak, genEucl, genRandom, type GenResult, type Role } from "@/audio/patternGen";
 
 export type GenProps = { steps: 16 | 32; rows: () => number[]; roles: () => Role[]; models?: () => (string | undefined)[]; apply: (r: GenResult) => void; bake: () => void; selected: number; selName: string; selRole: Role; setRole: (r: Role | undefined) => void };
 function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
   const [style, setStyle] = useState(0), [dens, setDens] = useState(.4), [fill, setFill] = useState(.3), [vary, setVary] = useState(.3);
   const [rd, setRd] = useState(.5), [velLo, setVelLo] = useState(.4), [chc, setChc] = useState(.2), [roll, setRoll] = useState(.1), [seed, setSeed] = useState(1);
+  const [eh, setEh] = useState(5), [el, setEl] = useState(8), [er, setEr] = useState(0);
   const reroll = () => { const s = Math.floor(Math.random() * 1e9) + 1; setSeed(s); return s; };
   const pc = (v: number) => `${Math.round(v * 100)}%`;
   const k = (label: string, short: string, value: number, set: (v: number) => void, reset: number): Knob => ({ label, short, value, min: 0, max: 1, step: .01, fmt: pc, set, reset });
@@ -18,19 +20,23 @@ function GenScreen({ g, close }: { g: GenProps; close: () => void }) {
     { label: "Break style", short: "STYL", value: style, min: 0, max: BREAK_STYLES.length - 1, step: 1, fmt: v => BREAK_STYLES[Math.round(v)], set: setStyle, reset: 0 },
     k("Break density", "DENS", dens, setDens, .4), k("Break fills", "FILL", fill, setFill, .3), k("Bar two variation", "VAR", vary, setVary, .3),
   ] : page === "RAND" ? [k("Random density", "DENS", rd, setRd, .5), k("Lowest velocity", "VEL", velLo, setVelLo, .4), k("Chance amount", "CHNC", chc, setChc, .2), k("Roll amount", "ROLL", roll, setRoll, .1)]
+    : page === "EUCL" ? [{ label: "Euclid hits", short: "HITS", value: eh, min: 0, max: el, step: 1, fmt: v => String(Math.round(v)), set: setEh, reset: 5 },
+      { label: "Euclid cycle length", short: "LEN", value: el, min: 2, max: 16, step: 1, fmt: v => String(Math.round(v)), set: v => { setEl(v); setEh(h => Math.min(h, v)); }, reset: 8 },
+      { label: "Euclid rotation", short: "ROT", value: er, min: 0, max: el - 1, step: 1, fmt: v => String(Math.round(v)), set: setEr, reset: 0 }]
     : page === "ROLE" ? [{ label: "Pad role", short: "ROLE", value: ROLES.indexOf(g.selRole), min: 0, max: ROLES.length - 1, step: 1, fmt: v => ROLES[Math.round(v)].toUpperCase(), set: v => g.setRole(ROLES[Math.round(v)]) }] : [];
   const keys = (page: string): K[] => [
     { s: "BACK", label: "Close generator", x: 1, y: 11, w: 30, on: false, fn: close },
     ...(page === "BRKS" ? [{ s: "GEN", label: "Generate break", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genBreak(BREAK_STYLES[style], { dens, fill, vary, seed: reroll() }, g.roles(), g.rows(), g.steps, g.models?.())) }]
       : page === "RAND" ? [{ s: "GEN", label: "Generate random", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed: reroll() }, g.rows(), g.steps, g.models?.())) },
         { s: "SAME", label: "Generate again with same seed", x: 65, y: 11, w: 30, on: false, fn: () => g.apply(genRandom({ dens: rd, velLo, chance: chc, roll, seed }, g.rows(), g.steps, g.models?.())) }]
+      : page === "EUCL" ? [{ s: "GEN", label: "Generate euclidean", x: 33, y: 11, w: 30, on: false, fn: () => g.apply(genEucl({ hits: eh, len: el, rot: er }, g.rows(), g.steps)) }]
       : page === "PHRS" ? [{ s: "BAKE", label: "Bake phrase into steps", x: 33, y: 11, w: 30, on: false, fn: g.bake }]
       : [{ s: "AUTO", label: "Auto-detect role", x: 33, y: 11, w: 30, on: false, fn: () => g.setRole(undefined) }]),
   ];
-  return <Panel compactReadout name="GEN" label="Pattern generator" pages={["BRKS", "RAND", "PHRS", "ROLE"]} deps={[style, dens, fill, vary, rd, velLo, chc, roll, seed, g.selected, g.selRole, g.steps]} knobs={knobs}
+  return <Panel compactReadout name="GEN" label="Pattern generator" pages={["BRKS", "RAND", "EUCL", "PHRS", "ROLE"]} deps={[eh, el, er, style, dens, fill, vary, rd, velLo, chc, roll, seed, g.selected, g.selRole, g.steps]} knobs={knobs}
     body={(p, page) => {
       drawKeys(p, keys(page));
-      const line = page === "BRKS" ? `${BREAK_STYLES[style]} ${g.steps} STEPS` : page === "RAND" ? `SEED ${seed % 10000}` : page === "PHRS" ? `${g.selName} PHRASE>STEPS` : `${g.selName}: ${g.selRole.toUpperCase()}`;
+      const line = page === "BRKS" ? `${BREAK_STYLES[style]} ${g.steps} STEPS` : page === "RAND" ? `SEED ${seed % 10000}` : page === "EUCL" ? `${eh}/${el} ROT ${er} ${euclid(eh, el, er).map(x => x ? "X" : "-").join("")}` : page === "PHRS" ? `${g.selName} PHRASE>STEPS` : `${g.selName}: ${g.selRole.toUpperCase()}`;
       p.text(line.slice(0, 31), 2, 24);
       p.text((page === "PHRS" ? "PITCH ON MOD LANE" : page === "ROLE" ? "TURN ROLE / AUTO" : "ROWS X SKIP S SOLO").slice(0, 31), 2, 33);
     }}

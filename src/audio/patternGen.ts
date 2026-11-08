@@ -1,4 +1,4 @@
-import { midiOf, phraseOrder, type ArpParams } from "./arp";
+import { euclid, midiOf, phraseOrder, type ArpParams } from "./arp";
 
 /** Pure, seeded pattern generators for the sequencer GEN screen. */
 export type Role = "kick" | "snare" | "hat" | "open" | "perc" | "none";
@@ -158,4 +158,15 @@ export function bakePhrase(arp: ArpParams, steps: 16 | 32) {
     pitch[c] = (semi + 24) / 48;
   }
   return { pattern, vel, pitch };
+}
+
+/** EUCL: true Bjorklund hits over a cycle of `len` steps, rotated, repeated across the bank; accents on each cycle's first hit. */
+export function genEucl(o: { hits: number; len: number; rot: number }, rows: number[], steps: 16 | 32): GenResult {
+  const ring = euclid(o.hits, o.len, o.rot), n = ring.length, out: GenResult = {};
+  for (const row of rows) {
+    const p = Array(32).fill(0), vel = Array(32).fill(1), ch = Array(32).fill(1), rat = Array(32).fill(1);
+    for (let c = 0; c < steps; c++) if (ring[c % n]) { p[c] = 1; vel[c] = c % n === ring.indexOf(true) ? 1 : .8; }
+    out[row] = { pattern: p, vel, chance: ch, ratchet: rat };
+  }
+  return out;
 }

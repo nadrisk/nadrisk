@@ -48,3 +48,25 @@ export function modPitchNote(h: Harmony, padNote: number, value: number, range =
   const n = padNote + Math.round((Math.min(1, Math.max(0, value)) - .5) * 24);
   return Math.min(padNote + 12, Math.max(padNote - 12, snapNote(h, n)));
 }
+
+/** Voice leading: places each chord tone (any octave) so the chord moves as little as possible from `prev`
+ * (absolute MIDI notes). Shared notes stay put; the result stays within lo..hi and keeps one voice per tone. */
+export function voiceLead(prev: readonly number[] | null | undefined, chord: readonly number[], lo = 36, hi = 96): number[] {
+  if (!prev?.length || chord.length < 2) return [...chord];
+  const pcs = chord.map(n => ((n % 12) + 12) % 12), center = prev.reduce((a, b) => a + b, 0) / prev.length;
+  // Candidates per tone: every octave in range near the previous chord.
+  const cand = pcs.map(pc => { const c: number[] = []; for (let n = lo; n <= hi; n++) if (n % 12 === pc && Math.abs(n - center) <= 18) c.push(n); return c.length ? c : [chord[pcs.indexOf(pc)]]; });
+  const cost = (ns: number[]) => {
+    // Each new voice pays its distance to the nearest previous voice, plus every previous voice to its nearest new voice.
+    let t = 0; for (const n of ns) t += Math.min(...prev.map(p => Math.abs(p - n)));
+    for (const p of prev) t += Math.min(...ns.map(n => Math.abs(p - n)));
+    return t;
+  };
+  let best: number[] = [...chord], bc = Infinity;
+  const pick = (i: number, acc: number[]) => {
+    if (i === cand.length) { if (new Set(acc).size === acc.length && Math.max(...acc) - Math.min(...acc) <= 24) { const c = cost(acc); if (c < bc) { bc = c; best = [...acc]; } } return; }
+    for (const n of cand[i]) { acc.push(n); pick(i + 1, acc); acc.pop(); }
+  };
+  pick(0, []);
+  return best.sort((a, b) => a - b);
+}
