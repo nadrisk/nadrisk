@@ -10,8 +10,8 @@ import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
-const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"]];
-const EW = 25;
+const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"], ["pad", "PAD"]];
+const EW = 21;
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
   const theme = useContext(DisplayThemeContext);
@@ -44,7 +44,7 @@ function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () =
 
 // Pad copy/paste clipboard: one pad's whole sound (instrument, mode, sound, note/chord, EQ, FX rack).
 let padClip: Partial<Slot> | null = null, padClipFrom = -1;
-const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "idm", "chord", "eq", "fx"] as const;
+const PAD_SOUND = ["engine", "note", "drum", "synth", "sampler", "poly", "bass", "siren", "idm", "pad", "chord", "eq", "fx"] as const;
 export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot: Slot; index?: number; onChange: (p: Partial<Slot>) => void; onCopyBuffer?: (from: number) => void }) {
   const name = slot.name.padEnd(10, " ").slice(0, 10);
   const [renaming, setRenaming] = useState(false);

@@ -1,11 +1,11 @@
 import type { Slot } from "@/hooks/useGroovebox";
 
 /** A pad's sound + effects rack. Rhythm, phrases, name, mute/solo and choke stay with the pad. */
-export type PatchSound = Partial<Pick<Slot, "engine" | "note" | "drum" | "synth" | "sampler" | "poly" | "bass" | "siren" | "idm" | "chord" | "eq" | "fx">>;
+export type PatchSound = Partial<Pick<Slot, "engine" | "note" | "drum" | "synth" | "sampler" | "poly" | "bass" | "siren" | "idm" | "pad" | "chord" | "eq" | "fx">>;
 export type SampleMap = Record<string, { name: string; type: string; data: string }>;
 export type Patch = { v: 1; id: string; name: string; engine: Slot["engine"]; savedAt: number; sound: PatchSound };
 export const PATCH_KEY = "nadrisk.patches.v1";
-const ENGINES = ["drum", "idm", "synth", "sampler", "poly", "808", "siren"];
+const ENGINES = ["drum", "idm", "synth", "sampler", "poly", "808", "siren", "pad"];
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
