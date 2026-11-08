@@ -27,7 +27,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const eng = new VjEngine();
-    const initial = vjVisualState(); eng.model = initial.model; eng.size = initial.size; eng.color = initial.color;
+    const initial = vjVisualState(); eng.model = initial.model; eng.size = initial.size; eng.color = initial.color; eng.code = initial.code;
     engineRef.current = eng;
     const camera = new VjCamera(setCameraState); cameraRef.current = camera; eng.camera = camera;
     const syncCamera = () => {
@@ -43,7 +43,8 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
       else if (m.t === "doc") eng.setDoc(m.pads, m.bpm, m.bank);
       else if (m.t === "ctl") { const before = eng.model; eng.ctl(m.model, m.size); if (eng.model !== before) syncCamera(); }
       else if (m.t === "color") eng.color = m.enabled;
-      else if (m.t === "visual") { const before = eng.model; eng.model = m.state.model; eng.size = m.state.size; eng.color = m.state.color; if (before !== eng.model) syncCamera(); }
+      else if (m.t === "code") eng.code = m.enabled;
+      else if (m.t === "visual") { const before = eng.model; eng.model = m.state.model; eng.size = m.state.size; eng.color = m.state.color; eng.code = !!m.state.code; if (before !== eng.model) syncCamera(); }
     });
     vjSend({ t: "hello" });
     syncCamera();
@@ -52,6 +53,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
     const key = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && (e.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) return;
       if (e.key.toLowerCase() === "c" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); vjSend({ t: "color", enabled: !vjVisualState().color }); return; }
+      if (e.key.toLowerCase() === "k" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); vjSend({ t: "code", enabled: !vjVisualState().code }); return; }
       const dm = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0, ds = e.key === "ArrowUp" ? 1 : e.key === "ArrowDown" ? -1 : 0;
       if (!dm && !ds) return; e.preventDefault(); e.stopPropagation(); vjSend({ t: "ctl", model: dm, size: ds });
     };
@@ -68,7 +70,7 @@ export default function VjCanvas({ theme, hud = true }: { theme: string; hud?: b
         if (hudRef.current) { hudRef.current.hidden = true; hudRef.current.textContent = `NAD_VJ // ${eng.shapeName()} // ${eng.t < eng.hudUntil ? eng.hudMsg : eng.last || "IDLE"} // LVL ${Math.round(eng.level * 99).toString().padStart(2, "0")}`; }
         cv.dataset.backdrop = eng.shapeName(); cv.dataset.color = String(eng.color); cv.dataset.running = String(eng.running); cv.dataset.step = String(eng.step); cv.dataset.pads = String(eng.pads.length);
         cv.dataset.perfMode = String(eng.perf.mode); cv.dataset.echoSend = String(eng.perf.echoSend ?? 0); cv.dataset.feedbackFrames = String(eng.performanceFrames.frames); cv.dataset.feedbackBytes = String(eng.performanceFrames.bytes);
-        cv.setAttribute("aria-label", cam ? `CAM ${camera.status}: ${eng.pad ? `PAD ${eng.pad.index + 1} ${eng.pad.name}, notes ${eng.pad.notes.map(noteName).join(" ")}` : "no pad"}, ${eng.bpm} BPM, ${eng.running ? "PLAY" : "STOP"}, step ${eng.step + 1}, peak ${eng.peak.toFixed(3)}, RMS ${eng.rms.toFixed(3)}, colour ${eng.color ? "on" : "off"}` : `NAD tracker matrix, ${eng.pads.length} channels, bank ${eng.bank}, step ${eng.step + 1}, ${eng.running ? "PLAY" : "STOP"}, over ${eng.shapeName()} backdrop, colour ${eng.color ? "on" : "off"}`);
+        cv.setAttribute("aria-label", cam ? `CAM ${camera.status}: ${eng.pad ? `PAD ${eng.pad.index + 1} ${eng.pad.name}, notes ${eng.pad.notes.map(noteName).join(" ")}` : "no pad"}, ${eng.bpm} BPM, ${eng.running ? "PLAY" : "STOP"}, step ${eng.step + 1}, peak ${eng.peak.toFixed(3)}, RMS ${eng.rms.toFixed(3)}, colour ${eng.color ? "on" : "off"}` : `${eng.code ? "NAD code overlay" : "Visual"}, ${eng.pads.length} pads, bank ${eng.bank}, step ${eng.step + 1}, ${eng.running ? "PLAY" : "STOP"}, over ${eng.shapeName()} backdrop, colour ${eng.color ? "on" : "off"}`);
       }
     };
     raf = requestAnimationFrame(loop);

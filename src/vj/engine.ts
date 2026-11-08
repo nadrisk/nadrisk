@@ -2,12 +2,15 @@
 import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
 import { BAYER, ditherCamera } from "./raster";
-import { trackerDoc, hex } from "./trackerDoc";
+import { hex } from "./trackerDoc";
+import { codeLines } from "./nadCode";
+import { ambientField, type AmbientModel } from "./ambient";
+import { ReactionPool, sampleReactions } from "./reactions";
 import { depthMesh, type V3 } from "./depthcore";
 import { cosineColor, colorCss } from "./colorSweep";
 import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
 
-export const MODELS = ["DEPTH", "CAM", "SWEEP", "NONE"] as const;
+export const MODELS = ["DEPTH", "AURORA", "PLASMA", "TUNNEL", "CAM", "NONE"] as const;
 const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -19,7 +22,9 @@ const rot = (v: V3, ax: number, ay: number): V3 => {
 export class VjEngine {
   t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
-  color = false;
+  color = false; code = false;
+  readonly reactions = new ReactionPool();
+  private flash = new Map<number, number>();
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
   camera?: VjCamera;
@@ -57,7 +62,8 @@ export class VjEngine {
     const v = Number.isFinite(vel) ? Math.max(0.2, Math.min(1, vel)) : 1;
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
-    if (pad) this.pad = pad;
+    if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
+    this.reactions.push(kind, v, pad);
     if (kind === "kick") this.kick = Math.max(this.kick, v);
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.seed += .35 * v; this.ry += Math.PI / 2 * v; }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
@@ -78,6 +84,7 @@ export class VjEngine {
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
+    this.reactions.step(dt);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
     if (!active) this.clearPerformance();
@@ -96,8 +103,9 @@ export class VjEngine {
     buf.fill(bg);
     const m = MODELS[this.model];
     if (m === "DEPTH") this.depth(buf, W, H, fg, bg);
-    else if (m === "SWEEP") this.sweep(buf, W, H, fg, bg);
+    else if (m === "AURORA" || m === "PLASMA" || m === "TUNNEL") this.ambient(m, buf, W, H, fg, bg);
     else if (m === "CAM") this.cam(buf, W, H, fg, bg);
+    if (m === "DEPTH" || m === "CAM") this.react(buf, W, H, fg);
     if (active && m !== "NONE") this.performanceFrames.apply(buf, W, H, perf, this.t, this.bpm, bg, fg, this.color);
     else this.clearPerformance();
 
@@ -137,16 +145,27 @@ export class VjEngine {
     }
   }
 
-  private sweep(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const t = this.visualTime * (.4 + this.level * .6), push = this.kick * 1.4, sz = 1 / this.size;
+  /** Ambient field + pad reactions, dithered to 1-bit or tinted by the cosine palette. */
+  private ambient(m: AmbientModel, buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
+    const input = { t: this.visualTime, kick: this.kick, tone: this.tone, level: this.level, size: this.size }, asp = W / H, o = { light: 0, hue: 0 };
+    const items = this.reactions.items;
     for (let y = 0; y < H; y++) {
-      const ny = y / H - .5, br = (y & 7) * 8;
+      const v = y / H, ny = v - .5, br = (y & 7) * 8;
       for (let x = 0; x < W; x++) {
-        const nx = (x / W - .5) * W / H;
-        let v = Math.sin(nx * 4 * sz + t + Math.sin(ny * 3 * sz + t * .7) * 2 + push) * .5 + Math.sin(Math.hypot(nx, ny) * 9 * sz - t * 1.3) * .3;
-        v = Math.round((v * .5 + .5) * 8) / 8 * (.55 + this.level * .35);
-        buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, this.visualTime, .28 + .72 * Math.max(0, Math.min(1, v)), push + this.tone * Math.sin(ny * 3) * .2) : v > BAYER[br + (x & 7)] ? FG : BG;
+        const u = x / W;
+        let f = ambientField(m, (u - .5) * asp, ny, input);
+        if (items.length) { sampleReactions(items, u, v, asp, o); f = Math.min(1, f + o.light * .7); } else o.hue = 0;
+        buf[y * W + x] = this.color ? cosineColor(u * .6, (1 - v) * .6, this.visualTime * .15, .08 + .92 * f, f * .8 + o.hue) : f > BAYER[br + (x & 7)] ? FG : BG;
       }
+    }
+  }
+  /** Reactions drawn over DEPTH and CAM at half density. */
+  private react(buf: Uint32Array, W: number, H: number, FG: number) {
+    const items = this.reactions.items; if (!items.length) return;
+    const asp = W / H, o = { light: 0, hue: 0 };
+    for (let y = 0; y < H; y += 1) for (let x = (y & 1); x < W; x += 2) {
+      sampleReactions(items, x / W, y / H, asp, o);
+      if (o.light * .8 > BAYER[(y & 7) * 8 + (x & 7)]) buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, this.visualTime, Math.min(1, .5 + o.light * .5), o.hue) : FG;
     }
   }
   private cam(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
@@ -170,48 +189,32 @@ export class VjEngine {
     }
   }
 
-  /** NAD tracker matrix on solid strips: telemetry header, one column per pad, 16 rows, playhead row inverted. */
+  /** Optional CODE overlay: NAD patch lines on translucent strips, current step inverted, hit lines flash. */
   private text(c: CanvasRenderingContext2D, tw: number, th: number, dpr: number, fg: string, bg: string) {
-    const tick = this.step;
-    const d = trackerDoc(this.pads, this.bpm, this.bank, tick), cur = ((tick % 16) + 16) % 16;
-    const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace";
-    const barH = 52 * dpr, CW = 8, chars = Math.max(48, 4 + Math.max(1, d.cols.length) * CW), lines = 22;
-    const fs = Math.round(Math.max(9 * dpr, Math.min(tw / (chars * .62 + 2), (th - barH) / (lines * 1.25), 15 * dpr)));
-    const lh = Math.round(fs * 1.25), mono = `${fs}px ${FONT}`; c.font = mono; c.textBaseline = "middle";
-    const cw = c.measureText("M").width, pad = Math.round(fs * .7), x0 = pad + cw * 4;
-    const fit = Math.max(1, Math.floor((tw - x0 - pad) / (cw * CW)));
-    const offset = Math.floor((this.running ? this.beat / 4 : this.t / 4)) % Math.max(1, Math.ceil(d.cols.length / fit)) * fit;
-    const cols = d.cols.slice(offset, offset + fit), w = cw * (4 + cols.length * CW);
-    const tint = (i: number, r: number) => this.color ? colorCss(cosineColor(i / Math.max(1, cols.length), 1 - r / 16, this.t)) : fg;
+    const FONT = "VT323, ui-monospace, Menlo, Consolas, monospace";
+    const pad = Math.round(10 * dpr);
     const ink = (s: string, X: number, Y: number, a = 1, col = fg) => { c.globalAlpha = a; c.fillStyle = col; c.fillText(s, X, Y); c.globalAlpha = 1; };
-    const strip = (Y: number, W = w) => { c.globalAlpha = .92; c.fillStyle = bg; c.fillRect(pad - cw * .3, Y - lh / 2, W + cw * .6, lh); c.globalAlpha = 1; };
-    let y = lh;
-    const p = this.running ? this.perf : NEUTRAL_PERFORMANCE, perf = `ECO:${hex(p.echoSend ?? 0)} TNS:${hex(p.tension ?? 0)} ${["---", "REV", "STU", "STP"][p.mode ?? 0] ?? "---"}`;
-    const maxChars = Math.floor((tw - pad * 2) / cw);
-    const header = `NAD.TRACK // ${this.bank} ${Math.round(this.bpm)} BPM // ${this.running ? "RUN" : "STOP"}`;
-    strip(y, Math.max(w, cw * Math.min(header.length, maxChars))); ink(header.slice(0, maxChars), pad, y);
-    y += lh; strip(y, Math.max(w, cw * Math.min(perf.length, maxChars))); ink(perf.slice(0, maxChars), pad, y, .7);
-    if (this.t < this.hudUntil) { const m = this.hudMsg.toUpperCase(), mw = c.measureText(m).width; c.fillStyle = bg; c.fillRect(tw - pad - mw - cw, lh / 2, mw + cw * 1.5, lh); ink(m, tw - pad - mw, lh); }
-    y += lh * 1.4; strip(y);
-    ink("ST", pad, y, .45);
-    cols.forEach((col, i) => ink(col.title, x0 + i * CW * cw, y, col.muted ? .35 : 1, tint(i, 0)));
-    y += lh; strip(y);
-    cols.forEach((col, i) => {
-      const p = this.pads.find(p => p.index === col.pad), fx = p?.fx.find(f => f.mix > .02);
-      const label = fx ? fx.type.toUpperCase().slice(0, 7) : p?.cut != null && p.cut < 16000 ? `F${Math.round(p.cut).toString().padStart(5, "0")}` : "NOTE VL";
-      ink(label, x0 + i * CW * cw, y, col.muted ? .2 : .5);
-    });
-    y += lh * .55; c.fillStyle = fg; c.fillRect(pad, y, w, dpr); y += lh * .55;
-    if (!cols.length) { strip(y); ink("··  EMPTY BANK", pad, y, .6); return; }
-    d.rows.forEach((row, r) => {
-      const on = this.running && r === cur;
-      strip(y); if (on) { c.fillStyle = fg; c.fillRect(pad - cw * .3, y - lh / 2, w + cw * .6, lh); }
-      const tc = on ? bg : fg;
-      ink((d.page * 16 + r).toString(16).toUpperCase().padStart(2, "0"), pad, y, on ? 1 : r % 4 === 0 ? .8 : .4, tc);
-      cols.forEach((col, i) => { const s = row.cells[offset + i], hit = !s.startsWith("·"); ink(s, x0 + i * CW * cw, y, (col.muted ? .35 : 1) * (hit ? 1 : .32), on ? bg : tint(i, r)); });
+    if (!this.code) {
+      if (this.t < this.hudUntil) { const fs = Math.round(16 * dpr); c.font = `${fs}px ${FONT}`; c.textBaseline = "middle"; const m = this.hudMsg.toUpperCase(), mw = c.measureText(m).width; c.globalAlpha = .8; c.fillStyle = bg; c.fillRect(tw - pad * 2 - mw, pad, mw + pad, fs * 1.3); ink(m, tw - pad * 1.5 - mw, pad + fs * .65); }
+      return;
+    }
+    const lines = codeLines(this.pads, this.step, this.bank, this.bpm, this.running);
+    const p = this.running ? this.perf : NEUTRAL_PERFORMANCE;
+    lines.push({ text: `fx eco:${hex(p.echoSend ?? 0)} tns:${hex(p.tension ?? 0)} ${["--", "rev", "stu", "stp"][p.mode ?? 0] ?? "--"}${this.t < this.hudUntil ? "  // " + this.hudMsg.toLowerCase() : ""}` });
+    const chars = Math.max(...lines.map(l => l.text.length), 40);
+    const fs = Math.round(Math.max(11 * dpr, Math.min((tw - pad * 2) / (chars * .5), (th - pad * 2) / (lines.length * 1.2), 22 * dpr)));
+    const lh = Math.round(fs * 1.15); c.font = `${fs}px ${FONT}`; c.textBaseline = "middle";
+    const cw = c.measureText("M").width;
+    let y = pad + lh / 2;
+    lines.forEach((l, i) => {
+      const w = cw * l.text.length;
+      const age = l.pad != null ? this.t - (this.flash.get(l.pad) ?? -9) : 9, hot = age < .12;
+      c.globalAlpha = hot ? .85 : .55; c.fillStyle = hot ? fg : bg; c.fillRect(pad - cw * .4, y - lh / 2, w + cw * .8, lh); c.globalAlpha = 1;
+      const col = this.color && l.pad != null ? colorCss(cosineColor(l.pad / 16, .5, this.t * .3, .95)) : fg;
+      ink(l.text, pad, y, l.muted ? .3 : i === 0 ? .9 : .85, hot ? bg : col);
+      if (l.hi != null && !hot) { c.fillStyle = fg; c.fillRect(pad + l.hi * cw - cw * .1, y - lh / 2 + dpr, cw * 1.2, lh - dpr * 2); ink(l.text[l.hi] ?? "", pad + l.hi * cw, y, 1, bg); }
       y += lh;
     });
-    if (d.cols.length > cols.length) { strip(y); ink(`CH ${offset + 1}-${offset + cols.length} / ${d.cols.length}`, pad, y, .5); }
   }
 }
 
