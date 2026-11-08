@@ -1185,3 +1185,7 @@ body.perf-lock { overflow: hidden; }
 .lk-xf { border: 2px solid hsl(var(--foreground)); padding: 8px; }
 .lk-mixer input[type="range"] { accent-color: hsl(var(--foreground)); height: 36px; touch-action: none; }
 @media (max-width: 520px) { .lk-strips { grid-template-columns: 1fr 1fr; } .lk-center { grid-column: 1 / -1; grid-row: 1; flex-direction: row; } }
+.lk-mixer, .lk-strips, .lk-strip, .lk-xf, .lk-knob { min-width: 0; box-sizing: border-box; }
+.lk-strips > * { min-width: 0; }
+.lk-strip-head { overflow: hidden; }
+.lk-xf input, .lk-knob input { width: 100%; }
