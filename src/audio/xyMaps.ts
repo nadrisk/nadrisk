@@ -32,9 +32,9 @@ export function applyXY(s: Slot): Slot {
       cutoff: oct(c.cutoff, y * 3, 40, 16000), res: cl(c.res + y * .3, 0, 1), envAmt: cl(c.envAmt + y * .35, 0, 1), drive: cl(c.drive + Math.max(0, y) * .45, 0, 1), wave: cl(c.wave - y * 1.2, 0, 3) } } };
   }
   if (s.engine === "pad") {
-    // X = dark .. bright (filter, vowel morph); Y = dry and still (-1) .. wide, drifting and washed (+1).
+    // X = dark .. bright (filter, vowel morph); Y = short (-1) .. long (+1) attack/release. Always dry.
     const p = padParams(s.pad);
-    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), space: cl(p.space + y * .45, 0, 1), motion: cl(p.motion + y * .4, 0, 1), rel: oct(p.rel, y * .8, .05, 8) } };
+    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), atk: oct(p.atk, y * 1.5, .002, 6), rel: oct(p.rel, y * 1.2, .05, 8) } };
   }
   if (s.engine === "808") {
     const b = s.bass;
@@ -82,7 +82,7 @@ export function commitXY(s: Slot): Partial<Slot> {
 /** Short readouts of what the pad is moving, for the XY screen. */
 export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "synth") return ["ENV DET SUB", "CUT RES WAVE"];
-  if (s.engine === "pad") return ["BRIGHT VOWL", "SPCE MOTN REL"];
+  if (s.engine === "pad") return ["BRIGHT VOWL", "ATK REL"];
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
   if (s.engine === "idm") return ["DEC SHAPE", "TONE GRIT"];
@@ -95,6 +95,6 @@ export function xyLabels(s: Slot): [string, string] {
 export function xyCorners(s: Slot): [string, string, string, string] {
   if (s.engine === "sampler" && s.sampler.grain) return ["TIGHT", "WIDE", "FWD", "BACK"];
   if (s.engine === "sampler" && s.sampler.stretch) return ["SHRT", "LONG", "BRT", "DRK"];
-  if (s.engine === "pad") return ["DARK", "BRT", "WASH", "DRY"];
+  if (s.engine === "pad") return ["DARK", "BRT", "LONG", "SHRT"];
   return ["TIGHT", "OPEN", "BRT", "DRK"];
 }
