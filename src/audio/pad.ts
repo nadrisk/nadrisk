@@ -3,18 +3,21 @@ import { adsr, at, finish, link, noiseBuffer, type Voice } from "./voices";
 import { ENGINE_TRIM } from "./loudness";
 
 /** Saved PAD sound: preset index + four macros (0..1) + attack/release seconds. Missing fields come from the preset. */
-export type PadParams = { preset: number; bright: number; motion: number; space: number; age: number; atk: number; rel: number };
+export type PadParams = { preset: number; bright: number; motion: number; space: number; age: number; atk: number; rel: number; /** Pad octave −3..+3. */ oct?: number; /** Chord-tone octave −2..+2 (root stays). */ coct?: number };
 export const PAD_MAX_VOICES = 6;
 const cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 export const padPreset = (i: number): PadRecipe => PAD_PRESETS[((Math.round(i) % PAD_PRESETS.length) + PAD_PRESETS.length) % PAD_PRESETS.length];
-export const padFromPreset = (i: number): PadParams => { const r = padPreset(i); return { preset: PAD_PRESETS.indexOf(r), bright: r.bright, motion: r.motion, space: r.space, age: r.age, atk: r.a, rel: r.r }; };
+export const padFromPreset = (i: number): PadParams => { const r = padPreset(i); return { preset: PAD_PRESETS.indexOf(r), bright: r.bright, motion: r.motion, space: r.space, age: r.age, atk: r.a, rel: r.r, oct: 0, coct: 0 }; };
 export const defaultPad = (): PadParams => padFromPreset(0);
 export function padParams(p?: Partial<PadParams>): PadParams {
   const d = padFromPreset(p?.preset ?? 0);
-  return { preset: d.preset, bright: cl(p?.bright ?? d.bright, 0, 1), motion: cl(p?.motion ?? d.motion, 0, 1), space: cl(p?.space ?? d.space, 0, 1), age: cl(p?.age ?? d.age, 0, 1), atk: cl(p?.atk ?? d.atk, .002, 6), rel: cl(p?.rel ?? d.rel, .05, 8) };
+  return { preset: d.preset, bright: cl(p?.bright ?? d.bright, 0, 1), motion: cl(p?.motion ?? d.motion, 0, 1), space: cl(p?.space ?? d.space, 0, 1), age: cl(p?.age ?? d.age, 0, 1), atk: cl(p?.atk ?? d.atk, .002, 6), rel: cl(p?.rel ?? d.rel, .05, 8), oct: Math.round(cl(p?.oct ?? 0, -3, 3)), coct: Math.round(cl(p?.coct ?? 0, -2, 2)) };
 }
-/** Filter cutoff for a recipe at BRIGHT (0.5 = recipe value, ±2 octaves), darkened by AGE. */
-export const padCutoff = (r: PadRecipe, p: PadParams) => cl(r.cutoff * 2 ** ((p.bright - .5) * 4) * (1 - p.age * .35), 80, 16000);
+/** Filter cutoff for a recipe at BRIGHT (0 = recipe value, up to +2.5 octaves), darkened by AGE. */
+export const padCutoff = (r: PadRecipe, p: PadParams) => cl(r.cutoff * 2 ** (p.bright * 2.5) * (1 - p.age * .3), 80, 16000);
+/** SP-1200 style 12-bit staircase (shared per context). */
+const crush = new WeakMap<BaseAudioContext, Float32Array>();
+export function bitCurve(bits: number, n = 8192) { const q = 2 ** (bits - 1), c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.round(x * q) / q; } return c; }
 /** Number of new chord notes a pad may ring alongside the ones already ringing, so the pad never exceeds PAD_MAX_VOICES. */
 export const padRingCap = (chordSize: number) => Math.max(1, Math.floor(PAD_MAX_VOICES / Math.max(1, chordSize)));
 
@@ -33,7 +36,15 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   const mix = ctx.createGain(); mix.gain.value = 1;
   // Ensemble: dry plus two modulated short delays panned apart (string-machine / Dimension style).
-  const out = ctx.createGain(); out.connect(amp);
+  const out = ctx.createGain();
+  // AGE: SP-1200 character — pre-gain into a 12-bit staircase (quieter = grainier), then the steep SSM2044-ish output lowpass.
+  if (p.age > 0) { let cv = crush.get(ctx); if (!cv) crush.set(ctx, cv = bitCurve(12));
+    const pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain(), lp1 = ctx.createBiquadFilter(), lp2 = ctx.createBiquadFilter();
+    const drop = 1 - p.age * .9; pre.gain.value = drop; sh.curve = cv as Float32Array<ArrayBuffer>; post.gain.value = 1 / drop;
+    lp1.type = lp2.type = "lowpass"; lp1.frequency.value = lp2.frequency.value = 16000 - p.age * 7000; lp1.Q.value = .9; lp2.Q.value = .6;
+    const dryA = ctx.createGain(), wetA = ctx.createGain(); dryA.gain.value = 1 - Math.min(1, p.age * 2); wetA.gain.value = Math.min(1, p.age * 2);
+    out.connect(dryA).connect(amp); out.connect(pre).connect(sh).connect(post).connect(lp1).connect(lp2).connect(wetA).connect(amp); nodes.push(pre, sh, post, lp1, lp2, dryA, wetA);
+  } else out.connect(amp);
   const dry = ctx.createGain(); dry.gain.value = .7; mix.connect(dry).connect(out);
   const ens = at(ctx.createOscillator(), t), ensG = ctx.createGain(); ens.frequency.value = .45 + p.motion * .5; ensG.gain.value = .0015 + p.space * .002; ens.connect(ensG); srcs.push(ens); nodes.push(ens, ensG, mix, dry, out, amp);
   const wet = .25 + p.space * .45;

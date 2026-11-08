@@ -23,3 +23,12 @@ describe("PAD instrument", () => {
       [p.bright, p.space, p.motion].forEach(v => { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(1); }); expect(p.rel).toBeLessThanOrEqual(8); }
   });
 });
+
+describe("PAD defaults and AGE", () => {
+  it("every preset starts with all four macros at 0", () => {
+    PAD_PRESETS.forEach((_, i) => { const p = padFromPreset(i); expect([p.bright, p.motion, p.space, p.age]).toEqual([0, 0, 0, 0]); });
+  });
+  it("octave and chord octave clamp to their ranges", () => {
+    expect(padParams({ oct: 9, coct: -9 })).toMatchObject({ oct: 3, coct: -2 });
+  });
+});
