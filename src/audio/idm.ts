@@ -91,7 +91,7 @@ export function playIdm(ctx: BaseAudioContext, dest: AudioNode, p0: IdmParams, t
       default: { // COLL: noise burst → short delay → folder → feedback
         const burst = G(0); burst.gain.setValueAtTime(1, t); burst.gain.setTargetAtTime(0, t + .001, .002); src.connect(burst);
         const sum = G(1), fold = W(foldCurve(.7)); burst.connect(sum); const d = loop(sum, clamp(1 / hz, .001, .025), .85, fold);
-        sweep(d.delayTime as unknown as AudioParam, 0, 0); d.delayTime.cancelScheduledValues(t); const dt = clamp(1 / hz, .001, .025); d.delayTime.setValueAtTime(clamp(dt * 2 ** (-p.penv * 2), .0005, .05), t); d.delayTime.linearRampToValueAtTime(dt, t + span);
+        const dt = clamp(1 / hz, .001, .025); d.delayTime.setValueAtTime(clamp(dt * 2 ** (-p.penv * 2), .0005, .05), t); d.delayTime.linearRampToValueAtTime(dt, t + span);
         fold.connect(G(.9)).connect(vca); }
     }
   } else {
