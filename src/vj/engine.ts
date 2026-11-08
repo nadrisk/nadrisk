@@ -1,12 +1,12 @@
 // AV: the groovebox written out as a NAD tracker matrix, over one selectable 1-bit backdrop (generative DEPTH mesh, dithered CAM, SWEEP, NONE).
 import type { DocPad, VjKind, VjPad } from "./bus";
 import type { VjCamera } from "./camera";
-import { BAYER, ditherCamera } from "./raster";
+import { BAYER, sobelEdges, feedTrail } from "./raster";
 import { hex } from "./trackerDoc";
 import { codeLines } from "./nadCode";
 import { ambientField, type AmbientModel } from "./ambient";
 import { ReactionPool, sampleReactions } from "./reactions";
-import { depthMesh, type V3 } from "./depthcore";
+import { depthMesh, MESHES, type V3 } from "./depthcore";
 import { cosineColor, colorCss } from "./colorSweep";
 import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
 
@@ -31,6 +31,7 @@ export class VjEngine {
   pads: DocPad[] = [];
   private lo = false; private slowFrames = 0;
   private cameraCanvas = document.createElement("canvas");
+  private camLum = new Float32Array(0); private camEdge = new Float32Array(0); private camTrail = new Float32Array(0);
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
