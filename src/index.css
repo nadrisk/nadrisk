@@ -1094,10 +1094,9 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-ruler-cell.beat { color: hsl(var(--foreground)); background-size: 1px 100%; }
 .gb-seq-grid .gb-step:not(.on):not(.tie):not(.disabled) { border-color: hsl(var(--foreground) / .22) !important; }
 .gb-seq-grid .gb-step.alt:not(.on):not(.tie) { background-color: hsl(var(--foreground) / .06); }
-.gb-seq-grid .gb-step.group { box-shadow: -2px 0 0 hsl(var(--foreground) / .35); }
+.gb-seq-grid .gb-step.group { box-shadow: -2px 0 0 hsl(var(--foreground) / .2); }
 .gb-step.tie-next::after { content: ""; top: -1px; bottom: -1px; right: -4px; width: 4px; background: hsl(var(--accent)); }
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.tie-next::after { background: hsl(var(--foreground)); }
-.gb-row.selected .gb-step.tie-next::after { background: hsl(var(--background)); }
 .gb-step.n-head, .gb-step.n-body { border-right-color: transparent !important; }
 .gb-step.n-body, .gb-step.n-tail { border-left-color: transparent !important; }
 .gb-step-grip { width: 3px; border-left: 1px solid hsl(var(--background)); border-right: 1px solid hsl(var(--background)); background: transparent !important; right: 2px; }
