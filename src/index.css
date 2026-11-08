@@ -1155,3 +1155,5 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-overlay > .perf-body.instrument-workspace { flex: 0 0 auto; overflow: visible !important; height: auto !important; min-height: 0; }
 .perf-overlay .perf-head { flex: 0 0 auto; position: sticky; top: 0; z-index: 2; background: hsl(var(--background)); }
 body.perf-lock { overflow: hidden; }
+@media (max-width: 640px) { .perf-overlay .perf-head { flex-wrap: nowrap !important; gap: 4px; padding: 4px 6px; font-size: 10px; border-bottom-width: 2px; } .perf-overlay .perf-head .perf-title { flex: 1; white-space: nowrap; } .perf-overlay .perf-head .gb-cycle, .perf-overlay .perf-head > span { white-space: nowrap; font-size: 10px; min-height: 32px; padding: 0 6px; } }
+.perf-overlay { overflow: hidden; } .perf-overlay > .perf-body.instrument-workspace { flex: 1 1 auto !important; overflow-y: auto !important; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
