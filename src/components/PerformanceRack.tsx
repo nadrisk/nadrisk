@@ -12,7 +12,7 @@ const DIVS: [number, string][] = [[1, "1/4"], [.5, "1/8"], [.25, "1/16"], [.125,
 const LOOPS = [0, 1, 2, 4, 8];
 
 type PadInfo = { name: string; mute: boolean; solo?: boolean };
-export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, toggleSolo, unmuteAll }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; toggleSolo: (i: number) => void; unmuteAll: () => void }) {
+export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, toggleSolo, unmuteAll, part = "all" }: { part?: "all" | "panel" | "live"; value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; toggleSolo: (i: number) => void; unmuteAll: () => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
@@ -79,8 +79,8 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   ] : page === "SEQ" ? [
     { label: "Sequencer offset", short: "OFFS", value: v.offset, min: -8, max: 8, step: 1, fmt: x => `${x > 0 ? "+" : ""}${x}`, set: offset => set({ offset }) },
   ] : [];
-  return <div className="gb-perf">
-  <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v), flash > 0]} knobs={knobs}
+  return <div className={`gb-perf gb-perf-part-${part}`}>
+  {part !== "live" && <Panel name="PERFORM" label="Performance" pages={["FX", "ECO", "SEQ", "HLD"]} deps={[JSON.stringify(v), flash > 0]} knobs={knobs}
     headerAction={{ text: "RESET", label: "Reset performance", pressed: dropFlash > 0, onClick: reset }}
     knobAction={page => page === "FX" ? { text: "SET", label: "Set time home", knobLabel: "Global envelope time", pressed: flash > 0, onClick: tapSet } : undefined}
     body={(p, page) => {
@@ -149,9 +149,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       {hold(1, "Hold reverse", 1, 11, 30)}{hold(2, "Hold stutter", 33, 11, 30)}{hold(3, "Hold tape stop", 65, 11, 30)}
       {STYLES.map((s, i) => <Tap key={s} x={1 + i * 42} y={24} w={41} h={9} label={`Tension mode ${s}`} pressed={v.style === s} onClick={() => set({ style: s })} />)}
       {CMODES.map((m, i) => <Tap key={m} x={1 + i * 32} y={37} w={31} h={9} label={`Chord performance ${m}`} pressed={(v.chordMode ?? "pad") === m} onClick={() => set({ chordMode: m })} />)}
-    </> : null} />
+    </> : null} />}
   {/* Live strip: pattern launch (switches on the next bar) and one mute key per pad, same mutes as the mixer. */}
-  <div className="gb-perf-live" ref={liveRef}>
+  {part !== "panel" && <div className="gb-perf-live" ref={liveRef}>
     <div className="gb-perf-banks" role="group" aria-label="Performance pattern">
       {["A", "B", "C", "D"].map((n, b) => {
         const active = bank === b, waiting = queued === b;
@@ -164,6 +164,6 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       </div>
       <div className="gb-perf-side"><button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
     </div>
-  </div>
+  </div>}
   </div>;
 }
