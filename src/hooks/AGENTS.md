@@ -5,3 +5,4 @@
 - Keyboard step recording: REC with transport stopped writes one step per key (60 ms chord collapse keeps the first note) into a range-24 exact-pitch lane (ModLane.range), so recorded notes play back at the played pitch.
 - Step arrays are always STEPS (32) wide; each bank's steps (16|32) caps row lengths and bank-switch timing, and the grid shows one 16-column half at a time, so 16-step sets load unchanged.
 - The LIVE/PROD buffer is chosen only at audio-context creation (latencyHint); switching parks the current set in sessionStorage and reloads, because a live context can't change its buffer.
+- Step banks may carry cond[] (stepCond.CONDS index, missing = ALL) and nudge[] (.5 = on grid, ±40% of a 16th); the scheduler applies them via pure stepCond helpers using the loop count since PLAY, so old sets play unchanged.
