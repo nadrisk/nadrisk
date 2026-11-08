@@ -69,7 +69,17 @@ lowp float snoise(in mediump vec3 v){
 const OBJ = `${NOISE3}
 float sdBox(vec3 p, vec3 b){ vec3 q = abs(p)-b; return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.); }
 float sdTorus(vec3 p, vec2 t){ vec2 q = vec2(length(p.xz)-t.x, p.y); return length(q)-t.y; }
-float sdTriPrismO(vec3 p, vec2 h){ vec3 q = abs(p); return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5); }
+float sdPyramid(vec3 p, float h){
+  float m2 = h*h + 0.25;
+  p.xz = abs(p.xz); p.xz = (p.z>p.x) ? p.zx : p.xz; p.xz -= 0.5;
+  vec3 q = vec3(p.z, h*p.y - 0.5*p.x, h*p.x + 0.5*p.y);
+  float s = max(-q.x,0.0);
+  float t = clamp((q.y-0.5*p.z)/(m2+0.25), 0.0, 1.0);
+  float a = m2*(q.x+s)*(q.x+s) + q.y*q.y;
+  float b = m2*(q.x+0.5*t)*(q.x+0.5*t) + (q.y-m2*t)*(q.y-m2*t);
+  float d2 = min(q.y,-q.x*m2-q.y*0.5) > 0.0 ? 0.0 : min(a,b);
+  return sqrt((d2+q.z*q.z)/m2) * sign(max(q.z,-p.y));
+}
 mat2 r2(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
 // Unit-size primitive; MATTER is the Dark matter sphere (noise-displaced, wavy) at unit radius.
 float objUnit(vec3 p){
@@ -78,7 +88,7 @@ float objUnit(vec3 p){
 #elif OBJ == 2
   return sdBox(p, vec3(.72)) - .03;
 #elif OBJ == 3
-  return sdTriPrismO(p, vec2(1.25, .6)) - .02;
+  return sdPyramid(p/1.7 + vec3(0., .45, 0.), 1.)*1.7;
 #elif OBJ == 4
   return sdTorus(p, vec2(.78, .3));
 #elif OBJ == 5
@@ -100,8 +110,10 @@ vec3 objCentre(){
   return vec3(0.);
 #endif
 }
-float objSdf(vec3 p, vec3 at, float size){
-  p -= at + objCentre()*size;
+vec3 gAt = vec3(0.); float gSize = 1.;
+float objScale(){ return gSize * uSize * (1. + uBand.x*.08); }
+vec3 objXf(vec3 p){
+  p -= gAt + objCentre()*gSize;
 #if MOTION == 0
   p.xz *= r2(iTime*.25); p.xy *= r2(.35*sin(iTime*.2));
 #elif MOTION == 1
@@ -109,9 +121,53 @@ float objSdf(vec3 p, vec3 at, float size){
 #else
   p.xz *= r2(iTime*1.1); p.yz *= r2(iTime*.7);
 #endif
-  float s = size * uSize * (1. + uBand.x*.08);
-  return objUnit(p/s)*s;
-}`;
+  return p/objScale();
+}
+float objSdf(vec3 p){
+#if OBJ == 0
+  return 1e5;
+#else
+  return objUnit(objXf(p))*objScale();
+#endif
+}
+mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx); }
+// Camera travel shared by every world: STILL, DRIFT (Infinite place glide), ORBIT (Jumping shape circle),
+// DIVE (Cloud diving weave). DRIFT/DIVE carry the object along; ORBIT circles it.
+void travel(inout vec3 ro, inout vec3 rd, float spd){
+  vec3 at = gAt;
+#if CAM == 1
+  vec3 off = vec3(0., 0., spd*iTime); ro += off; gAt += off;
+#elif CAM == 2
+  mat3 R = camY((iTime-10.)*.8); vec3 c = vec3(at.x, ro.y, at.z); ro = c + (ro-c)*R; rd = rd*R;
+#elif CAM == 3
+  float t = iTime*.5, k = max(.5, length(at-ro))*.35;
+  vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.12, spd*iTime); ro += off; gAt += off;
+  rd = rd*camY(cos(t)*.22); rd.xy *= r2(-cos(t)*.12);
+#endif
+}
+#ifndef SKIN
+#define SKIN 0
+#endif
+#if SKIN != 0
+SKIN_SRC
+#endif
+// Object surface: the world's shading, or a plasma form wrapped onto the shape (triplanar in object space).
+vec3 skin(vec3 p, vec3 base){
+#if SKIN == 0
+  return base;
+#else
+  vec3 q = objXf(p); vec2 e = vec2(.004, 0.);
+  vec3 nl = abs(vec3(objUnit(q+e.xyy)-objUnit(q-e.xyy), objUnit(q+e.yxy)-objUnit(q-e.yxy), objUnit(q+e.yyx)-objUnit(q-e.yyx)));
+  vec2 st = nl.x > nl.y && nl.x > nl.z ? q.zy : nl.y > nl.z ? q.xz : q.xy;
+  vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
+  vec3 col; float v; form(col, v, fc); vec3 c = palette(v, col);
+#if PAL == 6
+  c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
+#endif
+  return c * (.25 + .95*lum(base)) + max(base - .8, 0.);
+#endif
+}
+bool objHit(vec3 p, float d){ return OBJ != 0 && objSdf(p) <= d + .01; }`;
 
 // ---------- FLOOR: the "Jumping shape" space (hatched shading, sky, orbit camera) ----------
 const FLOOR = `${OBJ}
@@ -132,9 +188,9 @@ const float pi = 3.1415926535;
 #define sfractN(x,w)   min( fract(x)/(1.-(w)), fract(-x)/(w) )
 float map(vec3 p)
 {
-    float d = objSdf(p, vec3(0., .1, 0.), 1.);
-    //Floor
-    d = min(d, p.y+.8 + (sfractN(p.x, 0.1) + sfractN(p.z, 0.1))*0.1);
+    float d = objSdf(p);
+    //Floor (flat)
+    d = min(d, p.y+.8);
     return d;
 }
 float trace(vec3 o, vec3 r) {
@@ -240,12 +296,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 uv = fragCoord/iResolution.xy;
     uv = uv * 2.0 - 1.0;
     uv.x *= iResolution.x / iResolution.y;
-    vec3 r = normalize(vec3(uv, 2.0))*rotY((iTime-10.)*rotRate);
-    vec3 o = pos*rotY((iTime-10.)*rotRate) + (iTime*posTime);
+    gAt = vec3(0., .1, 0.); gSize = 1.;
+    vec3 r = normalize(vec3(uv, 2.0)), o = pos;
+    travel(o, r, 1.5);
     float t = trace(o, r);
     vec3 p = (o+r*t);
     vec3 nrm = estimateNormal(p);
     vec3 c = shadeGBuff(p, nrm, r, t, uv);
+    if (t > 0. && t < MAX_DIST && objHit(p, p.y+.8)) { float fog = smoothstep(0., .9, 1./(1.+t*t*.05)); c = mix(c, skin(p, c), fog); }
     fragColor = vec4(c, 1.0);
 }`;
 
@@ -290,11 +348,12 @@ void Rotate(inout vec2 p, float a)
     float ca = cos(a);
     p *= mat2(ca, -sa, sa, ca);
 }
+vec3 gRo = vec3(0.);
 float Clouds(vec3 dir, out float dist)
 {
     const float sky_height = 90.0;
     dist = -sky_height / dir.y;
-    vec3 clouds_intersection = dir * dist;
+    vec3 clouds_intersection = dir * dist + vec3(gRo.x, 0., gRo.z)*8.;
     float tw = 0.0;
     float clouds = 0.0;
     const float s = 1.0 / CLOUD_STEPS;
@@ -337,24 +396,26 @@ vec3 Sky(vec3 dir)
 }
 // Clouds drift slowly overhead so the endless sky breathes like the reference.
 vec3 SkyAt(vec3 dir){ return Sky(dir); }
-float omap(vec3 p){ return objSdf(p, vec3(0., -.95, 7.), 1.); }
+float omap(vec3 p){ return objSdf(p); }
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 	vec2 uv = fragCoord.xy / iResolution.xy * 2.0 - 1.0;
     uv.x *= iResolution.x / iResolution.y;
-    vec3 dir = Ray(uv);
+    vec3 dir = Ray(uv), ro = vec3(0.);
+    gAt = vec3(0., -.95, 7.); gSize = 1.;
+    travel(ro, dir, 3.); gRo = ro;
     vec3 sun_direction = normalize(vec3(-1.0, -0.4, -1.0));
     vec3 cl = dir.y > 0. ? SkyAt(dir) : vec3(0.4, 0.3, 0.1);
 #if OBJ != 0
     float t = 0.;
-    for (int i = 0; i < 80; i++) { float d = omap(dir*t); if (d < .002 || t > 20.) break; t += d; }
+    for (int i = 0; i < 80; i++) { float d = omap(ro+dir*t); if (d < .002 || t > 20.) break; t += d; }
     if (t < 20.) {
-      vec3 p = dir*t; vec2 e = vec2(.002, 0.);
+      vec3 p = ro+dir*t; vec2 e = vec2(.002, 0.);
       vec3 n = normalize(vec3(omap(p+e.xyy)-omap(p-e.xyy), omap(p+e.yxy)-omap(p-e.yxy), omap(p+e.yyx)-omap(p-e.yyx)));
       vec3 r = reflect(dir, n);
       vec3 env = r.y > 0. ? SkyAt(r) : vec3(0.4, 0.3, 0.1);
       float dif = clamp(dot(n, -sun_direction), 0., 1.);
-      cl = env * (0.45 + 0.55*dif);
+      cl = skin(p, env * (0.45 + 0.55*dif));
     }
 #endif
     cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0 - uBand.w*8.));
@@ -390,18 +451,7 @@ float perlin2(vec2 p)
 float map(vec3 p, out float m)
 {
     float terrain = p.y - 0.5 + perlin2(p.xz * 0.002) * 1.5 + perlin2(p.xz * 0.05) * 0.05;
-#if OBJ == 6
-    float solid = grid(p, 0.1, 0.9);
-    float wire = grid(p, 0.1, 0.7);
-    if(fract(p.z * 0.25 / 3.14159265359 + 0.43) >= 0.5)
-        p.x = -p.x;
-    p.x -= cos(p.z);
-    p.y = abs(p.y + sin(p.z));
-    float tubes = length(p.xy) - 0.3;
-    tubes = min(max(tubes, -solid), fOpPipe(tubes, wire, 0.015));
-#else
-    float tubes = objSdf(p, vec3(0., .45, 4.0 * iTime + 5.), .45);
-#endif
+    float tubes = objSdf(p);
     m = 1.0;
     if(tubes < terrain)
 	    m = 0.0;
@@ -421,9 +471,11 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 	vec2 uv = (fragCoord.xy * 2.0 - iResolution.xy) / iResolution.y;
     float m, s, td = 0.1;
-    vec3 is, c, n, o = vec3(0.0, 0.25, 4.0 * iTime), d = vec3(0.0, 0.0, 1.0);
+    vec3 is, c, n, o = vec3(0.0, 0.25, 0.), d = vec3(0.0, 0.0, 1.0);
     pR(d.xz, uv.x * 0.3);
     pR(d.yz, uv.y * 0.3 - 0.06);
+    gAt = vec3(0., .45, 5.); gSize = .45;
+    travel(o, d, 4.);
     for(int i = 0 ; i < 200 ; ++i)
     {
         is = o + d * td;
@@ -433,18 +485,17 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
             break;
     }
     n = normal(is, s);
-	fragColor = vec4(
-        mix(
-        (m == 1.0 ? vec3(0.1, 0.05, 0.05) + vec3(0.1, 0.3, 0.0) * pow(n.y * 0.5 + 0.5, 12.0) : vec3(0.0)) * (n.y * 0.5 + 0.5)
+    vec3 surf = (m == 1.0 ? vec3(0.1, 0.05, 0.05) + vec3(0.1, 0.3, 0.0) * pow(n.y * 0.5 + 0.5, 12.0) : vec3(0.0)) * (n.y * 0.5 + 0.5)
         + (m == 1.0 ? 0.1 : 1.0) * pow(max(0.0, reflect(d, n).y), 22.0)
-        + (m == 1.0 ? 0.5 : 0.4)  * vec3(0.1, 0.4, 0.45) * pow(clamp(1.0 + dot(d, n), 0.0, 1.0), 6.0)
-            , mix(vec3(1.0), vec3(0.2, 0.4, 0.7), pow(abs(d.y), 0.25))
+        + (m == 1.0 ? 0.5 : 0.4)  * vec3(0.1, 0.4, 0.45) * pow(clamp(1.0 + dot(d, n), 0.0, 1.0), 6.0);
+    if (m == 0.0) surf = skin(is, max(surf, vec3(.12)));
+	fragColor = vec4(mix(surf, mix(vec3(1.0), vec3(0.2, 0.4, 0.7), pow(abs(d.y), 0.25))
             , min(1.0, td / (25.0 - uBand.w*4.)))
         ,1.0);
 }`;
 
 // ---------- CLOUDS: "Cloud diving" (lighter march: 300-unit steps to 80000 with early exit, same colours) ----------
-const CLOUDS = `
+const CLOUDS = `${OBJ}
 vec3 skytop = vec3(0.05, 0.2, 0.5);
 vec3 light = normalize(vec3(0.1, 0.25, 0.9));
 vec2 cloudrange = vec2(0.0, 10000.0);
@@ -481,8 +532,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 uv = 2. * fragCoord.xy / iResolution.xy - 1.0;
     uv.x *= iResolution.x / iResolution.y;
     float time = (iTime + 13.5 + 44.) * 1.0;
+#if CAM == 0
+    vec3 campos = camera(57.5), camtar = camera(57.9);
+#elif CAM == 1
+    vec3 campos = vec3(0., 5000., 6000.*time), camtar = campos + vec3(0., 0., 1.);
+#elif CAM == 2
+    vec3 campos = vec3(0., 5000., 0.), camtar = campos + vec3(sin(iTime*.25), 0., cos(iTime*.25));
+#else
     vec3 campos = camera(time);
     vec3 camtar = camera(time + 0.4);
+#endif
     vec3 front = normalize(camtar - campos);
     vec3 right = normalize(cross(front, vec3(0.0, 1.0, 0.0)));
     vec3 up = normalize(cross(right, front));
@@ -509,10 +568,71 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     sum.rgb -= 0.6 * vec3(0.8, 0.75, 0.7) * pow(sundot, 13.0) * alpha;
     sum.rgb += 0.2 * vec3(1.3, 1.2, 1.0) * pow(sundot, 5.0) * (1.0 - alpha);
     col = mix(col, sum.rgb, sum.a);
+#if OBJ != 0
+    // The shape rides with the camera through the clouds, lit by the same sun and cloud colours.
+    gAt = vec3(0., 0., 4.5); gSize = 1.;
+    vec3 ro = vec3(0.), rd = normalize(vec3(uv, 1.)); float ot = 0.;
+    for (int i = 0; i < 72; i++) { float d = objSdf(ro+rd*ot); if (d < .002 || ot > 12.) break; ot += d; }
+    if (ot < 12.) {
+      vec3 p = ro+rd*ot; vec2 e = vec2(.002, 0.);
+      vec3 n = normalize(vec3(objSdf(p+e.xyy)-objSdf(p-e.xyy), objSdf(p+e.yxy)-objSdf(p-e.yxy), objSdf(p+e.yyx)-objSdf(p-e.yyx)));
+      vec3 L = normalize(vec3(.3, .6, -.7));
+      float dif = clamp(dot(n, L), 0., 1.), rim = pow(clamp(1. + dot(rd, n), 0., 1.), 3.);
+      vec3 oc = mix(vec3(0.3, 0.3, 0.2), vec3(1.1, 1.05, 1.0), dif*.8 + .2) + 0.47*vec3(1.6, 1.4, 1.0)*pow(clamp(dot(reflect(rd, n), L), 0., 1.), 40.) + rim*0.8*skytop;
+      oc = skin(p, oc);
+      col = mix(col, oc, 1. - .35*sum.a);
+    }
+#endif
     fragColor = vec4(col, 1.0);
 }`;
 
-export const SPACE_SOURCES = [FLOOR, SKY, ENDLESS, CLOUDS];
+// ---------- OCEAN: open water under the Ambient sky (rolling swells, misty horizon, sun glint) ----------
+const OCEAN = `${OBJ}
+float wave(vec2 p){
+  float h = 0., a = .18; vec2 d = vec2(1., .3); mat2 R = mat2(.8, .6, -.6, .8);
+  for (int i = 0; i < 5; i++) { h += a*sin(dot(p, d)*1.1 + iTime*(1.2 - float(i)*.12)); d = R*d*1.7; a *= .45; }
+  return h*(1. + uBand.x*.25);
+}
+vec3 skyCol(vec3 dir){
+  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
+  vec3 cl = mix(vec3(0.8, 0.9, 1.0), vec3(0.4, 0.6, 0.8), pow(max(dir.y, 0.), 0.45));
+  return mix(cl, vec3(2.5, 1.8, 0.6), pow(max(0.0, dot(dir, sun)), 600.0));
+}
+void mainImage(out vec4 fragColor, in vec2 fragCoord){
+  vec2 uv = (fragCoord.xy*2. - iResolution.xy)/iResolution.y;
+  vec3 ro = vec3(0., 1.2, 0.), rd = normalize(vec3(uv.x, uv.y - .25, 2.2));
+  gAt = vec3(0., .75, 6.); gSize = .8;
+  travel(ro, rd, 3.);
+  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
+  vec3 col = skyCol(rd);
+  float t = .1; bool water = false, obj = false;
+  for (int i = 0; i < 110; i++) {
+    vec3 p = ro + rd*t; float dw = (p.y - wave(p.xz))*.6, dob = objSdf(p);
+    float d = min(dw, dob);
+    if (d < .002*t) { water = dw < dob; obj = !water; break; }
+    t += d; if (t > 60.) break;
+  }
+  vec3 p = ro + rd*t;
+  if (water) {
+    vec2 e = vec2(.02, 0.);
+    vec3 n = normalize(vec3(wave(p.xz-e.xy) - wave(p.xz+e.xy), 2.*e.x, wave(p.xz-e.yx) - wave(p.xz+e.yx)));
+    vec3 r = reflect(rd, n);
+    float fr = .04 + .96*pow(1. - max(dot(-rd, n), 0.), 5.);
+    vec3 refl = skyCol(r);
+    if (OBJ != 0) { float ot = .05; for (int i = 0; i < 40; i++) { float d = objSdf(p + r*ot); if (d < .004) { refl = vec3(0.4, 0.3, 0.1); break; } ot += d; if (ot > 12.) break; } }
+    col = mix(vec3(0.05, 0.2, 0.5)*.35, refl, fr);
+  } else if (obj) {
+    vec2 e = vec2(.002, 0.);
+    vec3 n = normalize(vec3(objSdf(p+e.xyy)-objSdf(p-e.xyy), objSdf(p+e.yxy)-objSdf(p-e.yxy), objSdf(p+e.yyx)-objSdf(p-e.yyx)));
+    vec3 env = skyCol(reflect(rd, n));
+    col = skin(p, env*(.45 + .55*clamp(dot(n, sun), 0., 1.)));
+  }
+  if (water || obj) col = mix(col, vec3(0.8, 0.9, 1.0), clamp(t/(60. - uBand.w*10.), 0., 1.));
+  col = mix(col, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(rd.y), 40.0));
+  fragColor = vec4(col, 1.0);
+}`;
+
+export const SPACE_SOURCES = [FLOOR, SKY, ENDLESS, CLOUDS, OCEAN];
 
 // ---------- PLASMA family: each form verbatim, with its own palette as ORIG ----------
 const PAL = `
@@ -577,11 +697,8 @@ void form(out vec3 col, out float v, in vec2 f){
 }`;
 const P_DEMO = `const vec2 vp = vec2(320.0, 200.0);
 void form(out vec3 col, out float v, in vec2 fragCoord){
-    vec2 o_scale_factor = vec2(0.3*0.3) * (1080. / max(iResolution.y, 1.)) ;
-    vec2 o_fc = floor(fragCoord.xy * o_scale_factor);
-    vec2 o_ires = floor(iResolution.xy * o_scale_factor);
 	float t = iTime * 10.0;
-	vec2 uv = o_fc.xy / o_ires.xy;
+	vec2 uv = fragCoord.xy / iResolution.xy;
     vec2 p0 = (uv - 0.5) * vp;
     vec2 hvp = vp * 0.5;
 	vec2 p1d = vec2(cos( t / 98.0),  sin( t / 178.0)) * hvp - p0;
@@ -624,6 +741,8 @@ void form(out vec3 col, out float v, in vec2 fragCoord){
     col = (mix(color1 , color + .8, color  )) * fade * fade * (1. + uBand.x*.15);
     v = clamp(lum(col), 0., 1.);
 }`;
+export const FORM_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL];
+export const SKIN_PAL = PAL;
 export const PLASMA_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL].map(f => `${PAL}
 ${f}
 void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col), 1.); }`);
