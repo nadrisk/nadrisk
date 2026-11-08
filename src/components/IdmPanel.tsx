@@ -41,25 +41,22 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
     p.box(2, 20, 124, 25);
     if (page === "ENV") { drawHit(p, d); return; }
     const fx = (f: number) => 4 + Math.round(Math.max(0, Math.min(1, Math.log2(f / 20) / 10)) * 118), B = 43;
-    if (d.model === "metl") {
-      // Three partial clusters at their real frequencies; FM widens sidebands, RATIO spaces them, BRIT is the high-pass floor.
-      [1, 1.483, 2.17].forEach(r => { const x = fx(d.tune * r); for (let j = -2; j <= 2; j++) { const sx = x + Math.round(j * (2 + d.b * 5)), h = Math.round((j ? d.a * (1 - Math.abs(j) * .3) : 1) * 18); if (h > 0) p.rect(sx, B - h, 2, h); } });
-      const hx = fx(400 + d.c * 5000); for (let y = 22; y < B; y += 2) p.dot(hx, y);
-    } else if (d.model === "zap") {
-      // Pitch dive: starts SWP octaves above TUNE and lands in SPD time; FM adds a ripple on the line.
-      const y0 = B - 2 - Math.round(d.a * 18), y1 = B - 2, w = 6 + Math.round((1 - d.b) * 100);
-      let py = y0; for (let i = 1; i <= 118; i++) { const u = Math.min(1, i / w), y = Math.round(y1 + (y0 - y1) * (1 - u) ** 3 + (u < 1 ? Math.sin(i * 1.7) * d.c * 2.5 : 0)); p.line(3 + i, py, 4 + i, y); py = y; }
-    } else if (d.model === "nois") {
-      // Noise band: dots dense around TONE, width set by Q; SNAP is the tall spike on the left; CRKL breaks the dots into gaps.
-      const cx = fx(d.tune), bw = 4 + Math.round((1 - d.b) * 40);
+    if (d.model === "nois") {
+      // Resonant noise band around TONE: RES narrows it into a ping spike, SWP draws the dive arrow, COLR breaks dots into crackle.
+      const cx = fx(d.tune), bw = 3 + Math.round((1 - d.b) * 40);
       for (let x = 4; x < 124; x++) { const k = Math.exp(-(((x - cx) / bw) ** 2)); for (let y = 22; y < B; y++) if (r01(x * 53 + y) < k * .8 * (1 - (y - 22) / 30) + .03 && r01(x * 7 + y * 3) > d.c * .7) p.dot(x, y); }
-      const sh = Math.round(d.a * 20); if (sh) p.rect(4, B - sh, 2, sh);
-    } else if (d.model === "clik") {
-      const w = 2 + Math.round(d.a * 40); for (let i = 0; i < w; i++) { let h = 20 * (1 - i / w); if (d.b > .05) h = Math.round(h / (2 + (1 - d.b) * 6)) * (2 + (1 - d.b) * 6); h = Math.round(h); if (h > 0) p.rect(6 + i, B - h, 1, h); }
-      const tx = fx(600 + d.c * 14000); for (let y = 22; y < B; y += 2) p.dot(tx, y);
+      const ph = Math.round(d.b * 20); if (ph) p.rect(cx, B - ph, 1, ph);
+      const sx = fx(Math.min(20000, d.tune * 2 ** (d.a * 4))); if (sx > cx + 2) for (let x = cx; x <= sx; x += 2) p.dot(x, 23);
+    } else if (d.model === "vco") {
+      // One cycle of the folded triangle: FOLD adds folds, FM wobbles it, DIVE shown as the falling bar on the left.
+      const g = 1 + d.b * 5, mid = 32;
+      let py = mid; for (let i = 0; i <= 112; i++) { const ph = (i / 112) * 2, tri = ph < .5 ? ph * 2 : ph < 1.5 ? 2 - ph * 2 : ph * 2 - 4, x = tri + Math.sin(i * .9) * d.a * .25;
+        const y = Math.round(mid - ((1 - d.b) * x + d.b * Math.sin(g * x * Math.PI / 2)) * 9); if (i) p.line(9 + i, py, 10 + i, y); py = y; }
+      const dh = Math.round(d.c * 20); if (dh) p.rect(4, B - dh, 2, dh);
     } else {
-      const n = 4 + Math.round(d.a * 24), gw = Math.max(1, Math.floor(118 / n / 2)), lv = 2 + Math.round((1 - d.b) * 10);
-      for (let i = 0; i < n; i++) { const h = Math.round((8 + 12 * r01(i) * (1 - i / n)) * lv / 12) * Math.round(12 / lv); if (h > 0) p.rect(5 + Math.round(i * 118 / n), B - Math.min(20, h), gw, Math.min(20, h)); }
+      // Modal partials at their real positions: INHR spreads them, DAMP shortens the upper ones, STRK is the strike bar.
+      [1, 2, 3, 4, 5].forEach((h, k) => { const r = k ? h + d.c * [0, .76, 2.4, 4.1, 6.7][k] : 1, x = fx(d.tune * r), ht = Math.round(20 * (k ? .7 / (1 + k * d.b * 1.5) : 1)); if (ht > 0 && x < 124) p.rect(x, B - ht, 2, ht); });
+      const sh = Math.round(d.a * 20); if (sh) for (let y = B - sh; y < B; y += 2) p.dot(4, y);
     }
   };
   const extra = (page: string) => <>

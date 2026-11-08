@@ -41,8 +41,8 @@ describe("LATN generator", () => {
 describe("IDM stays percussive", () => {
   it("caps decay at 250 ms and loads old PING sets", () => {
     expect(IDM_MAX_DECAY).toBe(.25);
-    expect(idmParams({ model: "metl", decay: 3 }).decay).toBe(.25);
-    expect(idmParams({ model: "ping" as never }).model).toBe("zap");
+    expect(idmParams({ model: "modl", decay: 3 }).decay).toBe(.25);
+    expect(idmParams({ model: "ping" as never }).model).toBe("vco");
   });
 });
 

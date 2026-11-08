@@ -54,7 +54,7 @@ export type Slot = { name: string; engine: EngineKind; note: number; level: numb
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
 
-const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0.2, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
+const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
   osc1: { wave: "sawtooth", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 0, coarse: 0, fine: 0, mode: "mix", fmAmount: 1 },
   partials: [1, 0.6, 0.5, 0.3, 0.3, 0.15, 0.2, 0.08, 0.1, 0, 0.05, 0, 0, 0, 0, 0], noise: 0,
@@ -979,7 +979,7 @@ export function useGroovebox() {
   // GEN: write generated rows into the current bank in one undo step; X/S row keys gate which rows change.
   const genRows = () => { const sl0 = slotsRef.current, anySolo = sl0.some(x => x.rnd === 2); return sl0.map((_, r) => r).filter(r => anySolo ? sl0[r].rnd === 2 : sl0[r].rnd !== 1); };
   const genRoles = () => slotsRef.current.map(detectRole);
-  const genModels = () => slotsRef.current.map(x => x.engine === "idm" ? x.idm?.model : undefined);
+  const genModels = () => slotsRef.current.map(x => x.engine === "idm" ? ({ nois: "nois", vco: "zap", modl: "metl" } as const)[idmParams(x.idm).model] : undefined);
   const applyGenerated = (res: GenResult) => {
     editBank(b => ({ ...b,
       pattern: b.pattern.map((row, r) => res[r] ? res[r].pattern.map(v => v as StepVal) : row),

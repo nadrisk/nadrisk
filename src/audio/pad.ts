@@ -96,7 +96,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(.35, t + .005, ring * .08); st.gain.setTargetAtTime(0, t + ring * .3, ring * .45); flt.disconnect(); flt.connect(st).connect(pn); nodes.push(st);
     // Felt hammer thump.
     const n = at(ctx.createBufferSource(), t), bp = ctx.createBiquadFilter(), hg = ctx.createGain(); n.buffer = noiseBuffer(ctx); bp.type = "bandpass"; bp.frequency.value = cl(f * 4, 800, 5000); bp.Q.value = 1.2;
-    hg.gain.setValueAtTime(.25 * v01 * (.6 + p.bright * .6), t); hg.gain.exponentialRampToValueAtTime(1e-4, t + .04); n.connect(bp).connect(hg).connect(pn); n.stop(t + .06); nodes.push(n, bp, hg);
+    hg.gain.setValueAtTime(.25 * v01 * (.6 + p.bright * .6), t); hg.gain.exponentialRampToValueAtTime(1e-4, t + .04); n.connect(bp).connect(hg).connect(pn); srcs.push(n); nodes.push(n, bp, hg);
   } else {
     flt.frequency.value = cl(r.cutoff * 2 ** (p.bright * 1.5) * (1 - p.age * .3), 300, 18000);
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
