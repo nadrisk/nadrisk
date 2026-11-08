@@ -70,13 +70,14 @@ describe("acid", () => {
     for (const cutoff of [40, 320, 8000, 18000]) for (const res of [0, .72, 1]) for (const drive of [0, 1]) {
       const f = filter(), x = new Float32Array(128), y = new Float32Array(128);
       const p = { cutoff: new Float32Array([cutoff]), res: new Float32Array([res]), drive: new Float32Array([drive]) };
-      let energy = 0;
+      let energy = 0, bounded = true;
       for (let block = 0; block < 1500; block++) {
         for (let n = 0; n < 128; n++) x[n] = block < 100 ? ((block * 128 + n) % 480) / 240 - 1 : 0;
         f.process([[x]], [[y]], p);
-        expect(y.every(v => Number.isFinite(v) && Math.abs(v) <= 1)).toBe(true);
+        for (let n = 0; n < 128; n++) if (!Number.isFinite(y[n]) || Math.abs(y[n]) > 1) bounded = false;
         if (block === 99) energy = y.reduce((a, b) => a + b * b, 0);
       }
+      expect(bounded).toBe(true);
       expect(energy).toBeGreaterThan(0);
       expect(y.reduce((a, b) => a + b * b, 0)).toBeLessThan(.001);
     }
