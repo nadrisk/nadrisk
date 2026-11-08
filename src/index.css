@@ -1129,6 +1129,6 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-rec.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .perf-console { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; align-items: start; max-width: 1200px !important; }
 @media (max-width: 900px) { .perf-console { grid-template-columns: 1fr; } }
-.perf-mod { border: 2px solid hsl(var(--foreground)); padding: 0 8px 8px; min-width: 0; background-image: repeating-linear-gradient(0deg, hsl(var(--foreground) / .04) 0 1px, transparent 1px 4px); }
+.perf-mod { border: 2px solid hsl(var(--foreground)); padding: 0 8px 8px; min-width: 0; }
 .perf-mod > header { display: flex; gap: 8px; align-items: center; margin: 0 -8px 8px; padding: 4px 8px; border-bottom: 2px solid hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 10px; letter-spacing: .15em; }
 .perf-mod > header span { background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0 4px; }
