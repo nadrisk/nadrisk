@@ -104,7 +104,7 @@ const migrateSlot = (x: Slot): Slot => {
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
 const acidTo808 = migrateEngine;
 /** The release time an engine's tail uses, so live edits and retriggers can re-time ringing voices. */
-const relOf = (s: Slot) => s.engine === "pad" ? padParams(s.pad).rel : s.engine === "synth" ? cleanOf(s.synth).env.r : s.engine === "idm" ? idmParams(s.idm).decay : s.engine === "808" && s.bass.mode === "reese" ? reeseParams(s.bass.reese).env.r : s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
+const relOf = (s: Slot) => s.engine === "pad" ? padParams(applyXY(s).pad).rel : s.engine === "synth" ? cleanOf(s.synth).env.r : s.engine === "idm" ? idmParams(s.idm).decay : s.engine === "808" && s.bass.mode === "reese" ? reeseParams(s.bass.reese).env.r : s.engine === "sampler" ? s.sampler.env.r : s.engine === "poly" ? (s.poly.mode === "reese" ? reeseParams(s.poly.reese).env.r : s.poly.env.r) : s.engine === "drum" ? s.drum.env.r : s.engine === "808" ? (s.bass.mode === "acid" ? .08 : s.bass.decay) : s.engine === "siren" ? (s.siren?.mode === "laser" ? s.siren.laser?.env.r ?? .08 : s.siren?.release ?? .4) : s.synth.env.r;
 const reversed = new WeakMap<AudioBuffer, AudioBuffer>();
 function reverseOf(ctx: BaseAudioContext, b: AudioBuffer) {
   let r = reversed.get(b); if (r) return r;
@@ -149,7 +149,10 @@ export function useGroovebox() {
   const engine = useRef<Engine | null>(null);
   /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
   const pushXyLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
-    [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } }); };
+    [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } });
+    // PAD: Y toward SHRT re-times tails that are already ringing (held notes keep sounding until lift).
+    if (ap.engine === "pad") { const r = padParams(ap.pad).rel, now = ee.ctx.currentTime, held = pressed.current.has(i) ? ee.mono[i]?.stop : undefined;
+      ee.ring[i].forEach(x => { if (x.stop !== held && x.until > now) { try { x.release(now, r); } catch { /* ended */ } } }); } };
   const syncedFx = useRef<(Slot["fx"] | undefined)[]>(Array(16).fill(undefined));
   const buffers = useRef<(AudioBuffer | null)[]>(Array(16).fill(null));
   const fallback = useRef<AudioBuffer | null>(null);

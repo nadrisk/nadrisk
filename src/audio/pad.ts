@@ -58,9 +58,9 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   const drift = at(ctx.createOscillator(), t), driftG = ctx.createGain(); drift.frequency.value = .07 + (midi % 7) * .013; driftG.gain.value = p.age * 16; drift.connect(driftG); srcs.push(drift); nodes.push(drift, driftG);
   const flut = at(ctx.createOscillator(), t), flutG = ctx.createGain(); flut.frequency.value = 4.3; flutG.gain.value = p.age * 6; flut.connect(flutG); srcs.push(flut); nodes.push(flut, flutG);
   // Formant bank (choir presets): three parallel resonances morphed between two vowels by BRIGHT.
-  let into: AudioNode = flt;
+  let into: AudioNode = flt; const bands: BiquadFilterNode[] = [];
   if (r.vowel) { const fs = vowelAt(r.vowel, p.bright), sum = ctx.createGain(); sum.gain.value = 1; const pre = ctx.createGain(); pre.gain.value = .35;
-    pre.connect(sum); fs.forEach((fq, k) => { const b = ctx.createBiquadFilter(); b.type = "bandpass"; b.frequency.value = fq; b.Q.value = fq / (k === 0 ? 90 : k === 1 ? 110 : 160); const g = ctx.createGain(); g.gain.value = [2.2, 1.6, 1][k]; pre.connect(b).connect(g).connect(sum); nodes.push(b, g); });
+    pre.connect(sum); fs.forEach((fq, k) => { const b = ctx.createBiquadFilter(); b.type = "bandpass"; b.frequency.value = fq; b.Q.value = fq / (k === 0 ? 90 : k === 1 ? 110 : 160); bands.push(b); const g = ctx.createGain(); g.gain.value = [2.2, 1.6, 1][k]; pre.connect(b).connect(g).connect(sum); nodes.push(b, g); });
     sum.connect(flt); into = pre; nodes.push(sum, pre); }
   flt.connect(mix);
   // Oscillator stack: each layer is a detuned pair spread in stereo.
@@ -80,7 +80,9 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   // srcs[0] must be an oscillator that runs to the end; the drift oscillator is first.
   const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, vel * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
   v.update = q => { const np = (q as { pad?: Partial<PadParams> }).pad; if (!np) return; const n = ctx.currentTime;
-    if (np.bright !== undefined) flt.detune.setTargetAtTime(1200 * Math.log2(padCutoff(r, padParams({ ...p, ...np })) / cut), n, .05); };
+    if (np.bright === undefined) return; const q2 = padParams({ ...p, ...np });
+    flt.detune.setTargetAtTime(1200 * Math.log2(padCutoff(r, q2) / cut), n, .05);
+    if (r.vowel) vowelAt(r.vowel, q2.bright).forEach((fq, k) => bands[k]?.frequency.setTargetAtTime(fq, n, .05)); };
   void freqs; return v;
 }
 
@@ -93,15 +95,15 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
   if (r.keys === "grand") {
     // Real recorded grand (Salamander): nearest sample re-pitched; velocity sets level + brightness; BRT opens the tone filter.
     const bufs = pianoBuffers(ctx); if (!bufs) { void preloadPiano(ctx); }
-    flt.frequency.value = cl(2500 * 2 ** (v01 * 1.6 + p.bright * 2) * (1 - p.age * .3), 400, 20000);
+    const gCut = (b: number) => cl(2500 * 2 ** (v01 * 1.6 + b * 2) * (1 - p.age * .3), 400, 20000); flt.frequency.value = gCut(p.bright);
     const keep = at(ctx.createConstantSource(), t), kg = ctx.createGain(); kg.gain.value = 0; keep.connect(kg).connect(pn); srcs.push(keep); nodes.push(keep, kg);
     if (bufs) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), b = at(ctx.createBufferSource(), t), g = ctx.createGain();
       b.buffer = bufs.get(root)!; b.playbackRate.value = rate; g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); }
     const env = { a: .002, d: 30, s: 1, r: Math.max(.25, p.rel * .5) };
     const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
-    v.update = () => {}; return v;
+    v.update = q => { const b = (q as { pad?: Partial<PadParams> }).pad?.bright; if (b !== undefined) flt.frequency.setTargetAtTime(gCut(b), ctx.currentTime, .05); }; return v;
   } else {
-    flt.frequency.value = cl(r.cutoff * 2 ** (p.bright * 1.5) * (1 - p.age * .3), 300, 18000);
+    const kCut = (b: number) => cl(r.cutoff * 2 ** (b * 1.5) * (1 - p.age * .3), 300, 18000); flt.frequency.value = kCut(p.bright);
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
     const pair = (ratio: number, index: number, idxDecay: number, level: number, det: number) => {
       const c = at(ctx.createOscillator(), t), m = at(ctx.createOscillator(), t), mg = ctx.createGain(), cg = ctx.createGain();
@@ -113,5 +115,5 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
   }
   const env = { a: r.a, d: ring * 3, s: 0, r: p.rel };
   const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
-  v.update = () => {}; return v;
+  v.update = q => { const b = (q as { pad?: Partial<PadParams> }).pad?.bright; if (b !== undefined) flt.frequency.setTargetAtTime(kCut(b), ctx.currentTime, .05); }; return v;
 }
