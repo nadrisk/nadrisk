@@ -1150,3 +1150,4 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-xy-x { bottom: 4px; left: 50%; transform: translateX(-50%); } .perf-xy-y { top: 4px; left: 4px; }
 .perf-mod-deck { grid-column: 1 / -1; }
 .perf-xy-pad { width: 100% !important; min-width: 100% !important; align-self: stretch; min-height: 220px; box-sizing: border-box; display: block !important; }
+.perf-body .perf-xy-pad { background-color: hsl(var(--background)) !important; color: hsl(var(--foreground)); }
