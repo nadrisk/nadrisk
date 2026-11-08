@@ -5,6 +5,7 @@ import { vjKindOf, vjSend, vjListen, type DocPad } from "@/vj/bus";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { createFx, migrateFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
+import { condPass, nudgeSec } from "@/audio/stepCond";
 import { defaultHarmony, harmonyOn, keyChord, voiceLead, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale, spreadDeg } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
@@ -71,18 +72,22 @@ export const stepAt = (tick: number, full: number, loop: number, offset: number)
   if (loop && loop < full) { const start = ((offset % full) + full) % full; return (start + (tick % loop)) % full; }
   return (((tick - offset) % full) + full) % full;
 };
-export type Bank = { pattern: StepVal[][]; lengths: number[]; vel: number[][]; chance: number[][]; ratchet?: number[][]; steps?: 16 | 32; grown?: boolean };
+export type Bank = { pattern: StepVal[][]; lengths: number[]; vel: number[][]; chance: number[][]; ratchet?: number[][]; /** Trig condition index per step (stepCond.CONDS), 0 = always. */ cond?: number[][]; /** Micro-timing 0..1, .5 = on grid. */ nudge?: number[][]; steps?: 16 | 32; grown?: boolean };
 /** Pads a 16-wide row to STEPS by repeating it, so older sets play identically in 32 mode. */
 export const widen = <T,>(r: T[], fill: T): T[] => r.length >= STEPS ? r : Array.from({ length: STEPS }, (_, c) => c < r.length ? r[c] : r.length === 16 ? r[c % 16] : fill);
 /** Ratchet counts a step can be split into (rolls within one 1/16). */
 export const ROLLS = [1, 2, 3, 4, 6, 8];
 const ones = () => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(1));
+const filled = (v: number) => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(v));
+export const LANE_HOME = { vel: 1, chance: 1, ratchet: 1, cond: 0, nudge: .5 } as const;
+export type LaneKind = keyof typeof LANE_HOME;
+const laneOf = (b: Partial<Bank>, k: LaneKind) => b[k] ?? filled(LANE_HOME[k]);
 const makeBank = (pattern: StepVal[][]): Bank => ({ pattern, lengths: Array(16).fill(16), vel: ones(), chance: ones(), ratchet: ones(), steps: 16 });
 const NBANKS = 4;
 /** Mod lanes: index bank + lane * NBANKS (3 lanes per bank); older sets only had lane 0. */
 export const MOD_LANES = 3;
 const padMods = (m: ModLane[] | undefined): ModLane[] => Array.from({ length: NBANKS * MOD_LANES }, (_, i) => { const l = m?.[i] ?? defaultMod(); return { ...l, values: widen(l.values, .5) }; });
-const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => widen(r.map(v => (v === 3 ? 2 : v) as StepVal), 0 as StepVal)), lengths: b.lengths ?? Array(16).fill(16), vel: (b.vel ?? ones()).map(r => widen(r, 1)), chance: (b.chance ?? ones()).map(r => widen(r, 1)), ratchet: (b.ratchet ?? ones()).map(r => widen(r, 1)), steps: b.steps ?? 16, grown: b.grown ?? false });
+const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => widen(r.map(v => (v === 3 ? 2 : v) as StepVal), 0 as StepVal)), lengths: b.lengths ?? Array(16).fill(16), vel: (b.vel ?? ones()).map(r => widen(r, 1)), chance: (b.chance ?? ones()).map(r => widen(r, 1)), ratchet: (b.ratchet ?? ones()).map(r => widen(r, 1)), ...(b.cond ? { cond: b.cond.map(r => widen(r, 0)) } : {}), ...(b.nudge ? { nudge: b.nudge.map(r => widen(r, .5)) } : {}), steps: b.steps ?? 16, grown: b.grown ?? false });
 /** Engines whose pad taps sustain until the finger lifts. */
 export const MAX_SAMPLE_SEC = 30;
 const isWavMp3 = (f: File) => /\.(wav|wave|mp3)$/i.test(f.name) || /^audio\/(wav|wave|x-wav|vnd\.wave|mpeg|mp3)$/i.test(f.type);
@@ -587,15 +592,18 @@ export function useGroovebox() {
         phraseRun.current.delete(i);
         if (skip.current.delete(`${i}:${tick}`)) return;
         if (Math.random() >= (cb.chance?.[i]?.[st] ?? 1)) return;
+        if (!condPass(cb.cond?.[i]?.[st] ?? 0, Math.floor(tick / Math.max(1, len)))) return;
+        // NUDGE: move this hit up to 40% of a 16th early/late (never into the past).
+        const nt = Math.max(eng ? eng.ctx.currentTime + .005 : 0, time + nudgeSec(cb.nudge?.[i]?.[st], sixteenth));
         const velo = cb.vel?.[i]?.[st] ?? 1;
         let ties = 0; while (ties + 1 < len && row[stepAt(tick + ties + 1, full, pf.loop, pf.offset ?? 0)] >= 2 && (pf.loop ? (tick % len) + ties + 1 < len : st + ties + 1 < full)) ties++;
         const dur = (1 + ties) * sixteenth, a = slotsRef.current[i].arp;
         const rn = Math.round(cb.ratchet?.[i]?.[st] ?? 1);
-        if (!a.on && rn > 1) { const sub = sixteenth / rn; for (let k = 0; k < rn; k++) { const tt = time + k * sub; trigger(i, tt, velo * (1 - k * .04), semiAt, sub * .9); Tone.getDraw().schedule(() => flash(i), tt); } return; }
-        if (!a.on) { trigger(i, time, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), time); return; }
-        if (a.mode === "step") { if (stepHit(i, time, velo, dur * .98, semiAt)) Tone.getDraw().schedule(() => flash(i), time); return; }
+        if (!a.on && rn > 1) { const sub = sixteenth / rn; for (let k = 0; k < rn; k++) { const tt = nt + k * sub; trigger(i, tt, velo * (1 - k * .04), semiAt, sub * .9); Tone.getDraw().schedule(() => flash(i), tt); } return; }
+        if (!a.on) { trigger(i, nt, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), nt); return; }
+        if (a.mode === "step") { if (stepHit(i, nt, velo, dur * .98, semiAt)) Tone.getDraw().schedule(() => flash(i), nt); return; }
         // Phrase pad: play its phrase from the start for exactly as long as the hit (plus ties) lasts, booked step by step.
-        phraseRun.current.set(i, { t: time, k: 0, end: time + dur - 0.002, velo, semi: semiAt });
+        phraseRun.current.set(i, { t: nt, k: 0, end: nt + dur - 0.002, velo, semi: semiAt });
         runPhrase(time + sixteenth);
       });
       Tone.getDraw().schedule(() => setStep(tick), time);
@@ -877,24 +885,24 @@ export function useGroovebox() {
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => { snap(); setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current + modLaneRef.current * NBANKS ? f(l) : l)) } : x))); }, [snap]);
   const setModValue = useCallback((row: number, col: number, v: number) => editLane(row, l => ({ ...l, on: true, values: l.values.map((x, k) => (k === col ? v : x)) })), [editLane]);
   const setModTarget = useCallback((row: number, target: string) => editLane(row, l => ({ ...l, on: target !== "off", target: target === "off" ? l.target : target })), [editLane]);
-  const setStepValue = useCallback((kind: "vel" | "chance" | "ratchet", row: number, col: number, v: number) => editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((r, j) => (j === row ? r.map((x, k) => (k === col ? v : x)) : r)) })), [editBank]);
+  const setStepValue = useCallback((kind: LaneKind, row: number, col: number, v: number) => editBank(b => ({ ...b, [kind]: laneOf(b, kind).map((r, j) => (j === row ? r.map((x, k) => (k === col ? v : x)) : r)) })), [editBank]);
   // Row fader: one value for every lit step in a row (current bank).
-  const setRowValue = useCallback((kind: "vel" | "chance" | "ratchet", row: number, v: number) => { const pat = banksRef.current[bankRef.current].pattern[row]; editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((r, j) => (j === row ? r.map((x, k) => (pat[k] ? v : x)) : r)) })); }, [editBank]);
+  const setRowValue = useCallback((kind: LaneKind, row: number, v: number) => { const pat = banksRef.current[bankRef.current].pattern[row]; editBank(b => ({ ...b, [kind]: laneOf(b, kind).map((r, j) => (j === row ? r.map((x, k) => (pat[k] ? v : x)) : r)) })); }, [editBank]);
   const steps = banks[bank].steps ?? 16;
   const toggleSteps = useCallback(() => { snap(); const bi = bankRef.current, cur = banksRef.current[bi], grow = (cur.steps ?? 16) === 16, first = grow && !cur.grown;
     const dup = <T,>(r: T[]) => r.map((v, c) => c >= 16 ? r[c - 16] : v);
-    editBank(b => ({ ...b, steps: grow ? 32 : 16, grown: b.grown || grow, lengths: b.lengths.map(l => grow ? (l === 16 ? 32 : l) : Math.min(l, 16)), ...(first ? { pattern: b.pattern.map(dup), vel: b.vel.map(dup), chance: b.chance.map(dup), ratchet: (b.ratchet ?? ones()).map(dup) } : {}) }));
+    editBank(b => ({ ...b, steps: grow ? 32 : 16, grown: b.grown || grow, lengths: b.lengths.map(l => grow ? (l === 16 ? 32 : l) : Math.min(l, 16)), ...(first ? { pattern: b.pattern.map(dup), vel: b.vel.map(dup), chance: b.chance.map(dup), ratchet: (b.ratchet ?? ones()).map(dup), ...(b.cond ? { cond: b.cond.map(dup) } : {}), ...(b.nudge ? { nudge: b.nudge.map(dup) } : {}) } : {}) }));
     if (first) setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, k) => k % NBANKS === bi ? { ...m, values: dup(m.values) } : m) })));
   }, [editBank, snap]);
   const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row || performanceRef.current.lenLock ? len : v))), []);
   /** Clears one row of the current pattern: notes plus its velocity, chance and roll values (mod lane kept). */
-  const clearRow = useCallback((row: number) => { snap(); editBank(b => ({ ...b, pattern: b.pattern.map((r, i) => i === row ? r.map(() => 0 as StepVal) : r), vel: b.vel.map((r, i) => i === row ? r.map(() => 1) : r), chance: b.chance.map((r, i) => i === row ? r.map(() => 1) : r), ratchet: (b.ratchet ?? ones()).map((r, i) => i === row ? r.map(() => 1) : r) })); }, [editBank, snap]);
+  const clearRow = useCallback((row: number) => { snap(); editBank(b => ({ ...b, pattern: b.pattern.map((r, i) => i === row ? r.map(() => 0 as StepVal) : r), vel: b.vel.map((r, i) => i === row ? r.map(() => 1) : r), chance: b.chance.map((r, i) => i === row ? r.map(() => 1) : r), ratchet: (b.ratchet ?? ones()).map((r, i) => i === row ? r.map(() => 1) : r), ...(b.cond ? { cond: b.cond.map((r, i) => i === row ? r.map(() => 0) : r) } : {}), ...(b.nudge ? { nudge: b.nudge.map((r, i) => i === row ? r.map(() => .5) : r) } : {}) })); }, [editBank, snap]);
   const selectBank = useCallback((b: number) => {
     if (b === bankRef.current) { queuedRef.current = null; setQueued(null); return; }
     if (Tone.getTransport().state === "started") { queuedRef.current = b; setQueued(b); }
     else { bankRef.current = b; setBank(b); }
   }, []);
-  const copyBank = useCallback(() => { snap(); setBanks(bs => { const src = bs[bankRef.current], dst = (bankRef.current + 1) % bs.length; return bs.map((b, i) => (i !== dst ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]), steps: src.steps, grown: src.grown })); }); }, [snap]);
+  const copyBank = useCallback(() => { snap(); setBanks(bs => { const src = bs[bankRef.current], dst = (bankRef.current + 1) % bs.length; return bs.map((b, i) => (i !== dst ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]), ...(src.cond ? { cond: src.cond.map(r => [...r]) } : {}), ...(src.nudge ? { nudge: src.nudge.map(r => [...r]) } : {}), steps: src.steps, grown: src.grown })); }); }, [snap]);
   const setLevel = useCallback((i: number, level: number) => updateSlot(i, { level }), [updateSlot]);
   const toggleMute = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, mute: !x.mute } : x))), []);
   const unmuteAll = useCallback(() => setSlots(s => s.some(x => x.mute) ? s.map(x => ({ ...x, mute: false })) : s), []);
@@ -937,8 +945,8 @@ export function useGroovebox() {
     snap(); const bk = bankRef.current, mi = bk + modLaneRef.current * NBANKS;
     const resetMods = (lanes: number[]) => setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, b) => (lanes.includes(b) ? { ...m, values: m.values.map(() => .5) } : m)) })));
     if (view === "mod") { resetMods([mi]); return; }
-    if (view === "vel" || view === "chance" || view === "roll") { const kind = view === "roll" ? "ratchet" : view; editBank(b => ({ ...b, [kind]: ones() })); return; }
-    editBank(b => ({ ...b, pattern: emptyPattern(), vel: ones(), chance: ones(), ratchet: ones() }));
+    if (view === "vel" || view === "chance" || view === "roll" || view === "cond" || view === "nudge") { const kind: LaneKind = view === "roll" ? "ratchet" : view; editBank(b => ({ ...b, [kind]: filled(LANE_HOME[kind]) })); return; }
+    editBank(b => ({ ...b, pattern: emptyPattern(), vel: ones(), chance: ones(), ratchet: ones(), cond: undefined, nudge: undefined }));
     resetMods(Array.from({ length: MOD_LANES }, (_, l) => bk + l * NBANKS));
   };
   // RAND acts on the page in view: NOTE writes hits; VEL/CHNC/ROLL/MOD only reshape existing hits in the current bank.
@@ -956,6 +964,8 @@ export function useGroovebox() {
       return; }
     const mi = bankRef.current + modLaneRef.current * NBANKS;
     if (view === "mod") { snap(); setSlots(sl => sl.map((x, r) => { const l = x.mods[mi]; if (!l?.on || !may(r)) return x; return { ...x, mods: x.mods.map((m, b) => (b === mi ? { ...m, values: m.values.map((v, c) => (pat[r]?.[c] ? Math.round(Math.random() * 100) / 100 : v)) } : m)) }; })); return; }
+    if (view === "cond" || view === "nudge") { const k = view; const g2 = () => k === "cond" ? (Math.random() < .6 ? 0 : 1 + Math.floor(Math.random() * 9)) : Math.round((.5 + (Math.random() - .5) * .4) * 100) / 100;
+      editBank(b => ({ ...b, [k]: laneOf(b, k).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 && may(r) ? g2() : v))) })); return; }
     const kind = view === "roll" ? "ratchet" : view === "vel" ? "vel" : "chance";
     const gen = () => kind === "vel" ? Math.round((.35 + Math.random() * .65) * 100) / 100 : kind === "chance" ? (Math.random() < .55 ? 1 : Math.round((.4 + Math.random() * .55) * 100) / 100) : (Math.random() < .25 ? ROLLS[1 + Math.floor(Math.random() * 3)] : 1);
     editBank(b => ({ ...b, [kind]: (b[kind] ?? ones()).map((row, r) => row.map((v, c) => (pat[r]?.[c] === 1 && may(r) ? gen() : v))) }));
@@ -993,7 +1003,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
