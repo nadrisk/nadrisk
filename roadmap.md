@@ -6,3 +6,4 @@
 - [x] Offline three-tab LINK with optional existing device-link transport
 - [x] Mixtour-inspired mixer and touch-safe neutral resets
 - [x] MIDI learn across the PERF overlay; verify three-tab control flow
+- [x] PERF home-screen header safe-area spacing and updated Quick Guide
