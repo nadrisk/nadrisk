@@ -92,6 +92,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
   const v01 = cl(vel, .05, 1), pn = ctx.createStereoPanner(); pn.pan.value = cl(pan + (midi - 60) / 60 * .3, -1, 1); pn.connect(out); nodes.push(out, amp, pn);
   // Higher notes decay faster, like real strings / tines.
   const ring = r.d * 2 ** (-(midi - 60) / 24), flt = ctx.createBiquadFilter(); flt.type = "lowpass"; flt.Q.value = .5; flt.connect(pn); nodes.push(flt);
+  let kCut = (b: number) => b;
   if (r.keys === "grand") {
     // Real recorded grand (Salamander): nearest sample re-pitched; velocity sets level + brightness; BRT opens the tone filter.
     const bufs = pianoBuffers(ctx); if (!bufs) { void preloadPiano(ctx); }
@@ -103,7 +104,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
     v.update = q => { const b = (q as { pad?: Partial<PadParams> }).pad?.bright; if (b !== undefined) flt.frequency.setTargetAtTime(gCut(b), ctx.currentTime, .05); }; return v;
   } else {
-    const kCut = (b: number) => cl(r.cutoff * 2 ** (b * 1.5) * (1 - p.age * .3), 300, 18000); flt.frequency.value = kCut(p.bright);
+    kCut = (b: number) => cl(r.cutoff * 2 ** (b * 1.5) * (1 - p.age * .3), 300, 18000); flt.frequency.value = kCut(p.bright);
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
     const pair = (ratio: number, index: number, idxDecay: number, level: number, det: number) => {
       const c = at(ctx.createOscillator(), t), m = at(ctx.createOscillator(), t), mg = ctx.createGain(), cg = ctx.createGain();
