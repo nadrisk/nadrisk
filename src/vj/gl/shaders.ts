@@ -336,7 +336,7 @@ vec3 Sky(vec3 dir)
     return cl;
 }
 // Clouds drift slowly overhead so the endless sky breathes like the reference.
-vec3 SkyAt(vec3 dir){ vec3 d = dir; Rotate(d.xz, iTime*.01); return Sky(d); }
+vec3 SkyAt(vec3 dir){ return Sky(dir); }
 float omap(vec3 p){ return objSdf(p, vec3(0., -.95, 7.), 1.); }
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
@@ -443,7 +443,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         ,1.0);
 }`;
 
-// ---------- CLOUDS: "Cloud diving" (lighter march: 400-unit steps to 60000, same colours) ----------
+// ---------- CLOUDS: "Cloud diving" (lighter march: 300-unit steps to 80000 with early exit, same colours) ----------
 const CLOUDS = `
 vec3 skytop = vec3(0.05, 0.2, 0.5);
 vec3 light = normalize(vec3(0.1, 0.25, 0.9));
@@ -488,7 +488,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 up = normalize(cross(right, front));
     vec3 fragAt = normalize(uv.x * right + uv.y * up + front);
     vec4 sum = vec4(0, 0, 0, 0);
-    for (float depth = 0.0; depth < 60000.0; depth += 400.0)
+    for (float depth = 0.0; depth < 80000.0; depth += 300.0)
     {
         vec3 ray = campos + fragAt * depth;
         if (cloudrange.x < ray.y && ray.y < cloudrange.y)
