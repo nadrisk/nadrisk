@@ -1087,3 +1087,24 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .view-note .gb-step.on, .view-note .gb-step.tie { touch-action: none; position: relative; }
 .gb-step-grip { position: absolute; top: 3px; bottom: 3px; right: 1px; width: 2px; background: hsl(var(--background)); pointer-events: none; }
 @media (pointer: fine) { .view-note .gb-step.on, .view-note .gb-step.tie { cursor: ew-resize; } }
+
+/* Piano-roll look: joined notes, ruler, beat shading, playhead line, stems */
+.gb-ruler { pointer-events: none; height: 12px; }
+.gb-ruler-cell { font: 12px 'VT323', monospace; line-height: 12px; color: hsl(var(--muted-foreground)); border-left: 1px solid transparent; padding-left: 1px; overflow: visible; white-space: nowrap; background: linear-gradient(hsl(var(--muted-foreground) / .5), hsl(var(--muted-foreground) / .5)) left bottom / 1px 3px no-repeat; }
+.gb-ruler-cell.beat { color: hsl(var(--foreground)); background-size: 1px 100%; }
+.gb-seq-grid .gb-step:not(.on):not(.tie):not(.disabled) { border-color: hsl(var(--foreground) / .22) !important; }
+.gb-seq-grid .gb-step.alt:not(.on):not(.tie) { background-color: hsl(var(--foreground) / .06); }
+.gb-seq-grid .gb-step.group { box-shadow: -2px 0 0 hsl(var(--foreground) / .35); }
+.gb-step.tie-next::after { content: ""; top: -1px; bottom: -1px; right: -4px; width: 4px; background: hsl(var(--accent)); }
+.instrument-workspace:not([data-lcd="studio"]) .gb-step.tie-next::after { background: hsl(var(--foreground)); }
+.gb-row.selected .gb-step.tie-next::after { background: hsl(var(--background)); }
+.gb-step.n-head, .gb-step.n-body { border-right-color: transparent !important; }
+.gb-step.n-body, .gb-step.n-tail { border-left-color: transparent !important; }
+.gb-step-grip { width: 3px; border-left: 1px solid hsl(var(--background)); border-right: 1px solid hsl(var(--background)); background: transparent !important; right: 2px; }
+.gb-step-pitch { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font: 12px/1 'VT323', monospace; color: hsl(var(--background)); pointer-events: none; white-space: nowrap; z-index: 2; }
+.gb-seq-grid .gb-step.current { outline: none !important; }
+.gb-seq-grid .gb-step.current::before { content: ""; position: absolute; left: -2px; top: -3px; bottom: -3px; width: 2px; background: hsl(var(--foreground)); mix-blend-mode: difference; pointer-events: none; z-index: 3; }
+.gb-seq-grid.is-mod .gb-step-fill { left: calc(50% - 1px); right: auto; width: 2px; min-height: 2px; background: hsl(var(--foreground)) !important; }
+.gb-seq-grid.is-mod .gb-step-fill::before { content: ""; position: absolute; left: -3px; top: -2px; width: 8px; height: 4px; background: hsl(var(--foreground)); }
+.gb-seq-grid.is-mod .gb-step.tie { background: linear-gradient(hsl(var(--foreground) / .4), hsl(var(--foreground) / .4)) center / 100% 1px no-repeat !important; }
+@media (max-width: 760px) { .gb-step-pitch { display: none; } .gb-ruler-cell { font-size: 10px; } }
