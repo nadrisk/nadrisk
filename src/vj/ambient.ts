@@ -39,15 +39,15 @@ export function tunnelField(nx: number, ny: number, a: AmbientInput): number {
     r = Math.hypot(dx, dy) + 1e-4; z = throat / r;
     if (k === 1) {
       const ang = Math.atan2(dy, dx), d = z + t;
-      const vine = .5 + .5 * Math.sin(ang * 3 + Math.sin(d * 1.7) * 1.6 + d * .4);
-      const band = .5 + .5 * Math.sin(d * 4.2 + Math.sin(ang * 2 + d * .6) * 1.2);
+      const vine = Math.pow(.5 + .5 * Math.sin(ang * 6 + Math.sin(d * 1.7) * 1.6 + d * .8), 3);
+      const band = Math.pow(.5 + .5 * Math.sin(d * 9 + Math.sin(ang * 2 + d * .6) * 1.2), 4);
       const leaf = Math.pow(Math.abs(Math.sin(ang * 5 + d * 2.3 + Math.sin(d * .9) * 2)), 6);
       const ripple = a.kick * .25 * Math.sin(d * 9 - a.t * 6);
-      let v = vine * .45 + band * .35 + leaf * .35 + ripple;
+      let v = vine * .5 + band * .55 + leaf * .3 + ripple;
       const fog = Math.min(1, Math.pow(r * 2.1, 1.4));
       v *= fog * (.75 + a.level * .3);
       const pulse = a.kick * Math.exp(-Math.abs(r - (.12 + (1 - a.kick) * .6)) * 18) * .6;
-      const glow = (.18 + a.tone * .5) * Math.exp(-r * r * 60);
+      const glow = (.55 + a.tone * .45) * Math.exp(-r * r * 90);
       return Math.max(0, Math.min(1, v + pulse + glow));
     }
   }
