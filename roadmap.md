@@ -120,5 +120,5 @@
 
 ## Groovebox upgrade (2026-11-08)
 - [x] Stage 1: true Bjorklund EUCL (phrases + GEN EUCL page), chord LEAD voice leading
-- [ ] Stage 2: LADDER / SEM / MS20 filter models; PolyBLEP oscillators
+- [x] Stage 2: LADDER / SEM / MS20 filter models (PolyBLEP dropped: browser oscillators already alias-free)
 - [ ] Stage 3: conditional steps (1:2…FILL) and micro-timing nudge

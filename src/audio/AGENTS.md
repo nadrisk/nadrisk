@@ -42,3 +42,4 @@
 
 - EUCL rhythms use true Bjorklund (arp.ts bjorklund/euclid) for both phrases and the GEN EUCL page, so patterns match canonical Euclidean rhythms.
 - Chord LEAD (chord.lead, default off) re-voices each chord to the nearest voicing of the pad's last chord via pure harmony.voiceLead, so old sets sound unchanged.
+- SYN filter models (clean.flt: CLEAN/LADDER/SEM/MS20) are native biquad stages with shared cutoff/env tracking in playClean; missing flt = CLEAN so old patches are unchanged. Browser oscillators are already band-limited, so no PolyBLEP worklet is used.

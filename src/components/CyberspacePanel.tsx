@@ -3,7 +3,7 @@ import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { cleanOf, defaultClean, waveMix, WAVE_NAMES, type CleanParams } from "@/audio/clean";
+import { cleanOf, defaultClean, FILTER_MODELS, modelQ, waveMix, WAVE_NAMES, type CleanParams } from "@/audio/clean";
 
 const PAGES = ["OSC", "FLT", "ENV"] as const;
 const shape = (k: number, ph: number) => { const t = ph - Math.floor(ph); return k === 0 ? t * 2 - 1 : k === 1 ? (t < .5 ? 1 : -1) : k === 2 ? 1 - Math.abs(t * 4 - 2) : Math.sin(t * Math.PI * 2); };
@@ -35,7 +35,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       // Voice dots: lit = available voices, one bar = mono.
       if (c.voices === 1) p.text("MONO", 104, 13); else for (let i = 0; i < 8; i++) { if (i < c.voices) p.rect(92 + i * 4, 13, 3, 4); else p.dot(93 + i * 4, 16); }
     } else if (page === "FLT") {
-      drawFilterCurve(p, "lowpass", c.cutoff, .707 + c.res * 14, 2, 11, 124, 32);
+      drawFilterCurve(p, "lowpass", c.cutoff, Math.max(...modelQ(c.flt ?? 0, c.res)) * (c.flt === 1 ? 1 + c.res * 8 : 1), 2, 11, 124, 32);
+      p.rect(2, 11, 28, 8); p.textC(FILTER_MODELS[c.flt ?? 0], 16, 12, false);
       const xOf = (f: number) => 2 + Math.round(Math.log(Math.min(16000, Math.max(40, f)) / 40) / Math.log(400) * 123);
       if (c.envAmt > 0) { const a = xOf(c.cutoff), b = xOf(c.cutoff * 2 ** (c.envAmt * 5)); p.line(a, 44, b, 44); p.line(b, 42, b, 44); }
       if (c.drive > 0) p.text(`DRV ${Math.round(c.drive * 100)}`, 92, 13);
@@ -46,7 +47,8 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       <Zone x={2} y={11} w={124} h={34} horizontal label="Synth wave morph" value={c.wave} min={0} max={3} step={.01} reset={home.wave} onChange={wave => C({ wave })} />
       <Tap x={90} y={11} w={36} h={8} label="Synth voices: tap to toggle mono or 8 voices" pressed={c.voices === 1} onClick={() => C({ voices: c.voices === 1 ? 8 : 1 })} />
     </>;
-    if (page === "FLT") return <Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />;
+    if (page === "FLT") return <><Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />
+      <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
     return <EnvZones env={c.env} set={env => C({ env })} />;
   };
   return <Panel name={slot.name || "SYN"} pages={PAGES} label="Clean synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value]} />;
