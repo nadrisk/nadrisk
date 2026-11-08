@@ -1107,3 +1107,15 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-seq-grid.is-mod .gb-step-fill::before { content: ""; position: absolute; left: -3px; top: -2px; width: 8px; height: 4px; background: hsl(var(--foreground)); }
 .gb-seq-grid.is-mod .gb-step.tie { background: linear-gradient(hsl(var(--foreground) / .4), hsl(var(--foreground) / .4)) center / 100% 1px no-repeat !important; }
 @media (max-width: 760px) { .gb-step-pitch { display: none; } .gb-ruler-cell { font-size: 10px; } }
+
+.perf-overlay { position: fixed; inset: 0; z-index: 80; background: hsl(var(--background)); color: hsl(var(--foreground)); display: flex; flex-direction: column; overflow: auto; }
+.perf-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 3px solid hsl(var(--foreground)); }
+.perf-head > span:first-child { flex: 1; }
+.perf-body { flex: 1; padding: 12px; display: flex; justify-content: center; }
+.perf-body > * { width: 100%; max-width: 900px; }
+.perf-body .px-wrap { width: 100%; }
+.perf-body.instrument-workspace .gb-perf-live button { min-height: 48px; font-size: 13px; }
+.perf-body .px-wrap { max-width: none; }
+.perf-body.instrument-workspace { background: hsl(var(--background)); border: 0; }
+.perf-body .gb-perf-live, .perf-body .gb-perf-mutes, .perf-body .gb-perf-mute-grid { min-width: 0; width: 100%; }
+.perf-body .gb-perf-mute-grid button { min-width: 0; aspect-ratio: auto; height: 48px; }
