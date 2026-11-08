@@ -78,7 +78,7 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   if (r.air > 0) { const n = at(ctx.createBufferSource(), t), bp = ctx.createBiquadFilter(), g = ctx.createGain(); n.buffer = noiseBuffer(ctx); n.loop = true; bp.type = "bandpass"; bp.frequency.value = 5000 + p.bright * 4000; bp.Q.value = .8; g.gain.value = r.air * .12; n.connect(bp).connect(g).connect(mix); srcs.push(n); nodes.push(n, bp, g); }
   const env = { a: p.atk, d: r.d, s: r.s, r: p.rel };
   // srcs[0] must be an oscillator that runs to the end; the drift oscillator is first.
-  const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, vel * .3 * ENGINE_TRIM.pad), amp);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, vel * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
   v.update = q => { const np = (q as { pad?: Partial<PadParams> }).pad; if (!np) return; const n = ctx.currentTime;
     if (np.bright !== undefined) flt.detune.setTargetAtTime(1200 * Math.log2(padCutoff(r, padParams({ ...p, ...np })) / cut), n, .05); };
   void freqs; return v;
@@ -98,7 +98,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     if (bufs) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), b = at(ctx.createBufferSource(), t), g = ctx.createGain();
       b.buffer = bufs.get(root)!; b.playbackRate.value = rate; g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); }
     const env = { a: .002, d: 30, s: 1, r: Math.max(.25, p.rel * .5) };
-    const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad)), amp);
+    const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
     v.update = () => {}; return v;
   } else {
     flt.frequency.value = cl(r.cutoff * 2 ** (p.bright * 1.5) * (1 - p.age * .3), 300, 18000);
@@ -112,6 +112,6 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     const tine = pair(14, .6 + v01 * 2.5 * (.5 + p.bright), .03, 0, 0); tine.gain.setValueAtTime(.25 * v01 * (.4 + p.bright), t); tine.gain.setTargetAtTime(0, t, .25);
   }
   const env = { a: r.a, d: ring * 3, s: 0, r: p.rel };
-  const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad), amp);
+  const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
   v.update = () => {}; return v;
 }
