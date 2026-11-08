@@ -12,7 +12,7 @@ const DIVS: [number, string][] = [[1, "1/4"], [.5, "1/8"], [.25, "1/16"], [.125,
 const LOOPS = [0, 1, 2, 4, 8];
 
 type PadInfo = { name: string; mute: boolean; solo?: boolean };
-export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, toggleSolo, unmuteAll, part = "all" }: { part?: "all" | "panel" | "live"; value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; toggleSolo: (i: number) => void; unmuteAll: () => void }) {
+export default function PerformanceRack({ value, onChange, bank, queued, selectBank, pads, toggleMute, toggleSolo, unmuteAll, part = "all", eight = false }: { part?: "all" | "panel" | "live"; eight?: boolean; value: PerformanceParams; onChange: (p: PerformanceParams) => void; bank: number; queued: number | null; selectBank: (b: number) => void; pads: PadInfo[]; toggleMute: (i: number) => void; toggleSolo: (i: number) => void; unmuteAll: () => void }) {
   const set = (patch: Partial<PerformanceParams>) => onChange({ ...value, ...patch });
   const v = value, dj = v.djSweep ?? 0;
   // Momentary SET flash: every tap bumps the counter so the key lights even when the stored value doesn't change.
@@ -28,6 +28,8 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
   const liveRef = useRef<HTMLDivElement>(null);
   // Mute keys: SHIFT turns them into solo keys; a double-tap solos (undoing the first tap's mute).
   const [shift, setShift] = useState(false);
+  // Mixtour-style 8-key mode: one page of 8 mutes at a time; key labels stay fixed so MIDI maps follow the page.
+  const [page, setPage] = useState(0);
   const lastMute = useRef({ i: -1, t: 0 });
   const muteKey = (i: number) => {
     if (shift) { toggleSolo(i); return; }
@@ -160,9 +162,9 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
     </div>
     <div className="gb-perf-mutes" role="group" aria-label="Pad mutes">
       <div className="gb-perf-mute-grid">
-        {pads.map((pd, i) => <button key={i} type="button" data-mute={i} aria-label={`Mute pad ${i + 1}`} aria-pressed={pd.mute} className={pd.solo ? "solo" : undefined} title={`${pd.name || String(i + 1)} · ${pd.solo ? "solo" : pd.mute ? "muted" : "playing"} · double-tap to solo`} onClick={() => muteKey(i)}>{pd.solo ? `S${i + 1}` : i + 1}</button>)}
+        {(eight ? pads.slice(page * 8, page * 8 + 8).map((pd, k) => [pd, page * 8 + k, k] as const) : pads.map((pd, i) => [pd, i, i] as const)).map(([pd, i, k]) => <button key={k} type="button" data-mute={i} aria-label={eight ? `Mute key ${k + 1}` : `Mute pad ${i + 1}`} aria-pressed={pd.mute} className={pd.solo ? "solo" : undefined} title={`${pd.name || String(i + 1)} · ${pd.solo ? "solo" : pd.mute ? "muted" : "playing"} · double-tap to solo`} onClick={() => muteKey(i)}>{pd.solo ? `S${i + 1}` : i + 1}</button>)}
       </div>
-      <div className="gb-perf-side"><button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
+      <div className="gb-perf-side">{eight && <button type="button" aria-label="Mute page" className="gb-perf-mutereset" onClick={() => setPage(x => 1 - x)}>{page ? "9-16" : "1-8"}</button>}<button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
     </div>
   </div>}
   </div>;

@@ -1285,3 +1285,13 @@ body.perf-lock { overflow: hidden; }
 .perf-link-body .lk-strips { justify-content: space-between; }
 .perf-mod .node-body, .perf-mod .px-panel, .perf-mod .px-wrap { padding: 0 !important; margin: 0 !important; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
 .perf-mod .px-screen { max-width: 100%; }
+/* Mixtour centre: pattern launch + 8 mute keys sit between the decks. */
+.perf-link-body .lk-strips { grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(0, 1fr); }
+.lk-center-pads { width: 100%; margin-top: 8px; }
+.lk-center-pads .gb-perf-live { margin: 0; }
+.lk-center-pads .gb-perf-mutes { flex-direction: column; }
+.lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(2, 1fr) !important; }
+.perf-body .lk-center-pads .gb-perf-mute-grid button, .lk-center-pads .gb-perf-banks button { min-height: 34px; height: auto; }
+.lk-center-pads .gb-perf-side { flex-direction: row; }
+.lk-center-pads .gb-perf-side button { flex: 1; min-height: 32px; font-size: 8px; }
+@media (max-width: 520px) { .perf-link-body .lk-strips { grid-template-columns: 1fr 1fr; } .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(4, 1fr) !important; } }

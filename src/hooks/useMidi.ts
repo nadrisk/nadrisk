@@ -97,5 +97,5 @@ export function useMidi(root: RefObject<HTMLElement>, hit: (i: number) => void, 
   }, [onMsg]);
 
   const unmap = useCallback((label: string) => setMaps(m => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== label))), []);
-  return { keys, setKeys, maps, learn, setLearn: (v: boolean) => { setLearn(v); setTarget(null); }, target, devices, status, connect, clear: () => setMaps({}), unmap };
+  return { keys, setKeys, maps, learn, setLearn: (v: boolean) => { setLearn(v); setTarget(null); }, target, devices, status, connect, clear: () => setMaps({}), unmap, preset: (m: Maps) => { setMaps(old => ({ ...old, ...m })); setStatus(`Loaded ${Object.keys(m).length} mappings`); } };
 }
