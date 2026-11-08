@@ -882,7 +882,7 @@ export function useGroovebox() {
   }) : r))), []);
   // Double-tap tie: one undo step that joins the nearest earlier note through this step.
   /** Piano-roll resize: snap once at drag start (begin=true), then rewrite ties on the live row. */
-  const setNoteSpan = useCallback((row: number, col: number, n: number, begin = false) => { if (begin) snap(); setPattern(p => p.map((r, i) => { if (i !== row) return r; const len = lengthsRef.current?.[row] ?? r.length; return setSpan(r, col, n, len) ?? r; })); }, [snap]);
+  const setNoteSpan = useCallback((row: number, col: number, n: number, begin = false) => { if (begin) snap(); setPattern(p => p.map((r, i) => { if (i !== row) return r; const len = banksRef.current[bankRef.current].lengths[row] ?? r.length; return setSpan(r, col, n, len) ?? r; })); }, [snap]);
   const tieStep = useCallback((row: number, col: number) => { const r0 = banksRef.current[bankRef.current].pattern[row], next = r0 && tieSpan(r0, col); if (!next) return; snap(); setPattern(p => p.map((r, i) => (i === row ? next : r))); }, [snap]);
   // Mod rows live on each slot per pattern bank, so A/B can automate differently.
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => { snap(); setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current + modLaneRef.current * NBANKS ? f(l) : l)) } : x))); }, [snap]);
