@@ -39,12 +39,13 @@ export function noiseBuffer(ctx: BaseAudioContext) {
 }
 
 /** Schedules an ADSR on a param; returns the time the voice is silent. */
-export function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
+/** k = release time constants per e.r (3 = classic; 5 lets long tails actually reach silence before the voice stops). */
+export function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number, k = 3) {
   p.setValueAtTime(0, t);
   p.linearRampToValueAtTime(peak, t + e.a);
   p.setTargetAtTime(peak * e.s, t + e.a, e.d / 3 + 0.001);
   const rel = t + Math.max(gate, e.a);
-  p.setTargetAtTime(0, rel, e.r / 3 + 0.001);
+  p.setTargetAtTime(0, rel, e.r / k + 0.001);
   return rel + e.r * 1.5 + 0.05;
 }
 
@@ -59,12 +60,12 @@ function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, ba
 /** Every voice's amp feeds a dedicated release stage, so fading out never reads or cancels the envelope
  *  (Safari can report stale AudioParam values mid-envelope, which made release jump to silence or full). */
 export function link(amp: GainNode, dest: AudioNode) { const rg = amp.context.createGain(); rg.gain.value = 1; amp.connect(rg).connect(dest); (amp as GainNode & { __rg?: GainNode }).__rg = rg; }
-function fadeOut(amp: GainNode, at: number, r: number) {
+function fadeOut(amp: GainNode, at: number, r: number, k = 3) {
   const rg = (amp as GainNode & { __rg?: GainNode }).__rg, g = rg ? rg.gain : amp.gain;
-  g.cancelScheduledValues(at); g.setTargetAtTime(0, at, Math.max(.001, r) / 3 + .001);
+  g.cancelScheduledValues(at); g.setTargetAtTime(0, at, Math.max(.001, r) / k + .001);
   return at + Math.max(.001, r) * 1.5 + .06;
 }
-export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void): Voice {
+export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void, k = 3): Voice {
   srcs.forEach(s => { s.start(Math.max(0, (s as unknown as { _t?: number })._t ?? 0)); s.stop(end); });
   let cleaned = false;
   const cleanup = () => { if (cleaned) return; cleaned = true; nodes.forEach(n => n.disconnect()); onClean?.(); };
@@ -72,7 +73,7 @@ export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end
   srcs[0].onended = () => { clearTimeout(timer); cleanup(); };
   let endT = end;
   return { stop: at => { endT = at; amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
-    release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, at, r); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
+    release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, at, r, k); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
 }
 export const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
 
