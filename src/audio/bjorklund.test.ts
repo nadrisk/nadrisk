@@ -14,3 +14,7 @@ describe("voiceLead", () => {
   it("C major to F major stays close", () => expect(voiceLead([60, 64, 67], [65, 69, 72])).toEqual([60, 65, 69]));
   it("no previous chord leaves it unchanged", () => expect(voiceLead(null, [60, 64, 67])).toEqual([60, 64, 67]));
 });
+import { genEucl } from "./patternGen";
+describe("GEN EUCL", () => {
+  it("repeats a 3/8 cycle across 16 steps", () => expect(genEucl({ hits: 3, len: 8, rot: 0 }, [0], 16)[0].pattern.slice(0, 16).join("")).toBe("1001001010010010"));
+});
