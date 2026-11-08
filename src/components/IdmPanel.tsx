@@ -7,6 +7,7 @@ import type { Px } from "@/pixel/draw";
 import { IDM_INIT, IDM_KNOBS, IDM_LABEL, IDM_MAX_DECAY, IDM_MIN_DECAY, IDM_MODELS, idmParams, type IdmParams } from "@/audio/idm";
 
 const KW = 24, kx = (i: number) => 2 + i * (KW + 1);
+const TW = 40, tx = (i: number) => 2 + i * (TW + 2);
 const r01 = (i: number) => { const x = Math.sin(i * 91.7 + 13.1) * 43758.5; return x - Math.floor(x); };
 
 /** One hit drawn large: amplitude shape (attack spike, DEC fall; GRIT stair-steps it, DRV fattens it) plus a separate pitch strip for BEND. */
@@ -37,7 +38,7 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
     ? [{ ...K(names[0].toLowerCase(), names[0], "tune", 20, 12000, .05, noteCents, true), bare: true }, K(names[1].toLowerCase(), names[1], "a", 0, 1, .01, pct), K(names[2].toLowerCase(), names[2], "b", 0, 1, .01, pct), K(names[3].toLowerCase(), names[3], "c", 0, 1, .01, pct)]
     : [K("decay", "DEC", "decay", IDM_MIN_DECAY, IDM_MAX_DECAY, .001, ms), K("bend", "BEND", "bend", -48, 48, 1, st), K("grit", "GRIT", "grit", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
   const body = (p: Px, page: string) => {
-    IDM_MODELS.forEach((m, i) => { const x = kx(i); p.box(x, 10, KW, 9); if (m === d.model) p.invert(x + 1, 11, KW - 2, 7); p.textC(IDM_LABEL[m], x + KW / 2, 12, m !== d.model); });
+    IDM_MODELS.forEach((m, i) => { const x = tx(i); p.box(x, 10, TW, 9); if (m === d.model) p.invert(x + 1, 11, TW - 2, 7); p.textC(IDM_LABEL[m], x + TW / 2, 12, m !== d.model); });
     p.box(2, 20, 124, 25);
     if (page === "ENV") { drawHit(p, d); return; }
     const fx = (f: number) => 4 + Math.round(Math.max(0, Math.min(1, Math.log2(f / 20) / 10)) * 118), B = 43;
@@ -60,7 +61,7 @@ function IdmPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>)
     }
   };
   const extra = (page: string) => <>
-    {IDM_MODELS.map((m, i) => <Tap key={m} x={kx(i)} y={10} w={KW} h={9} label={`PRC model ${IDM_LABEL[m]}`} pressed={m === d.model} onClick={() => m !== d.model && onChange({ idm: { model: m, ...IDM_INIT[m] } })} />)}
+    {IDM_MODELS.map((m, i) => <Tap key={m} x={tx(i)} y={10} w={TW} h={9} label={`PRC model ${IDM_LABEL[m]}`} pressed={m === d.model} onClick={() => m !== d.model && onChange({ idm: { model: m, ...IDM_INIT[m] } })} />)}
     {page === "ENV" && <Zone x={2} y={20} w={124} h={25} horizontal label="PRC decay drag" value={d.decay} min={IDM_MIN_DECAY} max={IDM_MAX_DECAY} step={.001} reset={home.decay} onChange={decay => D({ decay })} />}
   </>;
   return <Panel name={slot.name || "PRC"} pages={["MODL", "ENV"]} label="PRC drum" knobs={knobs} body={body} extra={extra} deps={[slot.name, d]} />;
