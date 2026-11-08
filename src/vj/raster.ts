@@ -29,3 +29,22 @@ export function noteName(note: number) {
   const midi = Math.round(note);
   return ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 }
+/** Sobel edge magnitude of a luminance field (0..1), border pixels zero. */
+export function sobelEdges(lum: Float32Array, out: Float32Array, width: number, height: number, gain = 2.4) {
+  out.fill(0);
+  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+    const i = y * width + x, a = lum[i - width - 1], b = lum[i - width], c = lum[i - width + 1], d = lum[i - 1], f = lum[i + 1], g = lum[i + width - 1], h = lum[i + width], k = lum[i + width + 1];
+    const gx = c + 2 * f + k - a - 2 * d - g, gy = g + 2 * h + k - a - 2 * b - c;
+    out[i] = Math.min(1, Math.hypot(gx, gy) * gain);
+  }
+}
+
+/** Feedback trails: keep the brighter of the new edge and the decayed old trail, smeared slightly toward the centre. */
+export function feedTrail(edge: Float32Array, trail: Float32Array, width: number, height: number, decay: number) {
+  const prev = trail.slice(), cx = width / 2, cy = height / 2;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const sx = Math.round(cx + (x - cx) * 1.015), sy = Math.round(cy + (y - cy) * 1.015);
+    const old = sx >= 0 && sy >= 0 && sx < width && sy < height ? prev[sy * width + sx] : 0;
+    const i = y * width + x; trail[i] = Math.max(edge[i], old * decay);
+  }
+}

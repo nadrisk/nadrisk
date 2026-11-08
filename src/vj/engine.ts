@@ -137,11 +137,55 @@ export class VjEngine {
       const lvl = d > .55 ? 1 : d > .1 ? .5 : .12, z = (R[0][2] + R[1][2] + R[2][2]) / 3;
       list.push({ P, z, s: lvl * (.55 + .45 * Math.max(0, Math.min(1, (z + 1) / 2))), spike: sh.spike });
     }
+    this.scene(buf, W, H, FG, ax, ay, scale, F);
     list.sort((p, q) => p.z - q.z);
     for (const f of list) {
       const ink = this.color ? (x: number, y: number) => cosineColor(x / W, 1 - y / H, this.visualTime, .1 + .9 * f.s, f.z * .55 + this.kick * .15) : undefined;
       tri(buf, W, H, f.P, f.s, FG, BG, ink);
       if (f.spike) { const c = this.color ? cosineColor(f.P[2][0] / W, 1 - f.P[2][1] / H, this.visualTime, .45 + f.s * .45, f.z * .55) : f.s > .6 ? BG : FG; line(buf, W, H, f.P[0], f.P[2], c); line(buf, W, H, f.P[1], f.P[2], c); }
+    }
+  }
+
+  /** Depthcore world: drifting ground grid, horizon, parallax dust, orbit rings and a counter-rotating wire cage. */
+  private scene(buf: Uint32Array, W: number, H: number, FG: number, ax: number, ay: number, scale: number, F: number) {
+    const t = this.visualTime * (this.bpm / 120) * .5, hz = H * .62, cx = W * .6;
+    const ink = (x: number, y: number, b: number, h = 0) => this.color ? cosineColor(x / W, 1 - y / H, this.visualTime, b, h) : FG;
+    const put = (x: number, y: number, c: number) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c; };
+    for (let x = 0; x < W; x += 2) put(x, hz, ink(x, hz, .5, .3));
+    // Ground grid: rows scroll toward the viewer; bass bends it like a slow wave.
+    const drift = t * 1.2 % 1;
+    for (let k = 1; k < 14; k++) {
+      const z = k - drift, y = hz + (H - hz) * (1.6 / z) * .5;
+      if (y <= hz || y >= H) continue;
+      const b = Math.min(1, 1.4 / z);
+      for (let x = (k & 1); x < W; x += z > 5 ? 3 : 1) put(x, y + Math.sin(x * .05 + this.visualTime) * this.kick * 3 / z * 4, ink(x, y, .2 + b * .5, .4));
+    }
+    for (let k = -10; k <= 10; k++) {
+      const xb = cx + k * W * .12, steps = 40;
+      for (let i = 0; i < steps; i += 2) { const f = i / steps; put(cx + (xb - cx) * f * 1.8, hz + (H - hz) * f, ink(xb, hz, .3, .4)); }
+    }
+    // Parallax dust: fixed seeded motes at three depths.
+    for (let i = 0; i < 48; i++) {
+      const d = 1 + (i % 3), sx = ((i * 97.13) % 1 + t * .02 / d + this.hat * .01) % 1, sy = (i * 61.7 % 1 + Math.sin(t * .3 + i) * .02);
+      put(sx * W, sy * hz, ink(sx * W, sy * H, .3 + .7 / d + this.hat * .3, i * .1));
+    }
+    const proj = (p: V3): [number, number] => { const q = rot(p, ax, ay); const z = 3.4 - q[2]; return [W * .6 + q[0] * scale * F / z, H * .5 + q[1] * scale * F / z]; };
+    // Orbit rings.
+    for (let r = 0; r < 2; r++) {
+      const R = 1.55 + r * .35, tilt = .4 + r * .5 + Math.sin(t * .1 + r) * .2;
+      for (let i = 0; i < 90; i++) {
+        const a = i / 90 * Math.PI * 2 + t * (r ? -.2 : .15), p: V3 = [Math.cos(a) * R, Math.sin(a) * R * Math.sin(tilt), Math.sin(a) * R * Math.cos(tilt)];
+        const [x, y] = proj(p); if (i % (r ? 3 : 2) === 0) put(x, y, ink(x, y, .6 + this.tone * .4, r * .3 + this.tone));
+      }
+    }
+    // Counter-rotating cage around the crystal.
+    const cage = MESHES.lo, rs = 1.35 + this.kick * .1, cay = -ay * .6 - t * .1;
+    const seen = new Set<number>();
+    for (const f of cage.f) for (let e = 0; e < 3; e++) {
+      const a = f[e], b = f[(e + 1) % 3], key = a < b ? a * 1000 + b : b * 1000 + a; if (seen.has(key)) continue; seen.add(key);
+      const pa = rot(cage.v[a].map(v => v * rs) as V3, .2, cay), pb = rot(cage.v[b].map(v => v * rs) as V3, .2, cay);
+      const A = proj(pa), B = proj(pb), n = Math.ceil(Math.hypot(B[0] - A[0], B[1] - A[1]));
+      for (let i = 0; i <= n; i += 3) put(A[0] + (B[0] - A[0]) * i / n, A[1] + (B[1] - A[1]) * i / n, ink(A[0], A[1], .45 + this.tone * .5, .5 + this.tone * .6));
     }
   }
 
@@ -178,14 +222,18 @@ export class VjEngine {
     const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
     context.translate(W, 0); context.scale(-1, 1);
     context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
-    const data = context.getImageData(0, 0, W, H).data;
-    if (!this.color) ditherCamera(data, buf, W, H, FG, BG, this.kick, this.level);
-    else for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4, l = (data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114) / 255;
-      const light = Math.max(0, Math.min(1, (l - .5) * (1.12 + this.level * .45) + .5 + this.kick * .14));
-      // Luminance preserves the face/image; ordered quantisation keeps the pixel texture.
-      const q = Math.min(1, (Math.floor(light * 6) + (light * 6 % 1 > BAYER[(y & 7) * 8 + (x & 7)] ? 1 : 0)) / 6);
-      buf[y * W + x] = cosineColor(x / W, 1 - y / H, this.visualTime, q, l * .4);
+    const data = context.getImageData(0, 0, W, H).data, n = W * H;
+    if (this.camLum.length !== n) { this.camLum = new Float32Array(n); this.camEdge = new Float32Array(n); this.camTrail = new Float32Array(n); }
+    const lum = this.camLum, edge = this.camEdge, trail = this.camTrail;
+    for (let i = 0; i < n; i++) lum[i] = (data[i * 4] * .299 + data[i * 4 + 1] * .587 + data[i * 4 + 2] * .114) / 255;
+    sobelEdges(lum, edge, W, H, 2.2 + this.level * 1.5 + this.kick * 1.5);
+    feedTrail(edge, trail, W, H, Math.min(.94, .78 + this.tone * .14 + this.level * .05));
+    const t = this.visualTime;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      // Contour feed: a ghost of the face underneath, melting outlines on top that wobble with the snare.
+      const wx = Math.max(0, Math.min(W - 1, Math.round(x + Math.sin(y * .15 + t * 1.3) * this.snare * 3)));
+      const i = y * W + wx, ghost = lum[y * W + x] * .18, v = Math.min(1, trail[i] + ghost);
+      buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, t * .4, .05 + v * .95, trail[i] * .6 + lum[i] * .2) : v > BAYER[(y & 7) * 8 + (x & 7)] ? FG : BG;
     }
   }
 
