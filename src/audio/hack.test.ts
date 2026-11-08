@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bitFlip, hackMask, hackRng } from "./hack";
-import { FX_DEFS, migrateFx } from "./effects";
+import { FX_DEFS, makeFx, migrateFx } from "./effects";
 
 describe("hack circuit bend", () => {
   it("bit-flipped output stays within [-1, 1]", () => {
@@ -43,11 +43,48 @@ import { HACK_WORKLET } from "./hackWorklet";
 function makeHack() {
   let Cls: any; const g: any = { sampleRate: 48000, currentTime: 0 };
   class AWP { port = { postMessage() {}, onmessage: null as any }; }
-  new Function("AudioWorkletProcessor", "registerProcessor", "sampleRate", "currentTime", HACK_WORKLET)(AWP, (_: string, c: any) => { Cls = c; }, g.sampleRate, 0);
+  const setTime = new Function("AudioWorkletProcessor", "registerProcessor", "sampleRate", "currentTime", HACK_WORKLET + "; return t => { currentTime = t; };")(AWP, (_: string, c: any) => { Cls = c; }, g.sampleRate, 0);
   const n = new Cls(); const p: any = { short: [.9], clock: [.3], starve: [.5], skip: [1], size: [.2], chaos: [0], lock: [0], bpm: [124] };
   const run = (inp: (i: number) => number, blocks: number) => { let peak = 0; for (let b = 0; b < blocks; b++) { const x = Float32Array.from({ length: 128 }, (_, i) => inp(b * 128 + i)), y = [new Float32Array(128), new Float32Array(128)]; n.process([[x, x]], [y], p); for (const v of y[0]) peak = Math.max(peak, Math.abs(v)); } return peak; };
-  return { n, run };
+  const render = (input: Float32Array, block: number) => { setTime(block * 128 / g.sampleRate); const output = [new Float32Array(128), new Float32Array(128)]; n.process([[input, input]], [output], p); return output[0]; };
+  return { n, p, run, render };
 }
+describe("hack click regressions", () => {
+  it("new effects start with all four destructive stages at zero", () => {
+    const fx = makeFx("hack");
+    for (const key of ["short", "clock", "starve", "skip"]) expect(fx.params[key]).toBe(0);
+  });
+  it("GEN alone is sample-exact transparent with clean knobs", () => {
+    const { n, p, render } = makeHack();
+    Object.assign(p, { short: [0], clock: [0], starve: [0], skip: [0] });
+    n.port.onmessage({ data: { seed: 42, depth: 1, run: true } });
+    let error = 0;
+    for (let b = 0; b < 900; b++) {
+      const x = Float32Array.from({ length: 128 }, (_, i) => .3 * Math.sin((b * 128 + i) * .02));
+      const y = render(x, b); for (let i = 0; i < 128; i++) error = Math.max(error, Math.abs(y[i] - x[i]));
+    }
+    expect(error).toBe(0);
+  });
+  it("GEN steps never strand the stutter cursor past its captured segment", () => {
+    const { n, p, render } = makeHack(); Object.assign(p, { short: [0], clock: [0], starve: [0], skip: [1], size: [.5], lock: [1] });
+    n.port.onmessage({ data: { seed: 42, depth: 0, run: true } });
+    let stranded = false;
+    for (let b = 0; b < 1400; b++) { render(Float32Array.from({ length: 128 }, (_, i) => .3 * Math.sin((b * 128 + i) * .02)), b); stranded ||= n.rep > 0 && n.rpos > n.rl; }
+    expect(stranded).toBe(false);
+  });
+  it("stutter entry, repeats and exit crossfade without waveform jumps", () => {
+    const { p, render } = makeHack(); Object.assign(p, { short: [0], clock: [0], starve: [0], skip: [1] });
+    let prev = 0, jump = 0;
+    for (let b = 0; b < 500; b++) { if (b === 300) p.skip = [0]; const y = render(Float32Array.from({ length: 128 }, (_, i) => .3 * Math.sin((b * 128 + i) * .02)), b); for (const v of y) { jump = Math.max(jump, Math.abs(v - prev)); prev = v; } }
+    expect(jump).toBeLessThan(.025);
+  });
+  it("SHRT mask and amount changes fade rather than switching rails in one sample", () => {
+    const { p, render } = makeHack(); Object.assign(p, { short: [.3], clock: [0], starve: [0], skip: [0] });
+    let prev = 0, jump = 0;
+    for (let b = 0; b < 120; b++) { if (b === 60) p.short = [.95]; const y = render(new Float32Array(128).fill(.2), b); for (const v of y) { if (b >= 59) jump = Math.max(jump, Math.abs(v - prev)); prev = v; } }
+    expect(jump).toBeLessThan(.025);
+  });
+});
 describe("hack silence", () => {
   it("silent input gives exactly zero output with SHRT and SKIP up", () => { const { run } = makeHack(); expect(run(() => 0, 400)).toBe(0); });
   it("no stutter replay after the input stops", () => { const { run } = makeHack(); run(i => Math.sin(i * .05) * .5, 400); run(() => 0, 200); expect(run(() => 0, 400)).toBe(0); });
