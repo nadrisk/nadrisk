@@ -875,14 +875,15 @@ export function useGroovebox() {
     return { total: audio.length, matched, saved: audio.length - unsaved };
   }, [setBuffer]);
   const loadSelected = useCallback((file: File) => { void loadSample(selectedRef.current, file); }, [loadSample]);
-  // Cycle off -> hit -> tie -> off. A tie needs a hit or tie before it, otherwise it goes straight to off.
-  const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => (i === row ? r.map((v, j) => {
-    if (j !== col) return v;
-    if (v === 0) return 1; if (v >= 2) return 0; return col > 0 && r[col - 1] !== 0 ? 2 : 0;
-  }) : r))), []);
+  // Piano-roll taps: empty -> note; onset -> delete whole note (with its ties); tie -> cut the note from here.
+  const toggleStep = useCallback((row: number, col: number) => setPattern(p => p.map((r, i) => {
+    if (i !== row) return r; const next = r.slice() as StepVal[];
+    if (r[col] === 0) { next[col] = 1; return next; }
+    next[col] = 0; for (let k = col + 1; k < next.length && next[k] >= 2; k++) next[k] = 0; return next;
+  })), []);
   // Double-tap tie: one undo step that joins the nearest earlier note through this step.
   /** Piano-roll resize: snap once at drag start (begin=true), then rewrite ties on the live row. */
-  const setNoteSpan = useCallback((row: number, col: number, n: number, begin = false) => { if (begin) snap(); setPattern(p => p.map((r, i) => { if (i !== row) return r; const len = banksRef.current[bankRef.current].lengths[row] ?? r.length; return setSpan(r, col, n, len) ?? r; })); }, [snap]);
+  const setNoteSpan = useCallback((row: number, col: number, n: number, begin = false, absorb = false) => { if (begin) snap(); setPattern(p => p.map((r, i) => { if (i !== row) return r; const len = banksRef.current[bankRef.current].lengths[row] ?? r.length; return setSpan(r, col, n, len, absorb) ?? r; })); }, [snap]);
   const tieStep = useCallback((row: number, col: number) => { const r0 = banksRef.current[bankRef.current].pattern[row], next = r0 && tieSpan(r0, col); if (!next) return; snap(); setPattern(p => p.map((r, i) => (i === row ? next : r))); }, [snap]);
   // Mod rows live on each slot per pattern bank, so A/B can automate differently.
   const editLane = useCallback((row: number, f: (l: ModLane) => ModLane) => { snap(); setSlots(s => s.map((x, j) => (j === row ? { ...x, mods: x.mods.map((l, b) => (b === bankRef.current + modLaneRef.current * NBANKS ? f(l) : l)) } : x))); }, [snap]);
