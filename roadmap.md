@@ -9,5 +9,7 @@
 - [x] PERF home-screen header safe-area spacing and updated Quick Guide
 - [x] AV: remove CAM; uniform palette/skin/FX switching; independent palettes and checkerboard
 - [x] AV: clean dunes, floor skins, sunset ocean, subtle kick/snare/bass motion
-- [ ] AV: fix PYRAMID open base (hollow/beveled underside in DIVE cam) — closed pyramid SDF
+- [ ] AV: fix PYRAMID underside with a closed, conservative distance field
+- [ ] AV: merged control strip and top utility bar
+- [ ] AV: uniform geometry/motion/camera/form switching, warm world programs outside playback
 - [ ] AV: real-device verification — live audio reactivity, CLOUDS performance, phone layout
