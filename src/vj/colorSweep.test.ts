@@ -18,7 +18,7 @@ describe("adaptive cosine sweep", () => {
   it("starts in the shaders' own colours and keeps colour when switching every world", () => {
     expect(DEFAULT_VISUAL.color).toBe(true);
     let s = { ...DEFAULT_VISUAL };
-    for (const model of [1, 2, 3, 0]) { s = visualControl(s, 1, 0); expect(s.model).toBe(model); expect(s.color).toBe(true); }
+    for (const model of [1, 2, 0]) { s = visualControl(s, 1, 0); expect(s.model).toBe(model); expect(s.color).toBe(true); }
   });
   it("returns absolute colour, model and size to a newly opened TV listener", () => {
     vjSend({ t: "visual", state: { model: 2, size: 1.3, color: true, code: true } });
