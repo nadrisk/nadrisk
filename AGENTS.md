@@ -38,6 +38,5 @@
 - XY motion (recorded path + synced LFO) lives in slot.xy and is resolved by pure xyAt() from the transport step (src/audio/xyMotion.ts) at trigger and per grid tick for live voices, so screen and sound agree; XY screen hit-zones come from src/components/xyLayout.ts and a test forbids overlaps.
 - Note length is edited by right-edge drag via src/audio/noteSpan.ts on the existing tie encoding (cells >= 2), so scheduler, sets and AV stay unchanged.
 - Live performance tools (PerformanceRack) live only in the full-screen PERF overlay opened from the top bar, not in the sequencer, so the step grid keeps the full frame.
-- LINK defaults to same-origin BroadcastChannel rooms; optional device rooms lazy-load the cloud transport. The mixer is the master clock (epoch + bpm, re-anchored on tempo change); decks start on its next bar via startAt and phase-lock with capped tempo trims, take mute/bank/FX commands as ctl messages, and release them if the mixer goes silent >4 s, so mixing stays seamless and no deck is left muted or filtered.
 - PERF MIDI uses an explicit additional DOM root for its portal and labelled value-event controls, so saved mappings work in both shells without synthetic drag or reset gestures.
-- CRATE mode: two headless useGroovebox({deck:true}) engines share the tab's transport (bar-line joins, editor gated silent) behind a useLink-shaped object; all engines feed tapeBus so tape records the mix.
+- src/link has scoped AGENTS.md rules (mixer clock, CRATE); read before edits.
