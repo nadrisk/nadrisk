@@ -1316,3 +1316,39 @@ body.perf-lock { overflow: hidden; }
 .lk-tape-note { font-size: 9px; margin: 0 0 4px; opacity: .75; }
 .lk-sync { font-style: normal; font-size: 9px; padding: 0 3px; border: 1px solid hsl(var(--foreground)); }
 .lk-sync.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+/* Phone mixer: master bar + pad rack on top, decks side by side, crossfader full width. */
+@media (max-width: 640px) {
+  .perf-link-body .lk-strips, .lk-strips { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 6px; }
+  .lk-strips > .lk-center { grid-column: 1 / -1; grid-row: 1; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 6px; border-inline: 0; border-top: 2px solid hsl(var(--foreground)); padding: 6px 0; }
+  .lk-center > span { display: none; }
+  .lk-center .lk-tempo { margin: 0; flex-wrap: nowrap; align-items: center; gap: 4px; }
+  .lk-center .lk-tempo b { width: auto; order: 0; font-size: 22px; }
+  .lk-center .lk-tempo button { width: 36px; height: 36px; min-height: 36px; }
+  .lk-center .lk-meters { margin: 0; justify-self: center; gap: 6px; }
+  .lk-center .lk-meter > div { flex-direction: row; gap: 2px; }
+  .lk-center .lk-meter { display: flex; align-items: center; gap: 4px; }
+  .lk-center .lk-meter span { margin: 0; order: -1; }
+  .lk-center .lk-meter i { width: 6px; height: 12px; }
+  .lk-center > button { margin: 0; width: auto; min-height: 36px; padding: 0 8px; font-size: 9px; }
+  .lk-center .lk-meters { grid-column: 2 / 4; }
+  .lk-center-pads { grid-column: 1 / -1; margin: 0; }
+  .lk-center-pads .gb-perf-mutes { flex-direction: column; }
+  .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
+  .perf-body .lk-center-pads .gb-perf-mute-grid button, .lk-center-pads .gb-perf-banks button { min-height: 38px; }
+  .lk-center-pads .gb-perf-side button, .lk-center-pads > .lk-target .gb-cycle { min-height: 36px; }
+  .lk-strip { grid-row: 2; padding: 6px 0; gap: 10px; min-width: 0; }
+  .lk-strip-head { font-size: 9px; min-height: 0; }
+  .lk-eq-row { gap: 4px; justify-content: space-between; }
+  .lk-eq-row .lk-kill { width: 36px; height: 36px; min-height: 36px; }
+  .lk-control-rotary { width: 52px; }
+  .lk-control-rotary svg { width: 40px; height: 40px; }
+  .lk-filter { gap: 4px; }
+  .lk-filter .lk-control svg { width: 46px; height: 46px; }
+  .lk-filter > button { width: 36px; min-height: 36px; }
+  .lk-control-vertical { height: 150px; }
+  .lk-transport button { min-height: 38px; }
+  .lk-xf { gap: 8px; }
+  .lk-xf .lk-control-horizontal svg { height: 48px; }
+  .lk-status { flex-wrap: wrap; }
+  .lk-midi { flex-wrap: wrap; }
+}
