@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+beforeAll(() => { vi.stubGlobal("ImageData", class { data: Uint8ClampedArray; constructor(w: number, h: number) { this.data = new Uint8ClampedArray(w * h * 4); } }); vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null); });
 import { VjEngine } from "./engine";
 const cv = () => Object.assign(document.createElement("canvas"), {});
 const tick = (e: VjEngine, n: number) => { for (let i = 0; i < n; i++) e.frame(cv(), 0, 0, 1 / 60); };
