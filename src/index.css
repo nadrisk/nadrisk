@@ -1012,9 +1012,9 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 /* Sampler: the sample name sits on its own line below the screen's knobs. */
 .gb-sample-name { font-family: Silkscreen, monospace; font-size: 10px; line-height: 14px; padding: 2px 4px 0; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Performance: SHFT stacks above RST; soloed mute keys draw a dashed inner ring. */
-.instrument-workspace .gb-perf-side { display: flex; flex-direction: column; gap: 3px; flex: 0 0 44px; }
-.instrument-workspace .gb-perf-side .gb-perf-mutereset { flex: 1 1 0; aspect-ratio: auto; min-height: 0; }
+/* Performance: SHFT / RST (and the mute page key) sit on their own full-width row under the mute keys. */
+.instrument-workspace .gb-perf-side { display: flex; gap: 4px; flex: 0 0 auto; }
+.instrument-workspace .gb-perf-side .gb-perf-mutereset { flex: 1 1 0; min-width: 0; aspect-ratio: auto; min-height: 34px; }
 .instrument-workspace .gb-perf-mutes button.solo { outline: 1px dashed hsl(var(--foreground)); outline-offset: -4px; }
 
 /* NADRISK malfunction: toxic acid green on black, still flat 1-bit. */
@@ -1135,6 +1135,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .perf-body.instrument-workspace { background: hsl(var(--background)); border: 0; }
 .perf-body .gb-perf-live, .perf-body .gb-perf-mutes, .perf-body .gb-perf-mute-grid { min-width: 0; width: 100%; }
 .perf-body .gb-perf-mute-grid button { min-width: 0; aspect-ratio: auto; height: 48px; }
+.perf-body .gb-perf-side .gb-perf-mutereset { min-height: 48px; font-size: 11px !important; }
 
 /* PERF live console: hardware modules with numbered headers. */
 .instrument-workspace .gb-utility-nav .gb-perf-launch { border-left: 0 !important; font-weight: 700; background: hsl(var(--foreground)); color: hsl(var(--background)); }
@@ -1266,7 +1267,7 @@ body.perf-lock { overflow: hidden; }
 .perf-console { grid-template-areas: "link link" "main tape" "main fx" "deck deck"; grid-template-rows: auto auto 1fr auto; align-items: stretch !important; align-content: start; height: max-content; }
 .perf-mod-link { grid-area: link; } .perf-mod-main { grid-area: main; }
 .perf-mod-fx .gb-perf { justify-content: flex-start; }
-.perf-mod-deck .gb-perf-side { flex-direction: row; flex: 0 0 auto; } .perf-mod-deck .gb-perf-side button { width: 56px; }
+.perf-mod-deck .gb-perf-side .gb-perf-mutereset { min-height: 40px; }
 .perf-mod-tape { grid-area: tape; } .perf-mod-fx { grid-area: fx; } .perf-mod-deck { grid-area: deck; }
 @media (max-width: 900px) { .perf-console { grid-template-areas: "link" "main" "tape" "fx" "deck"; grid-template-rows: none; } }
 /* Mixer on: mute keys stand in a vertical column beside the mixer. */
@@ -1303,8 +1304,7 @@ body.perf-lock { overflow: hidden; }
 .lk-center-pads .gb-perf-mutes { flex-direction: column; }
 .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(2, 1fr) !important; }
 .perf-body .lk-center-pads .gb-perf-mute-grid button, .lk-center-pads .gb-perf-banks button { min-height: 34px; height: auto; }
-.lk-center-pads .gb-perf-side { flex-direction: row; }
-.lk-center-pads .gb-perf-side button { flex: 1; min-height: 32px; font-size: 8px; }
+.lk-center-pads .gb-perf-side button { min-height: 32px; font-size: 9px; }
 @media (max-width: 520px) { .perf-link-body .lk-strips { grid-template-columns: 1fr 1fr; } .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(4, 1fr) !important; } }
 .lk-target { display: inline-flex; gap: 2px; margin-left: auto; }
 .lk-target .gb-cycle { min-width: 30px; padding: 1px 6px; font-size: 9px; }

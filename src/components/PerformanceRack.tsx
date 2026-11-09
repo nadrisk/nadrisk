@@ -164,8 +164,8 @@ export default function PerformanceRack({ value, onChange, bank, queued, selectB
       <div className="gb-perf-mute-grid">
         {(eight ? pads.slice(page * 8, page * 8 + 8).map((pd, k) => [pd, page * 8 + k, k] as const) : pads.map((pd, i) => [pd, i, i] as const)).map(([pd, i, k]) => <button key={k} type="button" data-mute={i} aria-label={eight ? `Mute key ${k + 1}` : `Mute pad ${i + 1}`} aria-pressed={pd.mute} className={pd.solo ? "solo" : undefined} title={`${pd.name || String(i + 1)} · ${pd.solo ? "solo" : pd.mute ? "muted" : "playing"} · double-tap to solo`} onClick={() => muteKey(i)}>{pd.solo ? `S${i + 1}` : i + 1}</button>)}
       </div>
-      <div className="gb-perf-side">{eight && <button type="button" aria-label="Mute page" className="gb-perf-mutereset" onClick={() => setPage(x => 1 - x)}>{page ? "9-16" : "1-8"}</button>}<button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
     </div>
+    <div className="gb-perf-side" role="group" aria-label="Mute utilities">{eight && <button type="button" aria-label="Mute page" className="gb-perf-mutereset" onClick={() => setPage(x => 1 - x)}>{page ? "9-16" : "1-8"}</button>}<button type="button" data-shift aria-label="Shift mute keys to solo" aria-pressed={shift} className="gb-perf-mutereset" onClick={() => setShift(x => !x)}>SHFT</button><button type="button" data-mutereset aria-label="Unmute all pads" className="gb-perf-mutereset" onClick={unmuteAll}>RST</button></div>
   </div>}
   </div>;
 }
