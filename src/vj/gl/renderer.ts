@@ -1,24 +1,20 @@
 // WebGL2 full-screen renderer for SPACE and PLASMA. Programs are compiled per option combination and cached.
-import { HEAD, TAIL, SPACE_SOURCES, PLASMA_SOURCES, FORM_SOURCES, SKIN_PAL } from "./shaders";
+import { HEAD, TAIL, SPACE_SOURCES, PLASMA_SOURCES, SURFACE_FORMS, SKIN_PAL } from "./shaders";
 import type { SceneOpts } from "./options";
 
 const VERT = `#version 300 es
 in vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }`;
 
-export type Bands = { kick: number; snare: number; hat: number; level: number };
+export type Bands = { kick: number; snare: number; bass: number; level: number };
 type Prog = { p: WebGLProgram; u: Record<string, WebGLUniformLocation | null> };
 
 /** Build the define header + body for a world/options combination (pure, testable). */
 export function sceneSource(world: "SPACE" | "PLASMA", o: SceneOpts) {
   if (world === "SPACE") {
-    const skin = o.object ? o.skin : 0;
-    const body = SPACE_SOURCES[o.ground].replace("SKIN_SRC", skin ? `${SKIN_PAL}\n${FORM_SOURCES[skin - 1]}` : "");
-    const fx = o.effect === 1 ? "#define PIXEL\n" : o.effect === 2 ? "#define DITHER\n" : "";
-    return { key: `S${o.ground}.${o.object}.${o.motion}.${o.cam}.${skin}.${skin ? o.palette : 0}.${o.effect}`, src: `${HEAD}${fx}#define OBJ ${o.object}\n#define MOTION ${o.motion}\n#define CAM ${o.cam}\n#define SKIN ${skin}\n#define PAL ${o.palette}\n${body}${TAIL}` };
+    const body = SPACE_SOURCES[o.ground].replace("SKIN_SRC", `${SKIN_PAL}\n${SURFACE_FORMS}`);
+    return { key: `S${o.ground}.${o.object}.${o.motion}.${o.cam}`, src: `${HEAD}#define OBJ ${o.object}\n#define MOTION ${o.motion}\n#define CAM ${o.cam}\n${body}${TAIL}` };
   }
-  const fx = o.effect === 1 ? "#define PIXEL\n" : o.effect === 2 ? "#define DITHER\n" : "";
-  const pal = o.palette === 6 ? 0 : o.palette;
-  return { key: `P${o.form}.${o.effect}.${pal}`, src: `${HEAD}${fx}#define PAL ${pal}\n${PLASMA_SOURCES[o.form]}${TAIL}` };
+  return { key: `P${o.form}`, src: `${HEAD}${PLASMA_SOURCES[o.form]}${TAIL}` };
 }
 
 export class GlScene {
@@ -36,7 +32,7 @@ export class GlScene {
     this.init();
   }
   private init() {
-    const gl = this.gl!; const b = gl.createBuffer();
+    const gl = this.gl; if (!gl) return; const b = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     // Stand-in for Shadertoy's RGBA noise channel: seeded random texels, repeat, mipmapped.
     const N = 256, d = new Uint8Array(N * N * 4); let s = 1234567;
@@ -48,21 +44,22 @@ export class GlScene {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
   private program(key: string, src: string): Prog | null {
-    if (this.progs.has(key)) return this.progs.get(key)!;
-    const gl = this.gl!;
-    const sh = (t: number, s: string) => { const x = gl.createShader(t)!; gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) { this.error = gl.getShaderInfoLog(x) || "compile"; console.error("[AV] shader", key, this.error); return null; } return x; };
+    if (this.progs.has(key)) return this.progs.get(key) ?? null;
+    const gl = this.gl; if (!gl) return null;
+    const sh = (t: number, s: string) => { const x = gl.createShader(t); if (!x) return null; gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) { this.error = gl.getShaderInfoLog(x) || "compile"; console.error("[AV] shader", key, this.error); gl.deleteShader(x); return null; } return x; };
     const v = sh(gl.VERTEX_SHADER, VERT), f = sh(gl.FRAGMENT_SHADER, src);
     let out: Prog | null = null;
     if (v && f) {
-      const p = gl.createProgram()!; gl.attachShader(p, v); gl.attachShader(p, f); gl.bindAttribLocation(p, 0, "p"); gl.linkProgram(p);
+      const p = gl.createProgram(); if (!p) { gl.deleteShader(v); gl.deleteShader(f); return null; } gl.attachShader(p, v); gl.attachShader(p, f); gl.bindAttribLocation(p, 0, "p"); gl.linkProgram(p);
       if (gl.getProgramParameter(p, gl.LINK_STATUS)) {
-        const u: Prog["u"] = {}; for (const n of ["iResolution", "iTime", "iChannel0", "uBand", "uSize", "uMono", "uFg", "uBg"]) u[n] = gl.getUniformLocation(p, n);
+        const u: Prog["u"] = {}; for (const n of ["iResolution", "iTime", "iChannel0", "uBand", "uSize", "uMono", "uFg", "uBg", "uSkin", "uFloor", "uPalette", "uEffect", "uTravel", "uRotation"]) u[n] = gl.getUniformLocation(p, n);
         out = { p, u }; this.error = "";
       } else { this.error = gl.getProgramInfoLog(p) || "link"; console.error("[AV] link", key, this.error); }
+      gl.deleteShader(v); gl.deleteShader(f);
     }
     this.progs.set(key, out); return out;
   }
-  render(world: "SPACE" | "PLASMA", o: SceneOpts, time: number, b: Bands, size: number, mono: boolean, fg: [number, number, number], bg: [number, number, number], dt: number) {
+  render(world: "SPACE" | "PLASMA", o: SceneOpts, time: number, b: Bands, size: number, mono: boolean, fg: [number, number, number], bg: [number, number, number], dt: number, travel = time, rotation = time) {
     const gl = this.gl; if (!gl || this.lost) return;
     // Adaptive internal resolution: heavy raymarchers drop resolution rather than frame rate.
     const max = world === "PLASMA" ? 1 : .6, min = world === "PLASMA" ? .35 : .18;
@@ -79,8 +76,10 @@ export class GlScene {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex);
     const u = pr.u;
     gl.uniform3f(u.iResolution, W, H, 1); gl.uniform1f(u.iTime, time); gl.uniform1i(u.iChannel0, 0);
-    gl.uniform4f(u.uBand, b.kick, b.snare, b.hat, b.level); gl.uniform1f(u.uSize, size);
-    gl.uniform1i(u.uMono, mono || (world === "PLASMA" && o.palette === 6) ? 1 : 0);
+    gl.uniform4f(u.uBand, b.kick, b.snare, b.bass, 0); gl.uniform1f(u.uSize, size);
+    gl.uniform1i(u.uSkin, o.skin); gl.uniform1i(u.uFloor, o.floor); gl.uniform1i(u.uPalette, o.palette); gl.uniform1i(u.uEffect, o.effect);
+    gl.uniform1f(u.uTravel, travel); gl.uniform1f(u.uRotation, rotation);
+    gl.uniform1i(u.uMono, mono || o.palette === 6 ? 1 : 0);
     gl.uniform3f(u.uFg, ...fg); gl.uniform3f(u.uBg, ...bg);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

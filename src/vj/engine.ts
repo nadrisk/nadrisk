@@ -1,7 +1,5 @@
 // AV: SPACE / PLASMA (WebGL ports of the reference shaders, see ./gl), CAM or NONE, driven only by kick/snare/hat/level, with the optional NAD code overlay.
 import type { DocPad, VjKind, VjPad } from "./bus";
-import type { VjCamera } from "./camera";
-import { BAYER, sobelEdges, feedTrail } from "./raster";
 import { hex } from "./trackerDoc";
 import { codeLines } from "./nadCode";
 import { WORLDS, DEFAULT_OPTS, type SceneOpts } from "./gl/options";
@@ -11,18 +9,16 @@ import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerform
 
 export const MODELS = WORLDS;
 export class VjEngine {
-  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
+  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; bass = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
   color = true; code = false; opts: SceneOpts = { ...DEFAULT_OPTS }; gl?: GlScene; glTime = 0;
   private ring = 1;
   private flash = new Map<number, number>();
   beat = 0; bpm = 120; running = false; wave: number[] = [];
   pad?: VjPad; velocity = 0; peak = 0; rms = 0; step = 0; bank = "A"; theme = "oled";
-  camera?: VjCamera;
   pads: DocPad[] = [];
   private lo = false; private slowFrames = 0;
-  private cameraCanvas = document.createElement("canvas");
-  private camLum = new Float32Array(0); private camEdge = new Float32Array(0); private camTrail = new Float32Array(0); private camPrev = new Float32Array(0);
+
   private signalUntil = 0;
   private buf: Uint32Array | null = null; private img: ImageData | null = null; private w = 0; private h = 0;
   private small = document.createElement("canvas");
@@ -30,6 +26,7 @@ export class VjEngine {
   readonly performanceFrames = new AvPerformanceFrames();
   private visualTime = 0;
   private visualKey = "";
+  travelTime = 0; rotationTime = 0;
   setPerformance(p: AvPerformance) {
     const next = avPerformance(p);
     if ((this.perf.echoSend ?? 0) > .001 && (next.echoSend ?? 0) <= .001 || this.perf.mode !== next.mode) this.performanceFrames.clear();
@@ -57,6 +54,7 @@ export class VjEngine {
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
     if (kind === "kick") { this.kick = Math.max(this.kick, v); if (this.ring > .6) this.ring = 0; }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); }
+    else if (kind === "bass") { this.bass = Math.max(this.bass, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
     else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
   }
@@ -74,7 +72,9 @@ export class VjEngine {
     if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
-    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
+    this.kick *= k(7); this.snare *= k(10); this.bass *= k(3); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
+    this.travelTime += dt*(1 + this.kick*.3 + this.bass*.2 + this.snare*.08);
+    this.rotationTime += dt*(1 + this.kick*.25 + this.snare*.3 + this.bass*.2);
     this.ring = Math.min(1, this.ring + dt * .35);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
@@ -94,9 +94,9 @@ export class VjEngine {
     const m = MODELS[this.model];
     if (m === "SPACE" || m === "PLASMA") {
       // Shader's own pace, nudged forward a touch by kick and loudness, never faster on silence.
-      this.glTime += dt * (1 + this.kick * .35 + this.level * .1);
+      this.glTime += dt;
       const rgb = (v: number): [number, number, number] => [(v & 255) / 255, ((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255];
-      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, hat: this.hat, level: this.level }, this.size, !this.color, rgb(fg), rgb(bg), dt);
+      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, bass: this.bass, level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
       const dpr = Math.min(2, window.devicePixelRatio || 1), tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
       if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
       const c = cv.getContext("2d"); if (!c) return;
@@ -104,7 +104,6 @@ export class VjEngine {
       return;
     }
     buf.fill(bg);
-    if (m === "CAM") this.cam(buf, W, H, fg, bg);
     if (active && m !== "NONE") this.performanceFrames.apply(buf, W, H, perf, this.t, this.bpm, bg, fg, this.color);
     else this.clearPerformance();
 
@@ -117,34 +116,6 @@ export class VjEngine {
     c.imageSmoothingEnabled = false;
     c.drawImage(this.small, 0, 0, tw, th);
     this.text(c, tw, th, dpr, fgCss, bgCss);
-  }
-
-  private cam(buf: Uint32Array, W: number, H: number, FG: number, BG: number) {
-    const camera = this.camera, video = camera?.video;
-    if (!(camera?.status === "live" && video && video.readyState >= 2 && video.videoWidth > 0)) return;
-    if (this.cameraCanvas.width !== W || this.cameraCanvas.height !== H) { this.cameraCanvas.width = W; this.cameraCanvas.height = H; }
-    const context = this.cameraCanvas.getContext("2d", { willReadFrequently: true }); if (!context) return;
-    context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, W, H);
-    const cover = Math.max(W / video.videoWidth, H / video.videoHeight) * this.size;
-    const vw = video.videoWidth * cover, vh = video.videoHeight * cover;
-    context.translate(W, 0); context.scale(-1, 1);
-    context.drawImage(video, (W - vw) / 2, (H - vh) / 2, vw, vh);
-    const data = context.getImageData(0, 0, W, H).data, n = W * H;
-    if (this.camLum.length !== n) { this.camLum = new Float32Array(n); this.camEdge = new Float32Array(n); this.camTrail = new Float32Array(n); }
-    const lum = this.camLum, edge = this.camEdge, trail = this.camTrail;
-    for (let i = 0; i < n; i++) lum[i] = (data[i * 4] * .299 + data[i * 4 + 1] * .587 + data[i * 4 + 2] * .114) / 255;
-    if (this.camPrev.length !== n) this.camPrev = lum.slice();
-    sobelEdges(lum, edge, W, H, 2.2 + this.level * 1.5 + this.kick * 1.5);
-    // Motion difference: only what moves leaves a slow phosphor ghost.
-    for (let i = 0; i < n; i++) { edge[i] = Math.min(1, edge[i] * .55 + Math.abs(lum[i] - this.camPrev[i]) * 4); this.camPrev[i] = lum[i]; }
-    feedTrail(edge, trail, W, H, Math.min(.94, .78 + this.tone * .14 + this.level * .05));
-    const t = this.visualTime;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      // Contour feed: a ghost of the face underneath, melting outlines on top that wobble with the snare.
-      const wx = Math.max(0, Math.min(W - 1, Math.round(x + Math.sin(y * .15 + t * 1.3) * this.snare * 3)));
-      const i = y * W + wx, ghost = lum[y * W + x] * .18, v = Math.min(1, trail[i] + ghost);
-      buf[y * W + x] = this.color ? cosineColor(x / W, 1 - y / H, t * .4, .05 + v * .95, trail[i] * .6 + lum[i] * .2) : v > BAYER[(y & 7) * 8 + (x & 7)] ? FG : BG;
-    }
   }
 
   /** Optional CODE overlay: NAD patch lines on translucent strips, current step inverted, hit lines flash. */

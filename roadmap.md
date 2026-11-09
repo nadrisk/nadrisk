@@ -7,3 +7,5 @@
 - [x] Mixtour-inspired mixer and touch-safe neutral resets
 - [x] MIDI learn across the PERF overlay; verify three-tab control flow
 - [x] PERF home-screen header safe-area spacing and updated Quick Guide
+- [ ] AV: remove CAM; uniform palette/skin/FX switching; independent palettes and checkerboard
+- [ ] AV: clean dunes, floor skins, sunset ocean, subtle kick/snare/bass motion; verify desktop/mobile

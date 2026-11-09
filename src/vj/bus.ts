@@ -2,7 +2,7 @@
 import { DEFAULT_VISUAL, visualControl, type VisualState } from "./colorSweep";
 import type { AvPerformance } from "./performance";
 import { cleanOpts, stepOpt, type OptKey } from "./gl/options";
-export type VjKind = "kick" | "snare" | "hat" | "open" | "perc" | "tone";
+export type VjKind = "kick" | "snare" | "bass" | "hat" | "open" | "perc" | "tone";
 export type VjPad = { index: number; name: string; engine: string; role: string; notes: number[]; cut?: number; fx?: { type: string; mix: number }[] };
 export type DocPad = { index: number; name: string; engine: string; role: string; kind: VjKind; note: number; mute: boolean; solo: boolean; len: number; steps: number[]; vel: number[]; chance: number[]; cond?: number[]; cut?: number; env?: { a: number; r: number }; fx: { type: string; mix: number }[] };
 export type VjMsg = { t: "hit"; kind: VjKind; vel: number; pad?: VjPad } | { t: "level"; v: number } | { t: "signal"; wave: number[]; beat: number; bpm: number; running: boolean; peak?: number; rms?: number; step?: number; bank?: string; perf?: AvPerformance } | { t: "perf"; params: AvPerformance } | { t: "theme"; theme: string } | { t: "hello" } | { t: "doc"; bank: string; bpm: number; pads: DocPad[] } | { t: "ctl"; model: number; size: number } | { t: "color"; enabled: boolean } | { t: "code"; enabled: boolean } | { t: "visual"; state: VisualState } | { t: "opt"; key: OptKey; d: number };
@@ -28,5 +28,6 @@ export function vjListen(f: (m: VjMsg) => void) { subs.add(f); return () => { su
 /** Map a pad role to a visual reaction family. */
 export function vjKindOf(role: string, engine: string): VjKind {
   if (role === "kick" || role === "snare" || role === "hat" || role === "open" || role === "perc") return role;
+  if (role === "bass" || engine === "808") return "bass";
   return engine === "drum" || engine === "idm" ? "perc" : "tone";
 }
