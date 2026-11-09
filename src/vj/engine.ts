@@ -52,7 +52,7 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.spinVel = Math.min(6, this.spinVel + 2.4 * v); this.travelVel = Math.min(5, this.travelVel + 2 * v); if (this.ring > .6) this.ring = 0; }
+    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.spinVel = Math.min(6, this.spinVel + 3.6 * v); this.travelVel = Math.min(5, this.travelVel + 2 * v); if (this.ring > .6) this.ring = 0; }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.tiltSign = -this.tiltSign; this.tiltTarget += this.tiltSign * .3 * v; this.pop = Math.max(this.pop, v); }
     else if (kind === "bass") { this.bass = Math.max(this.bass, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
@@ -74,7 +74,7 @@ export class VjEngine {
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(7); this.snare *= k(10); this.bass *= k(3); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
     // Kick = impulse that coasts down with drag; snare = tilt step + fast scale pop. Bass never moves things.
-    this.spinVel *= k(1.6); this.travelVel *= k(2.2); this.pop *= k(9);
+    this.spinVel *= k(1.2); this.travelVel *= k(2.2); this.pop *= k(9);
     this.tiltTarget = Math.max(-.6, Math.min(.6, this.tiltTarget)); this.tilt += (this.tiltTarget - this.tilt) * (1 - k(18));
     this.travelTime += dt*(1 + this.travelVel);
     this.rotationTime += dt*(1 + this.spinVel);
