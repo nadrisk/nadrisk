@@ -97,13 +97,14 @@ vec3 objCentre(){
   return vec3(0.);
 }
 vec3 gAt = vec3(0.); float gSize = 1.;
-float objScale(){ return gSize * uSize * (1. + uBand.x*.045 + uBand.z*.025); }
+// uBand in SPACE: x = snare pop (scale), y = snare tilt (radians), z = kick surge (background haze).
+float objScale(){ return gSize * uSize * (1. + uBand.x*.2); }
 vec3 objXf(vec3 p){
   p -= gAt + objCentre()*gSize;
   if (uMotion == 0) {
   p.xz *= r2(uRotation*.25); p.xy *= r2(.35*sin(uRotation*.2));
   } else if (uMotion == 1) {
-  p.xz *= r2(uRotation*.5 + uBand.y*.035);
+  p.xz *= r2(uRotation*.5);
   } else {
   p.xz *= r2(uRotation*1.1); p.yz *= r2(uRotation*.7);
   }
@@ -113,7 +114,7 @@ float objSdf(vec3 p){
   if (uObject == 0) return 1e5;
   vec3 q = objXf(p);
   // SPHERE stays round: its audio response is uniform breathing, not coordinate warping.
-  if (uObject != 1) q += .018*(uBand.x + uBand.z*.6)*sin(q.yzx*3. + uRotation);
+  
   return objUnit(q)*objScale();
 }
 mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx); }
@@ -145,7 +146,12 @@ vec3 surfacePattern(vec2 st, vec3 base, int selected, int pal){
 vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor, uFloorPalette); }
 vec3 skin(vec3 p, vec3 base){
   if (uSkin == 0 && uObjectPalette == 0) return base;
-  vec3 q = objXf(p); vec2 e = vec2(.004, 0.);
+  vec3 q = objXf(p);
+  if (uObject == 1 || uObject == 5) {
+    vec3 d = normalize(q); vec2 uv = vec2(atan(d.z, d.x)/6.2831853 + .5, asin(clamp(d.y,-1.,1.))/3.1415927 + .5);
+    return surfacePattern(uv*vec2(8., 4.), base, uSkin, uObjectPalette);
+  }
+  vec2 e = vec2(.004, 0.);
   vec3 nl = abs(vec3(objUnit(q+e.xyy)-objUnit(q-e.xyy), objUnit(q+e.yxy)-objUnit(q-e.yxy), objUnit(q+e.yyx)-objUnit(q-e.yyx)));
   // Blend projections continuously: hard dominant-axis switches looked like joined meshes.
   vec3 w = pow(nl, vec3(4.)); w /= max(dot(w, vec3(1.)), 1e-12);
@@ -175,7 +181,7 @@ void mainImage(out vec4 fragColor, in vec2 fc){
     bool ob=objHit(p,p.y+.95-dune(p.xz));
     if(ob){base=vec3(.8,.65,.42)*(.22+.78*dif)+vec3(1.,.8,.5)*pow(max(dot(reflect(rd,n),L),0.),32.);base=skin(p,base);}
     else {float ripple=.97+.03*sin(p.x*18.+p.z*4.);base=floorSkin(p,base*ripple);}
-    col=mix(base,skyDune(rd),1.-exp(-t*.065));
+    col=mix(base,skyDune(rd),1.-exp(-t*(.065+.06*uBand.z)*(ob?.0:1.)));
   }
   fragColor=vec4(col,1.);
 }`;
