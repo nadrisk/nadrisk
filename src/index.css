@@ -1306,3 +1306,13 @@ body.perf-lock { overflow: hidden; }
 .lk-center-pads .gb-perf-side { flex-direction: row; }
 .lk-center-pads .gb-perf-side button { flex: 1; min-height: 32px; font-size: 8px; }
 @media (max-width: 520px) { .perf-link-body .lk-strips { grid-template-columns: 1fr 1fr; } .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(4, 1fr) !important; } }
+.lk-target { display: inline-flex; gap: 2px; margin-left: auto; }
+.lk-target .gb-cycle { min-width: 30px; padding: 1px 6px; font-size: 9px; }
+.lk-target .gb-cycle[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.lk-target .gb-cycle:disabled { opacity: .35; }
+.lk-center-pads > .lk-target { display: flex; margin: 0 0 4px; }
+.lk-center-pads > .lk-target .gb-cycle { flex: 1; min-height: 26px; }
+.lk-target-note { margin-left: auto; font-style: normal; font-size: 9px; }
+.lk-tape-note { font-size: 9px; margin: 0 0 4px; opacity: .75; }
+.lk-sync { font-style: normal; font-size: 9px; padding: 0 3px; border: 1px solid hsl(var(--foreground)); }
+.lk-sync.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
