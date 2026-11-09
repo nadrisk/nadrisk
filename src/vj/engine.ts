@@ -11,7 +11,7 @@ import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerform
 
 export const MODELS = WORLDS;
 export class VjEngine {
-  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
+  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; bass = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
   color = true; code = false; opts: SceneOpts = { ...DEFAULT_OPTS }; gl?: GlScene; glTime = 0;
   private ring = 1;
@@ -30,6 +30,7 @@ export class VjEngine {
   readonly performanceFrames = new AvPerformanceFrames();
   private visualTime = 0;
   private visualKey = "";
+  travelTime = 0; rotationTime = 0;
   setPerformance(p: AvPerformance) {
     const next = avPerformance(p);
     if ((this.perf.echoSend ?? 0) > .001 && (next.echoSend ?? 0) <= .001 || this.perf.mode !== next.mode) this.performanceFrames.clear();
@@ -57,6 +58,7 @@ export class VjEngine {
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
     if (kind === "kick") { this.kick = Math.max(this.kick, v); if (this.ring > .6) this.ring = 0; }
     else if (kind === "snare") { this.snare = Math.max(this.snare, v); }
+    else if (kind === "bass") { this.bass = Math.max(this.bass, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
     else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
   }
@@ -74,7 +76,9 @@ export class VjEngine {
     if (this.running && this.t < this.signalUntil) this.beat += dt * this.bpm / 60;
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
-    this.kick *= k(5); this.snare *= k(4); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
+    this.kick *= k(7); this.snare *= k(10); this.bass *= k(3); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
+    this.travelTime += dt*(1 + this.kick*.3 + this.bass*.2 + this.snare*.08);
+    this.rotationTime += dt*(1 + this.kick*.25 + this.snare*.3 + this.bass*.2);
     this.ring = Math.min(1, this.ring + dt * .35);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
@@ -94,9 +98,9 @@ export class VjEngine {
     const m = MODELS[this.model];
     if (m === "SPACE" || m === "PLASMA") {
       // Shader's own pace, nudged forward a touch by kick and loudness, never faster on silence.
-      this.glTime += dt * (1 + this.kick * .35 + this.level * .1);
+      this.glTime += dt;
       const rgb = (v: number): [number, number, number] => [(v & 255) / 255, ((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255];
-      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, hat: this.hat, level: this.level }, this.size, !this.color, rgb(fg), rgb(bg), dt);
+      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, bass: this.bass, level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
       const dpr = Math.min(2, window.devicePixelRatio || 1), tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
       if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
       const c = cv.getContext("2d"); if (!c) return;
@@ -104,7 +108,6 @@ export class VjEngine {
       return;
     }
     buf.fill(bg);
-    if (m === "CAM") this.cam(buf, W, H, fg, bg);
     if (active && m !== "NONE") this.performanceFrames.apply(buf, W, H, perf, this.t, this.bpm, bg, fg, this.color);
     else this.clearPerformance();
 
