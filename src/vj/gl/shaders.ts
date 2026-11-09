@@ -188,7 +188,7 @@ void mainImage(out vec4 fragColor, in vec2 fc){
     vec3 L=normalize(vec3(-.6,.8,-.5)); float dif=max(dot(n,L),0.);
     vec3 base=vec3(.88,.54,.22)*(.3+.7*dif)+vec3(1.,.5,.02)*.18*dif;
     bool ob=objHit(p,p.y+.95-dune(p.xz));
-    if(ob){base=vec3(.88,.54,.22)*(.22+.78*dif)+vec3(1.,.5,.02)*.2*dif+vec3(1.,.8,.5)*pow(max(dot(reflect(rd,n),L),0.),32.);base=skin(p,base);}
+    if(ob){vec3 r=reflect(rd,n);vec3 env=mix(vec3(.88,.54,.22)*(.55+.45*max(-r.y,0.)),skyDune(r),smoothstep(-.12,.12,r.y));base=env*(.45+.55*dif)+vec3(1.,.8,.5)*pow(max(dot(r,L),0.),32.);base=skin(p,base);}
     else {float ripple=.97+.03*sin(p.x*18.+p.z*4.);base=floorSkin(p,base*ripple);}
     col=mix(base,skyDune(rd),1.-exp(-t*(.065+.06*uBand.z)*(ob?.0:1.)));
   }
