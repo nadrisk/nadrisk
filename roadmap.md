@@ -18,3 +18,5 @@
 - [x] AV: checkerboard displaces with the plasma skin on objects and terrain, clean grid with no skin
 - [x] PERF: SHFT / RST (and the mute page key) moved to their own full-width row under the mute pads, so the pad grid spans the module
 - [ ] AV: physical-device verification — audible continuity and CLOUDS speed on user's phone/tablet (requires physical hardware)
+- [x] PERF: one-device CRATE — saved projects (BPM + key) load to deck A/B in one tab, shared clock, KEY SYNC, tape records the mix
+- [ ] CRATE: AV visuals don't follow crate decks yet (AV still listens to the editor)
