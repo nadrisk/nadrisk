@@ -166,7 +166,7 @@ bool objHit(vec3 p, float d){ return uObject != 0 && objSdf(p) <= d + .01; }`;
 const FLOOR = `${OBJ}
 float dune(vec2 p){ return .10*sin(p.x*.65+p.y*.3) + .065*sin(p.y*.9-p.x*.22); }
 float map(vec3 p){ return min(objSdf(p), (p.y+.95-dune(p.xz))*.75); }
-vec3 skyDune(vec3 rd){ return mix(vec3(.8,.9,1.), vec3(.5,.6,1.), pow(abs(rd.y),.5)); }
+vec3 skyDune(vec3 rd){ return mix(vec3(.8,.9,1.), vec3(.45,.62,1.), pow(abs(rd.y),.5)); }
 void mainImage(out vec4 fragColor, in vec2 fc){
   vec2 uv = (fc*2.-iResolution.xy)/iResolution.y;
   vec3 ro = vec3(0.,.25,-4.5), rd = normalize(vec3(uv.x, uv.y-.15, 2.2));
@@ -178,9 +178,9 @@ void mainImage(out vec4 fragColor, in vec2 fc){
     vec3 p=ro+rd*t; vec2 e=vec2(.004,0.);
     vec3 n=normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
     vec3 L=normalize(vec3(-.6,.8,-.5)); float dif=max(dot(n,L),0.);
-    vec3 base=vec3(.72,.53,.32)*(.3+.7*dif);
+    vec3 base=vec3(.88,.54,.22)*(.3+.7*dif)+vec3(1.,.5,.02)*.18*dif;
     bool ob=objHit(p,p.y+.95-dune(p.xz));
-    if(ob){base=vec3(.8,.65,.42)*(.22+.78*dif)+vec3(1.,.8,.5)*pow(max(dot(reflect(rd,n),L),0.),32.);base=skin(p,base);}
+    if(ob){base=vec3(.88,.54,.22)*(.22+.78*dif)+vec3(1.,.5,.02)*.2*dif+vec3(1.,.8,.5)*pow(max(dot(reflect(rd,n),L),0.),32.);base=skin(p,base);}
     else {float ripple=.97+.03*sin(p.x*18.+p.z*4.);base=floorSkin(p,base*ripple);}
     col=mix(base,skyDune(rd),1.-exp(-t*(.065+.06*uBand.z)*(ob?.0:1.)));
   }
@@ -287,19 +287,21 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     travel(ro, dir, 3.); gRo = ro;
     vec3 sun_direction = normalize(vec3(-1.0, -0.4, -1.0));
     vec3 cl = dir.y > 0. ? SkyAt(dir) : groundCol(ro+dir*(-1.95-ro.y)/min(dir.y,-.001));
+    bool oHit = false;
     if (uObject != 0) {
     float t = 0.;
     for (int i = 0; i < 80; i++) { float d = omap(ro+dir*t); if (d < .002 || t > 20.) break; t += d; }
     if (t < 20.) {
+      oHit = true;
       vec3 p = ro+dir*t; vec2 e = vec2(.002, 0.);
       vec3 n = normalize(vec3(omap(p+e.xyy)-omap(p-e.xyy), omap(p+e.yxy)-omap(p-e.yxy), omap(p+e.yyx)-omap(p-e.yyx)));
       vec3 r = reflect(dir, n);
-      vec3 env = r.y > 0. ? SkyAt(r) : groundCol(p+r*(-1.95-p.y)/min(r.y,-.001));
+      vec3 env = mix(groundCol(p+r*(-1.95-p.y)/min(r.y,-.001)), SkyAt(r), smoothstep(-.12, .12, r.y));
       float dif = clamp(dot(n, -sun_direction), 0., 1.);
       cl = skin(p, env * (0.45 + 0.55*dif));
     }
     }
-    cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0));
+    if (!oHit) cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0));
 	fragColor = vec4(cl, 1.0);
 }`;
 
@@ -506,7 +508,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     col = skin(p, env*(.45 + .55*clamp(dot(n, sun), 0., 1.)));
   }
   if (water || obj) col = mix(col, vec3(1.,.55,.33), clamp(t/60., 0., 1.));
-  col = mix(col, vec3(1.,.55,.33), pow(1.0 - abs(rd.y), 40.0));
+  if (!obj) col = mix(col, vec3(1.,.55,.33), pow(1.0 - abs(rd.y), 40.0));
   fragColor = vec4(col, 1.0);
 }`;
 
