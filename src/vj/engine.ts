@@ -9,7 +9,7 @@ import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerform
 
 export const MODELS = WORLDS;
 export class VjEngine {
-  t = 0; ry = 0; twist = 0; kick = 0; snare = 0; bass = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
+  spinVel = 0; travelVel = 0; tilt = 0; tiltTarget = 0; tiltSign = 1; pop = 0; plasmaTime = 0; t = 0; ry = 0; twist = 0; kick = 0; snare = 0; bass = 0; hat = 0; tone = 0; level = 0; seed = 0; phase = 0;
   last = ""; model = 0; size = 1; hudUntil = 0; hudMsg = "";
   color = true; code = false; opts: SceneOpts = { ...DEFAULT_OPTS }; gl?: GlScene; glTime = 0;
   private ring = 1;
@@ -52,8 +52,8 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); if (this.ring > .6) this.ring = 0; }
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); }
+    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.spinVel = Math.min(6, this.spinVel + 2.4 * v); this.travelVel = Math.min(5, this.travelVel + 2 * v); if (this.ring > .6) this.ring = 0; }
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.tiltSign = -this.tiltSign; this.tiltTarget += this.tiltSign * .3 * v; this.pop = Math.max(this.pop, v); }
     else if (kind === "bass") { this.bass = Math.max(this.bass, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
     else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
@@ -73,8 +73,12 @@ export class VjEngine {
     else if (this.t >= this.signalUntil) { this.running = false; this.wave = []; this.peak = 0; this.rms = 0; this.level *= Math.exp(-8 * dt); }
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(7); this.snare *= k(10); this.bass *= k(3); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
-    this.travelTime += dt*(1 + this.kick*.3 + this.bass*.2 + this.snare*.08);
-    this.rotationTime += dt*(1 + this.kick*.25 + this.snare*.3 + this.bass*.2);
+    // Kick = impulse that coasts down with drag; snare = tilt step + fast scale pop. Bass never moves things.
+    this.spinVel *= k(1.6); this.travelVel *= k(2.2); this.pop *= k(9);
+    this.tiltTarget = Math.max(-.6, Math.min(.6, this.tiltTarget)); this.tilt += (this.tiltTarget - this.tilt) * (1 - k(18));
+    this.travelTime += dt*(1 + this.travelVel);
+    this.rotationTime += dt*(1 + this.spinVel);
+    this.plasmaTime += dt*(1 + this.travelVel*.8);
     this.ring = Math.min(1, this.ring + dt * .35);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
@@ -96,7 +100,8 @@ export class VjEngine {
       // Shader's own pace, nudged forward a touch by kick and loudness, never faster on silence.
       this.glTime += dt;
       const rgb = (v: number): [number, number, number] => [(v & 255) / 255, ((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255];
-      this.gl?.render(m, this.opts, this.glTime, { kick: this.kick, snare: this.snare, bass: this.bass, level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
+      const space = m === "SPACE";
+      this.gl?.render(m, this.opts, space ? this.glTime : this.plasmaTime, space ? { kick: this.pop, snare: this.tilt, bass: Math.min(1, this.travelVel / 3), level: 0 } : { kick: 0, snare: 0, bass: 0, level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
       const dpr = Math.min(2, window.devicePixelRatio || 1), tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
       if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
       const c = cv.getContext("2d"); if (!c) return;
