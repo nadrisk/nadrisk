@@ -140,7 +140,11 @@ vec3 surfacePattern(vec2 st, vec3 base, int selected, int pal){
   vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
   vec3 col = base; float v = lum(base);
   if (selected != 0) surfaceForm(selected-1, col, v, fc);
-  vec3 c = pal == 6 ? vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.)) : palette(v, col, st, pal);
+  // Checkerboard rides the plasma flow: tiles stretch and ripple along the wave field
+  // instead of staying a rigid grid.
+  vec2 cst = st;
+  if (selected != 0) cst += vec2(sin(v*6.2831853), cos(v*6.2831853))*.14 + (col.xy - .5)*.10;
+  vec3 c = pal == 6 ? vec3(mod(floor(cst.x*6.)+floor(cst.y*6.),2.)) : palette(v, col, st, pal);
   if (pal == 5) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
   return c*(.25 + .95*lum(base)) + max(base-.8, 0.);
 }
