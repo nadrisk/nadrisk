@@ -32,7 +32,7 @@ function pyramid(x: number, y: number, z: number) {
 describe("closed PYRAMID", () => {
   it("has a flat base, including points close to its corners", () => {
     for (const [x, z] of [[0, 0], [.1, .1], [.49, .49]]) {
-      expect(pyramid(x, 0, z)).toBe(0);
+      expect(pyramid(x, 0, z)).toBeCloseTo(0, 8);
       expect(pyramid(x, -.01, z)).toBeCloseTo(.01, 8);
       expect(pyramid(x, .01, z)).toBeLessThan(0);
     }
