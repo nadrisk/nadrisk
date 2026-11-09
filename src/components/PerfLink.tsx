@@ -22,22 +22,23 @@ function Strip({ id, link }: { id: DeckId; link: Link }) {
   </div>;
 }
 
-export default function PerfLink({ link, midi, center }: { link: Link; midi: ReturnType<typeof useMidi>; center?: ReactNode }) {
+export default function PerfLink({ link, midi, center, crate, onCrate }: { link: Link; midi: ReturnType<typeof useMidi>; center?: ReactNode; crate?: ReactNode; onCrate?: () => void }) {
   const [code, setCode] = useState("");
   if (link.role === "solo") return <div className="lk-join">
     <div className="lk-row" data-midi-ui><Button variant="outline" aria-pressed={link.mode === "tabs"} onClick={() => link.setMode("tabs")}>LOCAL TABS</Button><Button variant="outline" aria-pressed={link.mode === "devices"} onClick={() => link.setMode("devices")}>DEVICES</Button></div>
     <Button variant="outline" className="lk-big" onClick={link.host}>HOST MIXER</Button>
+    {onCrate && <Button variant="outline" className="lk-big" aria-label="One-device DJ crate" onClick={onCrate}>ONE DEVICE · CRATE</Button>}
     <div className="lk-row"><input className="lk-code" maxLength={4} placeholder="CODE" aria-label="Room code" value={code} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
       <Button variant="outline" disabled={!validRoom(code)} onClick={() => link.join(code, "A")}>JOIN A</Button><Button variant="outline" disabled={!validRoom(code)} onClick={() => link.join(code, "B")}>JOIN B</Button></div>
   </div>;
-  const status = <div className="lk-status"><span className={link.online ? "on" : ""}>{link.online ? "● LINKED" : "○ CONNECTING"}</span><b>{link.mode === "tabs" ? "TABS" : "ROOM"} {link.room}</b><Button variant="outline" onClick={link.leave}>LEAVE</Button></div>;
+  const status = <div className="lk-status"><span className={link.online ? "on" : ""}>{link.online ? "● LINKED" : "○ CONNECTING"}</span><b>{crate ? "ONE DEVICE · CRATE" : `${link.mode === "tabs" ? "TABS" : "ROOM"} ${link.room}`}</b><Button variant="outline" onClick={link.leave}>LEAVE</Button></div>;
   if (link.role !== "mixer") return <div className="lk-join">{status}
     <p className="lk-big-label">DECK {link.role}</p>
     <p>{link.pending ? "▶ STARTING ON NEXT BAR…" : link.err != null ? (Math.abs(link.err) <= 12 ? "● SYNC LOCKED" : `◐ SYNCING ${Math.round(link.err)}ms`) : "■ READY"}</p>
     <div className="lk-deck-readback"><span>FLTR {link.mix.decks[link.role].filter.toFixed(2)}</span><span>LEVEL {Math.round(link.mix.decks[link.role].gain * 100)}</span></div>
   </div>;
   const m = link.mix;
-  return <div className="lk-mixer">{status}
+  return <div className="lk-mixer">{status}{crate}
     <div className="lk-midi" data-midi-ui><Button variant="outline" onClick={midi.connect} aria-label="Connect mixer MIDI">MIDI</Button><Button variant="outline" aria-label="Mixer MIDI learn" aria-pressed={midi.learn} onClick={() => midi.setLearn(!midi.learn)}>LEARN</Button><Button variant="outline" aria-label="Load Reloop Mixtour mapping" onClick={() => { midi.preset(MIXTOUR_MAP); void midi.connect(); }}>MIXTOUR</Button><span>{midi.target ?? (midi.status || (midi.devices?.join(" · ") ?? ""))}</span></div>
     <div className="lk-strips"><Strip id="A" link={link} />
       <div className="lk-center"><span>NAD<br />2 CH</span><div className="lk-tempo"><Button variant="outline" aria-label="Mixer tempo down" onClick={() => link.setMix({ ...m, bpm: Math.max(60, m.bpm - 1) })}>−</Button><b>{m.bpm}<small>BPM</small></b><Button variant="outline" aria-label="Mixer tempo up" onClick={() => link.setMix({ ...m, bpm: Math.min(180, m.bpm + 1) })}>+</Button></div>
