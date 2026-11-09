@@ -10,7 +10,7 @@ export function readCrate(raw: string | null): CrateTrack[] {
   return list.flatMap((s, slot) => {
     const st = s as GrooveSet | null;
     if (!st || !Array.isArray(st.slots)) return [];
-    return [{ slot, name: st.name || `SET ${slot + 1}`, bpm: Math.round(st.bpm ?? 124), key: st.harmony?.key ?? 0, scale: st.harmony?.scale ?? "off", set: st }];
+    return [{ slot, name: st.name || `SET ${slot + 1}`, bpm: Math.round(st.bpm ?? 124), key: (((st.harmony?.key ?? 0) + (st.tune ?? 0)) % 12 + 12) % 12, scale: st.harmony?.scale ?? "off", set: st }];
   });
 }
 
