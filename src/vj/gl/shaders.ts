@@ -152,6 +152,10 @@ vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor, 
 vec3 skin(vec3 p, vec3 base){
   if (uSkin == 0 && uObjectPalette == 0) return base;
   vec3 q = objXf(p);
+  // Patterned objects are matte: drop the mirrored world so it never cuts across the pattern.
+  vec2 h = vec2(.004, 0.);
+  vec3 mn = normalize(vec3(objUnit(q+h.xyy)-objUnit(q-h.xyy), objUnit(q+h.yxy)-objUnit(q-h.yxy), objUnit(q+h.yyx)-objUnit(q-h.yyx)) + 1e-6);
+  base = vec3(.3 + .5*max(dot(mn, normalize(vec3(.4,.8,.3))), 0.));
   if (uObject == 1 || uObject == 5) {
     vec3 d = normalize(q); vec2 uv = vec2(atan(d.z, d.x)/6.2831853 + .5, asin(clamp(d.y,-1.,1.))/3.1415927 + .5);
     return surfacePattern(uv*vec2(8., 4.), base, uSkin, uObjectPalette);
