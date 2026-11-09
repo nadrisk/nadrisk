@@ -95,7 +95,7 @@ export class GlScene {
     gl.uniform1i(u.uObjectPalette, o.objectPalette); gl.uniform1i(u.uFloorPalette, o.floorPalette);
     gl.uniform1i(u.uObject, o.object); gl.uniform1i(u.uMotion, o.motion); gl.uniform1i(u.uCam, o.cam); gl.uniform1i(u.uForm, o.form);
     gl.uniform1f(u.uTravel, travel); gl.uniform1f(u.uRotation, rotation);
-    gl.uniform1i(u.uMono, mono || (world === "PLASMA" && o.palette === 6) ? 1 : 0);
+    gl.uniform1i(u.uMono, mono || (world === "PLASMA" && o.palette === 5) ? 1 : 0);
     gl.uniform3f(u.uFg, ...fg); gl.uniform3f(u.uBg, ...bg);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

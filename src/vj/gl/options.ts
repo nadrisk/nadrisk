@@ -11,7 +11,7 @@ export const FORMS = ["LIQUID", "WAVE", "WARP", "PULSE", "RINGS", "TUNNEL"] as c
 /** Object surface: the world's own shading, or one of the plasma forms. */
 export const SKINS = ["SHADE", ...FORMS] as const;
 export const EFFECTS = ["NONE", "PIXEL", "DITHER"] as const;
-export const PALETTES = ["ORIG", "CLASSIC", "RGB", "BIDOU", "INTERF", "TUNNEL", "1-BIT"] as const;
+export const PALETTES = ["ORIG", "RGB", "BIDOU", "INTERF", "TUNNEL", "1-BIT"] as const;
 export const SURFACE_PALETTES = [...PALETTES, "CHECKER"] as const;
 
 export const INERTIAS = ["MIN", "MID", "HIGH", "MAX"] as const;

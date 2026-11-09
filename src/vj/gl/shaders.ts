@@ -140,8 +140,8 @@ vec3 surfacePattern(vec2 st, vec3 base, int selected, int pal){
   vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
   vec3 col = base; float v = lum(base);
   if (selected != 0) surfaceForm(selected-1, col, v, fc);
-  vec3 c = pal == 7 ? vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.)) : palette(v, col, st, pal);
-  if (pal == 6) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
+  vec3 c = pal == 6 ? vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.)) : palette(v, col, st, pal);
+  if (pal == 5) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
   return c*(.25 + .95*lum(base)) + max(base-.8, 0.);
 }
 vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor, uFloorPalette); }
@@ -521,14 +521,12 @@ float lum(vec3 c){ return dot(clamp(c,0.,1.), vec3(.299,.587,.114)); }
 // Palettes from the supplied shaders, driven by one 0..1 value.
 vec3 palette(float v, vec3 orig, vec2 st, int selected){
   if(selected == 1){
-  return 0.7 + 0.3*cos(v*6.2831853+vec3(0,2.1,4.2));
-} else if(selected == 2){
   float w = v*2.-1.; return vec3(sin(PI*w), sin(PI*w+2.0*PI/(3.0+sin(iTime))), cos(PI*w+4.0*PI/(4.0+sin(iTime))))*0.5+0.5;
-} else if(selected == 3){
+} else if(selected == 2){
   float x = v*6.-3.; return vec3(sin(x*PI*0.16), sin(x*PI*0.33), sin(x*PI*0.66));
-} else if(selected == 4){
+} else if(selected == 3){
   float a = sign(sin(v*25.)), b = sign(sin(v*17.+1.)); return max(vec3(1,0,0)*a, vec3(0,1,0)) + max(vec3(1,0,0)*b, vec3(0,1,0)) - vec3(0,1,0);
-} else if(selected == 5){
+} else if(selected == 4){
   vec3 c = vec3(v)*vec3(1.,0.1,0.), c1 = vec3(1.-v)*vec3(0.,0.1,1.); return mix(c1, c + .8, c);
 } else {
   return .5 + .5*cos(v*6.2831853+vec3(0.,2.,4.));
