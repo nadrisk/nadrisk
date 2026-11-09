@@ -1338,7 +1338,7 @@ body.perf-lock { overflow: hidden; }
   .lk-center-pads .gb-perf-side button, .lk-center-pads > .lk-target .gb-cycle { min-height: 36px; }
   .lk-strip { grid-row: 2; padding: 6px 0; gap: 10px; min-width: 0; }
   .lk-strip-head { font-size: 9px; min-height: 0; }
-  .lk-eq-row { gap: 4px; justify-content: space-between; }
+  .lk-eq-row { gap: 10px; justify-content: center; }
   .lk-eq-row .lk-kill { width: 36px; height: 36px; min-height: 36px; }
   .lk-control-rotary { width: 52px; }
   .lk-control-rotary svg { width: 40px; height: 40px; }
