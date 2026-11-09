@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { vjListen, vjSend, vjVisualState } from "./bus";
-import { WORLDS, GROUNDS, OBJECTS, MOTIONS, SKINS, FORMS, EFFECTS, PALETTES, cleanOpts, type OptKey } from "./gl/options";
+import { WORLDS, GROUNDS, OBJECTS, MOTIONS, SKINS, FORMS, EFFECTS, PALETTES, SURFACE_PALETTES, cleanOpts, type OptKey } from "./gl/options";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const ROWS: Record<string, [OptKey, string, readonly string[]][]> = {
-  SPACE: [["ground", "WORLD", GROUNDS], ["object", "OBJ", OBJECTS], ["motion", "MOVE", MOTIONS], ["effect", "FX", EFFECTS], ["palette", "PAL", PALETTES]],
+  SPACE: [["ground", "WORLD", GROUNDS], ["object", "OBJ", OBJECTS], ["motion", "MOVE", MOTIONS], ["effect", "FX", EFFECTS]],
   PLASMA: [["form", "FORM", FORMS], ["effect", "FX", EFFECTS], ["palette", "PAL", PALETTES]],
 };
 
@@ -28,7 +28,7 @@ export default function AvControls({ onClose, onTv }: { onClose?: () => void; on
     <div className="vj-keys vj-performance" onClick={e => e.stopPropagation()}>
     <Button variant="outline" size="sm" className="av-key" aria-label={`Mode ${world}, next`} onClick={() => vjSend({ t: "ctl", model: 1, size: 0 })}>MODE {world}</Button>
     {(ROWS[world] ?? []).map(([key, label, names]) => option(key, label, names))}
-    {world === "SPACE" && <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="av-key" aria-label="Materials">MAT</Button></PopoverTrigger><PopoverContent side="top" className="av-materials" onClick={e => e.stopPropagation()}>{option("skin", "OBJ", SKINS)}{opts.ground !== 3 && option("floor", "GROUND", SKINS)}</PopoverContent></Popover>}
+    {world === "SPACE" && <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="av-key" aria-label="Materials">MAT</Button></PopoverTrigger><PopoverContent side="top" className="av-materials" onClick={e => e.stopPropagation()}><div>{option("skin", "OBJ SKIN", SKINS)}{option("objectPalette", "OBJ PAL", SURFACE_PALETTES)}</div><div>{option("floor", "WORLD SKIN", SKINS)}{option("floorPalette", "WORLD PAL", SURFACE_PALETTES)}</div></PopoverContent></Popover>}
     {world !== "NONE" && <div className="av-size">
     <Button variant="outline" size="sm" className="av-key av-icon" title="Smaller" aria-label="Smaller" onClick={() => vjSend({ t: "ctl", model: 0, size: -1 })}><Minus /></Button>
     <Button variant="outline" size="sm" className="av-key av-icon" title="Bigger" aria-label="Bigger" onClick={() => vjSend({ t: "ctl", model: 0, size: 1 })}><Plus /></Button>
