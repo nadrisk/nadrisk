@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanOpts, objectsFor, stepOpt, DEFAULT_OPTS, GROUNDS, OBJECTS, CAMS } from "./options";
+import { cleanOpts, objectsFor, stepOpt, DEFAULT_OPTS, GROUNDS, OBJECTS, CAMS, WORLDS } from "./options";
 import { sceneSource } from "./renderer";
 import { vjSend, vjVisualState } from "../bus";
 
@@ -15,9 +15,19 @@ describe("AV world options", () => {
   it("an old saved PIPE falls back to no object", () => expect(cleanOpts({ ground: 2, object: 6 }).object).toBe(0));
   it("garbage from an old window is cleaned to defaults", () => expect(cleanOpts({ ground: 9, palette: -1 } as never)).toEqual({ ...DEFAULT_OPTS, ground: 0, palette: 0 }));
   it("bus applies option steps", () => { const before = vjVisualState().opts!.form; vjSend({ t: "opt", key: "form", d: 1 }); expect(vjVisualState().opts!.form).toBe((before + 1) % 6); });
-  it("each combination gets its own program key", () => {
+  it("offers SPACE, PLASMA and NONE without CAM", () => expect(WORLDS).toEqual(["SPACE", "PLASMA", "NONE"]));
+  it("form changes preserve the selected palette", () => {
+    expect(stepOpt({ ...DEFAULT_OPTS, palette: 4 }, "form", 1).palette).toBe(4);
+  });
+  it("surface, palette and effects never change the compiled program", () => {
+    for (const world of ["SPACE", "PLASMA"] as const) {
+      const base = sceneSource(world, DEFAULT_OPTS);
+      for (const opts of [{ palette: 3 }, { skin: 3 }, { floor: 2 }, { effect: 2 }]) {
+        expect(sceneSource(world, { ...DEFAULT_OPTS, ...opts })).toEqual(base);
+      }
+    }
+  });
+  it("geometry still selects the required program", () => {
     expect(sceneSource("SPACE", { ...DEFAULT_OPTS, object: 2 }).key).not.toBe(sceneSource("SPACE", DEFAULT_OPTS).key);
-    expect(sceneSource("SPACE", { ...DEFAULT_OPTS, skin: 3 }).src).toContain("#define SKIN 3");
-    expect(sceneSource("PLASMA", { ...DEFAULT_OPTS, effect: 2 }).src).toContain("#define DITHER");
   });
 });
