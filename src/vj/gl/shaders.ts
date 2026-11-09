@@ -93,7 +93,7 @@ float objUnit(vec3 p){
 // Motion: FLOAT slow hover/turn, JUMP the original bob (sin(iTime*2.)*0.3), SPIN steady rotation.
 vec3 objCentre(){
   if (uMotion == 0) return vec3(0., .18*sin(iTime*.6), 0.);
-  if (uMotion == 1) return vec3(0., -sin(iTime*2.)*0.3, 0.);
+  if (uMotion == 1) return vec3(0., abs(sin(uTravel*1.6))*.45 - .2, 0.);
   return vec3(0.);
 }
 vec3 gAt = vec3(0.); float gSize = 1.;
@@ -102,12 +102,13 @@ float objScale(){ return gSize * uSize * (1. + uBand.x*.2); }
 vec3 objXf(vec3 p){
   p -= gAt + objCentre()*gSize;
   if (uMotion == 0) {
-  p.xz *= r2(uRotation*.25); p.xy *= r2(.35*sin(uRotation*.2));
+  p.xz *= r2(uRotation*.85); p.xy *= r2(.35*sin(uRotation*.2));
   } else if (uMotion == 1) {
-  p.xz *= r2(uRotation*.5);
+  p.xz *= r2(uRotation*.9);
   } else {
   p.xz *= r2(uRotation*1.1); p.yz *= r2(uRotation*.7);
   }
+  p.xy *= r2(uBand.y);
   return p/objScale();
 }
 float objSdf(vec3 p){
