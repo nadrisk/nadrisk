@@ -1,6 +1,7 @@
 import { createDeckStage } from "@/audio/deckStage";
 import type { DeckState } from "@/link/deck";
 import { setSustainProbe } from "@/lib/frameGate";
+import { tapeBus } from "@/audio/tapeBus";
 import { tieSpan } from "@/audio/tie";
 import { setSpan } from "@/audio/noteSpan";
 import { detectSlices } from "@/audio/slices";
@@ -147,7 +148,13 @@ function syncChain(e: Engine, i: number, s: Slot) {
   } else live.forEach((f, k) => { try { out.chain[k].update({ ...Object.fromEntries(Object.entries(defaultFxParams(f.type))), ...f.params }); } catch (err) { console.error("FX update failed", f.type, err); } });
 }
 
-export function useGroovebox() {
+/** Set while the one-device crate owns the shared transport: the editor's own sequence stays silent. */
+let crateOwned = false;
+export const setCrateOwned = (on: boolean) => { crateOwned = on; };
+/** `deck`: a headless crate deck sharing the tab's transport; it starts on bar lines and never touches AV or session state. */
+export function useGroovebox(opts: { deck?: boolean } = {}) {
+  const deckMode = !!opts.deck;
+  const deckOn = useRef(false), deckArm = useRef<number | null>(null);
   const engine = useRef<Engine | null>(null);
   /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
   const pushXyLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
@@ -211,6 +218,7 @@ export function useGroovebox() {
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
   // AV live-code screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
   useEffect(() => {
+    if (deckMode) return;
     const send = () => {
       const bk = banksRef.current[bank];
       const pads: DocPad[] = slots.map((x, i) => ({ x, i })).filter(({ i }) => bk.pattern[i]?.slice(0, bk.lengths[i] || 16).some(v => v === 1)).map(({ x, i }) => {
@@ -475,7 +483,7 @@ export function useGroovebox() {
   const pressed = useRef(new Set<number>());
   // KBD phrase transpose: the last held key sets each phrase pad's root offset (90s keyboard style); pads reset it.
   const keyRoot = useRef<number[]>(Array(16).fill(0));
-  useEffect(() => { setSustainProbe(() => pressed.current.size > 0); return () => setSustainProbe(() => false); }, []);
+  useEffect(() => { if (deckMode) return; setSustainProbe(() => pressed.current.size > 0); return () => setSustainProbe(() => false); }, []);
   const pump = useCallback(() => {
     const e = engine.current; if (!e) return;
     const horizon = e.ctx.currentTime + 0.15, bpmNow = bpmRef.current;
@@ -557,12 +565,14 @@ export function useGroovebox() {
     await Tone.start(); await loadWorklets();
     if (engine.current) return engine.current;
     const ctx = ctxOf();
-    const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); const deck = createDeckStage(ctx); master.connect(deck.input); deck.output.connect(perf.input); deckRef.current = deck; perf.update(performanceRef.current, bpmRef.current); perf.setNad(nadRef.current);
+    const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); const deck = createDeckStage(ctx); master.connect(deck.input); deck.output.connect(perf.input); perf.output.connect(tapeBus(ctx)); deckRef.current = deck; perf.update(performanceRef.current, bpmRef.current); perf.setNad(nadRef.current);
     perf.meter.port.onmessage = (ev: MessageEvent<{ m: number; s: number; i: number; sub: number; peak: number }>) => { const v = ev.data; meterPeak.current = Math.max(v.peak, meterPeak.current - .6); setMeter({ m: v.m, s: v.s, i: v.i, sub: v.sub, subPeak: meterPeak.current }); };
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; input.connect(gain); gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), gain).connect(filter); gain.connect(tap); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
     const loop = Tone.getTransport().scheduleRepeat(gridTime => {
+      if (deckMode) { const a = deckArm.current; if (a != null && gridTime >= a - 1e-3) { deckArm.current = null; deckOn.current = true; cur = 0; } if (!deckOn.current) return; }
+      else if (crateOwned) return;
       const tick = cur; cur = cur + 1; // unbounded so every length 1-32 wraps cleanly
       const sixteenth = 60 / bpmRef.current / 4;
       const time = gridTime + (tick % 2 ? (Math.max(50, Math.min(75, swingRef.current)) - 50) / 50 * sixteenth : 0);
@@ -650,6 +660,7 @@ export function useGroovebox() {
   }, [eco]);
   useEffect(() => {
     // Read the existing silent final-output tap; no React updates or extra audio nodes.
+    if (deckMode) return;
     const id = window.setInterval(() => {
       const e = engine.current; if (!e) return;
       const values = e.analyser.getValue();
@@ -701,6 +712,20 @@ export function useGroovebox() {
       t.start(Tone.now() + Math.max(0.05, delaySec)); setPlaying(true); setError("");
     } catch { setError("Audio unavailable. Try another browser."); }
   }, [ensure, cancelBooked]);
+  /** Crate deck: join the shared transport on its next bar (or start it), so both decks share one clock. */
+  const deckStart = useCallback(async () => {
+    await ensure(); const t = Tone.getTransport();
+    cursor.current.fill(0); skip.current.clear();
+    if (t.state !== "started") { t.position = 0; const at = Tone.now() + .1; deckArm.current = at; t.start(at); }
+    else deckArm.current = t.nextSubdivision("1m");
+    setPlaying(true); setError("");
+  }, [ensure]);
+  const deckStop = useCallback(() => {
+    deckOn.current = false; deckArm.current = null; skip.current.clear(); lastTick.current = null;
+    for (let k = 0; k < 16; k++) cancelBooked(k); cursor.current.fill(0); setStep(-1);
+    if (queuedRef.current != null) { bankRef.current = queuedRef.current; setBank(queuedRef.current); queuedRef.current = null; setQueued(null); }
+    setPlaying(false);
+  }, [cancelBooked]);
   /** Temporary tempo trim for phase lock; the saved BPM is untouched and restored after `ms`. */
   const nudgeTimer = useRef(0);
   const nudgeTempo = useCallback((ratio: number, ms = 1000) => {
@@ -1034,7 +1059,7 @@ export function useGroovebox() {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { deckStart, deckStop, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

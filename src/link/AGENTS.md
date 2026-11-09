@@ -1,0 +1,3 @@
+# Link
+- LINK defaults to same-origin BroadcastChannel rooms; optional device rooms lazy-load the cloud transport. The mixer is the master clock (epoch + bpm, re-anchored on tempo change); decks start on its next bar via startAt and phase-lock with capped tempo trims, take mute/bank/FX commands as ctl messages, and release them if the mixer goes silent >4 s, so mixing stays seamless and no deck is left muted or filtered.
+- CRATE mode: two headless useGroovebox({deck:true}) engines share the tab's transport (bar-line joins, editor gated silent) behind a useLink-shaped object; all engines feed tapeBus so tape records the mix.
