@@ -14,16 +14,24 @@ export const EFFECTS = ["NONE", "PIXEL", "DITHER"] as const;
 export const PALETTES = ["ORIG", "CLASSIC", "RGB", "BIDOU", "INTERF", "TUNNEL", "1-BIT"] as const;
 export const SURFACE_PALETTES = [...PALETTES, "CHECKER"] as const;
 
-export type SceneOpts = { ground: number; object: number; motion: number; cam: number; skin: number; floor: number; form: number; effect: number; palette: number; objectPalette: number; floorPalette: number };
+export const INERTIAS = ["MIN", "MID", "HIGH", "MAX"] as const;
+/** Kick spin/travel impulse and drag per INERT step; MAX is the strongest coast. */
+export const INERTIA_TABLE = [
+  { spin: 1.2, spinDrag: 2.4, travel: .7, travelDrag: 3.2 },
+  { spin: 2.2, spinDrag: 1.6, travel: 1.3, travelDrag: 2.6 },
+  { spin: 2.8, spinDrag: 1.4, travel: 1.6, travelDrag: 2.4 },
+  { spin: 3.6, spinDrag: 1.2, travel: 2, travelDrag: 2.2 },
+] as const;
+export type SceneOpts = { ground: number; object: number; motion: number; cam: number; skin: number; floor: number; form: number; effect: number; palette: number; objectPalette: number; floorPalette: number; inertia: number };
 export type OptKey = keyof SceneOpts;
-export const DEFAULT_OPTS: SceneOpts = { ground: 0, object: 1, motion: 1, cam: 2, skin: 0, floor: 0, form: 0, effect: 0, palette: 0, objectPalette: 0, floorPalette: 0 };
+export const DEFAULT_OPTS: SceneOpts = { ground: 0, object: 1, motion: 1, cam: 2, skin: 0, floor: 0, form: 0, effect: 0, palette: 0, objectPalette: 0, floorPalette: 0, inertia: 3 };
 
 /** Every world can hold every shape. */
 export function objectsFor(_ground: number): number[] { return OBJECTS.map((_, i) => i); }
 export function validObject(ground: number, object: number) { const a = objectsFor(ground); return a.includes(object) ? object : a[0]; }
 
 const wrap = (v: number, n: number) => ((v % n) + n) % n;
-const LEN: Record<Exclude<OptKey, "object">, number> = { ground: GROUNDS.length, motion: MOTIONS.length, cam: CAMS.length, skin: SKINS.length, floor: SKINS.length, form: FORMS.length, effect: EFFECTS.length, palette: PALETTES.length, objectPalette: SURFACE_PALETTES.length, floorPalette: SURFACE_PALETTES.length };
+const LEN: Record<Exclude<OptKey, "object">, number> = { ground: GROUNDS.length, motion: MOTIONS.length, cam: CAMS.length, skin: SKINS.length, floor: SKINS.length, form: FORMS.length, effect: EFFECTS.length, palette: PALETTES.length, objectPalette: SURFACE_PALETTES.length, floorPalette: SURFACE_PALETTES.length, inertia: INERTIAS.length };
 export function stepOpt(o: SceneOpts, key: OptKey, d: number): SceneOpts {
   const n = { ...o };
   if (key === "object") { const a = objectsFor(o.ground), i = Math.max(0, a.indexOf(o.object)); n.object = a[wrap(i + d, a.length)]; return n; }
@@ -36,6 +44,7 @@ export function cleanOpts(o: Partial<SceneOpts> | undefined): SceneOpts {
   // Older AV windows shared one palette across both SPACE surfaces.
   if (o?.objectPalette === undefined) r.objectPalette = o?.palette ?? 0;
   if (o?.floorPalette === undefined) r.floorPalette = o?.palette ?? 0;
+  if (o?.inertia === undefined) r.inertia = 3;
   const c = (v: number, n: number) => Number.isInteger(v) && v >= 0 && v < n ? v : 0;
   for (const k of Object.keys(LEN) as (keyof typeof LEN)[]) r[k] = c(r[k], LEN[k]);
   if (!(o && "cam" in o)) r.cam = NATIVE_CAM[r.ground];

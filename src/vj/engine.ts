@@ -2,7 +2,7 @@
 import type { DocPad, VjKind, VjPad } from "./bus";
 import { hex } from "./trackerDoc";
 import { codeLines } from "./nadCode";
-import { WORLDS, DEFAULT_OPTS, type SceneOpts } from "./gl/options";
+import { WORLDS, DEFAULT_OPTS, INERTIA_TABLE, type SceneOpts } from "./gl/options";
 import type { GlScene } from "./gl/renderer";
 import { cosineColor, colorCss } from "./colorSweep";
 import { AvPerformanceFrames, avPerformance, NEUTRAL_PERFORMANCE, type AvPerformance } from "./performance";
@@ -52,12 +52,14 @@ export class VjEngine {
     this.last = kind.toUpperCase();
     this.velocity = Number.isFinite(vel) ? Math.max(0, Math.min(1, vel)) : 0;
     if (pad) { this.pad = pad; this.flash.set(pad.index, this.t); }
-    if (kind === "kick") { this.kick = Math.max(this.kick, v); this.spinVel = Math.min(6, this.spinVel + 3.6 * v); this.travelVel = Math.min(5, this.travelVel + 2 * v); if (this.ring > .6) this.ring = 0; }
-    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.tiltSign = -this.tiltSign; this.tiltTarget += this.tiltSign * .3 * v; this.pop = Math.max(this.pop, v); }
+    if (kind === "kick") { this.kick = Math.max(this.kick, v); const q = this.inertia(); this.spinVel = Math.min(6, this.spinVel + q.spin * v); this.travelVel = Math.min(5, this.travelVel + q.travel * v); if (this.ring > .6) this.ring = 0; }
+    else if (kind === "snare") { this.snare = Math.max(this.snare, v); this.tiltSign = -this.tiltSign; this.tiltTarget += this.tiltSign * .3 * v; this.pop = Math.max(this.pop, v); this.plasmaTime += .35 * v; }
     else if (kind === "bass") { this.bass = Math.max(this.bass, v); }
     else if (kind === "hat" || kind === "open" || kind === "perc") this.hat = Math.max(this.hat, v * .8);
     else { this.tone = Math.max(this.tone, v); this.twist += .03 * v; }
   }
+
+  inertia() { return INERTIA_TABLE[this.opts.inertia] ?? INERTIA_TABLE[3]; }
 
   ctl(dm: number, ds: number) {
     if (dm) { this.model = ((this.model + dm) % MODELS.length + MODELS.length) % MODELS.length; this.hudMsg = MODELS[this.model]; }
@@ -74,11 +76,11 @@ export class VjEngine {
     const k = (r: number) => Math.exp(-r * dt);
     this.kick *= k(7); this.snare *= k(10); this.bass *= k(3); this.hat *= k(9); this.tone *= k(1.2); this.twist *= k(.1);
     // Kick = impulse that coasts down with drag; snare = tilt step + fast scale pop. Bass never moves things.
-    this.spinVel *= k(1.2); this.travelVel *= k(2.2); this.pop *= k(9);
+    { const q = this.inertia(); this.spinVel *= k(q.spinDrag); this.travelVel *= k(q.travelDrag); } this.pop *= k(9);
     this.tiltTarget = Math.max(-.6, Math.min(.6, this.tiltTarget)); this.tilt += (this.tiltTarget - this.tilt) * (1 - k(18));
     this.travelTime += dt*(1 + this.travelVel);
     this.rotationTime += dt*(1 + this.spinVel);
-    this.plasmaTime += dt*(1 + this.travelVel*.8);
+    this.plasmaTime += dt*(1 + this.travelVel*1.6);
     this.ring = Math.min(1, this.ring + dt * .35);
     const active = this.running && this.t < this.signalUntil && !document.hidden;
     const perf = active ? this.perf : NEUTRAL_PERFORMANCE;
@@ -101,7 +103,7 @@ export class VjEngine {
       this.glTime += dt;
       const rgb = (v: number): [number, number, number] => [(v & 255) / 255, ((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255];
       const space = m === "SPACE";
-      this.gl?.render(m, this.opts, space ? this.glTime : this.plasmaTime, space ? { kick: this.pop, snare: this.tilt, bass: Math.min(1, this.travelVel / 3), level: 0 } : { kick: 0, snare: 0, bass: 0, level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
+      this.gl?.render(m, this.opts, space ? this.glTime : this.plasmaTime, space ? { kick: this.pop, snare: this.tilt, bass: Math.min(1, this.travelVel / 3), level: 0 } : { kick: this.pop, snare: 0, bass: Math.min(1, this.travelVel / 3), level: 0 }, this.size, !this.color, rgb(fg), rgb(bg), dt, this.travelTime, this.rotationTime);
       const dpr = Math.min(2, window.devicePixelRatio || 1), tw = Math.round(cv.clientWidth * dpr), th = Math.round(cv.clientHeight * dpr);
       if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
       const c = cv.getContext("2d"); if (!c) return;
