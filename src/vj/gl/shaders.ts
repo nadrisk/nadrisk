@@ -7,6 +7,7 @@ precision highp float;
 uniform vec3 iResolution; uniform float iTime; uniform sampler2D iChannel0;
 uniform vec4 uBand; uniform float uSize; uniform int uPalette; uniform int uSkin; uniform int uFloor; uniform int uEffect; uniform float uTravel; uniform float uRotation; uniform int uMono; uniform vec3 uFg; uniform vec3 uBg;
 uniform int uObject; uniform int uMotion; uniform int uCam; uniform int uForm;
+uniform int uObjectPalette; uniform int uFloorPalette;
 out vec4 outColor;
 float bayer4(vec2 p){ ivec2 q = ivec2(mod(p,4.)); int i = q.x + q.y*4;
   int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[i])+.5)/16.; }
@@ -84,10 +85,8 @@ float objUnit(vec3 p){
   if (uObject == 3) return sdPyramid(p/1.7 + vec3(0., .45, 0.), 1.)*1.7;
   if (uObject == 4) return sdTorus(p, vec2(.78, .3));
   if (uObject == 5) {
-  vec3 pos = p*30.;
-  vec3 q = pos + snoise(pos/10.+iTime*.5);
-  q.x += sin(pos.y*0.5+iTime*.4);
-  return (length(q) - 30.) / 30. * .7;
+    // One smooth sphere with a gentle low-frequency surface drift.
+    return (length(p) - 1. + .035*(snoise(p*2. + iTime*.15)-.5))*.9;
   }
   return 1e5;
 }
@@ -113,7 +112,8 @@ vec3 objXf(vec3 p){
 float objSdf(vec3 p){
   if (uObject == 0) return 1e5;
   vec3 q = objXf(p);
-  q += .018*(uBand.x + uBand.z*.6)*sin(q.yzx*3. + uRotation);
+  // SPHERE stays round: its audio response is uniform breathing, not coordinate warping.
+  if (uObject != 1) q += .018*(uBand.x + uBand.z*.6)*sin(q.yzx*3. + uRotation);
   return objUnit(q)*objScale();
 }
 mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx); }
@@ -133,21 +133,25 @@ void travel(inout vec3 ro, inout vec3 rd, float spd){
 }
 SKIN_SRC
 // Triplanar patterns retain lighting; floor and object skins are independent.
-vec3 surfacePattern(vec2 st, vec3 base, int selected){
-  if (selected == 0) return base;
+vec3 surfacePattern(vec2 st, vec3 base, int selected, int pal){
+  if (selected == 0 && pal == 0) return base;
   vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
-  vec3 col; float v; surfaceForm(selected-1, col, v, fc);
-  vec3 c = palette(v, col, st);
-  if (uPalette == 6) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
+  vec3 col = base; float v = lum(base);
+  if (selected != 0) surfaceForm(selected-1, col, v, fc);
+  vec3 c = pal == 7 ? vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.)) : palette(v, col, st, pal);
+  if (pal == 6) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
   return c*(.25 + .95*lum(base)) + max(base-.8, 0.);
 }
-vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor); }
+vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor, uFloorPalette); }
 vec3 skin(vec3 p, vec3 base){
-  if (uSkin == 0) return base;
+  if (uSkin == 0 && uObjectPalette == 0) return base;
   vec3 q = objXf(p); vec2 e = vec2(.004, 0.);
   vec3 nl = abs(vec3(objUnit(q+e.xyy)-objUnit(q-e.xyy), objUnit(q+e.yxy)-objUnit(q-e.yxy), objUnit(q+e.yyx)-objUnit(q-e.yyx)));
-  vec2 st = nl.x > nl.y && nl.x > nl.z ? q.zy : nl.y > nl.z ? q.xz : q.xy;
-  return surfacePattern(st, base, uSkin);
+  // Blend projections continuously: hard dominant-axis switches looked like joined meshes.
+  vec3 w = pow(nl, vec3(4.)); w /= max(dot(w, vec3(1.)), 1e-12);
+  return surfacePattern(q.zy, base, uSkin, uObjectPalette)*w.x
+       + surfacePattern(q.xz, base, uSkin, uObjectPalette)*w.y
+       + surfacePattern(q.xy, base, uSkin, uObjectPalette)*w.z;
 }
 bool objHit(vec3 p, float d){ return uObject != 0 && objSdf(p) <= d + .01; }`;
 
@@ -434,6 +438,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     sum.rgb -= 0.6 * vec3(0.8, 0.75, 0.7) * pow(sundot, 13.0) * alpha;
     sum.rgb += 0.2 * vec3(1.3, 1.2, 1.0) * pow(sundot, 5.0) * (1.0 - alpha);
     col = mix(col, sum.rgb, sum.a);
+    col = floorSkin(vec3(uv.x, 0., uv.y), col);
     if (uObject != 0) {
     // The shape rides with the camera through the clouds, lit by the same sun and cloud colours.
     gAt = vec3(0., 0., 4.5); gSize = 1.;
@@ -505,19 +510,18 @@ const PAL = `
 #define PI acos(-1.)
 float lum(vec3 c){ return dot(clamp(c,0.,1.), vec3(.299,.587,.114)); }
 // Palettes from the supplied shaders, driven by one 0..1 value.
-vec3 palette(float v, vec3 orig, vec2 st){
-  if(uPalette == 1){
+vec3 palette(float v, vec3 orig, vec2 st, int selected){
+  if(selected == 1){
   return 0.7 + 0.3*cos(v*6.2831853+vec3(0,2.1,4.2));
-} else if(uPalette == 2){
+} else if(selected == 2){
   float w = v*2.-1.; return vec3(sin(PI*w), sin(PI*w+2.0*PI/(3.0+sin(iTime))), cos(PI*w+4.0*PI/(4.0+sin(iTime))))*0.5+0.5;
-} else if(uPalette == 3){
+} else if(selected == 3){
   float x = v*6.-3.; return vec3(sin(x*PI*0.16), sin(x*PI*0.33), sin(x*PI*0.66));
-} else if(uPalette == 4){
+} else if(selected == 4){
   float a = sign(sin(v*25.)), b = sign(sin(v*17.+1.)); return max(vec3(1,0,0)*a, vec3(0,1,0)) + max(vec3(1,0,0)*b, vec3(0,1,0)) - vec3(0,1,0);
-} else if(uPalette == 5){
+} else if(selected == 5){
   vec3 c = vec3(v)*vec3(1.,0.1,0.), c1 = vec3(1.-v)*vec3(0.,0.1,1.); return mix(c1, c + .8, c);
 } else {
-  if(uPalette == 7) return vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.));
   return .5 + .5*cos(v*6.2831853+vec3(0.,2.,4.));
 }
 }`;
@@ -620,7 +624,7 @@ void surfaceForm(int selected, out vec3 col, out float v, vec2 fc){
 }`;
 export const PLASMA_SOURCES = FORM_SOURCES.map(f => `${PAL}
 ${f}
-void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col, f/iResolution.y), 1.); }`);
+void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col, f/iResolution.y, uPalette), 1.); }`);
 export const PLASMA_SOURCE = `${PAL}
 ${SURFACE_FORMS}
-void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; surfaceForm(uForm, col, v, f); c = vec4(palette(v, col, f/iResolution.y), 1.); }`;
+void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; surfaceForm(uForm, col, v, f); c = vec4(palette(v, col, f/iResolution.y, uPalette), 1.); }`;

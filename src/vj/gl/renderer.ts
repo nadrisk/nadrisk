@@ -66,7 +66,7 @@ export class GlScene {
       if (this.parallel && !gl.getProgramParameter(p, this.parallel.COMPLETION_STATUS_KHR)) continue;
       let out: Prog | null = null;
       if (gl.getProgramParameter(p, gl.LINK_STATUS)) {
-        const u: Prog["u"] = {}; for (const n of ["iResolution", "iTime", "iChannel0", "uBand", "uSize", "uMono", "uFg", "uBg", "uSkin", "uFloor", "uPalette", "uEffect", "uTravel", "uRotation", "uObject", "uMotion", "uCam", "uForm"]) u[n] = gl.getUniformLocation(p, n);
+        const u: Prog["u"] = {}; for (const n of ["iResolution", "iTime", "iChannel0", "uBand", "uSize", "uMono", "uFg", "uBg", "uSkin", "uFloor", "uPalette", "uObjectPalette", "uFloorPalette", "uEffect", "uTravel", "uRotation", "uObject", "uMotion", "uCam", "uForm"]) u[n] = gl.getUniformLocation(p, n);
         out = { p, u }; this.error = "";
       } else { this.error = gl.getShaderInfoLog(f) || gl.getProgramInfoLog(p) || "link"; console.error("[AV] link", key, this.error); gl.deleteProgram(p); }
       gl.deleteShader(v); gl.deleteShader(f);
@@ -92,9 +92,10 @@ export class GlScene {
     gl.uniform3f(u.iResolution, W, H, 1); gl.uniform1f(u.iTime, time); gl.uniform1i(u.iChannel0, 0);
     gl.uniform4f(u.uBand, b.kick, b.snare, b.bass, 0); gl.uniform1f(u.uSize, size);
     gl.uniform1i(u.uSkin, o.skin); gl.uniform1i(u.uFloor, o.floor); gl.uniform1i(u.uPalette, o.palette); gl.uniform1i(u.uEffect, o.effect);
+    gl.uniform1i(u.uObjectPalette, o.objectPalette); gl.uniform1i(u.uFloorPalette, o.floorPalette);
     gl.uniform1i(u.uObject, o.object); gl.uniform1i(u.uMotion, o.motion); gl.uniform1i(u.uCam, o.cam); gl.uniform1i(u.uForm, o.form);
     gl.uniform1f(u.uTravel, travel); gl.uniform1f(u.uRotation, rotation);
-    gl.uniform1i(u.uMono, mono || o.palette === 6 ? 1 : 0);
+    gl.uniform1i(u.uMono, mono || (world === "PLASMA" && o.palette === 6) ? 1 : 0);
     gl.uniform3f(u.uFg, ...fg); gl.uniform3f(u.uBg, ...bg);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
