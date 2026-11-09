@@ -6,6 +6,7 @@ export const HEAD = `#version 300 es
 precision highp float;
 uniform vec3 iResolution; uniform float iTime; uniform sampler2D iChannel0;
 uniform vec4 uBand; uniform float uSize; uniform int uPalette; uniform int uSkin; uniform int uFloor; uniform int uEffect; uniform float uTravel; uniform float uRotation; uniform int uMono; uniform vec3 uFg; uniform vec3 uBg;
+uniform int uObject; uniform int uMotion; uniform int uCam; uniform int uForm;
 out vec4 outColor;
 float bayer4(vec2 p){ ivec2 q = ivec2(mod(p,4.)); int i = q.x + q.y*4;
   int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[i])+.5)/16.; }
@@ -70,82 +71,65 @@ const OBJ = `${NOISE3}
 float sdBox(vec3 p, vec3 b){ vec3 q = abs(p)-b; return length(max(q,0.)) + min(max(q.x,max(q.y,q.z)),0.); }
 float sdTorus(vec3 p, vec2 t){ vec2 q = vec2(length(p.xz)-t.x, p.y); return length(q)-t.y; }
 float sdPyramid(vec3 p, float h){
-  float m2 = h*h + 0.25;
-  p.xz = abs(p.xz); p.xz = (p.z>p.x) ? p.zx : p.xz; p.xz -= 0.5;
-  vec3 q = vec3(p.z, h*p.y - 0.5*p.x, h*p.x + 0.5*p.y);
-  float s = max(-q.x,0.0);
-  float t = clamp((q.y-0.5*p.z)/(m2+0.25), 0.0, 1.0);
-  float a = m2*(q.x+s)*(q.x+s) + q.y*q.y;
-  float b = m2*(q.x+0.5*t)*(q.x+0.5*t) + (q.y-m2*t)*(q.y-m2*t);
-  float d2 = min(q.y,-q.x*m2-q.y*0.5) > 0.0 ? 0.0 : min(a,b);
-  return sqrt((d2+q.z*q.z)/m2) * sign(max(q.z,-p.y));
+  // Intersection of four normalized side planes and the closed square base.
+  // Conservative at exterior corners; never overshoots the underside during marching.
+  float side = (h*max(abs(p.x),abs(p.z)) + 0.5*p.y - 0.5*h)/sqrt(h*h + 0.25);
+  return max(side, -p.y);
 }
 mat2 r2(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
 // Unit-size primitive; MATTER is the Dark matter sphere (noise-displaced, wavy) at unit radius.
 float objUnit(vec3 p){
-#if OBJ == 1
-  return length(p) - 1.;
-#elif OBJ == 2
-  return sdBox(p, vec3(.72)) - .03;
-#elif OBJ == 3
-  return sdPyramid(p/1.7 + vec3(0., .45, 0.), 1.)*1.7;
-#elif OBJ == 4
-  return sdTorus(p, vec2(.78, .3));
-#elif OBJ == 5
+  if (uObject == 1) return length(p) - 1.;
+  if (uObject == 2) return sdBox(p, vec3(.72)) - .03;
+  if (uObject == 3) return sdPyramid(p/1.7 + vec3(0., .45, 0.), 1.)*1.7;
+  if (uObject == 4) return sdTorus(p, vec2(.78, .3));
+  if (uObject == 5) {
   vec3 pos = p*30.;
   vec3 q = pos + snoise(pos/10.+iTime*.5);
   q.x += sin(pos.y*0.5+iTime*.4);
   return (length(q) - 30.) / 30. * .7;
-#else
+  }
   return 1e5;
-#endif
 }
 // Motion: FLOAT slow hover/turn, JUMP the original bob (sin(iTime*2.)*0.3), SPIN steady rotation.
 vec3 objCentre(){
-#if MOTION == 0
-  return vec3(0., .18*sin(iTime*.6), 0.);
-#elif MOTION == 1
-  return vec3(0., -sin(iTime*2.)*0.3, 0.);
-#else
+  if (uMotion == 0) return vec3(0., .18*sin(iTime*.6), 0.);
+  if (uMotion == 1) return vec3(0., -sin(iTime*2.)*0.3, 0.);
   return vec3(0.);
-#endif
 }
 vec3 gAt = vec3(0.); float gSize = 1.;
 float objScale(){ return gSize * uSize * (1. + uBand.x*.045 + uBand.z*.025); }
 vec3 objXf(vec3 p){
   p -= gAt + objCentre()*gSize;
-#if MOTION == 0
+  if (uMotion == 0) {
   p.xz *= r2(uRotation*.25); p.xy *= r2(.35*sin(uRotation*.2));
-#elif MOTION == 1
+  } else if (uMotion == 1) {
   p.xz *= r2(uRotation*.5 + uBand.y*.035);
-#else
+  } else {
   p.xz *= r2(uRotation*1.1); p.yz *= r2(uRotation*.7);
-#endif
+  }
   return p/objScale();
 }
 float objSdf(vec3 p){
-#if OBJ == 0
-  return 1e5;
-#else
+  if (uObject == 0) return 1e5;
   vec3 q = objXf(p);
   q += .018*(uBand.x + uBand.z*.6)*sin(q.yzx*3. + uRotation);
   return objUnit(q)*objScale();
-#endif
 }
 mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx); }
 // Camera travel shared by every world: STILL, DRIFT (Infinite place glide), ORBIT (Jumping shape circle),
 // DIVE (Cloud diving weave). DRIFT/DIVE carry the object along; ORBIT circles it.
 void travel(inout vec3 ro, inout vec3 rd, float spd){
   vec3 at = gAt;
-#if CAM == 1
+  if (uCam == 1) {
   vec3 off = vec3(0., 0., spd*uTravel); ro += off; gAt += off;
-#elif CAM == 2
+  } else if (uCam == 2) {
   mat3 R = camY((uTravel-10.)*.8); vec3 c = vec3(at.x, ro.y, at.z); ro = c + (ro-c)*R; rd = rd*R;
-#elif CAM == 3
+  } else if (uCam == 3) {
   float t = uTravel*.5, k = max(.5, length(at-ro))*.35;
   vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.12, spd*uTravel); ro += off; gAt += off;
   rd = rd*camY(cos(t)*.22); rd.xy *= r2(-cos(t)*.12);
-#endif
+  }
 }
 SKIN_SRC
 // Triplanar patterns retain lighting; floor and object skins are independent.
@@ -165,7 +149,7 @@ vec3 skin(vec3 p, vec3 base){
   vec2 st = nl.x > nl.y && nl.x > nl.z ? q.zy : nl.y > nl.z ? q.xz : q.xy;
   return surfacePattern(st, base, uSkin);
 }
-bool objHit(vec3 p, float d){ return OBJ != 0 && objSdf(p) <= d + .01; }`;
+bool objHit(vec3 p, float d){ return uObject != 0 && objSdf(p) <= d + .01; }`;
 
 // ---------- FLOOR: the "Jumping shape" space (hatched shading, sky, orbit camera) ----------
 const FLOOR = `${OBJ}
@@ -292,7 +276,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     travel(ro, dir, 3.); gRo = ro;
     vec3 sun_direction = normalize(vec3(-1.0, -0.4, -1.0));
     vec3 cl = dir.y > 0. ? SkyAt(dir) : groundCol(ro+dir*(-1.95-ro.y)/min(dir.y,-.001));
-#if OBJ != 0
+    if (uObject != 0) {
     float t = 0.;
     for (int i = 0; i < 80; i++) { float d = omap(ro+dir*t); if (d < .002 || t > 20.) break; t += d; }
     if (t < 20.) {
@@ -303,7 +287,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
       float dif = clamp(dot(n, -sun_direction), 0., 1.);
       cl = skin(p, env * (0.45 + 0.55*dif));
     }
-#endif
+    }
     cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0));
 	fragColor = vec4(cl, 1.0);
 }`;
@@ -419,16 +403,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 uv = 2. * fragCoord.xy / iResolution.xy - 1.0;
     uv.x *= iResolution.x / iResolution.y;
     float time = (uTravel + 13.5 + 44.) * 1.0;
-#if CAM == 0
-    vec3 campos = camera(57.5), camtar = camera(57.9);
-#elif CAM == 1
-    vec3 campos = vec3(0., 5000., 6000.*time), camtar = campos + vec3(0., 0., 1.);
-#elif CAM == 2
-    vec3 campos = vec3(0., 5000., 0.), camtar = campos + vec3(sin(uTravel*.25), 0., cos(uTravel*.25));
-#else
-    vec3 campos = camera(time);
-    vec3 camtar = camera(time + 0.4);
-#endif
+    vec3 campos, camtar;
+    if (uCam == 0) { campos = camera(57.5); camtar = camera(57.9); }
+    else if (uCam == 1) { campos = vec3(0., 5000., 6000.*time); camtar = campos + vec3(0., 0., 1.); }
+    else if (uCam == 2) { campos = vec3(0., 5000., 0.); camtar = campos + vec3(sin(uTravel*.25), 0., cos(uTravel*.25)); }
+    else { campos = camera(time); camtar = camera(time + 0.4); }
     vec3 front = normalize(camtar - campos);
     vec3 right = normalize(cross(front, vec3(0.0, 1.0, 0.0)));
     vec3 up = normalize(cross(right, front));
@@ -455,7 +434,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     sum.rgb -= 0.6 * vec3(0.8, 0.75, 0.7) * pow(sundot, 13.0) * alpha;
     sum.rgb += 0.2 * vec3(1.3, 1.2, 1.0) * pow(sundot, 5.0) * (1.0 - alpha);
     col = mix(col, sum.rgb, sum.a);
-#if OBJ != 0
+    if (uObject != 0) {
     // The shape rides with the camera through the clouds, lit by the same sun and cloud colours.
     gAt = vec3(0., 0., 4.5); gSize = 1.;
     vec3 ro = vec3(0.), rd = normalize(vec3(uv, 1.)); float ot = 0.;
@@ -469,7 +448,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
       oc = skin(p, oc);
       col = mix(col, oc, 1. - .35*sum.a);
     }
-#endif
+    }
     fragColor = vec4(col, 1.0);
 }`;
 
@@ -506,7 +485,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     vec3 r = reflect(rd, n);
     float fr = .04 + .96*pow(1. - max(dot(-rd, n), 0.), 5.);
     vec3 refl = skyCol(r);
-    if (OBJ != 0) { float ot = .05; for (int i = 0; i < 40; i++) { float d = objSdf(p + r*ot); if (d < .004) { refl = vec3(0.4, 0.3, 0.1); break; } ot += d; if (ot > 12.) break; } }
+    if (uObject != 0) { float ot = .05; for (int i = 0; i < 40; i++) { float d = objSdf(p + r*ot); if (d < .004) { refl = vec3(0.4, 0.3, 0.1); break; } ot += d; if (ot > 12.) break; } }
     col = floorSkin(p, mix(vec3(.12,.07,.19), refl, fr));
   } else if (obj) {
     vec2 e = vec2(.002, 0.);
@@ -642,3 +621,6 @@ void surfaceForm(int selected, out vec3 col, out float v, vec2 fc){
 export const PLASMA_SOURCES = FORM_SOURCES.map(f => `${PAL}
 ${f}
 void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col, f/iResolution.y), 1.); }`);
+export const PLASMA_SOURCE = `${PAL}
+${SURFACE_FORMS}
+void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; surfaceForm(uForm, col, v, f); c = vec4(palette(v, col, f/iResolution.y), 1.); }`;

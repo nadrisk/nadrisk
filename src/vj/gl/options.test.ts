@@ -27,7 +27,7 @@ describe("AV world options", () => {
       }
     }
   });
-  it("geometry still selects the required program", () => {
-    expect(sceneSource("SPACE", { ...DEFAULT_OPTS, object: 2 }).key).not.toBe(sceneSource("SPACE", DEFAULT_OPTS).key);
+  it("world selects the required program without tying it to geometry", () => {
+    expect(sceneSource("SPACE", { ...DEFAULT_OPTS, ground: 2 }).key).not.toBe(sceneSource("SPACE", DEFAULT_OPTS).key);
   });
 });
