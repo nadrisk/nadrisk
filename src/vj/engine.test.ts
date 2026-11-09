@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { VjEngine } from "./engine";
 import { avPerformance } from "./performance";
+import { vjKindOf } from "./bus";
 
 beforeAll(() => {
   vi.stubGlobal("ImageData", class { data: Uint8ClampedArray; constructor(w: number, h: number) { this.data = new Uint8ClampedArray(w * h * 4); } });
@@ -17,6 +18,30 @@ function captured() {
   return engine;
 }
 describe("AV lifecycle hard gates", () => {
+  it("bass pads send a dedicated bass reaction", () => {
+    expect(vjKindOf("bass", "synth")).toBe("bass");
+    expect(vjKindOf("tone", "808")).toBe("bass");
+    expect(vjKindOf("tone", "pad")).toBe("tone");
+  });
+  it("only kick, snare and bass accelerate movement, with bounded subtle boosts", () => {
+    const frame = (kind?: "kick" | "snare" | "bass" | "hat" | "tone") => {
+      const e = new VjEngine(); if (kind) e.hit(kind, 1);
+      e.frame(document.createElement("canvas"), 0xffffffff, 0xff000000, .02);
+      return e;
+    };
+    const idle = frame();
+    for (const kind of ["kick", "snare", "bass"] as const) {
+      const e = frame(kind);
+      expect(e.travelTime).toBeGreaterThan(idle.travelTime);
+      expect(e.rotationTime).toBeGreaterThan(idle.rotationTime);
+      expect(e.travelTime).toBeLessThanOrEqual(.026);
+      expect(e.rotationTime).toBeLessThanOrEqual(.026);
+    }
+    for (const kind of ["hat", "tone"] as const) {
+      expect(frame(kind).travelTime).toBe(idle.travelTime);
+      expect(frame(kind).rotationTime).toBe(idle.rotationTime);
+    }
+  });
   it("transport stop clears captured feedback on receipt", () => {
     const engine = captured(); engine.signal([], 0, 120, false);
     expect(engine.performanceFrames.frames).toBe(0);

@@ -14,7 +14,7 @@ describe("AV world options", () => {
   });
   it("an old saved PIPE falls back to no object", () => expect(cleanOpts({ ground: 2, object: 6 }).object).toBe(0));
   it("garbage from an old window is cleaned to defaults", () => expect(cleanOpts({ ground: 9, palette: -1 } as never)).toEqual({ ...DEFAULT_OPTS, ground: 0, palette: 0 }));
-  it("bus applies option steps", () => { const before = vjVisualState().opts!.form; vjSend({ t: "opt", key: "form", d: 1 }); expect(vjVisualState().opts!.form).toBe((before + 1) % 6); });
+  it("bus applies option steps", () => { const before = cleanOpts(vjVisualState().opts).form; vjSend({ t: "opt", key: "form", d: 1 }); expect(cleanOpts(vjVisualState().opts).form).toBe((before + 1) % 6); });
   it("offers SPACE, PLASMA and NONE without CAM", () => expect(WORLDS).toEqual(["SPACE", "PLASMA", "NONE"]));
   it("form changes preserve the selected palette", () => {
     expect(stepOpt({ ...DEFAULT_OPTS, palette: 4 }, "form", 1).palette).toBe(4);
