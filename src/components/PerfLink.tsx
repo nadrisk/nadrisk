@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { useLink } from "@/link/useLink";
-import { type DeckId, type DeckState, validRoom, eqDb } from "@/link/deck";
+import { type DeckId, type DeckState, validRoom, eqDb, syncState } from "@/link/deck";
 import { Button } from "@/components/ui/button";
 import MixerControl from "./MixerControl";
 import type { useMidi } from "@/hooks/useMidi";
@@ -14,7 +14,7 @@ function Strip({ id, link }: { id: DeckId; link: Link }) {
   const d = link.mix.decks[id], st = link.decks[id];
   const set = (p: Partial<DeckState>) => link.setMix({ ...link.mix, decks: { ...link.mix.decks, [id]: { ...d, ...p } } });
   return <div className="lk-strip">
-    <div className="lk-strip-head"><b>CH {id === "A" ? 1 : 2}</b><span>DECK {id}</span><i className={st ? "on" : ""}>{st ? (st.playing ? "▶ " + st.bpm : "■ READY") : "· WAIT"}</i></div>
+    <div className="lk-strip-head"><b>CH {id === "A" ? 1 : 2}</b><span>DECK {id}</span><i className={st ? "on" : ""}>{st ? (st.playing ? "▶ " + st.bpm : "■ READY") : "· WAIT"}</i>{st && (() => { const y = syncState(st.playing, st.err); return <em className={`lk-sync ${y === "LOCK" ? "on" : ""}`} aria-label={`Deck ${id} sync ${y}`}>{y}</em>; })()}</div>
     <div className="lk-eq-stack">{BANDS.map(([k, l]) => <div className="lk-eq-row" key={k}><MixerControl label={`Deck ${id} ${l} EQ`} name={l} min={0} max={1} home={1} value={d[k]} onChange={v => set({ [k]: v })} readout={d[k] === 0 ? "KILL" : `${eqDb(d[k]).toFixed(0)}dB`} /><Button variant="outline" className="lk-kill" aria-label={`Deck ${id} ${l} kill`} aria-pressed={d[k] === 0} onClick={() => set({ [k]: d[k] === 0 ? 1 : 0 })}>×</Button></div>)}</div>
     <div className="lk-filter"><MixerControl label={`Deck ${id} filter`} name="FILTER" min={-1} max={1} home={0} value={d.filter} onChange={filter => set({ filter })} readout={d.filter < -0.02 ? `LP ${Math.round(-d.filter * 100)}` : d.filter > 0.02 ? `HP ${Math.round(d.filter * 100)}` : "OFF"} /><Button variant="ghost" aria-label={`Reset deck ${id} filter`} onClick={() => set({ filter: 0 })}>↺</Button></div>
     <MixerControl label={`Deck ${id} channel fader`} name="LEVEL" min={0} max={1} home={1} value={d.gain} onChange={gain => set({ gain })} fader="vertical" readout={`${Math.round(d.gain * 100)}`} />
@@ -33,7 +33,7 @@ export default function PerfLink({ link, midi, center }: { link: Link; midi: Ret
   const status = <div className="lk-status"><span className={link.online ? "on" : ""}>{link.online ? "● LINKED" : "○ CONNECTING"}</span><b>{link.mode === "tabs" ? "TABS" : "ROOM"} {link.room}</b><Button variant="outline" onClick={link.leave}>LEAVE</Button></div>;
   if (link.role !== "mixer") return <div className="lk-join">{status}
     <p className="lk-big-label">DECK {link.role}</p>
-    <p>{link.pending ? "▶ STARTING ON NEXT BAR…" : "■ READY"}</p>
+    <p>{link.pending ? "▶ STARTING ON NEXT BAR…" : link.err != null ? (Math.abs(link.err) <= 12 ? "● SYNC LOCKED" : `◐ SYNCING ${Math.round(link.err)}ms`) : "■ READY"}</p>
     <div className="lk-deck-readback"><span>FLTR {link.mix.decks[link.role].filter.toFixed(2)}</span><span>LEVEL {Math.round(link.mix.decks[link.role].gain * 100)}</span></div>
   </div>;
   const m = link.mix;

@@ -17,7 +17,7 @@ export function openRoom(room: string, mode: LinkMode, receive: (m: LinkMessage)
     void import("@/integrations/supabase/client").then(({ supabase }) => {
       if (closed) return;
       const channel = supabase.channel(`nad-room-${room}`, { config: { broadcast: { self: false } } });
-      ["mix", "deck", "start", "stop"].forEach(event => channel.on("broadcast", { event }, ({ payload }) => receive({ event, payload })));
+      ["mix", "deck", "start", "stop", "ping", "pong", "ctl"].forEach(event => channel.on("broadcast", { event }, ({ payload }) => receive({ event, payload })));
       channel.subscribe(status => online(status === "SUBSCRIBED"));
       send = (event, payload) => { void channel.send({ type: "broadcast", event, payload }); };
       dispose = () => { void supabase.removeChannel(channel); };

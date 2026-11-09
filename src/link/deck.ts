@@ -32,3 +32,31 @@ export function makeRoomCode(rand: () => number = Math.random): string {
   return Array.from({ length: 4 }, () => ROOM_ALPHABET[Math.floor(rand() * ROOM_ALPHABET.length)]).join("");
 }
 export const validRoom = (c: string) => /^[A-HJ-NP-Z2-9]{4}$/.test(c);
+
+/** Shared beat grid: one 16-step bar = 240000/bpm ms, anchored at the mixer's epoch (mixer clock, ms). */
+export const barMs = (bpm: number) => 240000 / bpm;
+/** Keep the current position in the bar when the tempo changes, so both decks stay on the same downbeat. */
+export function reanchorEpoch(nowMs: number, epoch: number, oldBpm: number, newBpm: number): number {
+  const phase = (((nowMs - epoch) / barMs(oldBpm)) % 1 + 1) % 1;
+  return nowMs - phase * barMs(newBpm);
+}
+/** Deck phase error in ms (+ = deck is ahead of the grid), wrapped to half a bar. `deckStep` is the transport position in 16ths. */
+export function phaseErrMs(mixerNowMs: number, epoch: number, bpm: number, deckStep: number): number {
+  const bar = barMs(bpm), expected = ((((mixerNowMs - epoch) % bar) + bar) % bar) / bar * 16;
+  let d = (((deckStep - expected) % 16) + 16) % 16; if (d > 8) d -= 16;
+  return d * bar / 16;
+}
+/** Gentle tempo nudge ratio that removes `errMs` over `overMs`, capped at ±3% so it never sounds like a pitch jump. */
+export function nudgeRatio(errMs: number, overMs = 1000): number {
+  if (Math.abs(errMs) < 4) return 1;
+  return 1 + Math.max(-0.03, Math.min(0.03, -errMs / overMs));
+}
+/** Clock offset (mixer minus deck, ms) from a ping sent at t0 (deck), answered at t1 (mixer), received at t2 (deck). */
+export const clockOffset = (t0: number, t1: number, t2: number) => t1 - (t0 + t2) / 2;
+export type SyncState = "LOCK" | "DRIFT" | "OFF";
+export const syncState = (playing: boolean, errMs: number | null): SyncState => !playing || errMs == null ? "OFF" : Math.abs(errMs) <= 12 ? "LOCK" : "DRIFT";
+
+/** Live-performance fields a mixer may drive remotely; these return to neutral when the mixer goes away. */
+export const LIVE_PERF_KEYS = ["time", "tension", "offset", "loop", "djSweep", "echoSend"] as const;
+export type Target = DeckId | "BOTH";
+export const targets = (t: Target): DeckId[] => t === "BOTH" ? ["A", "B"] : [t];
