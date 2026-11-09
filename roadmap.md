@@ -14,4 +14,5 @@
 - [x] AV: merged control strip and top utility bar
 - [x] AV: uniform geometry/motion/camera/form switching; six programs warmed at initialization
 - [x] AV: browser checks — live drum sequence stays running across changes with zero shader compiles; desktop/390px controls and MAT access
+- [x] AV: remove the CLASSIC palette from plasma PAL and SPACE object/world palettes
 - [ ] AV: physical-device verification — audible continuity and CLOUDS speed on user's phone/tablet (requires physical hardware)
