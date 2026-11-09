@@ -9,7 +9,8 @@
 - [x] PERF home-screen header safe-area spacing and updated Quick Guide
 - [x] AV: remove CAM; uniform palette/skin/FX switching; independent palettes and checkerboard
 - [x] AV: clean dunes, floor skins, sunset ocean, subtle kick/snare/bass motion
-- [ ] AV: fix PYRAMID underside with a closed, conservative distance field
-- [ ] AV: merged control strip and top utility bar
-- [ ] AV: uniform geometry/motion/camera/form switching, warm world programs outside playback
-- [ ] AV: real-device verification — live audio reactivity, CLOUDS performance, phone layout
+- [x] AV: fix PYRAMID underside with a closed, conservative distance field
+- [x] AV: merged control strip and top utility bar
+- [x] AV: uniform geometry/motion/camera/form switching; six programs warmed at initialization
+- [x] AV: browser checks — live drum sequence stays running across changes with zero shader compiles; desktop/390px controls and MAT access
+- [ ] AV: physical-device verification — audible continuity and CLOUDS speed on user's phone/tablet (requires physical hardware)
