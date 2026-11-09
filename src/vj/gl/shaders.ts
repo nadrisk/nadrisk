@@ -5,22 +5,22 @@
 export const HEAD = `#version 300 es
 precision highp float;
 uniform vec3 iResolution; uniform float iTime; uniform sampler2D iChannel0;
-uniform vec4 uBand; uniform float uSize; uniform int uMono; uniform vec3 uFg; uniform vec3 uBg;
+uniform vec4 uBand; uniform float uSize; uniform int uPalette; uniform int uSkin; uniform int uFloor; uniform int uEffect; uniform float uTravel; uniform float uRotation; uniform int uMono; uniform vec3 uFg; uniform vec3 uBg;
 out vec4 outColor;
 float bayer4(vec2 p){ ivec2 q = ivec2(mod(p,4.)); int i = q.x + q.y*4;
   int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[i])+.5)/16.; }
 `;
 export const TAIL = `
 void main(){ vec4 c; vec2 fc = gl_FragCoord.xy;
-#ifdef PIXEL
+if (uEffect == 1) {
   float bs = max(2., floor(iResolution.y/90.)); fc = (floor(fc/bs)+.5)*bs;
-#endif
+}
   mainImage(c, fc);
-  c.rgb = max(c.rgb, 0.) * (1. + uBand.y*.12);
-#ifdef DITHER
-  float th = bayer4(gl_FragCoord.xy) + (uBand.z*.06)*(fract(sin(dot(gl_FragCoord.xy+iTime, vec2(12.9898,78.233)))*43758.5453)-.5);
+  c.rgb = max(c.rgb, 0.);
+if (uEffect == 2) {
+  float th = bayer4(gl_FragCoord.xy);
   c.rgb = step(vec3(th), c.rgb);
-#endif
+}
   if (uMono == 1) { float l = dot(clamp(c.rgb,0.,1.), vec3(.299,.587,.114)); c.rgb = l > bayer4(gl_FragCoord.xy) ? uFg : uBg; }
   outColor = vec4(c.rgb, 1.);
 }`;
@@ -111,15 +111,15 @@ vec3 objCentre(){
 #endif
 }
 vec3 gAt = vec3(0.); float gSize = 1.;
-float objScale(){ return gSize * uSize * (1. + uBand.x*.08); }
+float objScale(){ return gSize * uSize * (1. + uBand.x*.045 + uBand.z*.025); }
 vec3 objXf(vec3 p){
   p -= gAt + objCentre()*gSize;
 #if MOTION == 0
-  p.xz *= r2(iTime*.25); p.xy *= r2(.35*sin(iTime*.2));
+  p.xz *= r2(uRotation*.25); p.xy *= r2(.35*sin(uRotation*.2));
 #elif MOTION == 1
-  p.xz *= r2(iTime*.5);
+  p.xz *= r2(uRotation*.5 + uBand.y*.035);
 #else
-  p.xz *= r2(iTime*1.1); p.yz *= r2(iTime*.7);
+  p.xz *= r2(uRotation*1.1); p.yz *= r2(uRotation*.7);
 #endif
   return p/objScale();
 }
@@ -127,7 +127,9 @@ float objSdf(vec3 p){
 #if OBJ == 0
   return 1e5;
 #else
-  return objUnit(objXf(p))*objScale();
+  vec3 q = objXf(p);
+  q += .018*(uBand.x + uBand.z*.6)*sin(q.yzx*3. + uRotation);
+  return objUnit(q)*objScale();
 #endif
 }
 mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx); }
@@ -136,175 +138,58 @@ mat3 camY(float x){ float sx = sin(x), cx = cos(x); return mat3(cx, 0., sx, 0., 
 void travel(inout vec3 ro, inout vec3 rd, float spd){
   vec3 at = gAt;
 #if CAM == 1
-  vec3 off = vec3(0., 0., spd*iTime); ro += off; gAt += off;
+  vec3 off = vec3(0., 0., spd*uTravel); ro += off; gAt += off;
 #elif CAM == 2
-  mat3 R = camY((iTime-10.)*.8); vec3 c = vec3(at.x, ro.y, at.z); ro = c + (ro-c)*R; rd = rd*R;
+  mat3 R = camY((uTravel-10.)*.8); vec3 c = vec3(at.x, ro.y, at.z); ro = c + (ro-c)*R; rd = rd*R;
 #elif CAM == 3
-  float t = iTime*.5, k = max(.5, length(at-ro))*.35;
-  vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.12, spd*iTime); ro += off; gAt += off;
+  float t = uTravel*.5, k = max(.5, length(at-ro))*.35;
+  vec3 off = vec3(sin(t)*k*2., sin(t*.5)*k*.12, spd*uTravel); ro += off; gAt += off;
   rd = rd*camY(cos(t)*.22); rd.xy *= r2(-cos(t)*.12);
 #endif
 }
-#ifndef SKIN
-#define SKIN 0
-#endif
-#if SKIN != 0
 SKIN_SRC
-#endif
-// Object surface: the world's shading, or a plasma form wrapped onto the shape (triplanar in object space).
+// Triplanar patterns retain lighting; floor and object skins are independent.
+vec3 surfacePattern(vec2 st, vec3 base, int selected){
+  if (selected == 0) return base;
+  vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
+  vec3 col; float v; surfaceForm(selected-1, col, v, fc);
+  vec3 c = palette(v, col, st);
+  if (uPalette == 6) c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
+  return c*(.25 + .95*lum(base)) + max(base-.8, 0.);
+}
+vec3 floorSkin(vec3 p, vec3 base){ return surfacePattern(p.xz*.4, base, uFloor); }
 vec3 skin(vec3 p, vec3 base){
-#if SKIN == 0
-  return base;
-#else
+  if (uSkin == 0) return base;
   vec3 q = objXf(p); vec2 e = vec2(.004, 0.);
   vec3 nl = abs(vec3(objUnit(q+e.xyy)-objUnit(q-e.xyy), objUnit(q+e.yxy)-objUnit(q-e.yxy), objUnit(q+e.yyx)-objUnit(q-e.yyx)));
   vec2 st = nl.x > nl.y && nl.x > nl.z ? q.zy : nl.y > nl.z ? q.xz : q.xy;
-  vec2 fc = (st*.5+.5)*iResolution.y + vec2((iResolution.x-iResolution.y)*.5, 0.);
-  vec3 col; float v; form(col, v, fc); vec3 c = palette(v, col);
-#if PAL == 6
-  c = lum(c) > bayer4(gl_FragCoord.xy) ? uFg : uBg;
-#endif
-  return c * (.25 + .95*lum(base)) + max(base - .8, 0.);
-#endif
+  return surfacePattern(st, base, uSkin);
 }
 bool objHit(vec3 p, float d){ return OBJ != 0 && objSdf(p) <= d + .01; }`;
 
 // ---------- FLOOR: the "Jumping shape" space (hatched shading, sky, orbit camera) ----------
 const FLOOR = `${OBJ}
-const int MARCHSTEPS = 128;
-const float MAX_DIST = 32.;
-const float EPSILON = 0.01;
-const vec3 pos = vec3(0.,0.0,-2.5);
-const vec3 posTime = vec3(0.,0.0,0.);
-const vec3 lightDir = normalize(vec3(0.5,0.5,-0.9));
-const float rotRate = .8;
-const float hatchDensity = 30.;
-const float hatchThickness = 0.15;
-const float hatchThicknessMod = 0.2;
-const float hatchSoftness = 0.3;
-const float hatchSquiggle = 0.015;
-const float hatchSquiggleSize = .07;
-const float pi = 3.1415926535;
-#define sfractN(x,w)   min( fract(x)/(1.-(w)), fract(-x)/(w) )
-float map(vec3 p)
-{
-    float d = objSdf(p);
-    //Floor (flat)
-    d = min(d, p.y+.8);
-    return d;
-}
-float trace(vec3 o, vec3 r) {
-    float t = 0.0;
-    for( int i=0;i<MARCHSTEPS;i++ ) {
-        vec3 p = o + r * t;
-        float d = map(p);
-        if(t > MAX_DIST) { t = -1.0; break; }
-        t += d;
-    }
-    return t;
-}
-vec3 estimateNormal(vec3 p) {
-    return normalize(vec3(
-        map(vec3(p.x + EPSILON, p.y, p.z)) - map(vec3(p.x - EPSILON, p.y, p.z)),
-        map(vec3(p.x, p.y + EPSILON, p.z)) - map(vec3(p.x, p.y - EPSILON, p.z)),
-        map(vec3(p.x, p.y, p.z  + EPSILON)) - map(vec3(p.x, p.y, p.z - EPSILON))
-    ));
-}
-mat3 rotY(float x)
-{
-    float sx = sin(x);
-    float cx = cos(x);
-    return mat3(cx, 0., sx, 0., 1., 0., -sx, 0., cx);
-}
-#define HASHSCALE1 .1031
-float hash(float p)
-{
-	vec3 p3  = fract(vec3(p) * HASHSCALE1);
-    p3 += dot(p3, p3.yzx + 19.19);
-    return fract((p3.x + p3.y) * p3.z);
-}
-vec3 randomSphereDir(vec2 rnd)
-{
-	float s = rnd.x*pi*2.;
-	float t = rnd.y*2.-1.;
-	return vec3(sin(s), cos(s), t) / sqrt(1.0 + t * t);
-}
-vec3 randomHemisphereDir(vec3 dir, float i)
-{
-	vec3 v = randomSphereDir( vec2(hash(i+1.), hash(i+2.)) );
-	return v * sign(dot(v, dir));
-}
-float ambientOcclusion( in vec3 p, in vec3 n, in float maxDist, in float falloff )
-{
-	const int nbIte = 32;
-    const float nbIteInv = 1./float(nbIte);
-    const float rad = 1.-1.*nbIteInv;
-	float ao = 0.0;
-    for( int i=0; i<nbIte; i++ )
-    {
-        float l = hash(float(i))*maxDist;
-        vec3 rd = normalize(n+randomHemisphereDir(n, l )*rad)*l;
-        ao += (l - max(map( p + rd ),0.)) / maxDist * falloff;
-    }
-    return clamp( 1.-ao*nbIteInv, 0., 1.);
-}
-const int hatchLevels = 5;
-#define line(x, t, s) smoothstep(t, t + s, abs(x * 2. - 1.))
-#define saturate(x) clamp(x, 0., 1.)
-float hatch(float x, vec2 uv)
-{
-    float s = texture(iChannel0, uv * hatchSquiggleSize).r * 1.;
-    s += texture(iChannel0, uv * hatchSquiggleSize * 0.5).r * 1.;
-    s += texture(iChannel0, uv * hatchSquiggleSize * 0.25).r * 1.;
-    float s1 = texture(iChannel0, uv * hatchSquiggleSize + vec2(0.1236587, 0.6379)).r * 1.;
-    s1 += texture(iChannel0, uv * hatchSquiggleSize + vec2(0.1236587, -0.6379) * 0.5).r * 1.;
-    s1 += texture(iChannel0, uv * hatchSquiggleSize + vec2(-0.1236587, 0.6379) * 0.25).r * 1.;
-    float t0 = saturate(hatchThickness + (saturate(x * float(hatchLevels+1) - 1.) * 2. - 1.) * hatchThicknessMod);
-    float t1 = saturate(hatchThickness + (saturate(x * float(hatchLevels+1) - 2.) * 2. - 1.) * hatchThicknessMod);
-    float t2 = saturate(hatchThickness + (saturate(x * float(hatchLevels+1) - 3.) * 2. - 1.) * hatchThicknessMod) * 2.;
-    float t3 = saturate(hatchThickness + (saturate(x * float(hatchLevels+1) - 4.) * 2. - 1.) * hatchThicknessMod) * 2.;
-    float h0 = 1.-line(fract((uv.x + uv.y + s * hatchSquiggle)*hatchDensity), t0, hatchSoftness);
-    float h1 = 1.-line(fract((uv.x - uv.y + s1 * hatchSquiggle)*hatchDensity), t1, hatchSoftness);
-    float h2 = 1.-line(fract((uv.x + uv.y + 0.125 + s * hatchSquiggle)*hatchDensity*2.), t2, hatchSoftness*2.);
-    float h3 = 1.-line(fract((uv.x - uv.y + 0.125 + s1 * hatchSquiggle)*hatchDensity*2.), t3, hatchSoftness*2.);
-    float h4 = 1.;
-    float h = h0 * step(1./float(hatchLevels+1), x);
-    h += h1 * step(2./float(hatchLevels+1), x);
-    h += h2 * step(3./float(hatchLevels+1), x);
-    h += h3 * step(4./float(hatchLevels+1), x);
-    h += h4 * step(5./float(hatchLevels+1), x);
-    return saturate(h);
-}
-vec3 shadeGBuff(vec3 p, vec3 n, vec3 d, float t, vec2 uv)
-{
-    vec3 col = mix(vec3(0.8, 0.9, 1.), vec3(0.5, 0.6, 1.), abs(saturate(d.y*2.)));
-    if(t != -1. && t < MAX_DIST)
-    {
-        float fog = 1.0 / (1.0 + t * t * 0.05);
-        fog = smoothstep(0., 0.9, fog);
-        vec3 ambient = vec3(0.1,0.1,0.15);
-        float ao = saturate(1.-pow(ambientOcclusion(p, n, .5, 0.3), 3.)*1.2);
-        vec3 light = (1.-hatch(ao+pow(1.-saturate(dot(lightDir, n) * 0.4 + 0.6), 1.5), uv)) * vec3(1., .5, .02);
-        float spec = (pow(saturate(dot(normalize(lightDir + d), n)), 2.8));
-        light += (1.-hatch(1.-saturate(spec*2.) + ao*2., uv)) * vec3(1., 0.8, 0.5);
-        col = mix(col, ambient + light, fog);
-    }
-    return col;
-}
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-    vec2 uv = fragCoord/iResolution.xy;
-    uv = uv * 2.0 - 1.0;
-    uv.x *= iResolution.x / iResolution.y;
-    gAt = vec3(0., .1, 0.); gSize = 1.;
-    vec3 r = normalize(vec3(uv, 2.0)), o = pos;
-    travel(o, r, 1.5);
-    float t = trace(o, r);
-    vec3 p = (o+r*t);
-    vec3 nrm = estimateNormal(p);
-    vec3 c = shadeGBuff(p, nrm, r, t, uv);
-    if (t > 0. && t < MAX_DIST && objHit(p, p.y+.8)) { float fog = smoothstep(0., .9, 1./(1.+t*t*.05)); c = mix(c, skin(p, c), fog); }
-    fragColor = vec4(c, 1.0);
+float dune(vec2 p){ return .10*sin(p.x*.65+p.y*.3) + .065*sin(p.y*.9-p.x*.22); }
+float map(vec3 p){ return min(objSdf(p), (p.y+.95-dune(p.xz))*.75); }
+vec3 skyDune(vec3 rd){ return mix(vec3(.8,.9,1.), vec3(.5,.6,1.), pow(abs(rd.y),.5)); }
+void mainImage(out vec4 fragColor, in vec2 fc){
+  vec2 uv = (fc*2.-iResolution.xy)/iResolution.y;
+  vec3 ro = vec3(0.,.25,-4.5), rd = normalize(vec3(uv.x, uv.y-.15, 2.2));
+  gAt = vec3(0., .18, 0.); gSize = .85; travel(ro,rd,1.5);
+  float t = 0.; bool hit = false;
+  for(int i=0;i<100;i++){ float d=map(ro+rd*t); if(d<.003){hit=true;break;} t+=max(d,.002); if(t>40.)break; }
+  vec3 col=skyDune(rd);
+  if(hit){
+    vec3 p=ro+rd*t; vec2 e=vec2(.004,0.);
+    vec3 n=normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
+    vec3 L=normalize(vec3(-.6,.8,-.5)); float dif=max(dot(n,L),0.);
+    vec3 base=vec3(.72,.53,.32)*(.3+.7*dif);
+    bool ob=objHit(p,p.y+.95-dune(p.xz));
+    if(ob){base=vec3(.8,.65,.42)*(.22+.78*dif)+vec3(1.,.8,.5)*pow(max(dot(reflect(rd,n),L),0.),32.);base=skin(p,base);}
+    else {float ripple=.97+.03*sin(p.x*18.+p.z*4.);base=floorSkin(p,base*ripple);}
+    col=mix(base,skyDune(rd),1.-exp(-t*.065));
+  }
+  fragColor=vec4(col,1.);
 }`;
 
 // ---------- SKY: the "Ambient" space (clouds above, flat floor, misty horizon) ----------
@@ -396,6 +281,7 @@ vec3 Sky(vec3 dir)
 }
 // Clouds drift slowly overhead so the endless sky breathes like the reference.
 vec3 SkyAt(vec3 dir){ return Sky(dir); }
+vec3 groundCol(vec3 p){ float grain=.96+.04*sin(p.x*5.+sin(p.z*3.)); return floorSkin(p, vec3(.4,.3,.1)*grain); }
 float omap(vec3 p){ return objSdf(p); }
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
@@ -405,7 +291,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     gAt = vec3(0., -.95, 7.); gSize = 1.;
     travel(ro, dir, 3.); gRo = ro;
     vec3 sun_direction = normalize(vec3(-1.0, -0.4, -1.0));
-    vec3 cl = dir.y > 0. ? SkyAt(dir) : vec3(0.4, 0.3, 0.1);
+    vec3 cl = dir.y > 0. ? SkyAt(dir) : groundCol(ro+dir*(-1.95-ro.y)/min(dir.y,-.001));
 #if OBJ != 0
     float t = 0.;
     for (int i = 0; i < 80; i++) { float d = omap(ro+dir*t); if (d < .002 || t > 20.) break; t += d; }
@@ -413,12 +299,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
       vec3 p = ro+dir*t; vec2 e = vec2(.002, 0.);
       vec3 n = normalize(vec3(omap(p+e.xyy)-omap(p-e.xyy), omap(p+e.yxy)-omap(p-e.yxy), omap(p+e.yyx)-omap(p-e.yyx)));
       vec3 r = reflect(dir, n);
-      vec3 env = r.y > 0. ? SkyAt(r) : vec3(0.4, 0.3, 0.1);
+      vec3 env = r.y > 0. ? SkyAt(r) : groundCol(p+r*(-1.95-p.y)/min(r.y,-.001));
       float dif = clamp(dot(n, -sun_direction), 0., 1.);
       cl = skin(p, env * (0.45 + 0.55*dif));
     }
 #endif
-    cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0 - uBand.w*8.));
+    cl = mix(cl, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(dir.y), 30.0));
 	fragColor = vec4(cl, 1.0);
 }`;
 
@@ -489,8 +375,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         + (m == 1.0 ? 0.1 : 1.0) * pow(max(0.0, reflect(d, n).y), 22.0)
         + (m == 1.0 ? 0.5 : 0.4)  * vec3(0.1, 0.4, 0.45) * pow(clamp(1.0 + dot(d, n), 0.0, 1.0), 6.0);
     if (m == 0.0) surf = skin(is, max(surf, vec3(.12)));
+    else surf = floorSkin(is, surf);
 	fragColor = vec4(mix(surf, mix(vec3(1.0), vec3(0.2, 0.4, 0.7), pow(abs(d.y), 0.25))
-            , min(1.0, td / (25.0 - uBand.w*4.)))
+            , min(1.0, td / 25.0))
         ,1.0);
 }`;
 
@@ -531,13 +418,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = 2. * fragCoord.xy / iResolution.xy - 1.0;
     uv.x *= iResolution.x / iResolution.y;
-    float time = (iTime + 13.5 + 44.) * 1.0;
+    float time = (uTravel + 13.5 + 44.) * 1.0;
 #if CAM == 0
     vec3 campos = camera(57.5), camtar = camera(57.9);
 #elif CAM == 1
     vec3 campos = vec3(0., 5000., 6000.*time), camtar = campos + vec3(0., 0., 1.);
 #elif CAM == 2
-    vec3 campos = vec3(0., 5000., 0.), camtar = campos + vec3(sin(iTime*.25), 0., cos(iTime*.25));
+    vec3 campos = vec3(0., 5000., 0.), camtar = campos + vec3(sin(uTravel*.25), 0., cos(uTravel*.25));
 #else
     vec3 campos = camera(time);
     vec3 camtar = camera(time + 0.4);
@@ -591,11 +478,11 @@ const OCEAN = `${OBJ}
 float wave(vec2 p){
   float h = 0., a = .18; vec2 d = vec2(1., .3); mat2 R = mat2(.8, .6, -.6, .8);
   for (int i = 0; i < 5; i++) { h += a*sin(dot(p, d)*1.1 + iTime*(1.2 - float(i)*.12)); d = R*d*1.7; a *= .45; }
-  return h*(1. + uBand.x*.25);
+  return h;
 }
 vec3 skyCol(vec3 dir){
-  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
-  vec3 cl = mix(vec3(0.8, 0.9, 1.0), vec3(0.4, 0.6, 0.8), pow(max(dir.y, 0.), 0.45));
+  vec3 sun = normalize(vec3(-.4, .08, 1.));
+  vec3 cl = mix(vec3(1., .48, .24), vec3(.25, .17, .38), pow(max(dir.y, 0.), .45));
   return mix(cl, vec3(2.5, 1.8, 0.6), pow(max(0.0, dot(dir, sun)), 600.0));
 }
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
@@ -603,7 +490,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
   vec3 ro = vec3(0., 1.2, 0.), rd = normalize(vec3(uv.x, uv.y - .25, 2.2));
   gAt = vec3(0., .75, 6.); gSize = .8;
   travel(ro, rd, 3.);
-  vec3 sun = normalize(vec3(-1.0, 0.4, 1.0));
+  vec3 sun = normalize(vec3(-.4, .08, 1.));
   vec3 col = skyCol(rd);
   float t = .1; bool water = false, obj = false;
   for (int i = 0; i < 110; i++) {
@@ -620,15 +507,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     float fr = .04 + .96*pow(1. - max(dot(-rd, n), 0.), 5.);
     vec3 refl = skyCol(r);
     if (OBJ != 0) { float ot = .05; for (int i = 0; i < 40; i++) { float d = objSdf(p + r*ot); if (d < .004) { refl = vec3(0.4, 0.3, 0.1); break; } ot += d; if (ot > 12.) break; } }
-    col = mix(vec3(0.05, 0.2, 0.5)*.35, refl, fr);
+    col = floorSkin(p, mix(vec3(.12,.07,.19), refl, fr));
   } else if (obj) {
     vec2 e = vec2(.002, 0.);
     vec3 n = normalize(vec3(objSdf(p+e.xyy)-objSdf(p-e.xyy), objSdf(p+e.yxy)-objSdf(p-e.yxy), objSdf(p+e.yyx)-objSdf(p-e.yyx)));
     vec3 env = skyCol(reflect(rd, n));
     col = skin(p, env*(.45 + .55*clamp(dot(n, sun), 0., 1.)));
   }
-  if (water || obj) col = mix(col, vec3(0.8, 0.9, 1.0), clamp(t/(60. - uBand.w*10.), 0., 1.));
-  col = mix(col, vec3(0.8, 0.9, 1.0), pow(1.0 - abs(rd.y), 40.0));
+  if (water || obj) col = mix(col, vec3(1.,.55,.33), clamp(t/60., 0., 1.));
+  col = mix(col, vec3(1.,.55,.33), pow(1.0 - abs(rd.y), 40.0));
   fragColor = vec4(col, 1.0);
 }`;
 
@@ -639,20 +526,21 @@ const PAL = `
 #define PI acos(-1.)
 float lum(vec3 c){ return dot(clamp(c,0.,1.), vec3(.299,.587,.114)); }
 // Palettes from the supplied shaders, driven by one 0..1 value.
-vec3 palette(float v, vec3 orig){
-#if PAL == 1
+vec3 palette(float v, vec3 orig, vec2 st){
+  if(uPalette == 1){
   return 0.7 + 0.3*cos(v*6.2831853+vec3(0,2.1,4.2));
-#elif PAL == 2
+} else if(uPalette == 2){
   float w = v*2.-1.; return vec3(sin(PI*w), sin(PI*w+2.0*PI/(3.0+sin(iTime))), cos(PI*w+4.0*PI/(4.0+sin(iTime))))*0.5+0.5;
-#elif PAL == 3
+} else if(uPalette == 3){
   float x = v*6.-3.; return vec3(sin(x*PI*0.16), sin(x*PI*0.33), sin(x*PI*0.66));
-#elif PAL == 4
+} else if(uPalette == 4){
   float a = sign(sin(v*25.)), b = sign(sin(v*17.+1.)); return max(vec3(1,0,0)*a, vec3(0,1,0)) + max(vec3(1,0,0)*b, vec3(0,1,0)) - vec3(0,1,0);
-#elif PAL == 5
+} else if(uPalette == 5){
   vec3 c = vec3(v)*vec3(1.,0.1,0.), c1 = vec3(1.-v)*vec3(0.,0.1,1.); return mix(c1, c + .8, c);
-#else
-  return orig;
-#endif
+} else {
+  if(uPalette == 7) return vec3(mod(floor(st.x*6.)+floor(st.y*6.),2.));
+  return .5 + .5*cos(v*6.2831853+vec3(0.,2.,4.));
+}
 }`;
 
 const P_CLASSIC = `void form(out vec3 col, out float v, in vec2 fragCoord){
@@ -691,8 +579,7 @@ void form(out vec3 col, out float v, in vec2 f){
     c.r += sin(x * PI * 0.16);
     c.g += sin(x * PI * 0.33);
     c.b += sin(x * PI * 0.66);
-    // Original 4x4 dither + mix with background colour.
-    c = max(step(vec4(bayer4(f)), c), vec4(0.));
+    // Dither is an explicit output effect, not part of this form.
     col = c.rgb; v = clamp(x/6.+.5, 0., 1.);
 }`;
 const P_DEMO = `const vec2 vp = vec2(320.0, 200.0);
@@ -743,6 +630,15 @@ void form(out vec3 col, out float v, in vec2 fragCoord){
 }`;
 export const FORM_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL];
 export const SKIN_PAL = PAL;
-export const PLASMA_SOURCES = [P_CLASSIC, P_RGB, P_BIDOU, P_DEMO, P_INTERF, P_TUNNEL].map(f => `${PAL}
+export const SURFACE_FORMS = FORM_SOURCES.map((f, i) => f.replace(/\bform\(/g, `form${i}(`)).join("\n") + `
+void surfaceForm(int selected, out vec3 col, out float v, vec2 fc){
+  if(selected==0) form0(col,v,fc);
+  else if(selected==1) form1(col,v,fc);
+  else if(selected==2) form2(col,v,fc);
+  else if(selected==3) form3(col,v,fc);
+  else if(selected==4) form4(col,v,fc);
+  else form5(col,v,fc);
+}`;
+export const PLASMA_SOURCES = FORM_SOURCES.map(f => `${PAL}
 ${f}
-void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col), 1.); }`);
+void mainImage(out vec4 c, in vec2 f){ vec3 col; float v; form(col, v, f); c = vec4(palette(v, col, f/iResolution.y), 1.); }`);
