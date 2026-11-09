@@ -35,8 +35,10 @@ describe("checkerboard follows the plasma skin", () => {
   });
 
   it("the plasma colour field drags the tiles too", () => {
-    const a = tile(.09, 0, 0, { x: .5, y: .5 }, 1);
-    const b = tile(.09, 0, 0, { x: .5 + 2 * warpColor, y: .5 }, 1);
+    // Start just inside a tile edge: the colour drift alone is smaller than a tile,
+    // so only a point near the boundary shows the drag.
+    const a = tile(.16, 0, 0, { x: .5, y: .5 }, 1);
+    const b = tile(.16, 0, 0, { x: .5 + 2 * warpColor, y: .5 }, 1);
     expect(b).not.toBe(a);
   });
 
