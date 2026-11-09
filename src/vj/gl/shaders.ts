@@ -608,12 +608,12 @@ const P_TUNNEL = `float map(float v, float v_min, float v_max, float out1, float
 void form(out vec3 col, out float v, in vec2 fragCoord){
     float ar = iResolution.y / iResolution.x;
     vec2  rolling = vec2(sin(iTime), cos(iTime));
-    vec2 uv = vec2( map(fragCoord.x,0., iResolution.x,-1.,1.),  map(fragCoord.y,0., iResolution.y,-ar,ar)    ) + rolling*0.25;
+    vec2 uv = vec2( map(fragCoord.x,0., iResolution.x,-1.,1.),  map(fragCoord.y,0., iResolution.y,-ar,ar)    ) * (1. - uBand.x*.22) + rolling*0.25;
     float z = 1.5 / max(length(uv),0.0001);
     float angle = map( atan(uv.y,uv.x), -PI, PI, 0., 1. );
     float zmax =  map(rolling.x,-1.,1.,0.02,0.15);
     float fade = map(z,0.,15.,1.,0.) ;
-    vec3 color =   vec3(    (texture(iChannel0, vec2( angle    +rolling.y*0.04, z * zmax + iTime*0.2)).r ))   *  vec3(1.,0.1,0.);
+    vec3 color =   vec3(    (texture(iChannel0, vec2( angle    +rolling.y*0.04, z * zmax + iTime*0.2 + uBand.z*.15)).r ))   *  vec3(1.,0.1,0.);
     vec3 color1 =  vec3(    (texture(iChannel0, vec2( angle+0.1+rolling.y*0.04, z * zmax + iTime*0.01)).b ))  *  vec3(0.,0.1,1.);
     col = (mix(color1 , color + .8, color  )) * fade * fade * (1. + uBand.x*.15);
     v = clamp(lum(col), 0., 1.);

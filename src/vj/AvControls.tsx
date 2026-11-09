@@ -30,6 +30,7 @@ export default function AvControls({ onClose, onTv }: { onClose?: () => void; on
     {(ROWS[world] ?? []).map(([key, label, names]) => option(key, label, names))}
     {world === "SPACE" && <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="av-key" aria-label="Materials">MAT</Button></PopoverTrigger><PopoverContent side="top" className="av-materials" onClick={e => e.stopPropagation()}><div>{option("skin", "OBJ SKIN", SKINS)}{option("objectPalette", "OBJ PAL", SURFACE_PALETTES)}</div><div>{option("floor", "WORLD SKIN", SKINS)}{option("floorPalette", "WORLD PAL", SURFACE_PALETTES)}</div></PopoverContent></Popover>}
     {world !== "NONE" && <div className="av-size">
+    {option("inertia", "INERT", INERTIAS)}
     <Button variant="outline" size="sm" className="av-key av-icon" title="Smaller" aria-label="Smaller" onClick={() => vjSend({ t: "ctl", model: 0, size: -1 })}><Minus /></Button>
     <Button variant="outline" size="sm" className="av-key av-icon" title="Bigger" aria-label="Bigger" onClick={() => vjSend({ t: "ctl", model: 0, size: 1 })}><Plus /></Button>
     </div>}
