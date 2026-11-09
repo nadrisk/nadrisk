@@ -1352,3 +1352,14 @@ body.perf-lock { overflow: hidden; }
   .lk-status { flex-wrap: wrap; }
   .lk-midi { flex-wrap: wrap; }
 }
+@media (max-width: 520px) {
+  .lk-strips > .lk-center { display: flex !important; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: nowrap; }
+  .lk-center .lk-tempo, .lk-center .lk-meters, .lk-center > button { flex-shrink: 0; }
+  .lk-center .lk-tempo b { font-size: 18px; }
+  .lk-center .lk-tempo button { width: 24px; height: 28px; min-height: 28px; padding: 0; }
+  .lk-center .lk-meters { gap: 4px; }
+  .lk-center .lk-meter > div { gap: 1px; }
+  .lk-center .lk-meter i { width: 4px; height: 10px; }
+  .lk-center > button { min-height: 28px; height: 28px; padding: 0 6px; }
+  .lk-status button, .lk-midi button { min-height: 28px; height: 28px; padding: 0 6px; font-size: 9px; }
+}
