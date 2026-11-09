@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { vjListen, vjSend, vjVisualState } from "./bus";
-import { WORLDS, GROUNDS, OBJECTS, MOTIONS, SKINS, FORMS, EFFECTS, PALETTES, SURFACE_PALETTES, cleanOpts, type OptKey } from "./gl/options";
+import { WORLDS, GROUNDS, OBJECTS, MOTIONS, SKINS, FORMS, EFFECTS, PALETTES, SURFACE_PALETTES, INERTIAS, cleanOpts, type OptKey } from "./gl/options";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const ROWS: Record<string, [OptKey, string, readonly string[]][]> = {
