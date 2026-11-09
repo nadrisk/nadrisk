@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] AV: SPACE-only checkerboard, independent world/object palettes and skins, clean sphere rendering
+- [x] AV: SPACE-only checkerboard, independent world/object palettes and skins, clean sphere rendering; tests and phone/desktop browser checks
 - [x] Stage 1: performance rack removed from sequencer, PERF tab dropped
 - [x] Stage 2: full-screen PERF mode from top bar
 - [x] Stage 3: LINK — any device hosts a two-deck mixer; others join as Deck A/B by room code
