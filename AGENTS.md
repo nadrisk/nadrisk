@@ -40,3 +40,5 @@
 - Live performance tools (PerformanceRack) live only in the full-screen PERF overlay opened from the top bar, not in the sequencer, so the step grid keeps the full frame.
 - PERF MIDI uses an explicit additional DOM root for its portal and labelled value-event controls, so saved mappings work in both shells without synthetic drag or reset gestures.
 - src/link has scoped AGENTS.md rules (mixer clock, CRATE); read before edits.
+
+- PERF mixers use one set of labelled MIDI controls: below 700px the master/pad rack spans two compact channels and CRATE opens an in-shell accessible track sheet; wider screens keep the three-column controller and inline crate, so layouts never duplicate audio engines or MIDI targets.

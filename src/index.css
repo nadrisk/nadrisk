@@ -1316,54 +1316,6 @@ body.perf-lock { overflow: hidden; }
 .lk-tape-note { font-size: 9px; margin: 0 0 4px; opacity: .75; }
 .lk-sync { font-style: normal; font-size: 9px; padding: 0 3px; border: 1px solid hsl(var(--foreground)); }
 .lk-sync.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-/* Phone mixer: master bar + pad rack on top, decks side by side, crossfader full width. */
-@media (max-width: 640px) {
-  .perf-link-body .lk-strips, .lk-strips { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 6px; }
-  .lk-strips > .lk-center { grid-column: 1 / -1; grid-row: 1; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 6px; border-inline: 0; border-top: 2px solid hsl(var(--foreground)); padding: 6px 0; }
-  .lk-center > span { display: none; }
-  .lk-center .lk-tempo { margin: 0; flex-wrap: nowrap; align-items: center; gap: 4px; }
-  .lk-center .lk-tempo b { width: auto; order: 0; font-size: 22px; }
-  .lk-center .lk-tempo button { width: 36px; height: 36px; min-height: 36px; }
-  .lk-center .lk-meters { margin: 0; justify-self: center; gap: 6px; }
-  .lk-center .lk-meter > div { flex-direction: row; gap: 2px; }
-  .lk-center .lk-meter { display: flex; align-items: center; gap: 4px; }
-  .lk-center .lk-meter span { margin: 0; order: -1; }
-  .lk-center .lk-meter i { width: 6px; height: 12px; }
-  .lk-center > button { margin: 0; width: auto; min-height: 36px; padding: 0 8px; font-size: 9px; }
-  .lk-center .lk-meters { grid-column: 2 / 4; }
-  .lk-center-pads { grid-column: 1 / -1; margin: 0; }
-  .lk-center-pads .gb-perf-mutes { flex-direction: column; }
-  .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
-  .perf-body .lk-center-pads .gb-perf-mute-grid button, .lk-center-pads .gb-perf-banks button { min-height: 38px; }
-  .lk-center-pads .gb-perf-side button, .lk-center-pads > .lk-target .gb-cycle { min-height: 36px; }
-  .lk-strip { grid-row: 2; padding: 6px 0; gap: 10px; min-width: 0; }
-  .lk-strip-head { font-size: 9px; min-height: 0; }
-  .lk-eq-row { gap: 10px; justify-content: center; }
-  .lk-eq-row .lk-kill { width: 36px; height: 36px; min-height: 36px; }
-  .lk-control-rotary { width: 52px; }
-  .lk-control-rotary svg { width: 40px; height: 40px; }
-  .lk-filter { gap: 4px; }
-  .lk-filter .lk-control svg { width: 46px; height: 46px; }
-  .lk-filter > button { width: 36px; min-height: 36px; }
-  .lk-control-vertical { height: 150px; }
-  .lk-transport button { min-height: 38px; }
-  .lk-xf { gap: 8px; }
-  .lk-xf .lk-control-horizontal svg { height: 48px; }
-  .lk-status { flex-wrap: wrap; }
-  .lk-midi { flex-wrap: wrap; }
-}
-@media (max-width: 520px) {
-  .lk-strips > .lk-center { display: flex !important; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: nowrap; }
-  .lk-center .lk-tempo, .lk-center .lk-meters, .lk-center > button { flex-shrink: 0; }
-  .lk-center .lk-tempo b { font-size: 18px; }
-  .lk-center .lk-tempo button { width: 24px; height: 28px; min-height: 28px; padding: 0; }
-  .lk-center .lk-meters { gap: 4px; }
-  .lk-center .lk-meter > div { gap: 1px; }
-  .lk-center .lk-meter i { width: 4px; height: 10px; }
-  .lk-center > button { min-height: 28px; height: 28px; padding: 0 6px; }
-  .lk-status button, .lk-midi button { min-height: 28px; height: 28px; padding: 0 6px; font-size: 9px; }
-}
-
 /* One-device crate: loaded-deck readouts + tracklist, same pixel hardware look as the mixer */
 .lk-crate { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; font-family: "Silkscreen", monospace; font-size: 10px; }
 .lk-crate-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -1383,3 +1335,106 @@ body.perf-lock { overflow: hidden; }
 .lk-crate-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lk-crate-load { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .lk-crate-list li.lk-crate-empty { display: block; font-size: 15px; color: hsl(var(--muted-foreground)); padding: 8px 5px; }
+
+/* Controller chrome and in-shell project sheet preserve theme and MIDI root. */
+.lk-hardware { min-width: 0; }
+.lk-hardware summary { cursor: pointer; font-size: 9px; padding: 6px 0; }
+.lk-hardware .lk-midi { padding-bottom: 6px; }
+.lk-track-shade { position: fixed; inset: 0; z-index: 5; background: hsl(var(--background) / .8); }
+.lk-track-drawer { position: fixed; inset: auto 0 0; z-index: 6; max-height: calc(100dvh - env(safe-area-inset-top) - 20px); overflow-y: auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: Silkscreen, monospace; }
+.lk-track-drawer > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lk-track-drawer h2 { margin: 0; font: 11px Silkscreen, monospace; }
+.lk-track-drawer button { border-radius: 0; min-height: 40px; font: 9px Silkscreen, monospace; padding: 0 6px; }
+.lk-track-drawer .lk-crate-list { max-height: 50dvh; scrollbar-gutter: stable; }
+.lk-track-drawer .lk-crate-head, .lk-track-drawer .lk-crate-list li { grid-template-columns: minmax(0, 1fr) 30px 48px 84px; gap: 4px; }
+.lk-track-drawer .lk-crate-list li { min-height: 48px; }
+.lk-track-drawer .lk-crate-acts button { min-height: 40px; }
+.lk-track-readout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; align-items: center; min-width: 0; }
+.lk-track-readout b { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 14px VT323, monospace; }
+.lk-track-readout small { font: 12px VT323, monospace; }
+@media (max-width: 699px) {
+  .perf-body { padding: 6px; }
+  .perf-mod-link { padding: 0 6px 6px; }
+  .perf-mod-link > header { margin: 0 -6px 4px; padding: 4px 6px; }
+  .lk-mixer { width: 100%; gap: 4px; }
+  .lk-status { flex-wrap: nowrap; gap: 6px; font-size: 9px; }
+  .lk-status b { flex: 1; min-width: 0; }
+  .lk-status button { min-height: 32px; padding: 0 6px; font-size: 9px; }
+  .lk-hardware { order: 5; }
+  .perf-link-body .lk-strips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .lk-strips > .lk-center { grid-row: 1; grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; align-items: center; border-inline: 0; border-top: 2px solid hsl(var(--foreground)); padding: 4px 0; }
+  .lk-center > span { display: none; }
+  .lk-center .lk-tempo { margin: 0; flex-wrap: nowrap; align-items: center; gap: 3px; }
+  .lk-center .lk-tempo b { width: auto; order: 0; font-size: 20px; min-width: 3ch; }
+  .lk-center .lk-tempo button { width: 28px; height: 32px; min-height: 32px; padding: 0; }
+  .lk-center .lk-meters { margin: 0; justify-self: center; gap: 4px; }
+  .lk-center .lk-meter { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .lk-center .lk-meter > div { flex-direction: row; gap: 1px; }
+  .lk-center .lk-meter i { width: 4px; height: 10px; }
+  .lk-center .lk-meter span { margin: 0; font-size: 8px; }
+  .lk-center > button { margin: 0; width: auto; min-height: 32px; padding: 0 5px; font-size: 8px; }
+  .lk-center-pads { grid-column: 1 / -1; margin: 0; }
+  .lk-center-pads .gb-perf-live { gap: 4px; }
+  .lk-center-pads .gb-perf-mute-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; gap: 3px; }
+  .perf-body.instrument-workspace .lk-center-pads .gb-perf-live button { min-height: 32px; height: 32px; font-size: 10px; }
+  .perf-body.instrument-workspace .lk-center-pads .gb-perf-side button { min-height: 32px; height: 32px; font-size: 9px !important; }
+  .lk-center-pads > .lk-target .gb-cycle { min-height: 32px; }
+  .lk-strip { grid-row: 2; gap: 4px; padding: 4px 0; align-content: start; }
+  .lk-strip-head { min-height: 0; font-size: 9px; }
+  .lk-strip-head i { width: auto; font-size: 13px; }
+  .lk-sync { font-size: 8px; }
+  .lk-eq-stack { gap: 4px; }
+  .lk-eq-row { gap: 6px; }
+  .lk-eq-row .lk-control-rotary { display: grid; grid-template-columns: 24px 40px; width: 64px; gap: 0; }
+  .lk-eq-row .lk-control-name, .lk-eq-row .lk-control-value { grid-column: 1; font-size: 9px; }
+  .lk-eq-row .lk-control-value { grid-row: 2; font-size: 13px; }
+  .lk-eq-row .lk-control svg { grid-column: 2; grid-row: 1 / 3; width: 40px; height: 40px; }
+  .lk-eq-row .lk-kill { width: 32px; height: 36px; min-height: 36px; }
+  .lk-filter { padding-top: 4px; gap: 8px; }
+  .lk-filter .lk-control-rotary { width: 64px; }
+  .lk-filter .lk-control svg { width: 40px; height: 40px; }
+  .lk-filter > button { min-height: 36px; width: 32px; }
+  .lk-control-vertical { height: 88px; }
+  .lk-transport button { min-height: 36px; padding: 0 3px; font-size: 9px; }
+  .lk-track-readout button { min-height: 32px; padding: 0 4px; font-size: 8px; }
+  .lk-xf { position: sticky; bottom: -6px; z-index: 1; background: hsl(var(--background)); padding: 4px 0; gap: 6px; }
+  .lk-xf .lk-control-horizontal svg { height: 36px; }
+  .lk-track-drawer .lk-crate-decks { gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .lk-track-drawer { animation: none; } }
+@media (max-width: 699px) {
+  .lk-center-pads { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 4px; align-items: stretch; }
+  .lk-center-pads > .lk-target { margin: 0; }
+  .lk-center-pads .gb-perf-part-live, .lk-center-pads .gb-perf-live { display: contents; }
+  .lk-center-pads .gb-perf-mutes, .lk-center-pads .gb-perf-side { grid-column: 1 / -1; }
+  .lk-strip { display: grid; grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "head head" "track track" "eq level" "filter level" "transport transport"; }
+  .lk-strip-head { grid-area: head; }
+  .lk-strip-head i { display: none; }
+  .lk-track-readout { grid-area: track; }
+  .lk-strip > .lk-eq-stack { grid-area: eq; }
+  .lk-strip > .lk-filter { grid-area: filter; }
+  .lk-strip > .lk-control-vertical { grid-area: level; width: 44px; height: 100%; min-height: 160px; padding-top: 4px; }
+  .lk-strip > .lk-transport { grid-area: transport; }
+  .lk-strip .lk-eq-row { gap: 2px; }
+  .lk-strip .lk-eq-row .lk-kill { width: 28px; }
+  .lk-strip .lk-filter { gap: 2px; }
+  .lk-strip .lk-filter > button { width: 28px; padding: 0; }
+  .lk-track-readout { grid-template-columns: minmax(0, 1fr) 40px; }
+  .lk-track-readout b { grid-column: 1; }
+  .lk-track-readout small { grid-column: 1; grid-row: 2; }
+  .lk-track-readout button { grid-column: 2; grid-row: 1 / 3; }
+}
+@media (max-width: 699px) {
+  .lk-mixer .lk-status button, .lk-mixer .lk-center > button { min-height: 32px; height: 32px; }
+  .lk-mixer .lk-track-readout button { min-height: 32px; height: 32px; }
+  .lk-strip .lk-filter .lk-control { display: grid; grid-template-columns: 24px 40px; gap: 0; }
+  .lk-strip .lk-filter .lk-control-name { grid-column: 1; grid-row: 1; font-size: 7px; }
+  .lk-strip .lk-filter .lk-control-value { grid-column: 1; grid-row: 2; font-size: 13px; }
+  .lk-strip .lk-filter .lk-control svg { grid-column: 2; grid-row: 1 / 3; }
+  .lk-strip > .lk-control-vertical { min-height: 160px; }
+  .lk-center-pads > .lk-target .gb-cycle { min-height: 28px; height: 28px; }
+  .perf-body.instrument-workspace .lk-center-pads .gb-perf-live button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-banks button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-mute-grid button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-side button { min-height: 28px; height: 28px; }
+  .lk-xf .lk-control { gap: 1px; }
+  .lk-xf .lk-control-horizontal svg { height: 30px; }
+  .lk-strip-head { flex-wrap: nowrap; }
+}
