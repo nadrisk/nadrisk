@@ -5,6 +5,7 @@ import { MIX_HOME, xfGain, targets, type DeckId, type Target, type MixState } fr
 import { harmonyOn } from "@/audio/harmony";
 import { NOTE_NAMES } from "@/audio/arp";
 import { keyShift, readCrate, SETS_KEY, type CrateTrack } from "@/link/crate";
+import { Button } from "@/components/ui/button";
 import type { PerformanceParams } from "@/audio/performance";
 
 type G = ReturnType<typeof useGroovebox>;
@@ -84,7 +85,7 @@ export function CrateEngines({ crate }: { crate: Crate }) {
 }
 
 /** Tracklist: saved MEM projects with BPM and key; LOAD A / LOAD B into an idle deck (a playing deck is locked, like a CDJ). */
-export function CrateBrowser({ crate }: { crate: Crate }) {
+export function CrateBrowser({ crate, onLoad }: { crate: Crate; onLoad?: () => void }) {
   const [tracks, setTracks] = useState<CrateTrack[]>([]);
   const refresh = useCallback(() => { try { setTracks(readCrate(localStorage.getItem(SETS_KEY))); } catch { setTracks([]); } }, []);
   useEffect(refresh, [refresh]);
@@ -96,17 +97,27 @@ export function CrateBrowser({ crate }: { crate: Crate }) {
       <b>{l ? l.name : "— EMPTY —"}</b>
       <small>{l && g ? `${l.bpm} BPM${l.bpm !== master ? ` → ${master}` : ""} · ${NOTE_NAMES[effKey(g)]} ${scaleTag(g.harmony.scale)}` : "LOAD A TRACK"}</small>
       <span className="lk-crate-acts">
-        <button className="gb-cycle" aria-label={`Deck ${d} key sync`} aria-pressed={!!l?.sync} disabled={!l || (!l.sync && !v.loaded[other(d)])} onClick={() => v.keySync(d)}>KEY SYNC</button>
-        <button className="gb-cycle" aria-label={`Use deck ${d} tempo as master`} disabled={!l || l.bpm === master} onClick={() => l && v.setMaster(l.bpm)}>BPM ⇢ MST</button>
+        <Button variant="outline" className="gb-cycle" aria-label={`Deck ${d} key sync`} aria-pressed={!!l?.sync} disabled={!l || (!l.sync && !v.loaded[other(d)])} onClick={() => v.keySync(d)}>KEY SYNC</Button>
+        <Button variant="outline" className="gb-cycle" aria-label={`Use deck ${d} tempo as master`} disabled={!l || l.bpm === master} onClick={() => l && v.setMaster(l.bpm)}>BPM ⇢ MST</Button>
       </span>
     </div>)}</div>
-    <div className="lk-crate-head"><span>TRACK</span><span>BPM</span><span>KEY</span><button className="gb-cycle" aria-label="Refresh crate" onClick={refresh}>↻</button></div>
+    <div className="lk-crate-head"><span>TRACK</span><span>BPM</span><span>KEY</span><Button variant="outline" className="gb-cycle" aria-label="Refresh crate" onClick={refresh}>↻</Button></div>
     <ul className="lk-crate-list" aria-label="Project crate">
       {tracks.length === 0 && <li className="lk-crate-empty">No saved projects yet. Save sets in MEM, then they show up here.</li>}
       {tracks.map(t => <li key={t.slot}>
         <span className="lk-crate-name">{String(t.slot + 1).padStart(2, "0")} {t.name}</span><span>{t.bpm}</span><span>{NOTE_NAMES[t.key]}{scaleTag(t.scale) && ` ${scaleTag(t.scale)}`}</span>
-        <span className="lk-crate-load">{IDS.map(d => <button key={d} className="gb-cycle" aria-label={`Load ${t.name} to deck ${d}`} disabled={!!v.decks[d]?.playing} onClick={() => v.load(d, t)}>{d}</button>)}</span>
+        <span className="lk-crate-load">{IDS.map(d => <Button variant="outline" key={d} className="gb-cycle" aria-label={`Load ${t.name} to deck ${d}`} disabled={!!v.decks[d]?.playing} onClick={() => { v.load(d, t); onLoad?.(); }}>{d}</Button>)}</span>
       </li>)}
     </ul>
+  </div>;
+}
+
+/** Compact readout in the mobile channel strip; project controls stay in the crate drawer. */
+export function CrateDeckHeader({ crate, id, onLoad }: { crate: Crate; id: DeckId; onLoad: () => void }) {
+  const l = crate.view.loaded[id], g = crate.apis.current[id];
+  return <div className="lk-track-readout">
+    <b title={l?.name}>{l?.name ?? "EMPTY"}</b>
+    <small>{l && g ? `${l.bpm} BPM · ${NOTE_NAMES[effKey(g)]} ${scaleTag(g.harmony.scale)}` : "—"}</small>
+    <Button variant="outline" aria-label={`Open tracks for deck ${id}`} disabled={!!crate.view.decks[id]?.playing} onClick={onLoad}>LOAD</Button>
   </div>;
 }
