@@ -1402,3 +1402,25 @@ body.perf-lock { overflow: hidden; }
   .lk-track-drawer .lk-crate-decks { gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .lk-track-drawer { animation: none; } }
+@media (max-width: 699px) {
+  .lk-center-pads { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 4px; align-items: stretch; }
+  .lk-center-pads > .lk-target { margin: 0; }
+  .lk-center-pads .gb-perf-part-live, .lk-center-pads .gb-perf-live { display: contents; }
+  .lk-center-pads .gb-perf-mutes, .lk-center-pads .gb-perf-side { grid-column: 1 / -1; }
+  .lk-strip { display: grid; grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "head head" "track track" "eq level" "filter level" "transport transport"; }
+  .lk-strip-head { grid-area: head; }
+  .lk-strip-head i { display: none; }
+  .lk-track-readout { grid-area: track; }
+  .lk-strip > .lk-eq-stack { grid-area: eq; }
+  .lk-strip > .lk-filter { grid-area: filter; }
+  .lk-strip > .lk-control-vertical { grid-area: level; width: 44px; height: 100%; min-height: 160px; padding-top: 4px; }
+  .lk-strip > .lk-transport { grid-area: transport; }
+  .lk-strip .lk-eq-row { gap: 2px; }
+  .lk-strip .lk-eq-row .lk-kill { width: 28px; }
+  .lk-strip .lk-filter { gap: 2px; }
+  .lk-strip .lk-filter > button { width: 28px; padding: 0; }
+  .lk-track-readout { grid-template-columns: minmax(0, 1fr) 40px; }
+  .lk-track-readout b { grid-column: 1; }
+  .lk-track-readout small { grid-column: 1; grid-row: 2; }
+  .lk-track-readout button { grid-column: 2; grid-row: 1 / 3; }
+}
