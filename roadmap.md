@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] PERF: phone CRATE/host mixer track drawer, compact dual strips and preserved Mixtour targets; verify phone/tablet/desktop
 - [x] AV: SPACE-only checkerboard, independent world/object palettes and skins, clean sphere rendering; tests and phone/desktop browser checks
 - [x] Stage 1: performance rack removed from sequencer, PERF tab dropped
 - [x] Stage 2: full-screen PERF mode from top bar
