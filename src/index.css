@@ -1424,3 +1424,17 @@ body.perf-lock { overflow: hidden; }
   .lk-track-readout small { grid-column: 1; grid-row: 2; }
   .lk-track-readout button { grid-column: 2; grid-row: 1 / 3; }
 }
+@media (max-width: 699px) {
+  .lk-mixer .lk-status button, .lk-mixer .lk-center > button { min-height: 32px; height: 32px; }
+  .lk-mixer .lk-track-readout button { min-height: 32px; height: 32px; }
+  .lk-strip .lk-filter .lk-control { display: grid; grid-template-columns: 24px 40px; gap: 0; }
+  .lk-strip .lk-filter .lk-control-name { grid-column: 1; grid-row: 1; font-size: 7px; }
+  .lk-strip .lk-filter .lk-control-value { grid-column: 1; grid-row: 2; font-size: 13px; }
+  .lk-strip .lk-filter .lk-control svg { grid-column: 2; grid-row: 1 / 3; }
+  .lk-strip > .lk-control-vertical { min-height: 160px; }
+  .lk-center-pads > .lk-target .gb-cycle { min-height: 28px; height: 28px; }
+  .perf-body.instrument-workspace .lk-center-pads .gb-perf-live button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-banks button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-mute-grid button, .perf-body.instrument-workspace .lk-center-pads .gb-perf-side button { min-height: 28px; height: 28px; }
+  .lk-xf .lk-control { gap: 1px; }
+  .lk-xf .lk-control-horizontal svg { height: 30px; }
+  .lk-strip-head { flex-wrap: nowrap; }
+}
