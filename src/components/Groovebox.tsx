@@ -271,7 +271,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const localPads = useMemo(() => g.slots.map(x => ({ name: x.name, mute: x.mute, solo: x.solo })), [g.slots]);
   const crate = useCrate();
   const netLink = useLink({ playing: g.playing, bpm: g.bpm, setBpm: g.setBpm, setDeckOut: g.setDeckOut, out: () => g.getMasterDyn()?.out ?? -60,
-    startAt: g.startAt, stop: () => { if (g.playing) void g.togglePlay(); }, nudgeTempo: g.nudgeTempo, stepNow: g.stepNow,
+    ensure: g.ensure, startAt: g.startAt, stop: g.stopLinked, nudgeTempo: g.nudgeTempo, stepNow: g.stepNow,
     pads: localPads, bank: g.bank, queued: g.queued, performance: g.performance, toggleMute: g.toggleMute, toggleSolo: g.toggleSolo, unmuteAll: g.unmuteAll, selectBank: g.selectBank, setPerformance: g.setPerformance });
   const link = crate.on ? crate.link : netLink;
   // Mixer role: mutes/banks act on one chosen deck, XY + FX on A, B or BOTH; solo/deck roles keep the local groovebox.

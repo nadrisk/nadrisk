@@ -35,6 +35,16 @@ export const validRoom = (c: string) => /^[A-HJ-NP-Z2-9]{4}$/.test(c);
 
 /** Shared beat grid: one 16-step bar = 240000/bpm ms, anchored at the mixer's epoch (mixer clock, ms). */
 export const barMs = (bpm: number) => 240000 / bpm;
+/** High-resolution epoch clock without millisecond rounding. */
+export const clockNow = () => performance.timeOrigin + performance.now();
+/** Recalculate after audio setup; missed deadlines move by whole bars. */
+export function audioStartAt(targetMs: number, nowMs: number, audioNow: number, bpm: number, leadMs = 120) {
+  const bar = barMs(bpm);
+  const at = targetMs + Math.max(0, Math.ceil((nowMs + leadMs - targetMs) / bar)) * bar;
+  return { at, time: audioNow + (at - nowMs) / 1000 };
+}
+/** Arm on transport ticks so tempo changes cannot invalidate a CRATE join. */
+export const nextBarStep = (step: number) => Math.ceil((step + 1e-6) / 16) * 16;
 /** Keep the current position in the bar when the tempo changes, so both decks stay on the same downbeat. */
 export function reanchorEpoch(nowMs: number, epoch: number, oldBpm: number, newBpm: number): number {
   const phase = (((nowMs - epoch) / barMs(oldBpm)) % 1 + 1) % 1;
@@ -46,10 +56,11 @@ export function phaseErrMs(mixerNowMs: number, epoch: number, bpm: number, deckS
   let d = (((deckStep - expected) % 16) + 16) % 16; if (d > 8) d -= 16;
   return d * bar / 16;
 }
-/** Gentle tempo nudge ratio that removes `errMs` over `overMs`, capped at ±3% so it never sounds like a pitch jump. */
+/** Capture drift at up to 8%; near lock use a 3% cap and 4 ms deadband. */
 export function nudgeRatio(errMs: number, overMs = 1000): number {
   if (Math.abs(errMs) < 4) return 1;
-  return 1 + Math.max(-0.03, Math.min(0.03, -errMs / overMs));
+  const cap = Math.abs(errMs) > 15 ? 0.08 : 0.03;
+  return 1 + Math.max(-cap, Math.min(cap, -errMs / overMs));
 }
 /** Clock offset (mixer minus deck, ms) from a ping sent at t0 (deck), answered at t1 (mixer), received at t2 (deck). */
 export const clockOffset = (t0: number, t1: number, t2: number) => t1 - (t0 + t2) / 2;
