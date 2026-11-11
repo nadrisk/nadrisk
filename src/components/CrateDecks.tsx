@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Mut
 import { useGroovebox, setCrateOwned } from "@/hooks/useGroovebox";
 import type { useLink, DeckStatus } from "@/link/useLink";
 import { MIX_HOME, xfGain, targets, type DeckId, type Target, type MixState } from "@/link/deck";
+import * as Tone from "tone";
+import { setFxBpm } from "@/audio/effects";
 import { harmonyOn } from "@/audio/harmony";
 import { NOTE_NAMES } from "@/audio/arp";
 import { keyShift, readCrate, SETS_KEY, type CrateTrack } from "@/link/crate";
@@ -36,19 +38,20 @@ export function useCrate() {
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const onChange = useCallback(() => bump(), []);
   useEffect(() => { setCrateOwned(on); if (!on) return; const id = window.setInterval(bump, 1000); return () => { window.clearInterval(id); setCrateOwned(false); }; }, [on]);
-  const apply = useCallback((m: MixState) => IDS.forEach(d => { const g = apis.current[d]; if (!g) return; g.setDeckOut(m.decks[d], xfGain(d, m.xf, m.curve)); if (g.bpm !== Math.round(m.bpm)) g.setBpm(Math.round(m.bpm)); }), []);
+  const apply = useCallback((m: MixState) => { Tone.getTransport().bpm.value = m.bpm; setFxBpm(m.bpm); IDS.forEach(d => { const g = apis.current[d]; if (!g) return; g.setDeckOut(m.decks[d], xfGain(d, m.xf, m.curve)); if (g.bpm !== Math.round(m.bpm)) g.setBpm(Math.round(m.bpm)); }); }, []);
   useEffect(() => { if (on) apply(mix); }, [on, mix, apply]);
   const setMix = useCallback((m: MixState) => { mixRef.current = m; setMixState(m); }, []);
 
   const load = useCallback((d: DeckId, t: CrateTrack) => {
     const g = apis.current[d]; if (!g || g.playing) return;
     g.applySet(t.set);
+    void g.ensure().then(() => apply(mixRef.current)).catch(() => {});
     const busy = IDS.some(x => apis.current[x]?.playing);
     const bpm = busy ? mixRef.current.bpm : t.bpm; // idle crate: first track sets the master tempo
     if (!busy) setMix({ ...mixRef.current, bpm });
     g.setBpm(Math.round(bpm));
     setLoaded(s => ({ ...s, [d]: { name: t.name, bpm: t.bpm, sync: null } }));
-  }, [setMix]);
+  }, [setMix, apply]);
   const keySync = useCallback((d: DeckId) => {
     const g = apis.current[d], o = apis.current[other(d)], l = loaded[d]; if (!g || !l) return;
     if (l.sync) { if (harmonyOn(g.harmony)) g.setHarmony({ ...g.harmony, key: l.sync.key }); g.setTune(l.sync.tune); setLoaded(s => ({ ...s, [d]: { ...l, sync: null } })); return; }
@@ -59,9 +62,9 @@ export function useCrate() {
   }, [loaded]);
 
   const decks = {} as Record<DeckId, DeckStatus | null>;
-  IDS.forEach(d => { const g = apis.current[d]; decks[d] = g && loaded[d] ? { playing: g.playing, bpm: g.bpm, out: g.getMasterDyn()?.out ?? -60, seen: Date.now(), err: g.playing ? 0 : null, pads: g.slots.map(x => ({ name: x.name, mute: x.mute, solo: x.solo })), bank: g.bank, queued: g.queued, perf: g.performance } : null; });
+  IDS.forEach(d => { const g = apis.current[d]; decks[d] = g && loaded[d] ? { playing: g.playing, bpm: g.bpm, out: g.getMasterDyn()?.out ?? -60, seen: Date.now(), err: g.playing ? g.deckPhaseError() : null, pads: g.slots.map(x => ({ name: x.name, mute: x.mute, solo: x.solo })), bank: g.bank, queued: g.queued, perf: g.performance } : null; });
 
-  const startDeck = useCallback((d: DeckId) => { const g = apis.current[d]; if (g) void g.deckStart().then(() => apply(mixRef.current)); }, [apply]);
+  const startDeck = useCallback((d: DeckId) => { const g = apis.current[d]; if (g) { apply(mixRef.current); void g.deckStart().then(() => apply(mixRef.current)); } }, [apply]);
   const stopDeck = useCallback((d: DeckId) => apis.current[d]?.deckStop(), []);
   const ctl = useCallback((t: Target, op: "mute" | "solo" | "unmute" | "bank" | "perf", i?: number) => targets(t).forEach(d => { const g = apis.current[d]; if (!g) return;
     if (op === "mute" && i != null) g.toggleMute(i); else if (op === "solo" && i != null) g.toggleSolo(i); else if (op === "unmute") g.unmuteAll(); else if (op === "bank" && i != null) g.selectBank(i); }), []);
