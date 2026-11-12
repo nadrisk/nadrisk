@@ -7,7 +7,10 @@ const MODES: [Mode, string, string, string][] = [["filter", "FLTR/ECHO", "LP ←
 const map = (m: Mode, x: number, y: number): Partial<PerformanceParams> => m === "filter" ? { djSweep: Math.round((x * 2 - 1) * 100) / 100, echoSend: Math.round(y * 100) / 100 } : { time: Math.round((x * 2 - 1) * 100) / 100, tension: Math.round(y * 100) / 100 };
 const read = (m: Mode, v: PerformanceParams) => m === "filter" ? [((v.djSweep ?? 0) + 1) / 2, v.echoSend ?? 0] : [(v.time + 1) / 2, v.tension];
 
-export default function PerfXY({ value, onChange }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void }) {
+// DJ beat loops: tap latches a loop of N steps, hold rolls it until release; the loop snaps to the playing beat block.
+const LOOPS = [8, 4, 2, 1];
+export default function PerfXY({ value, onChange, step }: { value: PerformanceParams; onChange: (p: PerformanceParams) => void; step?: number }) {
+  const held = useRef<{ t: number; prev: { loop: number; offset: number }; was: number } | null>(null);
   const [mode, setMode] = useState<Mode>("filter");
   const [hold, setHold] = useState(false);
   const [touch, setTouch] = useState(false);
@@ -18,7 +21,14 @@ export default function PerfXY({ value, onChange }: { value: PerformanceParams; 
   const move = (e: React.PointerEvent) => { const [x, y] = at(e); onChange({ ...vRef.current, ...map(mode, x, y) }); };
   const end = () => { setTouch(false); if (!hold && before.current) onChange({ ...vRef.current, ...before.current }); before.current = null; };
   const [px, py] = read(mode, value), m = MODES.find(x => x[0] === mode)!;
-  const hk = (n: number, s: string) => <button key={s} className="perf-xy-key" aria-label={`Hold ${s}`} aria-pressed={value.mode === n} onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); onChange({ ...vRef.current, mode: n }); }} onPointerUp={() => onChange({ ...vRef.current, mode: 0 })} onPointerCancel={() => onChange({ ...vRef.current, mode: 0 })}>{s}</button>;
+  const lk = (n: number) => {
+    const down = (e: React.PointerEvent) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); const v = vRef.current, was = v.loop;
+      held.current = { t: performance.now(), prev: { loop: v.loop, offset: v.offset ?? 0 }, was };
+      if (was === n) return; const base = was ? (v.offset ?? 0) : Math.floor(Math.max(0, step ?? 0) / n) * n; onChange({ ...v, loop: n, offset: base }); };
+    const up = () => { const h = held.current; held.current = null; if (!h) return; const v = vRef.current;
+      if (performance.now() - h.t > 250) { if (h.was !== n) onChange({ ...v, ...(h.was ? h.prev : { loop: 0, offset: h.prev.offset }) }); return; }
+      if (h.was === n) onChange({ ...v, loop: 0, offset: 0 }); };
+    return <button key={n} className="perf-xy-key" aria-label={`Loop ${n} steps`} aria-pressed={value.loop === n} onPointerDown={down} onPointerUp={up} onPointerCancel={up}>{n}</button>; };
   return <div className="perf-xy">
     <div className="perf-xy-modes">{MODES.map(([k, l]) => <button key={k} className="perf-xy-key" aria-pressed={mode === k} onClick={() => { if (!touch) setMode(k); }}>{l}</button>)}<button className="perf-xy-key" aria-label="Hold XY position" aria-pressed={hold} onClick={() => { setHold(h => { if (h) onChange({ ...vRef.current, ...(mode === "filter" ? { djSweep: 0, echoSend: 0 } : { time: vRef.current.timeHome ?? 0, tension: 0 }) }); return !h; }); }}>HOLD</button></div>
     <div ref={padRef} className={`perf-xy-pad${touch || hold ? " perf-xy-on" : ""}`} role="application" aria-roledescription="XY pad" aria-label={`Performance XY pad, ${m[1]}`}
@@ -28,6 +38,6 @@ export default function PerfXY({ value, onChange }: { value: PerformanceParams; 
       <i className="perf-xy-h" style={{ top: `${(1 - py) * 100}%` }} /><i className="perf-xy-v" style={{ left: `${px * 100}%` }} />
       <b className="perf-xy-dot" style={{ left: `${px * 100}%`, top: `${(1 - py) * 100}%` }} />
     </div>
-    <div className="perf-xy-holds">{hk(1, "REV")}{hk(2, "STUT")}{hk(3, "STOP")}</div>
+    <div className="perf-xy-holds">{LOOPS.map(lk)}</div>
   </div>;
 }

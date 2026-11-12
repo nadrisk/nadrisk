@@ -1154,6 +1154,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 /* PERF DJ console: XY performance pad. */
 .perf-xy { display: flex; flex-direction: column; gap: 6px; font-family: Silkscreen, monospace; }
 .perf-xy-modes, .perf-xy-holds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.perf-xy-holds { grid-template-columns: repeat(4, 1fr); }
 .perf-xy-key { min-height: 44px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: .08em; touch-action: none; -webkit-tap-highlight-color: transparent; }
 .perf-xy-key[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .perf-xy-pad { position: relative; aspect-ratio: 16 / 10; max-height: 52vh; border: 3px solid hsl(var(--foreground)); touch-action: none; cursor: crosshair; overflow: hidden;
