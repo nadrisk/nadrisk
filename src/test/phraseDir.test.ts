@@ -24,3 +24,12 @@ describe("RAND spread", () => {
     }
   });
 });
+
+describe("RAND acid feel", () => {
+  it("leaves rests and starts on the root", () => {
+    for (let s = 1; s < 50; s++) {
+      const r = randomizeArp(defaultArp({ spread: 0 }), seeded(s)), hits = r.cells.slice(0, 16).filter(c => c.on).length;
+      expect(hits).toBeGreaterThanOrEqual(6); expect(hits).toBeLessThanOrEqual(11);
+    }
+  });
+});

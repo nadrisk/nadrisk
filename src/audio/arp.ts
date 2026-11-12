@@ -64,19 +64,46 @@ export const defaultArp = (o: Partial<ArpParams> = {}): ArpParams => ({
 
 /** Rolls a new in-key phrase. SPRD (a.spread 0..1) sets the largest move between notes, from one scale step to two octaves.
  *  A note never repeats more than twice in a row and the phrase uses at least 3 different notes. */
+/** 303/STING-style RAND: a syncopated rhythm skeleton with rests, root/octave gravity on strong steps, weighted
+ *  5th/m3/m7 colour notes, call-and-response halves, discrete octave-up jumps, and accents/slides tied to the line. */
+const ACID_RHYTHMS = [
+  "x.xx.x.xx.x.xx.x", "x..x..x.x..x..x.", "xx.x.xx.xx.x.x.x", "x.x.xx.x.xx.x.xx",
+  "x..xx.x.x..xx.xx", ".xx.x.xx.xx.x.x.", "x.xxx..xx.x.x..x", "x..x.xx..x.x.xx.",
+];
 export function randomizeArp(a: ArpParams, rnd: () => number = Math.random): ArpParams {
-  const span = degreeCount(a.scale), maxStep = Math.max(1, Math.round(1 + .4 * (span - 2)));
-  let deg = Math.floor(rnd() * Math.min(span, SCALES[a.scale].length)), run = 0;
-  const cells: ArpStep[] = a.cells.map((_, i) => {
-    const on = i === 0 || rnd() < (i % 4 === 0 ? 0.9 : 0.62);
-    if (i > 0) {
-      let mv = Math.round((rnd() * 2 - 1) * maxStep);
-      if (mv === 0 && run >= 1) mv = rnd() < .5 ? -1 : 1;
-      let nd = deg + mv; if (nd < 0 || nd > span - 1) nd = deg - mv;
-      nd = Math.max(0, Math.min(span - 1, nd)); run = nd === deg ? run + 1 : 0; deg = nd;
-    }
-    return { on, deg, vel: i % 4 === 0 ? 0.85 + rnd() * 0.15 : 0.45 + rnd() * 0.4, gate: [0.25, 0.5, 0.5, 0.75, 1][Math.floor(rnd() * 5)], slide: i > 0 && rnd() < 0.15 };
+  const span = degreeCount(a.scale), n = SCALES[a.scale].length, oct = Math.min(n, span - 1);
+  const pick = <T,>(xs: T[]) => xs[Math.floor(rnd() * xs.length) % xs.length];
+  const wpick = (ws: [number, number][]) => { let t = rnd() * ws.reduce((s, w) => s + w[1], 0); for (const [v, w] of ws) if ((t -= w) <= 0) return v; return ws[0][0]; };
+  const d = (semi: number) => Math.min(span - 1, nearestDegree(a.scale, semi));
+  const root = 0, fifth = d(7), m3 = d(3), m7 = d(10), second = d(2), fourth = d(5);
+  const colour: [number, number][] = [[root, 3], [fifth, 3], [m3, 2.5], [m7, 2], [fourth, 1], [second, .8]];
+  const strong: [number, number][] = [[root, 5], [fifth, 1.5], [m3, 1]];
+  const rhythm = pick(ACID_RHYTHMS), len = a.cells.length;
+  // Call: an 8-step motif. Response: same rhythm, varied pitches, resolving toward the root.
+  const motif: ArpStep[] = Array.from({ length: 8 }, (_, i) => {
+    const on = rhythm[i] === "x" || i === 0;
+    const base = i % 4 === 0 ? wpick(strong) : wpick(colour);
+    const up = i % 2 === 1 && rnd() < .28 && base + oct < span;
+    return { on, deg: up ? base + oct : base, vel: .55 + rnd() * .2, gate: .35, slide: false };
   });
+  const cells: ArpStep[] = Array.from({ length: len }, (_, i) => {
+    const m = motif[i % 8], half = Math.floor(i / 8) % 2, pos = i % 16;
+    const c: ArpStep = { ...m, on: rhythm[pos] === "x" || pos === 0 };
+    if (half === 1) {
+      if (rnd() < .35) c.deg = pos % 4 === 0 ? wpick(strong) : wpick(colour);
+      else if (rnd() < .25 && c.deg + oct < span && c.deg < oct) c.deg += oct;
+      if (pos >= 14 && rnd() < .6) c.deg = rnd() < .5 ? root : Math.min(oct, span - 1);
+    }
+    return c;
+  });
+  // Accents on syncopated hits and big leaps; slides join consecutive notes, mostly on leaps, with legato gates.
+  for (let i = 0; i < len; i++) {
+    const c = cells[i]; if (!c.on) continue;
+    const next = cells[(i + 1) % len], leap = next.on && Math.abs(next.deg - c.deg) >= Math.max(2, n - 2);
+    if ((i % 2 === 1 && rnd() < .45) || rnd() < .15) c.vel = .85 + rnd() * .15;
+    if (i < len - 1 && next.on && rnd() < (leap ? .5 : .14)) { c.slide = true; c.gate = 1; c.vel = Math.max(c.vel, .85); }
+    else c.gate = rnd() < .2 ? .75 : .35;
+  }
   // Guarantee at least 3 distinct pitches among the played steps.
   const played = cells.slice(0, a.steps).map((c, i) => c.on ? i : -1).filter(i => i >= 0);
   const used = new Set(played.map(i => cells[i].deg));
