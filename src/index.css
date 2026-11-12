@@ -1450,3 +1450,15 @@ body.perf-lock { overflow: hidden; }
   border: 1px solid hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 10px !important; line-height: 1; letter-spacing: .1em; white-space: nowrap; flex: 0 0 auto; }
 .perf-overlay .perf-head .perf-bpm { border-color: hsl(var(--foreground) / .4); }
 @media (max-width: 400px) { .perf-overlay .perf-head { gap: 4px !important; padding: 6px !important; } .perf-overlay .perf-head .perf-rec, .perf-overlay .perf-head .gb-cycle, .perf-overlay .perf-head .perf-bpm { padding: 0 5px !important; font-size: 9px !important; letter-spacing: .05em; } }
+
+/* Deck position: playhead + active loop window in the mixer strips. */
+.lk-pos { display: flex; flex-direction: column; gap: 3px; padding: 3px 0; }
+.lk-pos-read { display: flex; align-items: baseline; gap: 4px; font: 16px VT323, monospace; line-height: 1; }
+.lk-pos-read small { font-size: 11px; opacity: .7; }
+.lk-pos-read em { margin-left: auto; font-style: normal; font-size: 13px; border: 1px solid hsl(var(--foreground)); padding: 0 3px; }
+.lk-pos-read em.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.lk-pos-cells { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; height: 7px; }
+.lk-pos-cells i { border: 1px solid hsl(var(--foreground) / .35); }
+.lk-pos-cells i.beat { border-color: hsl(var(--foreground) / .7); }
+.lk-pos-cells i.lp { border-color: hsl(var(--foreground)); background: hsl(var(--foreground) / .3); }
+.lk-pos-cells i.on { background: hsl(var(--foreground)); }
