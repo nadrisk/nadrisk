@@ -49,6 +49,25 @@ export function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: numb
   return rel + e.r * 1.5 + 0.05;
 }
 
+/** Sampler punch window: the hit holds full level before decay starts, so a short DEC tightens the tail, not the body. */
+export const samplerHold = (d: number) => Math.min(0.06, Math.max(0.012, d * 0.35));
+
+/** Sampler envelope: attack, hold at peak, then a dB-linear decay to sustain (like MPC/SP pads) instead of an early exponential plunge. */
+export function samplerAdsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number) {
+  const a = Math.max(0.001, e.a), h = samplerHold(e.d), floor = Math.max(peak * e.s, peak * 0.001);
+  p.setValueAtTime(0, t); p.linearRampToValueAtTime(peak, t + a);
+  const rel = t + Math.max(gate, a);
+  const hEnd = Math.min(t + a + h, rel);
+  p.setValueAtTime(peak, hEnd);
+  if (hEnd < rel) {
+    const dEnd = Math.min(hEnd + Math.max(0.005, e.d), rel);
+    p.exponentialRampToValueAtTime(dEnd === hEnd + Math.max(0.005, e.d) ? floor : peak * (floor / peak) ** ((dEnd - hEnd) / Math.max(0.005, e.d)), dEnd);
+    if (e.s <= 0 && dEnd < rel) p.linearRampToValueAtTime(0, dEnd + 0.01);
+  }
+  p.setTargetAtTime(0, rel, e.r / 3 + 0.001);
+  return rel + e.r * 1.5 + 0.05;
+}
+
 function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, base: number, amount: number) {
   e ??= { a: .001, d: .1, s: 0, r: .02 };
   p.setValueAtTime(base, t); p.linearRampToValueAtTime(base + amount, t + e.a);
@@ -340,7 +359,7 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   } else {
     // ADSR: the envelope shapes volume only; playback position runs independently through the region.
     const g = p.loop ? Math.max(.005, gate) : Math.max(.005, Math.min(gate, playLen));
-    const envEnd = adsr(amp.gain, t, p.env, g, vel);
+    const envEnd = samplerAdsr(amp.gain, t, p.env, g, vel);
     endT = p.loop ? envEnd : Math.min(envEnd, t + playLen + .01);
   }
   src.start(t, offset); src.stop(endT);
