@@ -13,7 +13,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 type Page = "SMP" | "ENV" | "GRN" | "BRK" | "IN";
 const PAGES: Page[] = ["SMP", "ENV", "GRN", "BRK", "IN"];
 export type LiveProps = { armed: boolean; rec: "off" | "wait" | "on"; peak: number; error: string; opts: { gain: number; gate: number; mon: number; mode: "free" | "note"; monRec: boolean; trim: number }; set: (p: Partial<LiveProps["opts"]>) => void; arm: () => void; record: () => void; /** Last saved take; a new n flips the screen to SMP. */ take?: { n: number; name: string } };
-const KX = [16, 48, 80, 112];
+const KX = [16, 48, 80, 112], KX3 = [24, 64, 104];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 const ms = (v: number) => `${Math.round(v * 1000)}MS`, pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -64,7 +64,6 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
     { label: "Input gain", short: "GAIN", value: lo.gain, min: 0, max: 4, step: .01, fmt: (v: number) => `${v > 0 ? (20 * Math.log10(v)).toFixed(0) : "-INF"}DB`, set: gain => live.set({ gain }) },
     { label: "Input gate", short: "GATE", value: lo.gate, min: 0, max: 1, step: .01, fmt: (v: number) => v > 0 ? `${Math.round(-70 + v * 50)}DB` : "OFF", set: gate => live.set({ gate }) },
     { label: "Monitor level", short: "MON", value: lo.mon, min: 0, max: 1, step: .01, fmt: pct, set: mon => live.set({ mon }) },
-    { label: "Latency trim", short: "TRIM", value: lo.trim, min: -.001, max: .2, step: .001, fmt: (v: number) => v < 0 ? "AUTO" : ms(v), set: v => live.set({ trim: v < 0 ? -1 : v }) },
   ] : []) : page === "SMP" ? (sm.loop ? [
     { label: "Loop start", short: "L-ST", value: sm.loopStartF ?? sm.start, min: 0, max: .95, step: .005, fmt: pct, set: v => M({ loopStartF: Math.max(v, sm.start), loopEnd: Math.max(sm.loopEnd ?? 1, Math.max(v, sm.start) + .02) }) },
     { label: "Loop end", short: "L-END", value: sm.loopEnd ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: loopEnd => M({ loopEnd: Math.max(loopEnd, (sm.loopStartF ?? sm.start) + .02) }) },
@@ -131,7 +130,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       // One REC key (REC -> ARM waiting -> STOP), FREE/NOTE mode, monitor-while-recording.
       p.box(2, 11, 25, 7); if (rec !== "off") p.invert(3, 12, 23, 5); p.text(rec === "wait" ? "ARM" : rec === "on" ? "STOP" : "REC", rec === "on" ? 5 : 7, 12, rec === "off");
       p.box(29, 11, 25, 7); if (note) p.invert(30, 12, 23, 5); p.text(note ? "NOTE" : "FREE", 31, 12, !note);
-      p.box(56, 11, 25, 7); if (lo?.monRec) p.invert(57, 12, 23, 5); p.text("MREC", 58, 12, !lo?.monRec);
+      p.box(56, 11, 25, 7); if (lo?.monRec) p.invert(57, 12, 23, 5); p.text("MNTR", 58, 12, !lo?.monRec);
       p.box(2, 19, 124, 26);
       if (L?.error) p.textC(L.error, 64, 29);
       else if (!arm) p.textC(note ? "TAP REC + PLAY" : "TAP REC", 64, 29);
@@ -185,7 +184,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       if (rd) { const cx = 3 + Math.round(Math.min(1, rd.frac) * 121); if (rd.frozen) { p.rect(cx - 1, 20, 2, 24, true); p.rect(Math.min(118, cx + 2), 21, 7, 6, false); p.text("||", Math.min(119, cx + 3), 21); } else p.line(cx, 20, cx, 43); }
       const la = Math.round((sm.gLfoAmt ?? 0) * 61); if (la > 0 && (sm.gLfoRate ?? 0) > 0) { const l0 = Math.max(3, gx - la), l1 = Math.min(124, gx + la); p.line(l0, 43, l1, 43); p.line(l0, 41, l0, 43); p.line(l1, 41, l1, 43); } }
     }
-    knobs.forEach((k, i) => { p.knob(KX[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, KX[i], 58); });
+    const kx = page === "IN" ? KX3 : KX; knobs.forEach((k, i) => { p.knob(kx[i], 51, f01(k.value, k.min, k.max), 4); p.textC(k.short, kx[i], 58); });
   };
 
   return <div className="px-panel">
@@ -215,7 +214,7 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
       </>}
       {page !== "ENV" && page !== "BRK" && page !== "IN" && <Zone x={14} y={19} w={114} h={26} horizontal label={page === "GRN" ? "Grain position" : "Sample waveform start"} value={sm.start} min={0} max={.95} step={.005} onChange={start => { M({ start }); show(`${page === "GRN" ? "POS" : "STRT"} ${pct(start)}`); }} />}
       {page === "ENV" && <EnvZones env={env} set={next => M({ env: next })} y0={11} h={34} />}
-      {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={KX[i] - 15} y={45} w={30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} reset={(k as { reset?: number }).reset} onChange={v => { k.set(v); show(k.short === "NOTE" || (k as { bare?: boolean }).bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
+      {knobs.map((k, i) => <Zone key={page + lfoView + k.label} x={(page === "IN" ? KX3 : KX)[i] - (page === "IN" ? 19 : 15)} y={45} w={page === "IN" ? 38 : 30} h={18} label={k.label} value={k.value} min={k.min} max={k.max} step={k.step} reset={(k as { reset?: number }).reset} onChange={v => { k.set(v); show(k.short === "NOTE" || (k as { bare?: boolean }).bare ? k.fmt(v) : `${k.short} ${k.fmt(v)}`); }} />)}
       {page === "BRK" && sm.warp && <Tap x={68} y={10} w={42} h={9} label="Type sample BPM" onClick={() => setBpmEdit(true)} />}
     </PixelScreen>
     <div className="gb-sample-name" aria-label="Sample name" title={sm.sampleName || "No sample"}>{(sm.sampleName || "NO SAMPLE").replace(/\.[a-z0-9]+$/i, "")}</div>

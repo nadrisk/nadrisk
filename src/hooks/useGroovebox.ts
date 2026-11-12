@@ -915,6 +915,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
         // Take finished: free the mic at once so no room hiss reaches the pad and iOS returns to the main speakers.
         L.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); if (k < 0) return;
         const t = trig ? 0 : o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
+        // Baked-in tail: a short fade so stopped takes never end on a click.
+        { const f = Math.min(a.length, Math.round(sr * .012)); for (let j = 0; j < f; j++) { const g = j / f; a[a.length - 1 - j] *= g; b[b.length - 1 - j] *= g; } }
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
         const fresh = (x: Slot): Slot => ({ ...x, note: 60, sampler: { ...x.sampler, mode: "one", start: 0, end: 1, endFrac: 1, sampleKey: 0, fine: 0, loop: false, reverse: false, warp: false, grain: false, stretch: false } });
         void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => {
