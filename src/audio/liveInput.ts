@@ -1,14 +1,21 @@
 // Sampler INPUT mode: one shared mic/instrument stream routed into a pad's insert chain, with audio-clock capture.
+// trig: wait (from `start`) until the raw input crosses the gate threshold, then capture with a ~21 ms pre-roll so the attack survives.
+// stop >= 0 punches out at that audio time; a threshold take that never fires by `stop` posts {missed}.
 export const REC_WORKLET = `class NadRec extends AudioWorkletProcessor {
-  constructor(){super();this.t0=-1;this.t1=-1;this.on=false;this.buf=[[],[]];this.n=0;this.pk=0;this.k=0;this.thr=0;this.env=0;this.g=1;
-    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.buf=[[],[]];this.n=0;}if(d.stop!==undefined&&d.start===undefined)this.t1=d.stop;if(d.thr!==undefined)this.thr=d.thr;if(d.cancel){this.t0=-1;this.t1=-1;this.on=false;}};}
-  process(inp,out){const i=inp[0];if(!i||!i[0])return true;const L=i[0],R=i[1]||i[0],o=out[0],now=currentTime,end=now+L.length/sampleRate;
-    for(let j=0;j<L.length;j++){const a=Math.max(Math.abs(L[j]),Math.abs(R[j]));if(a>this.pk)this.pk=a;this.env=a>this.env?a:this.env*0.9995;const tg=this.thr<=0||this.env>this.thr?1:0;this.g+=(tg-this.g)*(tg?0.01:0.0005);if(o[0])o[0][j]=L[j]*this.g;if(o[1])o[1][j]=R[j]*this.g;}
+  constructor(){super();this.t0=-1;this.t1=-1;this.arm=false;this.trig=false;this.on=false;this.buf=[[],[]];this.n=0;this.pk=0;this.k=0;this.thr=0;this.env=0;this.g=1;
+    this.rn=1024;this.rl=new Float32Array(1024);this.rr=new Float32Array(1024);this.rp=0;
+    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.trig=!!d.trig;this.arm=true;this.on=false;this.buf=[[],[]];this.n=0;}else if(d.stop!==undefined)this.t1=d.stop;if(d.thr!==undefined)this.thr=d.thr;if(d.cancel){this.arm=false;this.on=false;this.t0=-1;this.t1=-1;this.buf=[[],[]];this.n=0;}};}
+  process(inp,out){const i=inp[0];if(!i||!i[0])return true;const L=i[0],R=i[1]||i[0],o=out[0],now=currentTime,sr=sampleRate,end=now+L.length/sr;let from=this.on?0:-1;
+    for(let j=0;j<L.length;j++){const a=Math.max(Math.abs(L[j]),Math.abs(R[j]));if(a>this.pk)this.pk=a;this.env=a>this.env?a:this.env*0.9995;const tg=this.thr<=0||this.env>this.thr?1:0;this.g+=(tg-this.g)*(tg?0.01:0.0005);if(o[0])o[0][j]=L[j]*this.g;if(o[1])o[1][j]=R[j]*this.g;
+      if(this.arm&&now+j/sr>=this.t0&&(this.t1<0||now+j/sr<this.t1)&&(!this.trig||this.thr<=0||a>this.thr)){this.arm=false;this.on=true;from=j;
+        if(this.trig&&this.thr>0){const pl=new Float32Array(this.rn),pr=new Float32Array(this.rn);for(let q=0;q<this.rn;q++){const x=(this.rp+q)%this.rn;pl[q]=this.rl[x];pr[q]=this.rr[x];}this.buf[0].push(pl);this.buf[1].push(pr);this.n+=this.rn;}
+        this.port.postMessage({started:true,trig:this.trig&&this.thr>0});}
+      this.rl[this.rp]=L[j];this.rr[this.rp]=R[j];this.rp=(this.rp+1)%this.rn;}
     if(++this.k>=6){this.port.postMessage({peak:this.pk,rec:this.on});this.pk=0;this.k=0;}
-    if(this.t0>=0&&!this.on&&end>this.t0){this.on=true;this.port.postMessage({started:true});}
-    if(this.on){let a=0,b=L.length;if(now<this.t0)a=Math.floor((this.t0-now)*sampleRate);if(this.t1>=0&&end>this.t1)b=Math.max(a,Math.floor((this.t1-now)*sampleRate));
+    if(this.arm&&this.t1>=0&&end>=this.t1){this.arm=false;this.port.postMessage({missed:true});}
+    if(this.on){let a=Math.max(0,from),b=L.length;if(this.t1>=0&&end>this.t1)b=Math.max(a,Math.min(L.length,Math.round((this.t1-now)*sr)));
       const oL=o[0]||L,oR=o[1]||oL;this.buf[0].push(oL.slice(a,b));this.buf[1].push(oR.slice(a,b));this.n+=b-a;
-      const cap=this.n>=sampleRate*30;if((this.t1>=0&&end>=this.t1)||cap){this.on=false;this.t0=-1;this.t1=-1;this.port.postMessage({done:true,l:this.buf[0],r:this.buf[1],n:this.n});this.buf=[[],[]];this.n=0;}}
+      const cap=this.n>=sr*30;if((this.t1>=0&&end>=this.t1)||cap){this.on=false;this.t0=-1;this.t1=-1;this.port.postMessage({done:true,l:this.buf[0],r:this.buf[1],n:this.n});this.buf=[[],[]];this.n=0;}}
     return true;}
 }
 registerProcessor('nad-rec',NadRec);
@@ -17,8 +24,6 @@ registerProcessor('nad-rec',NadRec);
 export const concat = (parts: Float32Array[], n: number) => { const o = new Float32Array(n); let k = 0; for (const p of parts) { o.set(p.subarray(0, Math.min(p.length, n - k)), k); k += p.length; if (k >= n) break; } return o; };
 /** Drop the first `sec` seconds (input delay) so synced takes land on the beat. */
 export const trimStart = (d: Float32Array, sec: number, sr: number) => d.subarray(Math.min(d.length, Math.max(0, Math.round(sec * sr))));
-/** Seconds for `bars` bars of 4/4 at bpm. */
-export const barsSec = (bars: number, bpm: number) => bars * 4 * 60 / bpm;
 
 export const encodeWav = (chs: Float32Array[], sr: number) => new Blob([wavBytes(chs, sr)], { type: "audio/wav" });
 export function wavBytes(chs: Float32Array[], sr: number): ArrayBuffer {
@@ -59,17 +64,21 @@ export class LiveInput {
   stream: MediaStream | null = null; src: MediaStreamAudioSourceNode | null = null;
   gain: GainNode; mon: GainNode; rec: AudioWorkletNode; sink: GainNode;
   dest: AudioNode | null = null; peak = 0; recording: LiveStatus["rec"] = "off";
-  onTake: (l: Float32Array, r: Float32Array, sr: number) => void = () => {};
+  /** trig = the take started on the threshold (already has pre-roll, so no latency trim). */
+  onTake: (l: Float32Array, r: Float32Array, sr: number, trig: boolean) => void = () => {};
+  onMissed: () => void = () => {};
+  trig = false;
   onState: () => void = () => {};
   constructor(public ctx: AudioContext, make: (name: string) => AudioWorkletNode) {
     this.gain = ctx.createGain(); this.mon = ctx.createGain(); this.mon.gain.value = 0;
     this.rec = make("nad-rec"); this.sink = ctx.createGain(); this.sink.gain.value = 0;
     this.gain.connect(this.rec); this.rec.connect(this.mon); this.rec.connect(this.sink); this.sink.connect(ctx.destination);
-    this.rec.port.onmessage = (e: MessageEvent<{ peak?: number; started?: boolean; done?: boolean; l?: Float32Array[]; r?: Float32Array[]; n?: number }>) => {
+    this.rec.port.onmessage = (e: MessageEvent<{ peak?: number; started?: boolean; trig?: boolean; missed?: boolean; done?: boolean; l?: Float32Array[]; r?: Float32Array[]; n?: number }>) => {
       const d = e.data;
       if (d.peak !== undefined) { this.peak = d.peak; this.onState(); }
-      if (d.started) { this.recording = "on"; this.onState(); }
-      if (d.done && d.l && d.r && d.n) { this.recording = "off"; this.onState(); this.onTake(concat(d.l, d.n), concat(d.r, d.n), this.ctx.sampleRate); }
+      if (d.started) { this.recording = "on"; this.trig = !!d.trig; this.onState(); }
+      if (d.missed) this.onMissed();
+      if (d.done && d.l && d.r && d.n) { this.recording = "off"; this.onState(); this.onTake(concat(d.l, d.n), concat(d.r, d.n), this.ctx.sampleRate, this.trig); }
     };
   }
   async open(stream?: MediaStream) {
@@ -85,7 +94,10 @@ export class LiveInput {
   /** GATE 0..1 → threshold up to about -20 dBFS. */
   setGate(v: number) { this.rec.port.postMessage({ thr: v > 0 ? 10 ** ((-70 + v * 50) / 20) : 0 }); }
   setMon(v: number) { this.mon.gain.setTargetAtTime(v, this.ctx.currentTime, .03); }
-  start(at: number, stop?: number) { this.recording = "wait"; this.rec.port.postMessage({ start: at, stop: stop ?? -1 }); this.onState(); }
+  /** trig = wait for the input to cross the gate threshold before capturing. */
+  start(at: number, stop?: number, trig = false) { this.recording = "wait"; this.rec.port.postMessage({ start: at, stop: stop ?? -1, trig }); this.onState(); }
+  /** Waiting for a sequencer note (NOTE mode) without booking a capture yet. */
+  pend() { this.recording = "wait"; this.rec.port.postMessage({ cancel: true }); this.onState(); }
   stop(at = this.ctx.currentTime) { this.rec.port.postMessage({ stop: at }); }
   cancel() { this.recording = "off"; this.rec.port.postMessage({ cancel: true }); this.onState(); }
   close() { this.cancel(); this.route(null); this.setMon(0); this.stream?.getTracks().forEach(t => t.stop()); try { this.src?.disconnect(); } catch { /* none */ } this.stream = null; this.src = null;

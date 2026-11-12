@@ -34,8 +34,13 @@ export function applyXY(s: Slot): Slot {
   if (s.engine === "pad") {
     // X = dark .. bright (filter, vowel morph); Y = short (-1) .. long (+1) attack/release. Always dry.
     const p = padParams(s.pad);
-    const keys = padPreset(p.preset).keys;
-    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), atk: keys ? cl(p.atk + Math.max(0, y) * .6, .002, 6) : oct(p.atk, y * 1.5, .002, 6), rel: oct(p.rel, y * (keys ? 3 : 1.2), .05, 8) } };
+    if (padPreset(p.preset).keys) {
+      // Piano: X = FELT (about 400 Hz) .. concert BRT (about 14 kHz); Y = TIGHT (short decay) .. RING (pedal-long release). Attack stays instant.
+      const bright = x < 0 ? p.bright + x * (p.bright + .25) : p.bright + x * (1 - p.bright);
+      const dec = y < 0 ? cl((p.dec ?? 1) * (1 + y * .94), .05, 1) : p.dec ?? 1, rel = y < 0 ? oct(p.rel, y * 2.5, .05, 8) : cl(p.rel + y * (6.5 - p.rel), .05, 8);
+      return { ...s, pad: { ...p, bright: cl(bright, -.25, 1), atk: .002, dec, rel } };
+    }
+    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), atk: oct(p.atk, y * 1.5, .002, 6), rel: oct(p.rel, y * 1.2, .05, 8) } };
   }
   if (s.engine === "808") {
     const b = s.bass;
@@ -84,7 +89,7 @@ export function commitXY(s: Slot): Partial<Slot> {
 /** Short readouts of what the pad is moving, for the XY screen. */
 export function xyLabels(s: Slot): [string, string] {
   if (s.engine === "synth") return ["ENV DET SUB", "CUT RES WAVE"];
-  if (s.engine === "pad") return ["BRIGHT VOWL", "ATK REL"];
+  if (s.engine === "pad") return padPreset(padParams(s.pad).preset).keys ? ["TONE", "DECAY REL"] : ["BRIGHT VOWL", "ATK REL"];
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
   if (s.engine === "idm") return [idmParams(s.idm).model === "nois" ? "COLR" : "FOLD", "TUNE P.ENV"];
@@ -97,6 +102,6 @@ export function xyLabels(s: Slot): [string, string] {
 export function xyCorners(s: Slot): [string, string, string, string] {
   if (s.engine === "sampler" && s.sampler.grain) return ["TIGHT", "WIDE", "FWD", "BACK"];
   if (s.engine === "sampler" && s.sampler.stretch) return ["SHRT", "LONG", "BRT", "DRK"];
-  if (s.engine === "pad") return ["DARK", "BRT", "LONG", "SHRT"];
+  if (s.engine === "pad") return padPreset(padParams(s.pad).preset).keys ? ["FELT", "BRT", "RING", "TIGHT"] : ["DARK", "BRT", "LONG", "SHRT"];
   return ["TIGHT", "OPEN", "BRT", "DRK"];
 }

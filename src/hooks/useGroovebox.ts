@@ -13,7 +13,7 @@ import { condPass, nudgeSec } from "@/audio/stepCond";
 import { defaultHarmony, harmonyOn, keyChord, voiceLead, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale, spreadDeg } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
-import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, barsSec, type LiveStatus } from "@/audio/liveInput";
+import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, type LiveStatus } from "@/audio/liveInput";
 import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
 import { isSlotMono } from "@/audio/pitchFmt";
@@ -620,6 +620,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
         const velo = cb.vel?.[i]?.[st] ?? 1;
         let ties = 0; while (ties + 1 < len && row[stepAt(tick + ties + 1, full, pf.loop, pf.offset ?? 0)] >= 2 && (pf.loop ? (tick % len) + ties + 1 < len : st + ties + 1 < full)) ties++;
         const dur = (1 + ties) * sixteenth, a = slotsRef.current[i].arp;
+        noteRecRef.current(i, nt, dur);
         const rn = Math.round(cb.ratchet?.[i]?.[st] ?? 1);
         if (!a.on && rn > 1) { const sub = sixteenth / rn; for (let k = 0; k < rn; k++) { const tt = nt + k * sub; trigger(i, tt, velo * (1 - k * .04), semiAt, sub * .9); Tone.getDraw().schedule(() => flash(i), tt); } return; }
         if (!a.on) { trigger(i, nt, velo, semiAt, dur * 0.98); Tone.getDraw().schedule(() => flash(i), nt); return; }
@@ -887,12 +888,15 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const live = useRef<LiveInput | null>(null), liveTarget = useRef(-1), takeNo = useRef(0);
   const liveOpening = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatus>({ armed: -1, rec: "off", peak: 0, error: "" });
-  const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: 0, mon: .5, bars: 2, sync: false, monRec: true, trim: -1 });
+  const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: .4, mon: .5, mode: "free" as "free" | "note", monRec: true, trim: -1 });
+  // NOTE mode: the pad waiting for its next sequencer note to punch in (-1 = none).
+  const notePend = useRef(-1);
+  const [lastTake, setLastTake] = useState({ n: 0, name: "" });
   const liveOptsRef = useRef(liveOpts); liveOptsRef.current = liveOpts;
   const pushLive = (p: Partial<LiveStatus> = {}) => setLiveState(x => ({ ...x, armed: liveTarget.current, rec: live.current?.recording ?? "off", peak: live.current?.peak ?? 0, ...p }));
   const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
   const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
-  const disarmInput = useCallback(() => { live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
+  const disarmInput = useCallback(() => { notePend.current = -1; live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
   const armInput = useCallback(async (i: number) => {
     if (liveOpening.current) return;
     if (liveTarget.current === i) { disarmInput(); return; }
@@ -906,10 +910,17 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (!live.current) {
       const L = new LiveInput(e.ctx as AudioContext, n => Tone.getContext().createAudioWorkletNode(n, { outputChannelCount: [2] }) as unknown as AudioWorkletNode);
       L.onState = () => pushLive();
-      L.onTake = (l, r, sr) => { const k = liveTarget.current, o = liveOptsRef.current; applyLive(); if (k < 0) return;
-        const t = o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
+      L.onMissed = () => { if (notePend.current >= 0) pushLive(); }; // NOTE mode: nothing crossed the threshold, stay armed for the next pass
+      L.onTake = (l, r, sr, trig) => { const k = liveTarget.current, o = liveOptsRef.current; notePend.current = -1;
+        // Take finished: free the mic at once so no room hiss reaches the pad and iOS returns to the main speakers.
+        L.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); if (k < 0) return;
+        const t = trig ? 0 : o.trim >= 0 ? o.trim : L.latency(), a = trimStart(l, t, sr), b = trimStart(r, t, sr); if (a.length < sr * .05) return;
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
-        void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => setSlots(s => s.map((x, j) => j === k ? { ...x, sampler: { ...x.sampler, start: 0, end: 1 } } : x)));
+        const fresh = (x: Slot): Slot => ({ ...x, note: 60, sampler: { ...x.sampler, mode: "one", start: 0, end: 1, endFrac: 1, sampleKey: 0, fine: 0, loop: false, reverse: false, warp: false, grain: false, stretch: false } });
+        void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => {
+          slotsRef.current = slotsRef.current.map((x, j) => j === k ? fresh({ ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: name, sampleId: id } }) : x);
+          setSlots(s => s.map((x, j) => j === k ? fresh(x) : x)); setLastTake({ n: takeNo.current, name });
+        });
       };
       live.current = L;
     }
@@ -925,14 +936,24 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       setError(message === "MIC BLOCKED" ? "Allow microphone access for this address in browser settings." : message === "MIC BUSY" ? "Microphone is busy. Close other recording apps and tap ARM again." : message === "NO MIC FOUND" ? "Connect a microphone or audio interface, then tap ARM again." : "Input could not start. Open the site directly in Safari or Chrome and retry ARM.");
     } finally { liveOpening.current = false; }
   }, [ensure, disarmInput, setBuffer]);
-  const recInput = useCallback(() => {
-    const L = live.current; if (!L || liveTarget.current < 0) return;
-    if (L.recording !== "off") { if (L.recording === "wait") L.cancel(); else L.stop(); applyLive(); return; }
-    const o = liveOptsRef.current, t = Tone.getTransport(), now = L.ctx.currentTime;
-    if (o.sync) { const len = barsSec(o.bars, bpmRef.current), at = t.state === "started" ? t.nextSubdivision("1m") : now + .02; L.start(at, at + len); }
-    else L.start(now + .01);
+  /** One-key recording: arms the mic if needed, then waits for sound (FREE) or the pad's next note (NOTE); a second tap cancels or stops. */
+  const recInput = useCallback(async () => {
+    const i = selectedRef.current;
+    if (liveTarget.current !== i) { await armInput(i); if (liveTarget.current !== i) return; }
+    const L = live.current; if (!L) return;
+    if (L.recording === "wait") { disarmInput(); return; }
+    if (L.recording === "on") { L.stop(); return; }
+    const o = liveOptsRef.current;
+    if (o.mode === "note") { notePend.current = i; L.pend(); }
+    else L.start(L.ctx.currentTime + .01, -1, o.gate > 0);
     applyLive();
-  }, []);
+  }, [armInput, disarmInput]);
+  /** Scheduler hook: a NOTE-mode pad punches in on its note and out when the note ends. */
+  const noteRecHit = (i: number, at: number, dur: number) => {
+    const L = live.current; if (notePend.current !== i || !L || liveTarget.current !== i || L.recording === "on") return;
+    L.start(at, at + dur, liveOptsRef.current.gate > 0);
+  };
+  const noteRecRef = useRef(noteRecHit); noteRecRef.current = noteRecHit;
   useEffect(() => () => live.current?.close(), []);
   const loadSelectedId = useCallback((id: string, name: string) => { void loadById(selectedRef.current, id, name); }, [loadById]);
   // Folder load: cache everything; files whose name contains a pad name go onto that pad.
@@ -1083,7 +1104,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

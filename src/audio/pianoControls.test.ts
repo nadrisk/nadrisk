@@ -54,12 +54,12 @@ describe.each([12, 13])("piano controls preset %i", preset => {
     voice.update?.({ pad: { age: 1 } } as never);
     expect(filter.frequency.setTargetAtTime.mock.calls.at(-1)[0]).toBeCloseTo(6300);
   });
-  it("XY keeps the centre unchanged and opens the piano envelope at the long edge", () => {
+  it("XY keeps the centre unchanged and rings long at the top edge with an instant attack", () => {
     const s = { engine: "pad", pad: padFromPreset(preset), xy: { x: 0, y: 0 } } as Slot;
     expect(applyXY(s)).toBe(s);
     const moved = applyXY({ ...s, xy: { x: 1, y: 1 } }).pad;
-    expect(moved?.bright).toBe(.5);
-    expect(moved?.atk).toBeCloseTo(.602);
-    expect(moved?.rel).toBeCloseTo(padFromPreset(preset).rel * 8);
+    expect(moved?.bright).toBe(1);
+    expect(moved?.atk).toBe(.002);
+    expect(moved?.rel).toBeCloseTo(6.5);
   });
 });

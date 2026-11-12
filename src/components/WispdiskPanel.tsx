@@ -12,7 +12,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 
 type Page = "SMP" | "ENV" | "GRN" | "BRK" | "IN";
 const PAGES: Page[] = ["SMP", "ENV", "GRN", "BRK", "IN"];
-export type LiveProps = { armed: boolean; rec: "off" | "wait" | "on"; peak: number; error: string; opts: { gain: number; gate: number; mon: number; bars: number; sync: boolean; monRec: boolean; trim: number }; set: (p: Partial<LiveProps["opts"]>) => void; arm: () => void; record: () => void };
+export type LiveProps = { armed: boolean; rec: "off" | "wait" | "on"; peak: number; error: string; opts: { gain: number; gate: number; mon: number; mode: "free" | "note"; monRec: boolean; trim: number }; set: (p: Partial<LiveProps["opts"]>) => void; arm: () => void; record: () => void; /** Last saved take; a new n flips the screen to SMP. */ take?: { n: number; name: string } };
 const KX = [16, 48, 80, 112];
 const f01 = (v: number, a: number, b: number) => (v - a) / (b - a || 1);
 const ms = (v: number) => `${Math.round(v * 1000)}MS`, pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -51,19 +51,20 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
   const SHP = ["sin", "tri", "sqr", "rnd"] as const;
   const readoutTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(readoutTimer.current), []);
+  const takeN = live?.take?.n ?? 0, seenTake = useRef(takeN);
+  useEffect(() => { if (takeN > seenTake.current && live?.take) { setPage("SMP"); setReadout(`SAVED ${live.take.name}`); clearTimeout(readoutTimer.current); readoutTimer.current = setTimeout(() => setReadout(""), 2200); } seenTake.current = takeN; }, [takeN]); // eslint-disable-line react-hooks/exhaustive-deps
   // Knob feedback replaces the name briefly, like the drum screens, so the tabs never hide it.
   const show = (s: string) => { setReadout(s); clearTimeout(readoutTimer.current); readoutTimer.current = setTimeout(() => setReadout(""), 1600); };
   const noteK = useNoteKnob(slot, onChange), sk = sm.sampleKey ?? 0;
   const fineK = { label: "Sample fine tune", short: "FINE", value: Math.max(-50, Math.min(50, sm.fine ?? 0)), min: -50, max: 50, step: 1, bare: true, reset: 0, fmt: (v: number) => `F${fineSt(v)}`, set: (fine: number) => M({ fine }) };
 
   type K = { label: string; short: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; set: (v: number) => void };
-  const lo = live?.opts, BARS = [1, 2, 4, 8];
+  const lo = live?.opts;
   const knobs: K[] = page === "IN" ? (lo && live ? [
     { label: "Input gain", short: "GAIN", value: lo.gain, min: 0, max: 4, step: .01, fmt: (v: number) => `${v > 0 ? (20 * Math.log10(v)).toFixed(0) : "-INF"}DB`, set: gain => live.set({ gain }) },
     { label: "Input gate", short: "GATE", value: lo.gate, min: 0, max: 1, step: .01, fmt: (v: number) => v > 0 ? `${Math.round(-70 + v * 50)}DB` : "OFF", set: gate => live.set({ gate }) },
     { label: "Monitor level", short: "MON", value: lo.mon, min: 0, max: 1, step: .01, fmt: pct, set: mon => live.set({ mon }) },
-    lo.sync ? { label: "Record bars", short: "BARS", value: BARS.indexOf(lo.bars), min: 0, max: 3, step: 1, fmt: (v: number) => `${BARS[Math.round(v)]}BAR`, set: v => live.set({ bars: BARS[Math.round(v)] }) }
-      : { label: "Latency trim", short: "TRIM", value: lo.trim, min: -.001, max: .2, step: .001, fmt: (v: number) => v < 0 ? "AUTO" : ms(v), set: v => live.set({ trim: v < 0 ? -1 : v }) },
+    { label: "Latency trim", short: "TRIM", value: lo.trim, min: -.001, max: .2, step: .001, fmt: (v: number) => v < 0 ? "AUTO" : ms(v), set: v => live.set({ trim: v < 0 ? -1 : v }) },
   ] : []) : page === "SMP" ? (sm.loop ? [
     { label: "Loop start", short: "L-ST", value: sm.loopStartF ?? sm.start, min: 0, max: .95, step: .005, fmt: pct, set: v => M({ loopStartF: Math.max(v, sm.start), loopEnd: Math.max(sm.loopEnd ?? 1, Math.max(v, sm.start) + .02) }) },
     { label: "Loop end", short: "L-END", value: sm.loopEnd ?? 1, min: .05, max: 1, step: .005, fmt: pct, set: loopEnd => M({ loopEnd: Math.max(loopEnd, (sm.loopStartF ?? sm.start) + .02) }) },
@@ -126,17 +127,17 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
     PAGES.forEach((pg, i) => { const x = 54 + i * 15; if (pg === page) { p.rect(x, 1, 14, 7, false); p.text(pg, x + 1, 2); } else p.text(pg, x + 1, 2, false); });
     // Left: level fader.
     if (page === "IN") {
-      const L = live, arm = !!L?.armed, rec = L?.rec ?? "off";
-      p.box(2, 11, 21, 7); if (arm) p.invert(3, 12, 19, 5); p.text("ARM", 6, 12, !arm);
-      p.box(25, 11, 21, 7, !arm); if (rec !== "off") p.invert(26, 12, 19, 5); p.text(rec === "wait" ? "WAIT" : "REC", rec === "wait" ? 27 : 29, 12, rec === "off");
-      p.box(48, 11, 25, 7); p.text(lo?.sync ? "FREE" : "SYNC", 51, 12);
-      p.box(75, 11, 25, 7); if (lo?.monRec) p.invert(76, 12, 23, 5); p.text("MREC", 77, 12, !lo?.monRec);
+      const L = live, arm = !!L?.armed, rec = L?.rec ?? "off", note = lo?.mode === "note";
+      // One REC key (REC -> ARM waiting -> STOP), FREE/NOTE mode, monitor-while-recording.
+      p.box(2, 11, 25, 7); if (rec !== "off") p.invert(3, 12, 23, 5); p.text(rec === "wait" ? "ARM" : rec === "on" ? "STOP" : "REC", rec === "on" ? 5 : 7, 12, rec === "off");
+      p.box(29, 11, 25, 7); if (note) p.invert(30, 12, 23, 5); p.text(note ? "NOTE" : "FREE", 31, 12, !note);
+      p.box(56, 11, 25, 7); if (lo?.monRec) p.invert(57, 12, 23, 5); p.text("MREC", 58, 12, !lo?.monRec);
       p.box(2, 19, 124, 26);
       if (L?.error) p.textC(L.error, 64, 29);
-      else if (!arm) p.textC("TAP ARM", 64, 29);
+      else if (!arm) p.textC(note ? "TAP REC + PLAY" : "TAP REC", 64, 29);
       else { const pk = Math.min(1, L!.peak), w = Math.round(pk * 118); p.rect(5, 24, w, 6); for (let x = 5; x < 123; x += 4) p.dot(x, 32);
         if (pk >= .99) p.text("CLIP", 104, 35); if (lo && lo.gate > 0) { const gx = 5 + Math.round(10 ** ((-70 + lo.gate * 50) / 20) * 118); p.line(gx, 22, gx, 31); }
-        p.text(rec === "on" ? "RECORDING" : rec === "wait" ? "NEXT BAR" : lo?.sync ? `SYNC ${lo.bars}B` : "FREE 30S", 5, 36); }
+        p.text(rec === "on" ? (note ? "REC TO NOTE END" : "RECORDING") : note ? (lo && lo.gate > 0 ? "NOTE + SOUND" : "WAIT NOTE") : lo && lo.gate > 0 ? "WAIT SOUND" : "RECORDING", 5, 36); }
     } else if (page === "SMP") {
       p.box(2, 11, 17, 7); if (sm.reverse) p.invert(3, 12, 15, 5); p.text("REV", 4, 12, !sm.reverse);
       p.box(21, 11, 21, 7); if (sm.loop) p.invert(22, 12, 19, 5); p.text("LOOP", 23, 12, !sm.loop);
@@ -191,10 +192,9 @@ function WispdiskPanel({ slot, peaks, onChange, getSlices, live }: { slot: Slot;
     <PixelScreen label={`Wispdisk sampler screen, page ${page}`} draw={draw} deps={[page, lfoView, readout, slot.name, slot.level, slot.pan, sm, peaks, page === "IN" ? live : null]} live={page === "GRN" && sm.grain ? () => true : undefined}>
       {PAGES.map((pg, i) => <Tap key={pg} x={54 + i * 15} y={0} w={14} h={9} label={`Page ${pg}`} pressed={pg === page} onClick={() => setPage(pg)} />)}
       {page === "IN" && live && <>
-        <Tap x={2} y={10} w={21} h={9} label={live.armed ? "Disarm input" : "Arm input"} pressed={live.armed} onClick={live.arm} />
-        <Tap x={25} y={10} w={21} h={9} label={live.rec === "off" ? "Record input" : "Stop recording"} pressed={live.rec !== "off"} disabled={!live.armed} onClick={live.record} />
-        <Tap x={48} y={10} w={25} h={9} label={live.opts.sync ? "Switch to free recording" : "Switch to bar-synced recording"} onClick={() => live.set({ sync: !live.opts.sync })} />
-        <Tap x={75} y={10} w={25} h={9} label="Monitor while recording" pressed={live.opts.monRec} onClick={() => live.set({ monRec: !live.opts.monRec })} />
+        <Tap x={2} y={10} w={25} h={9} label={live.rec === "off" ? "Record input" : live.rec === "wait" ? "Cancel recording" : "Stop recording"} pressed={live.rec !== "off"} onClick={live.record} />
+        <Tap x={29} y={10} w={25} h={9} label={live.opts.mode === "note" ? "Switch to free recording" : "Switch to note-length recording"} pressed={live.opts.mode === "note"} disabled={live.rec !== "off"} onClick={() => live.set({ mode: live.opts.mode === "note" ? "free" : "note" })} />
+        <Tap x={56} y={10} w={25} h={9} label="Monitor while recording" pressed={live.opts.monRec} onClick={() => live.set({ monRec: !live.opts.monRec })} />
       </>}
       {page === "SMP" && <>
         <Tap x={2} y={10} w={17} h={9} label="Reverse sample" pressed={!!sm.reverse} onClick={() => M({ reverse: !sm.reverse })} />

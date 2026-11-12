@@ -4,7 +4,7 @@ import { ENGINE_TRIM } from "./loudness";
 import { pianoBuffers, pianoPick, preloadPiano } from "./pianoSamples";
 
 /** Saved PAD sound: preset index + four macros (0..1) + attack/release seconds. Missing fields come from the preset. */
-export type PadParams = { preset: number; bright: number; motion: number; space: number; age: number; atk: number; rel: number; /** Pad octave −3..+3. */ oct?: number; /** Chord-tone octave −2..+2 (root stays). */ coct?: number };
+export type PadParams = { preset: number; bright: number; motion: number; space: number; age: number; atk: number; rel: number; /** Pad octave −3..+3. */ oct?: number; /** Chord-tone octave −2..+2 (root stays). */ coct?: number; /** Piano decay scale (XY TIGHT): 1 = natural ring, lower = shorter. */ dec?: number };
 export const PAD_MAX_VOICES = 6;
 const cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 export const padPreset = (i: number): PadRecipe => PAD_PRESETS[((Math.round(i) % PAD_PRESETS.length) + PAD_PRESETS.length) % PAD_PRESETS.length];
@@ -12,7 +12,7 @@ export const padFromPreset = (i: number): PadParams => { const r = padPreset(i);
 export const defaultPad = (): PadParams => padFromPreset(0);
 export function padParams(p?: Partial<PadParams>): PadParams {
   const d = padFromPreset(p?.preset ?? 0);
-  return { preset: d.preset, bright: cl(p?.bright ?? d.bright, 0, 1), motion: cl(p?.motion ?? d.motion, 0, 1), space: cl(p?.space ?? d.space, 0, 1), age: cl(p?.age ?? d.age, 0, 1), atk: cl(p?.atk ?? d.atk, .002, 6), rel: cl(p?.rel ?? d.rel, .05, 8), oct: Math.round(cl(p?.oct ?? 0, -3, 3)), coct: Math.round(cl(p?.coct ?? 0, -2, 2)) };
+  return { preset: d.preset, bright: cl(p?.bright ?? d.bright, -.25, 1), motion: cl(p?.motion ?? d.motion, 0, 1), space: cl(p?.space ?? d.space, 0, 1), age: cl(p?.age ?? d.age, 0, 1), atk: cl(p?.atk ?? d.atk, .002, 6), rel: cl(p?.rel ?? d.rel, .05, 8), oct: Math.round(cl(p?.oct ?? 0, -3, 3)), coct: Math.round(cl(p?.coct ?? 0, -2, 2)), ...(p?.dec !== undefined ? { dec: cl(p.dec, .05, 1) } : {}) };
 }
 /** Filter cutoff for a recipe at BRIGHT (0 = recipe value, up to +2.5 octaves), darkened by AGE. */
 export const padCutoff = (r: PadRecipe, p: PadParams) => cl(r.cutoff * 2 ** (p.bright * 2.5) * (1 - p.age * .3), 80, 16000);
@@ -126,7 +126,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     if (bufs?.size) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), buffer = bufs.get(root);
       if (buffer) { const b = at(ctx.createBufferSource(), t), g = ctx.createGain();
         b.buffer = buffer; b.playbackRate.value = rate; const cg = ctx.createGain(); cg.gain.value = rate * Math.LN2 / 1200; driftG.connect(cg); flutterG.connect(cg); cg.connect(b.playbackRate); nodes.push(cg); g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); } }
-    const env = { a: p.atk, d: 30, s: 1, r: p.rel };
+    const dec = p.dec ?? 1, env = dec >= .999 ? { a: p.atk, d: 30, s: 1, r: p.rel } : { a: p.atk, d: .1 + dec * 5, s: 0, r: p.rel };
     const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
     return attachLive(v);
   } else {
@@ -140,7 +140,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     pair(1, .4 + v01 * 1.4, ring * .2, .45, -r.detune); pair(1, .4 + v01 * 1.4, ring * .2, .45, r.detune);
     const tine = pair(14, .6 + v01 * 2.5 * (.5 + p.bright), .03, 0, 0); tine.gain.setValueAtTime(.25 * v01 * (.4 + p.bright), t); tine.gain.setTargetAtTime(0, t, .25);
   }
-  const env = { a: p.atk, d: ring * 3, s: 0, r: p.rel };
+  const env = { a: p.atk, d: ring * 3 * (p.dec ?? 1), s: 0, r: p.rel };
   const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
   return attachLive(v);
 }

@@ -23,3 +23,5 @@
 - [ ] AV: physical-device verification — audible continuity and CLOUDS speed on user's phone/tablet (requires physical hardware)
 - [x] PERF: one-device CRATE — saved projects (BPM + key) load to deck A/B in one tab, shared clock, KEY SYNC, tape records the mix
 - [ ] CRATE: AV visuals don't follow crate decks yet (AV still listens to the editor)
+
+- [x] Streamlined sampler REC (threshold start, NOTE punch-in, auto SMP) + piano XY

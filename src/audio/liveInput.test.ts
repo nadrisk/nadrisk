@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { wavBytes, trimStart, barsSec, concat, requestInputStream, inputError } from "./liveInput";
+import { wavBytes, trimStart, concat, requestInputStream, inputError } from "./liveInput";
 
 describe("live input helpers", () => {
   it("encodes a WAV with the right size and header", () => {
@@ -11,7 +11,6 @@ describe("live input helpers", () => {
   });
   it("trims input delay and bar length", () => {
     expect(trimStart(new Float32Array(1000), .01, 48000).length).toBe(520);
-    expect(barsSec(2, 120)).toBe(4);
     expect(Array.from(concat([new Float32Array([1, 2]), new Float32Array([3])], 3))).toEqual([1, 2, 3]);
   });
 });
