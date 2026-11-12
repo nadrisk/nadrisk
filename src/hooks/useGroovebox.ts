@@ -291,7 +291,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const s = s0 && sm != null && s0.engine === "sampler" ? { ...s0, sampler: { ...s0.sampler, start: sm } } : s0;
     if (!e || !s || s.mute || (!s.solo && slotsRef.current.some(x => x.solo))) return;
     // Pad hits start a hair ahead of "now": on iPhone a voice booked for exactly currentTime can land in the past and be skipped.
-    const t0 = time ?? e.ctx.currentTime + 0.005, dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
+    const chordHit = noteIdx !== -1 && s.chord && chordNotes(s.chord).length > 1 && (s.engine === "pad" || s.engine === "sampler" || s.engine === "synth");
+    // Chord taps get 25 ms lead so every voice graph is built before its start time (no strum / dropped notes).
+    const t0 = time ?? e.ctx.currentTime + (chordHit ? 0.025 : 0.005), dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
     const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
