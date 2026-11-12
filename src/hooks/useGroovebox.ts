@@ -888,13 +888,13 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const live = useRef<LiveInput | null>(null), liveTarget = useRef(-1), takeNo = useRef(0);
   const liveOpening = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatus>({ armed: -1, rec: "off", peak: 0, error: "" });
-  const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: .4, mon: .5, mode: "free" as "free" | "note", monRec: true, trim: -1 });
+  const [liveOpts, setLiveOptsState] = useState({ gain: 1, gate: .4, mon: .5, mode: "free" as "free" | "note", monRec: true, autoStop: true, trim: -1 });
   // NOTE mode: the pad waiting for its next sequencer note to punch in (-1 = none).
   const notePend = useRef(-1);
   const [lastTake, setLastTake] = useState({ n: 0, name: "" });
   const liveOptsRef = useRef(liveOpts); liveOptsRef.current = liveOpts;
   const pushLive = (p: Partial<LiveStatus> = {}) => setLiveState(x => ({ ...x, armed: liveTarget.current, rec: live.current?.recording ?? "off", peak: live.current?.peak ?? 0, ...p }));
-  const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
+  const applyLive = (o = liveOptsRef.current) => { const L = live.current; if (!L) return; L.setGain(o.gain); L.setGate(o.gate); L.setAuto(o.autoStop); L.setMon(L.recording !== "off" && !o.monRec ? 0 : o.mon); };
   const setLiveOpts = useCallback((p: Partial<typeof liveOpts>) => { const o = { ...liveOptsRef.current, ...p }; liveOptsRef.current = o; setLiveOptsState(o); applyLive(o); }, []);
   const disarmInput = useCallback(() => { notePend.current = -1; live.current?.close(); liveTarget.current = -1; pushLive({ armed: -1, rec: "off", peak: 0 }); }, []);
   const armInput = useCallback(async (i: number) => {
