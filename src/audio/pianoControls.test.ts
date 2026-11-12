@@ -31,7 +31,12 @@ describe.each([12, 13])("piano controls preset %i", preset => {
     expect(gains.map(n => n.gain.setTargetAtTime.mock.calls.at(-1)[0])).toEqual([24, 9]);
     const pitched = nodes.filter(n => preset === 12 ? n.kind === "BufferSource" : n.kind === "Oscillator" && n.frequency.value >= 10);
     expect(pitched.length).toBeGreaterThan(0);
-    for (const node of pitched) expect(gains[0].connect).toHaveBeenCalledWith(node.detune);
+    for (const node of pitched) {
+      if (preset !== 12) { expect(gains[0].connect).toHaveBeenCalledWith(node.detune); continue; }
+      // Buffer sources have no detune: AGE reaches playbackRate through a cents-to-rate gain.
+      const scale = nodes.find(n => n.kind === "Gain" && n.connect.mock.calls.some((c: any[]) => c[0] === node.playbackRate));
+      expect(scale).toBeTruthy(); expect(gains[0].connect).toHaveBeenCalledWith(scale);
+    }
     voice.update?.({ pad: { age: 0 } } as never);
     expect(gains.map(n => n.gain.setTargetAtTime.mock.calls.at(-1)[0])).toEqual([0, 0]);
   });

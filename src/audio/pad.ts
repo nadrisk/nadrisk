@@ -125,7 +125,7 @@ function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: Au
     const keep = at(ctx.createConstantSource(), t), kg = ctx.createGain(); kg.gain.value = 0; keep.connect(kg).connect(pn); srcs.push(keep); nodes.push(keep, kg);
     if (bufs?.size) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), buffer = bufs.get(root);
       if (buffer) { const b = at(ctx.createBufferSource(), t), g = ctx.createGain();
-        b.buffer = buffer; b.playbackRate.value = rate; pitchAge(b.detune); g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); } }
+        b.buffer = buffer; b.playbackRate.value = rate; const cg = ctx.createGain(); cg.gain.value = rate * Math.LN2 / 1200; driftG.connect(cg); flutterG.connect(cg); cg.connect(b.playbackRate); nodes.push(cg); g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); } }
     const env = { a: p.atk, d: 30, s: 1, r: p.rel };
     const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
     return attachLive(v);
