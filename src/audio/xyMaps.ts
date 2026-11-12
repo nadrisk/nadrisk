@@ -4,7 +4,7 @@ import { idmParams } from "./idm";
 import { reeseParams } from "./reese";
 import { acidParams } from "./acid";
 import type { ADSR } from "./voices";
-import { padParams } from "./pad";
+import { padParams, padPreset } from "./pad";
 
 /** Instrument XY: X = tight (-1) .. open (+1), Y = dark (-1) .. bright (+1). The centre is the patch exactly as saved.
  *  Each engine moves only its own sound controls; the result is never stored until COMMIT. */
@@ -34,7 +34,8 @@ export function applyXY(s: Slot): Slot {
   if (s.engine === "pad") {
     // X = dark .. bright (filter, vowel morph); Y = short (-1) .. long (+1) attack/release. Always dry.
     const p = padParams(s.pad);
-    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), atk: oct(p.atk, y * 1.5, .002, 6), rel: oct(p.rel, y * 1.2, .05, 8) } };
+    const keys = padPreset(p.preset).keys;
+    return { ...s, pad: { ...p, bright: cl(p.bright + x * .5, 0, 1), atk: keys ? cl(p.atk + Math.max(0, y) * .6, .002, 6) : oct(p.atk, y * 1.5, .002, 6), rel: oct(p.rel, y * (keys ? 3 : 1.2), .05, 8) } };
   }
   if (s.engine === "808") {
     const b = s.bass;

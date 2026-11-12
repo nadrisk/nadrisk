@@ -1,4 +1,5 @@
 # Roadmap
+- [x] PAD: MIDI GRAND/E-PNO BRT and AGE, attack/release and live XY response; audio rendering, live interface gestures and regression tests verified
 - [x] PERF sync: absolute downbeat starts, late-bar safety, linked phase correction and shared-clock CRATE joins; 53 regression tests and three-tab/phone CRATE checks including tempo, mutes, banks and pending-start cancellation
 - [x] PERF: phone CRATE/host mixer track drawer, compact dual strips and preserved Mixtour targets; 360/393px phones, 768px tablet and desktop checked; loading, sync, mutes, banks, EQ, crossfader and MIDI value events verified
 - [x] AV: SPACE-only checkerboard, independent world/object palettes and skins, clean sphere rendering; tests and phone/desktop browser checks

@@ -16,6 +16,8 @@ export function padParams(p?: Partial<PadParams>): PadParams {
 }
 /** Filter cutoff for a recipe at BRIGHT (0 = recipe value, up to +2.5 octaves), darkened by AGE. */
 export const padCutoff = (r: PadRecipe, p: PadParams) => cl(r.cutoff * 2 ** (p.bright * 2.5) * (1 - p.age * .3), 80, 16000);
+/** Piano tone spans felt-dark to open; velocity adds a bounded half-octave, AGE darkens it. */
+export const keysCutoff = (p: PadParams, vel: number) => cl(800 * 17.5 ** p.bright * 2 ** ((cl(vel, 0, 1) - 1) * .5) * (1 - p.age * .55), 250, 16000);
 /** SP-1200 style 12-bit staircase (shared per context). */
 const crush = new WeakMap<BaseAudioContext, Float32Array>();
 export function bitCurve(bits: number, n = 8192) { const q = 2 ** (bits - 1), c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.round(x * q) / q; } return c; }
@@ -40,7 +42,7 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   // Ensemble: dry plus two modulated short delays panned apart (string-machine / Dimension style).
   const out = ctx.createGain();
   // AGE: SP-1200 character — pre-gain into a 12-bit staircase (quieter = grainier), then the steep SSM2044-ish output lowpass.
-  if (p.age > 0) { let cv = crush.get(ctx); if (!cv) crush.set(ctx, cv = bitCurve(12));
+  if (!r.keys && p.age > 0) { let cv = crush.get(ctx); if (!cv) crush.set(ctx, cv = bitCurve(12));
     const pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain(), lp1 = ctx.createBiquadFilter(), lp2 = ctx.createBiquadFilter();
     const drop = 1 - p.age * .9; pre.gain.value = drop; sh.curve = cv as Float32Array<ArrayBuffer>; post.gain.value = 1 / drop;
     lp1.type = lp2.type = "lowpass"; lp1.frequency.value = lp2.frequency.value = 16000 - p.age * 7000; lp1.Q.value = .9; lp2.Q.value = .6;
@@ -86,35 +88,59 @@ export function playPad(ctx: BaseAudioContext, dest: AudioNode, p0: PadParams, m
   void freqs; return v;
 }
 
-/** Procedural keys: "grand" = three detuned strings + hammer + velocity/time-closing filter (mdaPiano idea);
- *  "epiano" = DX7 E.PIANO style FM (body pair 1:1, tine pair 14:1 with a fast-decaying index). Natural decay even while held. */
+/** Recorded grand / FM electric piano, with live tone and neutral-at-zero tape ageing. */
 function playKeys(ctx: BaseAudioContext, out: AudioNode, amp: GainNode, srcs: AudioScheduledSourceNode[], nodes: AudioNode[], r: PadRecipe, p: PadParams, f: number, midi: number, t: number, gate: number, vel: number, pan: number): Voice {
   const v01 = cl(vel, .05, 1), pn = ctx.createStereoPanner(); pn.pan.value = cl(pan + (midi - 60) / 60 * .3, -1, 1); pn.connect(out); nodes.push(out, amp, pn);
   // Higher notes decay faster, like real strings / tines.
   const ring = r.d * 2 ** (-(midi - 60) / 24), flt = ctx.createBiquadFilter(); flt.type = "lowpass"; flt.Q.value = .5; flt.connect(pn); nodes.push(flt);
-  let kCut = (b: number) => b;
+  let current = p;
+  // Build the age path once even at zero: knob/XY edits never rebuild a ringing voice.
+  out.disconnect();
+  let cv = crush.get(ctx); if (!cv) crush.set(ctx, cv = bitCurve(12));
+  const pre = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain();
+  sh.curve = cv as Float32Array<ArrayBuffer>;
+  out.connect(dry).connect(amp); out.connect(pre).connect(sh).connect(post).connect(wet).connect(amp);
+  nodes.push(pre, sh, post, dry, wet);
+  const drift = at(ctx.createOscillator(), t), flutter = at(ctx.createOscillator(), t), driftG = ctx.createGain(), flutterG = ctx.createGain();
+  drift.frequency.value = .17; flutter.frequency.value = 4.3;
+  drift.connect(driftG); flutter.connect(flutterG); srcs.push(drift, flutter); nodes.push(drift, flutter, driftG, flutterG);
+  const age = (p: PadParams, time: number, smooth = false) => {
+    const set = (param: AudioParam, value: number) => smooth ? param.setTargetAtTime(value, time, .04) : param.setValueAtTime(value, time);
+    const drop = 1 - p.age * .95;
+    set(pre.gain, drop); set(post.gain, 1 / drop); set(dry.gain, 1 - p.age); set(wet.gain, p.age);
+    set(driftG.gain, p.age * 24); set(flutterG.gain, p.age * 9);
+    set(flt.frequency, keysCutoff(p, v01));
+  };
+  age(p, t);
+  const pitchAge = (param: AudioParam) => { driftG.connect(param); flutterG.connect(param); };
+  const attachLive = (v: Voice) => {
+    v.update = q => { const patch = (q as { pad?: Partial<PadParams> }).pad; if (!patch) return;
+      current = padParams({ ...current, ...patch }); age(current, Math.max(t, ctx.currentTime), true);
+    };
+    return v;
+  };
   if (r.keys === "grand") {
     // Real recorded grand (Salamander): nearest sample re-pitched; velocity sets level + brightness; BRT opens the tone filter.
     const bufs = pianoBuffers(ctx); if (!bufs) { void preloadPiano(ctx); }
-    const gCut = (b: number) => cl(2500 * 2 ** (v01 * 1.6 + b * 2) * (1 - p.age * .3), 400, 20000); flt.frequency.value = gCut(p.bright);
     const keep = at(ctx.createConstantSource(), t), kg = ctx.createGain(); kg.gain.value = 0; keep.connect(kg).connect(pn); srcs.push(keep); nodes.push(keep, kg);
-    if (bufs) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), b = at(ctx.createBufferSource(), t), g = ctx.createGain();
-      b.buffer = bufs.get(root)!; b.playbackRate.value = rate; g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); }
-    const env = { a: .002, d: 30, s: 1, r: Math.max(.25, p.rel * .5) };
+    if (bufs?.size) { const { root, rate } = pianoPick(midi, [...bufs.keys()]), buffer = bufs.get(root);
+      if (buffer) { const b = at(ctx.createBufferSource(), t), g = ctx.createGain();
+        b.buffer = buffer; b.playbackRate.value = rate; pitchAge(b.detune); g.gain.value = 1.6; b.connect(g).connect(flt); srcs.push(b); nodes.push(b, g); } }
+    const env = { a: p.atk, d: 30, s: 1, r: p.rel };
     const v = finish(srcs, nodes, Math.min(t + 20, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5)), amp, undefined, 5);
-    v.update = q => { const b = (q as { pad?: Partial<PadParams> }).pad?.bright; if (b !== undefined) flt.frequency.setTargetAtTime(gCut(b), ctx.currentTime, .05); }; return v;
+    return attachLive(v);
   } else {
-    kCut = (b: number) => cl(r.cutoff * 2 ** (b * 1.5) * (1 - p.age * .3), 300, 18000); flt.frequency.value = kCut(p.bright);
     const st = ctx.createGain(); st.gain.setValueAtTime(1, t); st.gain.setTargetAtTime(0, t + .01, ring * .35); st.connect(flt); nodes.push(st);
     const pair = (ratio: number, index: number, idxDecay: number, level: number, det: number) => {
       const c = at(ctx.createOscillator(), t), m = at(ctx.createOscillator(), t), mg = ctx.createGain(), cg = ctx.createGain();
       c.frequency.value = f; c.detune.value = det; m.frequency.value = f * ratio; m.detune.value = det;
+      pitchAge(c.detune); pitchAge(m.detune);
       const d = f * index; mg.gain.setValueAtTime(d, t); mg.gain.setTargetAtTime(d * .08, t, idxDecay); m.connect(mg).connect(c.frequency);
       cg.gain.value = level; c.connect(cg).connect(st); srcs.push(c, m); nodes.push(c, m, mg, cg); return cg; };
     pair(1, .4 + v01 * 1.4, ring * .2, .45, -r.detune); pair(1, .4 + v01 * 1.4, ring * .2, .45, r.detune);
     const tine = pair(14, .6 + v01 * 2.5 * (.5 + p.bright), .03, 0, 0); tine.gain.setValueAtTime(.25 * v01 * (.4 + p.bright), t); tine.gain.setTargetAtTime(0, t, .25);
   }
-  const env = { a: r.a, d: ring * 3, s: 0, r: p.rel };
+  const env = { a: p.atk, d: ring * 3, s: 0, r: p.rel };
   const v = finish(srcs, nodes, adsr(amp.gain, t, env, gate, v01 * .3 * ENGINE_TRIM.pad, 5), amp, undefined, 5);
-  v.update = q => { const b = (q as { pad?: Partial<PadParams> }).pad?.bright; if (b !== undefined) flt.frequency.setTargetAtTime(kCut(b), ctx.currentTime, .05); }; return v;
+  return attachLive(v);
 }
