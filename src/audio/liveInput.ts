@@ -4,17 +4,18 @@
 export const REC_WORKLET = `class NadRec extends AudioWorkletProcessor {
   constructor(){super();this.t0=-1;this.t1=-1;this.arm=false;this.trig=false;this.on=false;this.buf=[[],[]];this.n=0;this.pk=0;this.k=0;this.thr=0;this.env=0;this.g=1;
     this.rn=1024;this.rl=new Float32Array(1024);this.rr=new Float32Array(1024);this.rp=0;
-    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.trig=!!d.trig;this.arm=true;this.on=false;this.buf=[[],[]];this.n=0;}else if(d.stop!==undefined)this.t1=d.stop;if(d.thr!==undefined)this.thr=d.thr;if(d.cancel){this.arm=false;this.on=false;this.t0=-1;this.t1=-1;this.buf=[[],[]];this.n=0;}};}
+    this.port.onmessage=e=>{const d=e.data;if(d.start!==undefined){this.t0=d.start;this.t1=d.stop??-1;this.trig=!!d.trig;this.arm=true;this.on=false;this.q=0;this.buf=[[],[]];this.n=0;}else if(d.stop!==undefined)this.t1=d.stop;if(d.thr!==undefined)this.thr=d.thr;if(d.cancel){this.arm=false;this.on=false;this.t0=-1;this.t1=-1;this.buf=[[],[]];this.n=0;}};}
   process(inp,out){const i=inp[0];if(!i||!i[0])return true;const L=i[0],R=i[1]||i[0],o=out[0],now=currentTime,sr=sampleRate,end=now+L.length/sr;let from=this.on?0:-1;
     for(let j=0;j<L.length;j++){const a=Math.max(Math.abs(L[j]),Math.abs(R[j]));if(a>this.pk)this.pk=a;this.env=a>this.env?a:this.env*0.9995;const tg=this.thr<=0||this.env>this.thr?1:0;this.g+=(tg-this.g)*(tg?0.01:0.0005);if(o[0])o[0][j]=L[j]*this.g;if(o[1])o[1][j]=R[j]*this.g;
       if(this.arm&&now+j/sr>=this.t0&&(this.t1<0||now+j/sr<this.t1)&&(!this.trig||this.thr<=0||a>this.thr)){this.arm=false;this.on=true;from=j;
         if(this.trig&&this.thr>0){const pl=new Float32Array(this.rn),pr=new Float32Array(this.rn);for(let q=0;q<this.rn;q++){const x=(this.rp+q)%this.rn;pl[q]=this.rl[x];pr[q]=this.rr[x];}this.buf[0].push(pl);this.buf[1].push(pr);this.n+=this.rn;}
         this.port.postMessage({started:true,trig:this.trig&&this.thr>0});}
+      if(this.on&&this.trig&&this.thr>0&&this.t1<0){this.q=this.env<this.thr?(this.q||0)+1:0;if(this.q>sr*0.6)this.t1=now+j/sr;}
       this.rl[this.rp]=L[j];this.rr[this.rp]=R[j];this.rp=(this.rp+1)%this.rn;}
     if(++this.k>=6){this.port.postMessage({peak:this.pk,rec:this.on});this.pk=0;this.k=0;}
     if(this.arm&&this.t1>=0&&end>=this.t1){this.arm=false;this.port.postMessage({missed:true});}
     if(this.on){let a=Math.max(0,from),b=L.length;if(this.t1>=0&&end>this.t1)b=Math.max(a,Math.min(L.length,Math.round((this.t1-now)*sr)));
-      const oL=o[0]||L,oR=o[1]||oL;this.buf[0].push(oL.slice(a,b));this.buf[1].push(oR.slice(a,b));this.n+=b-a;
+      const oL=L,oR=R;this.buf[0].push(oL.slice(a,b));this.buf[1].push(oR.slice(a,b));this.n+=b-a;
       const cap=this.n>=sr*30;if((this.t1>=0&&end>=this.t1)||cap){this.on=false;this.t0=-1;this.t1=-1;this.port.postMessage({done:true,l:this.buf[0],r:this.buf[1],n:this.n});this.buf=[[],[]];this.n=0;}}
     return true;}
 }
