@@ -1438,3 +1438,14 @@ body.perf-lock { overflow: hidden; }
   .lk-xf .lk-control-horizontal svg { height: 30px; }
   .lk-strip-head { flex-wrap: nowrap; }
 }
+
+/* PERF header: clear the iOS Dynamic Island (incl. expanded activities) and align all keys on one baseline. */
+.perf-overlay { padding-top: max(calc(env(safe-area-inset-top, 0px) + 14px), 14px) !important; }
+@media (max-width: 640px) and (pointer: coarse) { .perf-overlay { padding-top: max(calc(env(safe-area-inset-top, 0px) + 14px), 68px) !important; } }
+.perf-overlay .perf-head { align-items: center !important; gap: 6px !important; padding: 6px 10px !important; }
+.perf-overlay .perf-head .perf-title { flex: 1 1 auto; display: inline-flex; align-items: center; min-height: 0 !important; padding: 0 !important; border: 0; }
+.perf-overlay .perf-head .perf-rec, .perf-overlay .perf-head .gb-cycle, .perf-overlay .perf-head .perf-bpm {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 32px; min-height: 32px !important; padding: 0 8px !important; margin: 0;
+  border: 1px solid hsl(var(--foreground)); font-family: Silkscreen, monospace; font-size: 10px !important; line-height: 1; letter-spacing: .1em; white-space: nowrap; flex: 0 0 auto; }
+.perf-overlay .perf-head .perf-bpm { border-color: hsl(var(--foreground) / .4); }
+@media (max-width: 400px) { .perf-overlay .perf-head { gap: 4px !important; padding: 6px !important; } .perf-overlay .perf-head .perf-rec, .perf-overlay .perf-head .gb-cycle, .perf-overlay .perf-head .perf-bpm { padding: 0 5px !important; font-size: 9px !important; letter-spacing: .05em; } }
