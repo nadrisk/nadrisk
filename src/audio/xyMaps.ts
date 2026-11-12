@@ -63,7 +63,8 @@ export function applyXY(s: Slot): Slot {
   if (s.engine === "sampler") {
     // Never touches pitch or fine tune, so samples stay in key. Y = tone on the channel high shelf in every mode.
     const m = s.sampler, eq = s.eq ?? { low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 };
-    const tone = { ...eq, high: cl(eq.high + y * 9, -18, 18), highFreq: y < 0 ? oct(eq.highFreq, y * 1.5, 1500, 16000) : eq.highFreq };
+    // DARK sweeps the shelf ~4 oct down to -24 dB (configureEq turns that into a steep lowpass); BRIGHT pulls it toward ~4 kHz with +12 dB.
+    const tone = { ...eq, high: y < 0 ? cl(eq.high + y * 24, -24, 18) : cl(eq.high + y * 12, -18, 18), highFreq: y < 0 ? oct(eq.highFreq, y * 3.8, 500, 16000) : oct(eq.highFreq, -y * 1.1, 3500, 16000) };
     // Stretch variants are cached buffers: quantise so moving the dot reuses a few renders instead of baking one per hit.
     const q = (v: number, n: number) => Math.round(v * n) / n;
     if (m.grain) return { ...s, eq: tone, sampler: { ...m, grainSize: oct(m.grainSize ?? .08, x * 1.5, .02, .4), spray: cl((m.spray ?? .1) + x * .3, 0, 1), start: cl(m.start + y * .3, 0, Math.min(.98, (m.end ?? 1) - .02)) } };
