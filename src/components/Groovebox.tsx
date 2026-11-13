@@ -55,6 +55,7 @@ import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import VjOverlay from "@/vj/VjOverlay";
 import { vjListen, vjSend } from "@/vj/bus";
 import { DISPLAY_THEMES, nextDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
+import UtilitySwitcher, { UTILITIES, UTILITY_LABELS, type Utility } from "./UtilitySwitcher";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
@@ -251,9 +252,6 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   </div>;
 });
 const DESKTOP_MQ = "(min-width: 1024px) and (pointer: fine)";
-const UTILITIES = ["fx", "phrase", "seq", "mixer", "master", "tape", "sets", "midi", "patch"] as const;
-type Utility = typeof UTILITIES[number];
-const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", tape: "TAPE", sets: "MEM", midi: "MIDI", patch: "PATCH" };
 function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
@@ -377,7 +375,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
           {desktop && desktopView === "sequence" && <div className="gb-desktop-view active">{seqPerformancePanel}</div>}
         </div>
         <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel gb-mobile-utility">
-          <nav className="gb-utility-nav" aria-label="Utility workspace" data-midi-ui>{UTILITIES.map(k => <button key={k} aria-pressed={utility === k} onClick={() => setUtility(k)}>{UTILITY_LABELS[k]}</button>)}<button className="gb-perf-launch" aria-label="Performance mode" aria-pressed={perfOpen} onClick={() => setPerfOpen(true)}>PERF</button></nav>
+          <UtilitySwitcher value={utility} onChange={setUtility} perfOpen={perfOpen} onPerformance={() => setPerfOpen(true)} />
           {!desktop && <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>}
         </PatchNode>
       </div>
