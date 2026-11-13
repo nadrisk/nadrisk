@@ -1514,3 +1514,28 @@ body.perf-lock { overflow: hidden; }
   .gb-top-links { grid-template-columns: 1fr 1fr; }
   .instrument-workspace .gb-topbar .gb-cycle { font-size: 7px; }
 }
+
+/* MONKE lives inside the grid; the sequencer's controls (including undo) stay accessible. */
+.monke-sprite { display: block; width: 100%; height: 100%; }
+.instrument-workspace button svg.monke-sprite { display: block; width: 100%; height: 100%; }
+.instrument-workspace .gb-topbar .monke-toggle { width: 36px; flex: 0 0 36px; padding: 4px; }
+.instrument-workspace .monke-toggle[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.monke-stage { position: relative; min-width: 0; }
+.monke-active > .gb-seq-grid { animation: monke-jitter .5s steps(1, end) infinite; }
+.monke-flash { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: none; background: hsl(var(--background) / .88); color: hsl(var(--foreground)); }
+.monke-flash .monke-sprite { width: min(80vw, 400px); height: auto; aspect-ratio: 25 / 20; }
+.monke-hunt { position: absolute; z-index: 5; width: 76px; height: 76px; pointer-events: auto; }
+.instrument-workspace .monke-catch { width: 76px; height: 76px; min-height: 76px; padding: 4px; display: flex; flex-direction: column; gap: 3px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); border-radius: 0; box-shadow: none; touch-action: manipulation; transition: none; }
+.instrument-workspace .monke-catch:hover { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.monke-catch .monke-sprite { flex: 1; min-height: 0; }
+.monke-pos-0 { left: 4%; top: 8%; } .monke-pos-1 { left: 35%; top: 12%; }
+.monke-pos-2 { right: 4%; top: 24%; } .monke-pos-3 { left: 20%; top: 40%; }
+.monke-pos-4 { right: 20%; top: 52%; } .monke-pos-5 { left: 4%; bottom: 12%; }
+.monke-pos-6 { right: 4%; bottom: 8%; } .monke-pos-7 { left: 40%; bottom: 4%; }
+.monke-catches { display: flex; gap: 4px; height: 4px; }
+.monke-catches i { width: 7px; height: 4px; border: 1px solid hsl(var(--foreground)); }
+.monke-catches i.caught { background: hsl(var(--foreground)); }
+.monke-sprite.laughing { animation: monke-laugh .2s steps(2, end) 2; }
+@keyframes monke-laugh { 50% { transform: translateY(-3px) scaleY(.93); } }
+@keyframes monke-jitter { 30% { transform: translateX(1px); } 60% { transform: translateY(-1px); } }
+@media (prefers-reduced-motion: reduce) { .monke-active > .gb-seq-grid, .monke-sprite.laughing { animation: none; } }

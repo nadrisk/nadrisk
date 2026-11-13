@@ -1,3 +1,4 @@
+import { mangleSequence } from "@/audio/monke";
 import { createDeckStage } from "@/audio/deckStage";
 import { audioStartAt, clockNow, nextBarStep, type DeckState } from "@/link/deck";
 import { setSustainProbe } from "@/lib/frameGate";
@@ -185,7 +186,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const undoRef = useRef<Snap[]>([]), redoRef = useRef<Snap[]>([]), lastSnap = useRef(0);
   const [hist, setHist] = useState(0);
   const slotsForSnap = useRef<Slot[]>([]);
-  const snap = useCallback(() => { const now = window.performance.now(); if (now - lastSnap.current > 400) { undoRef.current.push({ banks: banksRef.current, mods: slotsForSnap.current.map(x => x.mods) }); if (undoRef.current.length > 32) undoRef.current.shift(); redoRef.current = []; setHist(h => h + 1); } lastSnap.current = now; }, []);
+  const monkeTarget = useRef<{ row: number; bank: number; load: number } | null>(null);
+  const snap = useCallback(() => { if (monkeTarget.current) return; const now = window.performance.now(); if (now - lastSnap.current > 400) { undoRef.current.push({ banks: banksRef.current, mods: slotsForSnap.current.map(x => x.mods) }); if (undoRef.current.length > 32) undoRef.current.shift(); redoRef.current = []; setHist(h => h + 1); } lastSnap.current = now; }, []);
   const editBank = useCallback((f: (b: Bank) => Bank) => { snap(); setBanks(bs => bs.map((b, i) => (i === bankRef.current ? f(b) : b))); }, [snap]);
   const setPattern = useCallback((v: StepVal[][] | ((p: StepVal[][]) => StepVal[][])) => editBank(b => ({ ...b, pattern: typeof v === "function" ? v(b.pattern) : v })), [editBank]);
   const setLengths = useCallback((v: number[] | ((l: number[]) => number[])) => editBank(b => ({ ...b, lengths: typeof v === "function" ? v(b.lengths) : v })), [editBank]);
@@ -1042,7 +1044,24 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, idm: o.idm ?? x.idm, pad: o.pad ?? x.pad, xy: { x: 0, y: 0 }, eq: { ...x.eq, ...o.eq }, fx: migrateFx(o.fx ?? []) }); }));
     if (o.engine === "sampler" && o.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName ?? "sample");
   }, [loadById]);
-  const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
+  const beginMonke = useCallback(() => {
+    if (monkeTarget.current) return false;
+    monkeTarget.current = { row: selectedRef.current, bank: bankRef.current, load: loadGen.current };
+    undoRef.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) });
+    if (undoRef.current.length > 32) undoRef.current.shift();
+    redoRef.current = []; setHist(h => h + 1); return true;
+  }, []);
+  const endMonke = useCallback(() => { monkeTarget.current = null; lastSnap.current = 0; }, []);
+  const mutateMonke = useCallback(() => {
+    const t = monkeTarget.current;
+    if (!t || t.row !== selectedRef.current || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
+    const b = banksRef.current[t.bank], s = slotsRef.current[t.row]; if (!b || !s) return null;
+    const result = mangleSequence(b, s, t.row, t.bank);
+    setBanks(bs => bs.map((x, i) => i === t.bank ? result.bank : x));
+    if (result.slot !== s) setSlots(sl => sl.map((x, i) => i === t.row ? { ...x, mods: result.slot.mods } : x));
+    return result.column;
+  }, []);
+  const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { endMonke(); const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
   const canUndo = hist >= 0 && undoRef.current.length > 0, canRedo = hist >= 0 && redoRef.current.length > 0;
   // CLR follows the page in view: NOTE wipes notes plus every per-step lane; other pages wipe only their own data.
@@ -1108,7 +1127,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
