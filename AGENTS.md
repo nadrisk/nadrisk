@@ -43,3 +43,5 @@
 - Linked starts use raw audio time; CRATE uses ticks to avoid drift.
 
 - PERF mixers use one set of labelled MIDI controls: below 700px the master/pad rack spans two compact channels and CRATE opens an in-shell accessible track sheet; wider screens keep the three-column controller and inline crate, so layouts never duplicate audio engines or MIDI targets.
+
+- Groovebox top controls use two fixed grouped rows with the existing shell callbacks, so presentation changes never duplicate transport or harmony state.
