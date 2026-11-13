@@ -1483,7 +1483,7 @@ body.perf-lock { overflow: hidden; }
 .gb-top-system { grid-column: 2; display: grid; grid-template-columns: minmax(130px, 1fr) minmax(90px, .7fr) minmax(145px, 1fr); gap: 6px; min-width: 0; }
 .gb-top-segment { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; min-width: 0; }
 .gb-top-harmony { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
-.gb-top-links { grid-template-columns: 1.2fr 1fr .7fr; }
+.gb-top-links { grid-template-columns: 1fr 1fr; }
 .instrument-workspace .gb-topbar .gb-cycle {
   display: inline-flex; align-items: center; justify-content: center; width: 100%; min-width: 0;
   height: 30px; min-height: 30px; padding: 0 4px; font-size: 8px; line-height: 1;
@@ -1501,16 +1501,16 @@ body.perf-lock { overflow: hidden; }
   .instrument-workspace .workspace-heading.gb-topbar { grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px; }
   .gb-top-identity { justify-content: space-between; }
   .gb-top-clock { grid-template-columns: minmax(60px, .7fr) minmax(0, 1.25fr) minmax(0, 1.25fr); gap: 4px; }
-  .gb-top-system { grid-column: 1; grid-template-columns: minmax(0, 1.15fr) minmax(0, .75fr) minmax(0, 1.2fr); gap: 4px; }
+  .gb-top-system { grid-column: 1; grid-template-columns: minmax(0, 1.2fr) minmax(0, .7fr) minmax(0, 1.25fr); gap: 4px; }
   .gb-top-segment { grid-template-columns: 26px minmax(0, 1fr) 26px; }
   .gb-top-harmony { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
-  .gb-top-links { grid-template-columns: 1.2fr 1fr .7fr; }
+  .gb-top-links { grid-template-columns: 1fr 1fr; }
   .instrument-workspace .gb-topbar .gb-cycle { height: 30px; min-height: 30px; padding: 0 2px; font-size: 8px; }
 }
 @media (max-width: 359px) {
   .gb-top-clock { grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr); }
   .gb-top-segment { grid-template-columns: 22px minmax(0, 1fr) 22px; }
   .gb-top-harmony { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
-  .gb-top-links { grid-template-columns: 1.2fr 1fr .7fr; }
+  .gb-top-links { grid-template-columns: 1fr 1fr; }
   .instrument-workspace .gb-topbar .gb-cycle { font-size: 7px; }
 }
