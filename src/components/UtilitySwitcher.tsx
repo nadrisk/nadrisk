@@ -7,6 +7,7 @@ export const UTILITY_BANKS = {
 } as const;
 export const UTILITIES = [...UTILITY_BANKS.sound, ...UTILITY_BANKS.sys];
 export type Utility = typeof UTILITIES[number];
+export const INITIAL_UTILITY: Utility = "fx";
 type Bank = keyof typeof UTILITY_BANKS;
 export const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", tape: "TAPE", sets: "MEM", midi: "MIDI", patch: "PATCH" };
 export function utilityBank(value: Utility): Bank {

@@ -1,4 +1,5 @@
 # Roadmap
+- [x] SOUND/FX startup and five-category FX chooser; 10 tests and phone/desktop bank recall, category switching and add/remove checks passed.
 - [x] Two-bank utility selector: SOUND/SYS recall and separate PERF launcher; three tests plus 320/360/393px phone, tablet and desktop browser checks passed
 - [x] PAD: MIDI GRAND/E-PNO BRT and AGE, attack/release and live XY response; audio rendering, live interface gestures and regression tests verified
 - [x] PERF sync: absolute downbeat starts, late-bar safety, linked phase correction and shared-clock CRATE joins; 53 regression tests and three-tab/phone CRATE checks including tempo, mutes, banks and pending-start cancellation

@@ -6,7 +6,8 @@ import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
 import { glyph } from "@/pixel/font";
-import { GATE_PRESETS, FX_COST, FX_DEFS, FX_TYPES, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { GATE_PRESETS, FX_COST, FX_DEFS, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { FX_CATEGORIES, FX_CHOOSER_NAMES, fxCategoryRect, fxChoiceRect } from "./fxCatalog";
 import { hackPattern } from "@/audio/hack";
 
 const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -293,6 +294,8 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
 function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: { load: number; slotIndex: number; slots: string[]; slotName: string; fx: FxUnit[]; onChange: (fx: FxUnit[]) => void; getLevels: (slot: number, id: number) => FxLevels | null }) {
   const [sel, setSel] = useState(0);
   const [pg, setPg] = useState(0);
+  const [category, setCategory] = useState(0);
+  const choices = FX_CATEGORIES[category].effects;
   const [levels, setLevels] = useState<FxLevels | null>(null);
   const hist = useRef<number[][]>([]);
   const [now, setNow] = useState(0);
@@ -339,7 +342,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];
   return <div className="gb-fx">
-    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[fx, i, pi, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? "", now]} knobs={knobs}
+    <Panel name="FX" label="Effects" pages={["LST", "EDT", "ADD"]} deps={[fx, i, pi, category, slotName, load, levels?.input ?? -60, levels?.output ?? -60, levels?.state?.join() ?? "", now]} knobs={knobs}
       body={(p, page) => {
         if (page === "LST") {
           if (!fx.length) p.text(`${slotName} IN > MASTER  EMPTY`.slice(0, 31), 2, 14);
@@ -354,7 +357,8 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
           drawFxVisual(p, f, levels, hist.current, now);
         } else {
           // Effects that would overheat the groovebox are drawn dotted and can't be added.
-          FX_TYPES.forEach((t, k) => { const x = 1 + (k % 5) * 25, y = 10 + Math.floor(k / 5) * 9, ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, 24, 9, !ok); p.textC(nm(t).slice(0, 5), x + 12, y + 2); });
+          FX_CATEGORIES.forEach((c, k) => { const { x, y, w, h } = fxCategoryRect(k), active = category === k; if (active) p.rect(x, y, w, h); else p.box(x, y, w, h); p.textC(c.label, x + 12, y + 2, !active); });
+          choices.forEach((t, k) => { const { x, y, w, h } = fxChoiceRect(k), ok = load + FX_COST[t] <= MAX_FX_LOAD; p.box(x, y, w, h, !ok); p.textC(FX_CHOOSER_NAMES[t], x + Math.floor(w / 2), y + 3); });
           const lw = Math.round(Math.min(1, load / MAX_FX_LOAD) * 90); p.text(load > MAX_FX_LOAD ? "OVER" : load + 1 > MAX_FX_LOAD ? "FULL" : "LOAD", 1, 57); p.box(30, 56, 92, 7); p.rect(31, 57, lw, 5);
         }
       }}
@@ -368,7 +372,8 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
         {f?.type === "vibrato" && <Tap x={72} y={10} w={26} h={9} label={lofiOn ? "Switch vibrato to VIB mode" : "Switch vibrato to LOFI mode"} pressed={lofiOn} onClick={() => { setPg(0); set({ params: { ...f.params, lofi: lofiOn ? 0 : 1 } }); }} />}
         {f?.type === "gate" && Array.from({ length: gsteps }, (_, n) => <Tap key={n} x={Math.floor((128 - gsteps * 8) / 2) + n * 8} y={25} w={7} h={12} label={`Gate step ${n + 1}`} pressed={!!(mask & (1 << n))} onClick={() => set({ params: { ...f.params, mask: mask ^ (1 << n) } })} />)}
       </> : <>
-        {FX_TYPES.map((t, k) => <Tap key={t} x={1 + (k % 5) * 25} y={10 + Math.floor(k / 5) * 9} w={24} h={9} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
+        {FX_CATEGORIES.map((c, k) => <Tap key={c.label} {...fxCategoryRect(k)} label={`Effect category ${c.label}`} pressed={category === k} onClick={() => setCategory(k)} />)}
+        {choices.map((t, k) => <Tap key={t} {...fxChoiceRect(k)} label={`Add ${FX_DEFS[t].label}`} disabled={load + FX_COST[t] > MAX_FX_LOAD} onClick={() => { if (load + FX_COST[t] > MAX_FX_LOAD) return; onChange([...fx, makeFx(t)]); setSel(fx.length); }} />)}
       </>} />
   </div>;
 }

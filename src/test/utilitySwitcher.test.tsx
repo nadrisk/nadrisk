@@ -1,9 +1,15 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import UtilitySwitcher, { utilityBank, type Utility } from "@/components/UtilitySwitcher";
+import UtilitySwitcher, { INITIAL_UTILITY, utilityBank, type Utility } from "@/components/UtilitySwitcher";
 
 afterEach(cleanup);
 describe("utility bank selection", () => {
+  it("starts on SOUND / FX even if the previous visit saved a system tool", () => {
+    localStorage.setItem("nadrisk.utility.v1", "tape");
+    expect(INITIAL_UTILITY).toBe("fx");
+    expect(utilityBank(INITIAL_UTILITY)).toBe("sound");
+    localStorage.removeItem("nadrisk.utility.v1");
+  });
   it("places the five sound tools and four system tools in their own banks", () => {
     for (const value of ["fx", "phrase", "seq", "mixer", "master"] as const) expect(utilityBank(value)).toBe("sound");
     for (const value of ["tape", "sets", "patch", "midi"] as const) expect(utilityBank(value)).toBe("sys");

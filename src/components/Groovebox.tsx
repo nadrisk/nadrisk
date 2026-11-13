@@ -55,7 +55,7 @@ import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import VjOverlay from "@/vj/VjOverlay";
 import { vjListen, vjSend } from "@/vj/bus";
 import { DISPLAY_THEMES, nextDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
-import UtilitySwitcher, { UTILITIES, UTILITY_LABELS, type Utility } from "./UtilitySwitcher";
+import UtilitySwitcher, { INITIAL_UTILITY, UTILITY_LABELS, type Utility } from "./UtilitySwitcher";
 
 // Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
 // fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
@@ -329,8 +329,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "roll") g.setStepValue("ratchet", r, c, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "cond") g.setStepValue("cond", r, c, Math.round(x * (CONDS.length - 1))); else if (v === "vel" || v === "chance" || v === "nudge") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
   const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: tapeBus(e.ctx) }; }, [g.ensure]);
   const tapeRecorder = useTapeRecorder(tapSource, crate.on ? false : g.playing, g.step, crate.on ? crate.link.mix.bpm : g.bpm, crate.on ? noopPlay : g.togglePlay);
-  const [utility, setUtility] = useState<Utility>(() => { try { const v = localStorage.getItem("nadrisk.utility.v1") as Utility | null; return v && UTILITIES.includes(v) ? v : "fx"; } catch { return "fx"; } });
-  useEffect(() => { try { localStorage.setItem("nadrisk.utility.v1", utility); } catch { /* private mode */ } }, [utility]);
+  const [utility, setUtility] = useState<Utility>(INITIAL_UTILITY);
 
   const seqPerformancePanel = <div className="gb-seq-perf"><div className="gb-seq-controls"><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} gen={{ steps: g.steps as 16 | 32, rows: g.genRows, roles: g.genRoles, models: g.genModels, apply: g.applyGenerated, bake: g.bakeSelectedPhrase, selected: g.selected, selName: g.slots[g.selected]?.name || `PAD ${g.selected + 1}`, selRole: detectRole(g.slots[g.selected]), setRole: role => g.updateSlot(g.selected, { role }) }} /></div><div className="gb-seq-grid"><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} cond={g.cond} nudge={g.nudge} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} modLane={g.modLane} onModLane={() => g.setModLane((g.modLane + 1) % 3)} onRnd={g.setRowRnd} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} onClearRow={g.clearRow} onAudition={audition} lenLock={!!pf.lenLock} onLenLock={() => g.setPerformance(p => ({ ...p, lenLock: !p.lenLock }))} steps={g.steps} onSteps={g.toggleSteps} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSpan={g.setNoteSpan} onSelect={g.setSelected} /></div></div>;
   const utilityPanels: Record<Utility, JSX.Element> = {
