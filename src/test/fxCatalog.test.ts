@@ -4,11 +4,11 @@ import { FX_CATEGORIES } from "@/components/fxCatalog";
 
 describe("effect categorization", () => {
   const groups = [
-    ["compressor", "noisegate", "sidechain", "ott", "gain"],
-    ["eq", "dyneq", "djfilter", "morph", "drumbus"],
-    ["saturation", "acid", "bitcrush", "metal", "spectral"],
-    ["chorus", "flanger", "phaser", "vibrato", "tremolo"],
-    ["delay", "reverseDelay", "reverb", "hack", "gate"],
+    ["compressor", "noisegate", "sidechain", "ott", "gain", "drumbus"],
+    ["eq", "dyneq", "djfilter", "morph", "spectral"],
+    ["saturation", "acid", "bitcrush", "metal"],
+    ["chorus", "flanger", "phaser", "vibrato", "tremolo", "gate"],
+    ["delay", "reverseDelay", "reverb", "hack"],
   ];
   FX_CATEGORIES.forEach((group, index) => {
     it(`keeps the planned effects in ${group.label}`, () => {
