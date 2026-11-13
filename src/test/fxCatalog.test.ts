@@ -6,9 +6,9 @@ describe("effect categorization", () => {
   const groups = [
     ["compressor", "noisegate", "sidechain", "ott", "gain", "drumbus"],
     ["eq", "dyneq", "djfilter", "morph", "spectral"],
-    ["saturation", "acid", "bitcrush", "metal"],
+    ["saturation", "acid", "bitcrush", "metal", "hack"],
     ["chorus", "flanger", "phaser", "vibrato", "tremolo", "gate"],
-    ["delay", "reverseDelay", "reverb", "hack"],
+    ["delay", "reverseDelay", "reverb"],
   ];
   FX_CATEGORIES.forEach((group, index) => {
     it(`keeps the planned effects in ${group.label}`, () => {

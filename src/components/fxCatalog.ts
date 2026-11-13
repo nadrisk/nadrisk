@@ -4,9 +4,9 @@ import type { FxType } from "@/audio/effects";
 export const FX_CATEGORIES = [
   { label: "DYN", effects: ["compressor", "noisegate", "sidechain", "ott", "gain", "drumbus"] },
   { label: "FILT", effects: ["eq", "dyneq", "djfilter", "morph", "spectral"] },
-  { label: "DIRT", effects: ["saturation", "acid", "bitcrush", "metal"] },
+  { label: "DIRT", effects: ["saturation", "acid", "bitcrush", "metal", "hack"] },
   { label: "MOD", effects: ["chorus", "flanger", "phaser", "vibrato", "tremolo", "gate"] },
-  { label: "TIME", effects: ["delay", "reverseDelay", "reverb", "hack"] },
+  { label: "TIME", effects: ["delay", "reverseDelay", "reverb"] },
 ] as const satisfies readonly { label: string; effects: readonly FxType[] }[];
 
 export const FX_CHOOSER_NAMES: Record<FxType, string> = {
