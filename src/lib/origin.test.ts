@@ -21,4 +21,14 @@ describe("isLicensedHost", () => {
   it("blocks copies", () => {
     for (const h of ["evil.com", "nadrisk.lovable.app.evil.com", "fakenadgroovebox.com", "lovable.app.io"]) expect(isLicensedHost(h)).toBe(false);
   });
+  it("keeps preview suffixes restricted to subdomains", () => {
+    expect(isLicensedHost("lovable.app")).toBe(false);
+    expect(isLicensedHost("lovableproject.com")).toBe(false);
+    expect(isLicensedHost("deep.preview.lovable.app")).toBe(true);
+  });
+  it("preserves native and offline entry points", () => {
+    expect(isLicensedHost("unknown.example", "https:", true)).toBe(true);
+    expect(isLicensedHost("", "file:")).toBe(true);
+    expect(isLicensedHost("127.0.0.1")).toBe(true);
+  });
 });

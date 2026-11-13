@@ -10,6 +10,7 @@ import AcidOverlay from "@/components/AcidOverlay";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { isLicensedHost } from "@/lib/origin";
+import { inputSignal } from "@/lib/fingerprint";
 import { fxLoad } from "@/audio/effects";
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { targets, type DeckId, type Target } from "@/link/deck";
@@ -319,7 +320,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const fireNad = useCallback(() => { if (glitching || forcedNad) return; nadNext.current = !nad; setGlitching(true); }, [nad, glitching, forcedNad]);
   const nadBlack = useCallback(() => { const on = nadNext.current; if (on) { prevTheme.current = theme === "nadrisk" ? "oled" : theme; onThemeChange("nadrisk"); } else onThemeChange(prevTheme.current); setNad(on); g.setMalfunction(on); }, [theme, onThemeChange, g.setMalfunction]);
   const fireRef = useRef(fireNad); fireRef.current = fireNad;
-  useEffect(() => { let buf = ""; const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; if (e.key.length !== 1) return; buf = (buf + e.key.toLowerCase()).slice(-7); if (buf === "nadrisk") { buf = ""; fireRef.current(); } else if (buf.endsWith("acid")) { buf = ""; setAcid(a => !a); } };
+  useEffect(() => { let buf = ""; const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; if (e.key.length !== 1) return; buf = (buf + e.key.toLowerCase()).slice(-7); const signal = inputSignal(buf); if (signal === 1) { buf = ""; fireRef.current(); } else if (signal === 2) { buf = ""; setAcid(a => !a); } };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAcid(false); }; window.addEventListener("keydown", esc); window.addEventListener("keydown", k); return () => { window.removeEventListener("keydown", k); window.removeEventListener("keydown", esc); }; }, []);
   const taps = useRef<number[]>([]);
   const tapName = () => { const now = Date.now(); taps.current = [...taps.current.filter(t => now - t < 2500), now]; if (taps.current.length >= 7) { taps.current = []; fireRef.current(); } };
