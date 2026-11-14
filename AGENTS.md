@@ -44,4 +44,3 @@
 
 - PERF mixers use one set of labelled MIDI controls: below 700px the master/pad rack spans two compact channels and CRATE opens an in-shell accessible track sheet; wider screens keep the three-column controller and inline crate, so layouts never duplicate audio engines or MIDI targets.
 
-- Four group buses (src/audio/groups.ts) sit between grouped pads' post-pan output and master; a grouped pad keeps its own FX saved but bypassed, and the FX screen edits the group rack instead, so ungrouping restores the pad sound.

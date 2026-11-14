@@ -48,3 +48,4 @@
 - SYN filter models (clean.flt: CLEAN/LADDER/SEM/MS20) are native biquad stages with shared cutoff/env tracking in playClean; missing flt = CLEAN so old patches are unchanged. Browser oscillators are already band-limited, so no PolyBLEP worklet is used.
 - PAD (src/audio/pad.ts + padPresets.ts) is its own engine kind with optional slot.pad filled by padParams(); voices are dry (no internal ensemble, LFO or reverb, presets never touch slot FX) so space comes only from the slot's own FX rack; saved motion/space fields are ignored; rings are capped by padRingCap.
 - Sampler ADSR mode uses samplerAdsr (attack, punch hold, dB-linear decay) instead of the synth adsr, so short DEC tightens tails without losing the hit's loudness.
+- Four group buses (groups.ts) receive grouped pads' post-pan output before master; grouped pads keep their own FX saved but bypassed, and the FX screen edits the group rack, so ungrouping restores the pad sound.
