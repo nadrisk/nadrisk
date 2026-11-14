@@ -1,11 +1,12 @@
 import type { Bank, Slot, StepVal } from "@/hooks/useGroovebox";
 import { setSpan, spanOf } from "./noteSpan";
+import { shiftRow } from "./rowShift";
 import { detectRole } from "./patternGen";
 import { harmonyOn, snapNote, type Harmony } from "./harmony";
 
 /** One press = one job: face in, a few staged edits, laugh + face out. */
-export const MONKE = { enterMs: 600, exitMs: 700, editGapMs: 550, minEdits: 3, maxEdits: 6 } as const;
-export type MonkeKind = "pickup" | "ghost" | "flam" | "swell" | "push" | "roll" | "octave" | "slide" | "space" | "answer" | "hold" | "fill" | "starter";
+export const MONKE = { enterMs: 600, exitMs: 700, editGapMs: 550, minEdits: 6, maxEdits: 9 } as const;
+export type MonkeKind = "pickup" | "ghost" | "flam" | "swell" | "push" | "roll" | "octave" | "slide" | "space" | "answer" | "hold" | "fill" | "starter" | "chop" | "shift";
 export type MonkeOp = { row: number; column: number; kind: MonkeKind; apply: (bank: Bank, slots: Slot[]) => { bank: Bank; slots: Slot[] } };
 type Role = "kick" | "snare" | "hat" | "bass" | "melodic" | "perc";
 
@@ -61,7 +62,7 @@ export function inspirePattern(bank: Bank, slots: Slot[], bankIndex: number, har
     return ops.slice(0, MONKE.maxEdits);
   }
   const count = MONKE.minEdits + Math.floor(random() * (MONKE.maxEdits - MONKE.minEdits + 1));
-  const tracks = used.slice().sort(() => random() - .5).slice(0, 2 + Math.floor(random() * 3));
+  const tracks = used.slice().sort(() => random() - .5).slice(0, 3 + Math.floor(random() * 3));
   const free = (b: Bank, r: number, c: number) => c >= 0 && c < lenOf(b, r) && b.pattern[r][c] === 0;
   const idea = (r: number): MonkeOp | null => {
     const role = monkeRole(slots[r]), len = lenOf(bank, r), row = bank.pattern[r];
@@ -89,11 +90,19 @@ export function inspirePattern(bank: Bank, slots: Slot[], bankIndex: number, har
           return { row: r, column: at, kind: "answer", apply: (b, sl) => ({ bank: hit(b, r, at, b.vel[r]?.[c] ?? 1), slots: pitch(sl, r, bankIndex, at, semis) }) }; },
         () => { const c = pick(hits.filter(c => spanOf(row, c, len) === 1)); return c === undefined ? null : { row: r, column: c, kind: "hold", apply: (b, sl) => { const nr = setSpan(b.pattern[r], c, pick([2, 3, 4]), len); return { bank: nr ? setRow(b, r, nr) : b, slots: sl }; } }; });
     }
+    // Long notes get shortened or chopped into pulses; non-anchor tracks may rotate their pocket.
+    const longs = hits.filter(c => spanOf(row, c, len) > 2);
+    const chop = () => { const c = pick(longs); if (c === undefined) return null; const span = spanOf(row, c, len), pulse = random() < .5;
+      return { row: r, column: c, kind: "chop" as const, apply: (b: Bank, sl: Slot[]) => { const nr = b.pattern[r].slice();
+        for (let k = 1; k < span; k++) nr[c + k] = (pulse ? (k % 2 === 0 ? 1 : 0) : (k === 1 && random() < .5 ? 2 : 0)) as StepVal;
+        return { bank: setRow(b, r, nr), slots: sl }; } }; };
+    if (longs.length) menu.push(chop, chop);
+    if (role !== "kick" && role !== "snare" && hits.length && hits.every(c => !isAnchor(role, c) || row[(c - 1 + len) % len] === 1 || row[(c + 1) % len] === 1 || c !== 0) ) menu.push(() => { const d = pick([1, -1, 2, -2]); return { row: r, column: 0, kind: "shift" as const, apply: (b: Bank, sl: Slot[]) => { const n = shiftRow(b, r, d), keep = row.slice(0, len).every((v, c) => v !== 1 || !isAnchor(role, c) || n.pattern[r][c] === 1); return { bank: keep ? n : b, slots: sl }; } }; });
     for (let t = 0; t < 4; t++) { const op = pick(menu)?.(); if (op) return op; }
     return null;
   };
   const taken = new Set<string>();
-  for (let i = 0; i < count * 3 && ops.length < count; i++) {
+  for (let i = 0; i < count * 5 && ops.length < count; i++) {
     const op = idea(tracks[i % tracks.length]);
     if (!op || taken.has(`${op.row}:${op.column}:${op.kind}`)) continue;
     taken.add(`${op.row}:${op.column}:${op.kind}`); ops.push(op);
