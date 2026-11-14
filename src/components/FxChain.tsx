@@ -119,9 +119,9 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const li = Math.max(.25, Math.min(1, ((levels?.input ?? -80) + 54) / 54)), n = Math.round(6 + a * 50 * li), reach = 6 + a * 40 * li;
     for (let k = 0; k < n; k++) { const side = md === 2 ? ((k + fr) % 2 ? -1 : 1) : rnd(fr * 13 + k * 3) < .5 ? -1 : 1, dist = hw + 2 + Math.round(rnd(fr * 31 + k * 7) ** 1.6 * reach);
       const x = lx + side * dist, y = 33 + Math.round((rnd(fr * 17 + k * 11) * 2 - 1) * 10); if (x < X0 + 1 || x > X1 - 1) continue; const yy = cy(y);
-      if (md === 0) { d.dot(x, yy); if (yy > Y0) d.dot(x, yy - 1); if (yy < Y1) d.dot(x, yy + 1); d.dot(x - 1, yy); d.dot(x + 1, yy); }
-      else if (md === 1) d.rect(x, Math.min(yy, Y1 - 1), 2, 2);
-      else { d.dot(x, yy); d.dot(x + side, cy(yy - 1)); } }
+      if (md === 0) { d.dot(x, yy); if (yy > Y0) d.dot(x, yy - 1); }
+      else if (md === 1) d.dot(x, yy);
+      else if ((k + fr) % 3) d.dot(x, yy); else d.dot(x + side, yy); }
     return;
   }
   if (type === "bitcrush") {
