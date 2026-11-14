@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MONKE, nextVisitDelay } from "@/audio/monke";
+import { MONKE, catchCount, nextVisitDelay } from "@/audio/monke";
 
-type Visit = { mode: "summon" | "periodic"; started: number; catches: number; position: number; mutations: number; phase: "enter" | "raid" | "leave" };
+type Visit = { mode: "summon" | "periodic"; started: number; catches: number; requiredCatches: number; position: number; mutations: number; reaction: "run" | "laugh" | "bonk"; phase: "enter" | "raid" | "leave" };
 type Controls = { available: boolean; playing: boolean; step: number; target: string; begin: () => boolean; mutate: () => number | null; end: () => void; showSequence: () => void };
 export function useMonke(controls: Controls) {
   const latest = useRef(controls); latest.current = controls;
@@ -9,6 +9,7 @@ export function useMonke(controls: Controls) {
   const [visit, setVisit] = useState<Visit | null>(null);
   const current = useRef(visit); current.current = visit;
   const due = useRef(0), pulseAt = useRef(0), target = useRef("");
+  const hopAt = useRef(0), reactionUntil = useRef(0);
   const finish = useCallback(() => {
     latest.current.end();
     const v = current.current;
@@ -19,7 +20,8 @@ export function useMonke(controls: Controls) {
     if (current.current || !latest.current.available || !latest.current.begin()) return;
     latest.current.showSequence(); target.current = latest.current.target;
     pulseAt.current = Date.now();
-    const v: Visit = { mode, started: Date.now(), catches: 0, position: 0, mutations: 0, phase: "enter" };
+    hopAt.current = Date.now() + 1800;
+    const v: Visit = { mode, started: Date.now(), catches: 0, requiredCatches: catchCount(), position: 0, mutations: 0, reaction: "run", phase: "enter" };
     current.current = v; setVisit(v);
   }, []);
   const toggle = useCallback(() => setArmed(v => !v), []);
@@ -27,15 +29,18 @@ export function useMonke(controls: Controls) {
   const catchMonke = useCallback(() => {
     const v = current.current;
     if (!v || v.mode !== "periodic" || v.phase !== "raid") return;
-    if (v.catches + 1 >= MONKE.catches) finish();
-    else { const next = { ...v, catches: v.catches + 1, position: (v.position + 3) % 8 }; current.current = next; setVisit(next); }
+    const next = { ...v, catches: v.catches + 1, reaction: "bonk" as const };
+    reactionUntil.current = Date.now() + 450;
+    hopAt.current = Date.now() + 650;
+    current.current = next; setVisit(next);
   }, [finish]);
   const pulse = useCallback(() => {
     const v = current.current; if (!v || v.phase !== "raid") return;
-    const column = latest.current.mutate();
-    if (column === null) { finish(); return; }
+    const row = latest.current.mutate();
+    if (row === null) { finish(); return; }
     pulseAt.current = Date.now();
-    const next = { ...v, position: (v.position + 1 + Math.floor(Math.random() * 5)) % 8, mutations: v.mutations + 1 };
+    const next = { ...v, mutations: v.mutations + 1, reaction: v.reaction === "bonk" ? "bonk" as const : "laugh" as const };
+    if (v.reaction !== "bonk") reactionUntil.current = Date.now() + 300;
     current.current = next; setVisit(next);
   }, [finish]);
   useEffect(() => {
@@ -50,10 +55,19 @@ export function useMonke(controls: Controls) {
       const now = Date.now(), v = current.current, c = latest.current;
       if (!v) { if (armed && c.available && c.playing && now >= due.current) start("periodic"); return; }
       if (v.phase === "leave") { if (now - v.started >= 450) { current.current = null; setVisit(null); } return; }
+      if (v.mode === "periodic" && v.catches >= v.requiredCatches) { if (now >= reactionUntil.current) finish(); return; }
       if (c.target !== target.current || !c.available) { finish(); return; }
       if (now - v.started >= (v.mode === "summon" ? MONKE.summonMs : MONKE.periodicMs)) { finish(); return; }
       if (v.phase === "enter" && now - v.started >= 450) { const next = { ...v, phase: "raid" as const }; current.current = next; setVisit(next); }
-      else if (v.phase === "raid" && !c.playing && now - pulseAt.current >= 500) pulse();
+      else if (v.phase === "raid") {
+        if (now >= hopAt.current) {
+          const next = { ...v, position: (v.position + 1 + Math.floor(Math.random() * 7)) % 8, reaction: "run" as const };
+          current.current = next; setVisit(next); hopAt.current = now + 1200 + Math.random() * 800;
+        } else if (v.reaction !== "run" && now >= reactionUntil.current) {
+          const next = { ...v, reaction: "run" as const }; current.current = next; setVisit(next);
+        }
+        if (!c.playing && now - pulseAt.current >= 500) pulse();
+      }
     }, 100);
     return () => window.clearInterval(timer);
   }, [armed, start, finish, pulse]);

@@ -1,4 +1,4 @@
-import { mangleSequence } from "@/audio/monke";
+import { manglePattern } from "@/audio/monke";
 import { createDeckStage } from "@/audio/deckStage";
 import { audioStartAt, clockNow, nextBarStep, type DeckState } from "@/link/deck";
 import { setSustainProbe } from "@/lib/frameGate";
@@ -186,7 +186,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const undoRef = useRef<Snap[]>([]), redoRef = useRef<Snap[]>([]), lastSnap = useRef(0);
   const [hist, setHist] = useState(0);
   const slotsForSnap = useRef<Slot[]>([]);
-  const monkeTarget = useRef<{ row: number; bank: number; load: number } | null>(null);
+  const monkeTarget = useRef<{ bank: number; load: number } | null>(null);
   const snap = useCallback(() => { if (monkeTarget.current) return; const now = window.performance.now(); if (now - lastSnap.current > 400) { undoRef.current.push({ banks: banksRef.current, mods: slotsForSnap.current.map(x => x.mods) }); if (undoRef.current.length > 32) undoRef.current.shift(); redoRef.current = []; setHist(h => h + 1); } lastSnap.current = now; }, []);
   const editBank = useCallback((f: (b: Bank) => Bank) => { snap(); setBanks(bs => bs.map((b, i) => (i === bankRef.current ? f(b) : b))); }, [snap]);
   const setPattern = useCallback((v: StepVal[][] | ((p: StepVal[][]) => StepVal[][])) => editBank(b => ({ ...b, pattern: typeof v === "function" ? v(b.pattern) : v })), [editBank]);
@@ -1046,7 +1046,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   }, [loadById]);
   const beginMonke = useCallback(() => {
     if (monkeTarget.current) return false;
-    monkeTarget.current = { row: selectedRef.current, bank: bankRef.current, load: loadGen.current };
+    monkeTarget.current = { bank: bankRef.current, load: loadGen.current };
     undoRef.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) });
     if (undoRef.current.length > 32) undoRef.current.shift();
     redoRef.current = []; setHist(h => h + 1); return true;
@@ -1054,12 +1054,14 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const endMonke = useCallback(() => { monkeTarget.current = null; lastSnap.current = 0; }, []);
   const mutateMonke = useCallback(() => {
     const t = monkeTarget.current;
-    if (!t || t.row !== selectedRef.current || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
-    const b = banksRef.current[t.bank], s = slotsRef.current[t.row]; if (!b || !s) return null;
-    const result = mangleSequence(b, s, t.row, t.bank);
+    if (!t || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
+    const b = banksRef.current[t.bank]; if (!b) return null;
+    const result = manglePattern(b, slotsRef.current, t.bank);
+    banksRef.current = banksRef.current.map((x, i) => i === t.bank ? result.bank : x);
     setBanks(bs => bs.map((x, i) => i === t.bank ? result.bank : x));
-    if (result.slot !== s) setSlots(sl => sl.map((x, i) => i === t.row ? { ...x, mods: result.slot.mods } : x));
-    return result.column;
+    slotsRef.current = slotsRef.current.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods }));
+    setSlots(sl => sl.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods })));
+    return result.row;
   }, []);
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { endMonke(); const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);

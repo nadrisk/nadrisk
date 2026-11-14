@@ -1526,9 +1526,9 @@ body.perf-lock { overflow: hidden; }
 .monke-active > .gb-seq-grid { animation: monke-jitter .5s steps(1, end) infinite; }
 .monke-flash { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: none; background: hsl(var(--background) / .88); color: hsl(var(--foreground)); }
 .monke-flash .monke-sprite { width: min(80vw, 400px); height: auto; aspect-ratio: 25 / 20; }
-.monke-hunt { position: absolute; z-index: 5; width: 76px; height: 76px; pointer-events: auto; }
-.instrument-workspace .monke-catch { width: 76px; height: 76px; min-height: 76px; padding: 4px; display: flex; flex-direction: column; gap: 3px; border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); border-radius: 0; box-shadow: none; touch-action: manipulation; transition: none; }
-.instrument-workspace .monke-catch:hover { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.monke-hunt { position: absolute; z-index: 5; width: 88px; height: 92px; pointer-events: auto; }
+.instrument-workspace .monke-catch { width: 88px; height: 92px; min-height: 92px; padding: 4px; display: flex; flex-direction: column; gap: 3px; border: 0; background: transparent; color: hsl(var(--foreground)); border-radius: 0; box-shadow: none; touch-action: none; transition: none; }
+.instrument-workspace .monke-catch:hover, .instrument-workspace .monke-catch:active { background: transparent; color: hsl(var(--foreground)); }
 .monke-catch .monke-sprite { flex: 1; min-height: 0; }
 .monke-pos-0 { left: 4%; top: 8%; } .monke-pos-1 { left: 35%; top: 12%; }
 .monke-pos-2 { right: 4%; top: 24%; } .monke-pos-3 { left: 20%; top: 40%; }
@@ -1541,3 +1541,18 @@ body.perf-lock { overflow: hidden; }
 @keyframes monke-laugh { 50% { transform: translateY(-3px) scaleY(.93); } }
 @keyframes monke-jitter { 30% { transform: translateX(1px); } 60% { transform: translateY(-1px); } }
 @media (prefers-reduced-motion: reduce) { .monke-active > .gb-seq-grid, .monke-sprite.laughing { animation: none; } }
+
+.monke-cutout { fill: hsl(var(--background)); }
+.monke-limbs-b, .monke-laugh-mouth, .monke-bonk-eyes, .monke-bonk-stars { display: none; }
+.monke-run .monke-limbs-a { animation: monke-frame-a .36s steps(1, end) infinite; }
+.monke-run .monke-limbs-b { display: block; animation: monke-frame-b .36s steps(1, end) infinite; }
+.monke-body .monke-tail { animation: monke-tail .7s steps(2, end) infinite; transform-origin: 29px 26px; }
+.monke-laugh .monke-laugh-mouth, .monke-bonk .monke-bonk-eyes, .monke-bonk .monke-bonk-stars { display: block; }
+.monke-laugh .monke-head { animation: monke-chuckle .18s steps(2, end) infinite; }
+.monke-bonk .monke-head { transform: translateY(-2px); }
+.monke-catches { padding: 2px; height: 8px; background: hsl(var(--background)); }
+@keyframes monke-frame-a { 50% { opacity: 0; } }
+@keyframes monke-frame-b { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes monke-tail { 50% { transform: rotate(12deg); } }
+@keyframes monke-chuckle { 50% { transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .monke-body * { animation: none !important; } .monke-run .monke-limbs-b { display: none; } }
