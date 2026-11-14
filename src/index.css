@@ -1539,6 +1539,8 @@ body.perf-lock { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .monke-active > .gb-seq-grid, .monke-sprite.laughing { animation: none; } }
 
 .monke-cutout { fill: hsl(var(--background)); }
+.monke-sprite { --banana: 50 100% 55%; }
+.monke-banana { fill: hsl(var(--banana)); }
 .monke-limbs-b, .monke-laugh-mouth { display: none; }
 .monke-run .monke-limbs-a { animation: monke-frame-a .36s steps(1, end) infinite; }
 .monke-run .monke-limbs-b { display: block; animation: monke-frame-b .36s steps(1, end) infinite; }
