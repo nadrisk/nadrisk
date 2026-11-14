@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MONKE_FRAMES, MONKE_H, MONKE_W } from "./monkeFrames";
+import { MONKE_DOWN, MONKE_H, MONKE_UP, MONKE_W } from "./monkeFrames";
 // Original 1-bit sprite; hard pixel edges stay sharp at every integer scale.
 const face = [
   "        ########        ",
@@ -23,46 +23,31 @@ const face = [
   "        ######          ",
 ];
 type Pose = "run" | "laugh";
-export default function MonkeSprite({ laughing = false, body = false, icon = false, pose = "run" }: { laughing?: boolean; body?: boolean; icon?: boolean; pose?: Pose }) {
-  if (body) return <svg viewBox={`0 -6 ${MONKE_W + 4} ${MONKE_H + 6}`} aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite monke-body monke-${pose}`}>
-    {MONKE_FRAMES.map((f, i) => <g key={i} className={`monke-f monke-f${i}`} fill="currentColor">{px(f)}</g>)}
-    <MonkeFace /><BananaArm />
-  </svg>;
-  if (icon) return <svg viewBox={`0 -6 ${MONKE_W + 4} ${MONKE_H + 6}`} aria-hidden="true" shapeRendering="crispEdges" className="monke-sprite monke-icon"><g fill="currentColor">{px(MONKE_FRAMES[0])}</g><MonkeFace /><BananaArm /></svg>;
+export default function MonkeSprite({ laughing = false, body = false, icon = false }: { laughing?: boolean; body?: boolean; icon?: boolean; pose?: Pose }) {
+  if (body) return <MonkeHunter laughing={false} />;
+  if (icon) return <MonkeArt frame={MONKE_UP} className="monke-icon" />;
   return <svg viewBox="0 0 25 20" aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite ${laughing ? "laughing" : ""}`}>
     {face.flatMap((line, y) => Array.from(line).flatMap((p, x) => p === "#" ? [<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />] : []))}
   </svg>;
 }
-// One merged rect per ink run keeps the frames light.
-function px(rows: string[]) {
+// One merged rect per run of the same colour keeps frames light.
+function px(rows: string[], ch: string) {
   return rows.flatMap((line, y) => { const out: JSX.Element[] = []; let x = 0;
-    while (x < line.length) { if (line[x] !== "#") { x++; continue; } const s = x; while (line[x] === "#") x++; out.push(<rect key={`${s}-${y}`} x={s} y={y} width={x - s} height="1" />); }
+    while (x < line.length) { if (line[x] !== ch) { x++; continue; } const s = x; while (line[x] === ch) x++; out.push(<rect key={`${ch}${s}-${y}`} x={s} y={y} width={x - s} height="1" />); }
     return out; });
 }
-// Cheeky squint, raised brow and wide toothy grin over the walk frames' head.
-function MonkeFace() {
-  return <g className="monke-face">
-    <path className="monke-cutout" d="M32 3h8v5h-8z" />
-    <path fill="currentColor" d="M33 2h2v1h2v1h2v1h-3v-1h-3z M37 5h1v1h-1z M32 7h1v1h7v-1h1v-1h1v2h-1v1h-8v-1h-1z" />
-    <path className="monke-cutout" d="M34 7h1v1h-1z M36 7h1v1h-1z M38 7h1v1h-1z" />
-  </g>;
-}
-// Arm pivots at the shoulder so the gripped banana hammers down with the paw.
-function BananaArm() {
-  return <g className="monke-arm">
-    <path fill="currentColor" d="M39 14h3v1h2v1h2v1h2v3h-3v-1h-2v-1h-2v-1h-2z" />
-    <path className="monke-banana" d="M48 10h1v1h1v2h1v4h-1v1h-1v1h-2v-1h1v-1h1v-4h-1v-2h-1z" />
-  </g>;
+function MonkeArt({ frame, className = "", style }: { frame: string[]; className?: string; style?: React.CSSProperties }) {
+  return <svg viewBox={`0 0 ${MONKE_W} ${MONKE_H}`} aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite ${className}`} style={style}>
+    <g fill="currentColor">{px(frame, "#")}</g>
+    <g className="monke-cutout">{px(frame, ".")}</g>
+    <g className="monke-banana">{px(frame, "y")}</g>
+  </svg>;
 }
 
-/** In-grid Monke: one SVG, frames + face + banana arm share one coordinate space and are switched by JS, so parts can never drift apart. */
+/** In-grid Monke: alternates two complete drawings (banana raised / banana struck down). */
 export function MonkeHunter({ laughing }: { laughing: boolean }) {
   const [t, setT] = useState(0);
-  useEffect(() => { const id = window.setInterval(() => setT(x => x + 1), laughing ? 90 : 120); return () => window.clearInterval(id); }, [laughing]);
-  const frame = MONKE_FRAMES[t % MONKE_FRAMES.length], down = t % 2 === 1;
-  return <svg viewBox={`0 -6 ${MONKE_W + 4} ${MONKE_H + 6}`} aria-hidden="true" shapeRendering="crispEdges" className="monke-sprite monke-hunter" style={{ transform: laughing && down ? "translateY(1px)" : undefined }}>
-    <g fill="currentColor">{px(frame)}</g>
-    <MonkeFace />
-    <g transform={`rotate(${down ? 25 : -45} 40 15)`}><path fill="currentColor" d="M39 14h3v1h2v1h2v1h2v3h-3v-1h-2v-1h-2v-1h-2z" /><path className="monke-banana" d="M48 10h1v1h1v2h1v4h-1v1h-1v1h-2v-1h1v-1h1v-4h-1v-2h-1z" /></g>
-  </svg>;
+  useEffect(() => { const id = window.setInterval(() => setT(x => x + 1), laughing ? 140 : 220); return () => window.clearInterval(id); }, [laughing]);
+  const down = t % 2 === 1;
+  return <MonkeArt frame={down ? MONKE_DOWN : MONKE_UP} className="monke-hunter" style={{ transform: down ? "translateY(1px)" : undefined }} />;
 }

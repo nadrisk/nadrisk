@@ -1528,7 +1528,7 @@ body.perf-lock { overflow: hidden; }
 .monke-active > .gb-seq-grid { animation: monke-jitter .5s steps(1, end) infinite; }
 .monke-flash { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: none; background: hsl(var(--background) / .88); color: hsl(var(--foreground)); }
 .monke-flash .monke-sprite { width: min(80vw, 400px); height: auto; aspect-ratio: 25 / 20; }
-.monke-hunt { position: absolute; z-index: 6; width: 34px; height: 25px; transform: translate(-50%, -78%); pointer-events: none; color: hsl(var(--foreground)); transition: left .18s steps(3, end), top .18s steps(3, end); }
+.monke-hunt { position: absolute; z-index: 6; width: 34px; height: 21px; transform: translate(-50%, -80%); pointer-events: none; color: hsl(var(--foreground)); transition: left .18s steps(3, end), top .18s steps(3, end); }
 .instrument-workspace .gb-seq-grid { position: relative; }
 .monke-sprite.laughing { animation: monke-laugh .2s steps(2, end) 2; }
 @keyframes monke-laugh { 50% { transform: translateY(-3px) scaleY(.93); } }
