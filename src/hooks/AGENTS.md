@@ -6,5 +6,4 @@
 - Step arrays are always STEPS (32) wide; each bank's steps (16|32) caps row lengths and bank-switch timing, and the grid shows one 16-column half at a time, so 16-step sets load unchanged.
 - The LIVE/PROD buffer is chosen only at audio-context creation (latencyHint); switching parks the current set in sessionStorage and reloads, because a live context can't change its buffer.
 - Step banks may carry cond[] (stepCond.CONDS index, missing = ALL) and nudge[] (.5 = on grid, ±40% of a 16th); the scheduler applies them via pure stepCond helpers using the loop count since PLAY, so old sets play unchanged.
-- MONKE uses pure active-bank multi-row edits in one undo transaction per visit; bank/set changes and undo cancel further edits, without touching audio routing or transport.
-- MONKE sprite hops use an independent 1.2–2-second dwell timer, so beat-driven edits never teleport the catch target; summoned visits ignore catches.
+- MONKE is a momentary helper: one press plans role-aware, anchor-safe ops (src/audio/monke.ts inspirePattern) for the active bank and applies them one per beat in one undo transaction; the trigger locks until he leaves, and bank/set changes or undo cancel the rest.

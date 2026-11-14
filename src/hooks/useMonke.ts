@@ -1,89 +1,58 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MONKE, catchCount, nextVisitDelay } from "@/audio/monke";
+import { MONKE } from "@/audio/monke";
 
-type Visit = { mode: "summon" | "periodic"; started: number; catches: number; requiredCatches: number; position: number; mutations: number; reaction: "run" | "laugh" | "bonk"; phase: "enter" | "raid" | "leave" };
+export type MonkePhase = "enter" | "work" | "exit";
+type Visit = { phase: MonkePhase; started: number; position: number; edits: number; reaction: "run" | "laugh" };
 type Controls = { available: boolean; playing: boolean; step: number; target: string; begin: () => boolean; mutate: () => number | null; end: () => void; showSequence: () => void };
+/** Momentary helper: one press runs one job; the trigger is locked until he leaves. */
 export function useMonke(controls: Controls) {
   const latest = useRef(controls); latest.current = controls;
-  const [armed, setArmed] = useState(false);
   const [visit, setVisit] = useState<Visit | null>(null);
   const current = useRef(visit); current.current = visit;
-  const due = useRef(0), pulseAt = useRef(0), target = useRef("");
-  const hopAt = useRef(0), reactionUntil = useRef(0);
-  const finish = useCallback(() => {
+  const set = (v: Visit | null) => { current.current = v; setVisit(v); };
+  const editAt = useRef(0), laughUntil = useRef(0), target = useRef("");
+  const leave = useCallback(() => {
     latest.current.end();
-    const v = current.current;
-    if (v && v.phase !== "leave") { const next = { ...v, phase: "leave" as const, started: Date.now() }; current.current = next; setVisit(next); }
-    due.current = Date.now() + nextVisitDelay();
+    const v = current.current; if (v && v.phase !== "exit") set({ ...v, phase: "exit", reaction: "laugh", started: Date.now() });
   }, []);
-  const start = useCallback((mode: Visit["mode"]) => {
+  const trigger = useCallback(() => {
     if (current.current || !latest.current.available || !latest.current.begin()) return;
     latest.current.showSequence(); target.current = latest.current.target;
-    pulseAt.current = Date.now();
-    hopAt.current = Date.now() + 1800;
-    const v: Visit = { mode, started: Date.now(), catches: 0, requiredCatches: catchCount(), position: 0, mutations: 0, reaction: "run", phase: "enter" };
-    current.current = v; setVisit(v);
+    set({ phase: "enter", started: Date.now(), position: 0, edits: 0, reaction: "run" });
   }, []);
-  const toggle = useCallback(() => setArmed(v => !v), []);
-  const summon = useCallback(() => start("summon"), [start]);
-  const catchMonke = useCallback(() => {
-    const v = current.current;
-    if (!v || v.mode !== "periodic" || v.phase !== "raid") return;
-    const next = { ...v, catches: v.catches + 1, reaction: "bonk" as const };
-    reactionUntil.current = Date.now() + 450;
-    hopAt.current = Date.now() + 650;
-    current.current = next; setVisit(next);
-  }, [finish]);
-  const pulse = useCallback(() => {
-    const v = current.current; if (!v || v.phase !== "raid") return;
+  const edit = useCallback(() => {
+    const v = current.current; if (!v || v.phase !== "work") return;
     const row = latest.current.mutate();
-    if (row === null) { finish(); return; }
-    pulseAt.current = Date.now();
-    const next = { ...v, mutations: v.mutations + 1, reaction: v.reaction === "bonk" ? "bonk" as const : "laugh" as const };
-    if (v.reaction !== "bonk") reactionUntil.current = Date.now() + 300;
-    current.current = next; setVisit(next);
-  }, [finish]);
-  useEffect(() => {
-    if (controls.playing && controls.step >= 0 && controls.step % 2 === 0) pulse();
-  }, [controls.step, controls.playing, pulse]);
-  useEffect(() => {
-    if (armed) due.current = Date.now() + nextVisitDelay();
-    else if (current.current?.mode === "periodic") finish();
-  }, [armed, finish]);
+    if (row === null) { leave(); return; }
+    editAt.current = Date.now(); laughUntil.current = Date.now() + 320;
+    set({ ...v, edits: v.edits + 1, reaction: "laugh", position: (v.position + 1 + Math.floor(Math.random() * 6)) % 8 });
+  }, [leave]);
+  // While playing, edits land on beats (every 4th step) so changes are heard in time.
+  useEffect(() => { if (controls.playing && controls.step >= 0 && controls.step % 4 === 0 && Date.now() - editAt.current >= 300) edit(); }, [controls.step, controls.playing, edit]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const now = Date.now(), v = current.current, c = latest.current;
-      if (!v) { if (armed && c.available && c.playing && now >= due.current) start("periodic"); return; }
-      if (v.phase === "leave") { if (now - v.started >= 450) { current.current = null; setVisit(null); } return; }
-      if (v.mode === "periodic" && v.catches >= v.requiredCatches) { if (now >= reactionUntil.current) finish(); return; }
-      if (c.target !== target.current || !c.available) { finish(); return; }
-      if (now - v.started >= (v.mode === "summon" ? MONKE.summonMs : MONKE.periodicMs)) { finish(); return; }
-      if (v.phase === "enter" && now - v.started >= 450) { const next = { ...v, phase: "raid" as const }; current.current = next; setVisit(next); }
-      else if (v.phase === "raid") {
-        if (now >= hopAt.current) {
-          const next = { ...v, position: (v.position + 1 + Math.floor(Math.random() * 7)) % 8, reaction: "run" as const };
-          current.current = next; setVisit(next); hopAt.current = now + 1200 + Math.random() * 800;
-        } else if (v.reaction !== "run" && now >= reactionUntil.current) {
-          const next = { ...v, reaction: "run" as const }; current.current = next; setVisit(next);
-        }
-        if (!c.playing && now - pulseAt.current >= 500) pulse();
-      }
-    }, 100);
+      if (!v) return;
+      if (v.phase === "exit") { if (now - v.started >= MONKE.exitMs) set(null); return; }
+      if (c.target !== target.current || !c.available) { leave(); return; }
+      if (v.phase === "enter") { if (now - v.started >= MONKE.enterMs) { editAt.current = now; set({ ...v, phase: "work" }); } return; }
+      if (v.reaction === "laugh" && now >= laughUntil.current) set({ ...v, reaction: "run" });
+      if ((!c.playing || now - editAt.current > 1500) && now - editAt.current >= MONKE.editGapMs) edit();
+    }, 80);
     return () => window.clearInterval(timer);
-  }, [armed, start, finish, pulse]);
+  }, [edit, leave]);
   useEffect(() => {
     let buffer = "", last = 0;
     const key = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.repeat || el?.isContentEditable || (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "m") { e.preventDefault(); toggle(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
       if (Date.now() - last > 1800) buffer = "";
       last = Date.now(); buffer = (buffer + e.key.toLowerCase()).slice(-5);
-      if (buffer === "monke") { buffer = ""; summon(); }
+      if (buffer === "monke") { buffer = ""; trigger(); }
     };
     window.addEventListener("keydown", key);
     return () => { window.removeEventListener("keydown", key); latest.current.end(); };
-  }, [toggle, summon]);
-  return { armed, visit, toggle, summon, catchMonke };
+  }, [trigger]);
+  return { visit, busy: !!visit, trigger };
 }

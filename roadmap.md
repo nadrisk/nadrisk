@@ -1,4 +1,5 @@
 # Roadmap
+- [x] MONKE 2.0: momentary ideas button, role-aware musical edits, locked until done, one undo
 - [x] MONKE overhaul: whole-bank roaming, absorbed note merges, animated full-body monkey, fair random 1–5-hit catches, silent summon and visit undo; 15 tests plus phone playback/catch/undo and desktop layout checked
 - [x] MONKE: silent summoned/periodic active-sequence visits, musical edits, pixel monkey, catching and one-visit undo; 17 tests and phone/desktop playback, catch and undo checks passed
 - [x] Grouped top controls: two hardware rows and inverted transport; 320/393px phone, tablet and desktop alignment plus tempo, tuning, harmony, theme, playback and overlay checks passed

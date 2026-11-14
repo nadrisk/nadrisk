@@ -1,4 +1,4 @@
-import { manglePattern } from "@/audio/monke";
+import { inspirePattern, type MonkeOp } from "@/audio/monke";
 import { createDeckStage } from "@/audio/deckStage";
 import { audioStartAt, clockNow, nextBarStep, type DeckState } from "@/link/deck";
 import { setSustainProbe } from "@/lib/frameGate";
@@ -1044,19 +1044,23 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, idm: o.idm ?? x.idm, pad: o.pad ?? x.pad, xy: { x: 0, y: 0 }, eq: { ...x.eq, ...o.eq }, fx: migrateFx(o.fx ?? []) }); }));
     if (o.engine === "sampler" && o.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName ?? "sample");
   }, [loadById]);
+  const monkeOps = useRef<MonkeOp[]>([]);
   const beginMonke = useCallback(() => {
     if (monkeTarget.current) return false;
     monkeTarget.current = { bank: bankRef.current, load: loadGen.current };
     undoRef.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) });
     if (undoRef.current.length > 32) undoRef.current.shift();
-    redoRef.current = []; setHist(h => h + 1); return true;
+    redoRef.current = []; setHist(h => h + 1);
+    monkeOps.current = inspirePattern(banksRef.current[bankRef.current], slotsRef.current, bankRef.current, harmonyRef.current);
+    return true;
   }, []);
-  const endMonke = useCallback(() => { monkeTarget.current = null; lastSnap.current = 0; }, []);
+  const endMonke = useCallback(() => { monkeTarget.current = null; monkeOps.current = []; lastSnap.current = 0; }, []);
   const mutateMonke = useCallback(() => {
     const t = monkeTarget.current;
     if (!t || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
     const b = banksRef.current[t.bank]; if (!b) return null;
-    const result = manglePattern(b, slotsRef.current, t.bank);
+    const op = monkeOps.current.shift(); if (!op) return null;
+    const result = { ...op.apply(b, slotsRef.current), row: op.row };
     banksRef.current = banksRef.current.map((x, i) => i === t.bank ? result.bank : x);
     setBanks(bs => bs.map((x, i) => i === t.bank ? result.bank : x));
     slotsRef.current = slotsRef.current.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods }));

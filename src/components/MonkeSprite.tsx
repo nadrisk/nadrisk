@@ -20,7 +20,7 @@ const face = [
   "      ##########        ",
   "        ######          ",
 ];
-type Pose = "run" | "laugh" | "bonk";
+type Pose = "run" | "laugh";
 export default function MonkeSprite({ laughing = false, body = false, pose = "run" }: { laughing?: boolean; body?: boolean; pose?: Pose }) {
   if (body) return <svg viewBox="0 0 40 40" aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite monke-body monke-${pose}`}>
     <g fill="currentColor">
@@ -35,9 +35,7 @@ export default function MonkeSprite({ laughing = false, body = false, pose = "ru
       <path d="M16 9h2v3h-2zM23 8h2v3h-2zM15 17h2v2h-2zM19 17h2v2h-2zM23 17h2v2h-2z" />
       <path className="monke-laugh-mouth monke-cutout" d="M14 14h13v6H14z" />
       <path className="monke-laugh-mouth" d="M15 14h11v2H15zM18 19h6v1h-6z" />
-      <g className="monke-bonk-eyes"><path className="monke-cutout" d="M12 7h16v6H12z" /><path d="M13 8h2v1h2v2h-2v1h-2v-2h-1V9h1zM23 8h2v1h2v2h-2v1h-2v-2h-1V9h1z" /></g>
     </g>
-    <g className="monke-bonk-stars" fill="currentColor"><path d="M4 1h2v2h2v2H6v2H4V5H2V3h2zM32 2h2v2h2v2h-2v2h-2V6h-2V4h2z" /></g>
   </svg>;
   return <svg viewBox="0 0 25 20" aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite ${laughing ? "laughing" : ""}`}>
     {face.flatMap((line, y) => Array.from(line).flatMap((p, x) => p === "#" ? [<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />] : []))}
