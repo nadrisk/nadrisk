@@ -111,13 +111,17 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     return;
   }
   if (type === "noiz") {
-    // Dot cluster: AMT = count/spread, WDTH = horizontal reach, live input level makes it breathe; MODE picks the grain shape.
+    // TONE line (log 100 Hz..16 kHz across the frame); WDTH thickens it; dots radiate from it with AMT and input level. All clamped inside the frame.
     const md = Math.round(pv(p, "nmode", 0)), a = pv(p, "amt", .25), w = pv(p, "width", .5), fr = Math.floor(t * 12);
-    const li = Math.max(.25, Math.min(1, ((levels?.input ?? -80) + 54) / 54)), n = Math.round(6 + a * 50 * li), rx = 14 + w * 46, ry = 2 + a * 8 * li;
-    for (let k = 0; k < n; k++) { const x = 64 + Math.round((rnd(fr * 31 + k * 7) * 2 - 1) * rx), side = md === 2 ? (k + fr) % 2 ? -1 : 1 : rnd(fr * 13 + k * 3) < .5 ? -1 : 1, y = 33 + side * Math.round(rnd(fr * 17 + k * 11) * ry);
-      if (md === 0) { d.dot(x, y); d.dot(x - 1, y); d.dot(x + 1, y); d.dot(x, y - 1); d.dot(x, y + 1); }
-      else if (md === 1) d.rect(x, y, 2, 2);
-      else { d.dot(x, y); d.dot(x + side, y - 1); } }
+    const tone = Math.max(100, Math.min(16000, pv(p, "tone", 3000))), lx = 8 + Math.round(Math.log(tone / 100) / Math.log(160) * 112), hw = Math.round(w * 4);
+    const X0 = 3, X1 = 124, Y0 = 22, Y1 = 43, cx = (x: number) => Math.max(X0, Math.min(X1, x)), cy = (y: number) => Math.max(Y0, Math.min(Y1, y));
+    d.rect(cx(lx - hw), Y0, cx(lx + hw) - cx(lx - hw) + 1, Y1 - Y0 + 1);
+    const li = Math.max(.25, Math.min(1, ((levels?.input ?? -80) + 54) / 54)), n = Math.round(6 + a * 50 * li), reach = 6 + a * 40 * li;
+    for (let k = 0; k < n; k++) { const side = md === 2 ? ((k + fr) % 2 ? -1 : 1) : rnd(fr * 13 + k * 3) < .5 ? -1 : 1, dist = hw + 2 + Math.round(rnd(fr * 31 + k * 7) ** 1.6 * reach);
+      const x = lx + side * dist, y = 33 + Math.round((rnd(fr * 17 + k * 11) * 2 - 1) * 10); if (x < X0 + 1 || x > X1 - 1) continue; const yy = cy(y);
+      if (md === 0) { d.dot(x, yy); if (yy > Y0) d.dot(x, yy - 1); if (yy < Y1) d.dot(x, yy + 1); d.dot(x - 1, yy); d.dot(x + 1, yy); }
+      else if (md === 1) d.rect(x, Math.min(yy, Y1 - 1), 2, 2);
+      else { d.dot(x, yy); d.dot(x + side, cy(yy - 1)); } }
     return;
   }
   if (type === "bitcrush") {
@@ -214,13 +218,13 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const fx = (x: number) => 20 * Math.pow(1000, (x - 3) / 121); let py = 0;
     const dep0 = cl(pv(p, "depth", .4), 0, 1), lfo = Math.sin(TAU * ph), fl = fc * 2 ** (lfo * dep0 * 3);
     for (let x = 3; x < 125; x++) { const r = fx(x) / fl, g = Math.cos(m * Math.PI / 2) * mag(ta, r) + Math.sin(m * Math.PI / 2) * mag(tb, r), db = 20 * Math.log10(Math.max(1e-4, g));
-      const y = Math.max(21, Math.min(44, Math.round(36 - db * .5))); if (x > 3) d.line(x - 1, py, x, y); py = y; }
+      const y = Math.max(29, Math.min(44, Math.round(37 - db * .45))); if (x > 3) d.line(x - 1, py, x, y); py = y; }
     const cx = (f: number) => 3 + Math.round(Math.log(Math.max(20, Math.min(20000, f)) / 20) / Math.log(1000) * 121);
     const mx = cx(fc); d.line(mx, 42, mx, 44);
     if (dep > 0) { const lo = cx(fc / 2 ** (dep * 3)), hi = cx(fc * 2 ** (dep * 3)); for (let x = lo; x <= hi; x += 2) d.dot(x, 44);
       // OPPOSE: markers move both ways, A rising while B falls.
       if (pv(p, "oppose", 0) >= .5) { const o = Math.round(Math.sin(TAU * ph) * (hi - lo) / 2); d.line(mx + o, 41, mx + o, 44); d.line(mx - o, 41, mx - o, 44); } }
-    d.text(`${T[ta]}>${T[tb]}`, 4, 21); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 21);
+    const lab = `${T[ta]}>${T[tb]}`; d.rect(3, 22, lab.length * 4 + 2, 7, false); d.rect(104, 22, 21, 7, false); d.text(lab, 4, 23); d.text(["SIN", "TRI", "SAW", "SQR", "S&H"][Math.round(pv(p, "wave", 0))] ?? "SIN", 106, 23);
   } else if (type === "djfilter") {
     const sw = pv(p, "sweep", 0), w = Math.round(Math.abs(sw) * 58);
     d.text("LP", 4, 25); d.text("HP", 117, 25); d.line(64, 30, 64, 42);
