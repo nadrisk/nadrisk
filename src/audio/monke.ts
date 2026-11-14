@@ -48,9 +48,15 @@ export function inKeyStep(h: Harmony, root: number, random: () => number) {
 }
 
 /** Role-aware, anchor-safe musical ideas for the active bank. Pure: ops apply in order to fresh state. */
+/** Rows Monke may touch: mixer solo, then RAND solo (S), never RAND-excluded (X). */
+export function monkeRows(slots: Slot[]): number[] {
+  const all = slots.map((_, r) => r).filter(r => slots[r]);
+  const solo = all.some(r => slots[r].solo), rs = all.some(r => slots[r].rnd === 2);
+  return all.filter(r => (!solo || slots[r].solo) && (rs ? slots[r].rnd === 2 : slots[r].rnd !== 1));
+}
 export function inspirePattern(bank: Bank, slots: Slot[], bankIndex: number, harmony: Harmony, random = Math.random): MonkeOp[] {
   const pick = <T,>(l: T[]) => l[Math.min(l.length - 1, Math.floor(random() * l.length))];
-  const rows = bank.pattern.map((_, r) => r).filter(r => slots[r]);
+  const rows = monkeRows(slots).filter(r => r < bank.pattern.length);
   const used = rows.filter(r => bank.pattern[r].slice(0, lenOf(bank, r)).some(v => v === 1));
   const ops: MonkeOp[] = [];
   if (!used.length) {

@@ -25,7 +25,7 @@ const face = [
 type Pose = "run" | "laugh";
 export default function MonkeSprite({ laughing = false, body = false, icon = false }: { laughing?: boolean; body?: boolean; icon?: boolean; pose?: Pose }) {
   if (body) return <MonkeHunter laughing={false} />;
-  if (icon) return <MonkeArt frame={MONKE_UP} className="monke-icon" />;
+  if (icon) return <svg viewBox="0 0 25 23" aria-hidden="true" shapeRendering="crispEdges" className="monke-sprite monke-icon"><g fill="currentColor">{px(face, "#")}</g></svg>;
   return <svg viewBox="0 0 25 20" aria-hidden="true" shapeRendering="crispEdges" className={`monke-sprite ${laughing ? "laughing" : ""}`}>
     {face.flatMap((line, y) => Array.from(line).flatMap((p, x) => p === "#" ? [<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />] : []))}
   </svg>;

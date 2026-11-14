@@ -74,3 +74,11 @@ describe("Monke trigger", () => {
     expect(result.current.busy).toBe(false);
   });
 });
+
+import { monkeRows } from "@/audio/monke";
+describe("monke pad gating", () => {
+  const s = (o: object) => ({ solo: false, rnd: 0, ...o }) as never;
+  it("skips RAND-excluded pads", () => { expect(monkeRows([s({}), s({ rnd: 1 }), s({})])).toEqual([0, 2]); });
+  it("only RAND-solo pads when any is S", () => { expect(monkeRows([s({}), s({ rnd: 2 }), s({})])).toEqual([1]); });
+  it("only mixer-solo pads when any is soloed", () => { expect(monkeRows([s({ solo: true }), s({}), s({ solo: true, rnd: 1 })])).toEqual([0]); });
+});
