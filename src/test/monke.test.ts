@@ -61,7 +61,7 @@ describe("Monke musical ideas", () => {
   });
 });
 afterEach(() => vi.useRealTimers());
-const controls = () => { let n = 4; return { available: true, playing: false, step: -1, target: "0", begin: vi.fn(() => true), mutate: vi.fn(() => n-- > 0 ? 1 : null), end: vi.fn(), showSequence: vi.fn() }; };
+const controls = () => { let n = 4; return { available: true, playing: false, step: -1, target: "0", begin: vi.fn(() => true), mutate: vi.fn(() => n-- > 0 ? { row: 1, column: 3 } : null), end: vi.fn(), showSequence: vi.fn() }; };
 describe("Monke trigger", () => {
   it("locks while working and frees the button after he leaves", () => {
     vi.useFakeTimers(); const c = controls(); const { result } = renderHook(() => useMonke(c));

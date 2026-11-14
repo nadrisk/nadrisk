@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { MONKE_FRAMES, MONKE_H, MONKE_W } from "./monkeFrames";
 // Original 1-bit sprite; hard pixel edges stay sharp at every integer scale.
 const face = [
@@ -52,4 +53,16 @@ function BananaArm() {
     <path fill="currentColor" d="M39 14h3v1h2v1h2v1h2v3h-3v-1h-2v-1h-2v-1h-2z" />
     <path className="monke-banana" d="M48 10h1v1h1v2h1v4h-1v1h-1v1h-2v-1h1v-1h1v-4h-1v-2h-1z" />
   </g>;
+}
+
+/** In-grid Monke: one SVG, frames + face + banana arm share one coordinate space and are switched by JS, so parts can never drift apart. */
+export function MonkeHunter({ laughing }: { laughing: boolean }) {
+  const [t, setT] = useState(0);
+  useEffect(() => { const id = window.setInterval(() => setT(x => x + 1), laughing ? 90 : 120); return () => window.clearInterval(id); }, [laughing]);
+  const frame = MONKE_FRAMES[t % MONKE_FRAMES.length], down = t % 2 === 1;
+  return <svg viewBox={`0 -6 ${MONKE_W + 4} ${MONKE_H + 6}`} aria-hidden="true" shapeRendering="crispEdges" className="monke-sprite monke-hunter" style={{ transform: laughing && down ? "translateY(1px)" : undefined }}>
+    <g fill="currentColor">{px(frame)}</g>
+    <MonkeFace />
+    <g transform={`rotate(${down ? 25 : -45} 40 15)`}><path fill="currentColor" d="M39 14h3v1h2v1h2v1h2v3h-3v-1h-2v-1h-2v-1h-2z" /><path className="monke-banana" d="M48 10h1v1h1v2h1v4h-1v1h-1v1h-2v-1h1v-1h1v-4h-1v-2h-1z" /></g>
+  </svg>;
 }

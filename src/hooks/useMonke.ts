@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MONKE } from "@/audio/monke";
 
 export type MonkePhase = "enter" | "work" | "exit";
-type Visit = { phase: MonkePhase; started: number; position: number; edits: number; reaction: "run" | "laugh" };
-type Controls = { available: boolean; playing: boolean; step: number; target: string; begin: () => boolean; mutate: () => number | null; end: () => void; showSequence: () => void };
+type Visit = { phase: MonkePhase; started: number; position: number; edits: number; reaction: "run" | "laugh"; row?: number; col?: number };
+type Controls = { available: boolean; playing: boolean; step: number; target: string; begin: () => boolean; mutate: () => { row: number; column: number } | null; end: () => void; showSequence: () => void };
 /** Momentary helper: one press runs one job; the trigger is locked until he leaves. */
 export function useMonke(controls: Controls) {
   const latest = useRef(controls); latest.current = controls;
@@ -22,10 +22,10 @@ export function useMonke(controls: Controls) {
   }, []);
   const edit = useCallback(() => {
     const v = current.current; if (!v || v.phase !== "work") return;
-    const row = latest.current.mutate();
-    if (row === null) { leave(); return; }
+    const hit = latest.current.mutate();
+    if (hit === null) { leave(); return; }
     editAt.current = Date.now(); laughUntil.current = Date.now() + 320;
-    set({ ...v, edits: v.edits + 1, reaction: "laugh", position: (v.position + 1 + Math.floor(Math.random() * 6)) % 8 });
+    set({ ...v, edits: v.edits + 1, reaction: "laugh", row: hit.row, col: hit.column });
   }, [leave]);
   // While playing, edits land on beats (every 4th step) so changes are heard in time.
   useEffect(() => { if (controls.playing && controls.step >= 0 && controls.step % 4 === 0 && Date.now() - editAt.current >= 300) edit(); }, [controls.step, controls.playing, edit]);

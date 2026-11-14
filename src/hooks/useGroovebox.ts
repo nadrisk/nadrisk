@@ -1062,12 +1062,12 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (!t || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
     const b = banksRef.current[t.bank]; if (!b) return null;
     const op = monkeOps.current.shift(); if (!op) return null;
-    const result = { ...op.apply(b, slotsRef.current), row: op.row };
+    const result = { ...op.apply(b, slotsRef.current), row: op.row, column: op.column };
     banksRef.current = banksRef.current.map((x, i) => i === t.bank ? result.bank : x);
     setBanks(bs => bs.map((x, i) => i === t.bank ? result.bank : x));
     slotsRef.current = slotsRef.current.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods }));
     setSlots(sl => sl.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods })));
-    return result.row;
+    return { row: result.row, column: result.column };
   }, []);
   const restore = (from: { current: Snap[] }, to: { current: Snap[] }) => { endMonke(); const sn = from.current.pop(); if (!sn) return; to.current.push({ banks: banksRef.current, mods: slotsRef.current.map(x => x.mods) }); lastSnap.current = 0; setBanks(sn.banks); setSlots(sl => sl.map((x, i) => ({ ...x, mods: sn.mods[i] ?? x.mods }))); setHist(h => h + 1); };
   const undo = () => restore(undoRef, redoRef), redo = () => restore(redoRef, undoRef);
