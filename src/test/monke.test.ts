@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { mangleSequence, MONKE, type MonkeEdit } from "@/audio/monke";
+import { catchCount, manglePattern, mangleSequence, MONKE, type MonkeEdit } from "@/audio/monke";
 import { defaultMod } from "@/audio/musical";
 import { useMonke } from "@/hooks/useMonke";
 import type { Bank, Slot } from "@/hooks/useGroovebox";
@@ -13,6 +13,28 @@ const fixture = () => {
   return { bank, slot };
 };
 describe("Monke musical edits", () => {
+  it("rolls all five possible catch counts with no zero or sixth hit", () => {
+    expect([0, .2, .4, .6, .8, .999].map(n => catchCount(() => n))).toEqual([1, 2, 3, 4, 5, 5]);
+  });
+  it("absorbs two hits and their tails into one sustained note", () => {
+    const { bank, slot } = fixture();
+    bank.pattern[2][0] = 1; bank.pattern[2][1] = 1; bank.pattern[2][2] = 2;
+    const out = mangleSequence(bank, slot, 2, 0, () => 0, "merge");
+    expect(out.bank.pattern[2].slice(0, 4)).toEqual([1, 2, 2, 0]);
+    expect(bank.pattern[2].slice(0, 3)).toEqual([1, 1, 2]);
+  });
+  it("roams several tracks without changing sounds or the source bank", () => {
+    const { bank, slot } = fixture();
+    bank.pattern[4][0] = 1; bank.pattern[8][0] = 1;
+    const before = JSON.stringify(bank);
+    const slots = Array.from({ length: 16 }, () => ({ ...slot, engine: "synth" as const }));
+    const out = manglePattern(bank, slots, 0, () => 0);
+    expect(out.bank.pattern[2]).not.toBe(bank.pattern[2]);
+    expect(out.bank.pattern[4]).not.toBe(bank.pattern[4]);
+    expect(out.bank.pattern[8]).toBe(bank.pattern[8]);
+    expect(JSON.stringify(bank)).toBe(before);
+    expect(out.slots).toEqual(slots);
+  });
   it("changes only the active row and bank's mod lanes, without mutating its input", () => {
     for (const kind of ["add", "offset", "length", "roll", "nudge", "pitch", "accent"] as MonkeEdit[]) {
       const { bank, slot } = fixture(), before = JSON.stringify({ bank, slot });
@@ -75,21 +97,45 @@ describe("silent Monke lifecycle", () => {
     expect(result.current.visit).toBeNull(); expect(c.begin).toHaveBeenCalledTimes(1);
     act(() => vi.advanceTimersByTime(60000)); expect(c.begin).toHaveBeenCalledTimes(1);
   });
-  it("periodic visits run only during playback and can be caught with five taps", () => {
+  it("periodic visits run only during playback and leave after the rolled hit count", () => {
     vi.useFakeTimers(); vi.spyOn(Math, "random").mockReturnValue(0);
     const c = controls(); const { result, rerender } = renderHook(() => useMonke(c));
     act(() => result.current.toggle()); act(() => vi.advanceTimersByTime(21000));
     expect(result.current.visit).toBeNull();
     c.playing = true; rerender(); act(() => vi.advanceTimersByTime(600));
     expect(result.current.visit?.mode).toBe("periodic");
-    act(() => { for (let i = 0; i < 5; i++) result.current.catchMonke(); });
+    expect(result.current.visit?.requiredCatches).toBe(1);
+    act(() => result.current.catchMonke());
+    expect(result.current.visit?.reaction).toBe("bonk");
+    act(() => vi.advanceTimersByTime(500));
     expect(result.current.visit?.phase).toBe("leave");
     vi.restoreAllMocks();
   });
-  it("stops a visit when the active track or bank changes", () => {
+  it("stops a visit when the active bank changes", () => {
     vi.useFakeTimers(); const c = controls(); const { result, rerender } = renderHook(() => useMonke(c));
     act(() => result.current.summon()); c.target = "3:0"; rerender();
     act(() => vi.advanceTimersByTime(100)); expect(result.current.visit?.phase).toBe("leave");
     expect(c.mutate).not.toHaveBeenCalled();
+  });
+  it("requires five catches on a stubborn visit", () => {
+    vi.useFakeTimers(); vi.spyOn(Math, "random").mockReturnValue(.99);
+    const c = controls(); c.playing = true;
+    const { result } = renderHook(() => useMonke(c));
+    act(() => result.current.toggle()); act(() => vi.advanceTimersByTime(130000));
+    expect(result.current.visit?.requiredCatches).toBe(5);
+    act(() => { for (let i = 0; i < 4; i++) result.current.catchMonke(); });
+    expect(result.current.visit?.phase).toBe("raid");
+    act(() => result.current.catchMonke()); act(() => vi.advanceTimersByTime(500));
+    expect(result.current.visit?.phase).toBe("leave");
+    vi.restoreAllMocks();
+  });
+  it("does not move the catch target on every sequencer edit", () => {
+    vi.useFakeTimers(); const c = controls(); c.playing = true;
+    const { result, rerender } = renderHook(() => useMonke(c));
+    act(() => result.current.summon()); act(() => vi.advanceTimersByTime(500));
+    const position = result.current.visit?.position;
+    for (const step of [2, 4, 6, 8]) { c.step = step; rerender(); }
+    expect(c.mutate).toHaveBeenCalledTimes(4);
+    expect(result.current.visit?.position).toBe(position);
   });
 });

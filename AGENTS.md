@@ -44,4 +44,3 @@
 
 - PERF mixers use one set of labelled MIDI controls: below 700px the master/pad rack spans two compact channels and CRATE opens an in-shell accessible track sheet; wider screens keep the three-column controller and inline crate, so layouts never duplicate audio engines or MIDI targets.
 
-- MONKE bursts use pure multi-row edits on the active bank in one visit undo snapshot; sprite movement uses an independent dwell timer, so catching stays fair without changing transport or audio routing.
