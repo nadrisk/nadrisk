@@ -1564,3 +1564,9 @@ body.perf-lock { overflow: hidden; }
 @keyframes monke-walk { 0%, 24.9% { opacity: 1; } 25%, 100% { opacity: 0; } }
 .monke-laugh { animation: monke-chuckle .18s steps(2, end) infinite; }
 @media (prefers-reduced-motion: reduce) { .monke-run .monke-f { animation: none; opacity: 0; } .monke-run .monke-f0 { opacity: 1; } }
+.monke-arm { transform-box: view-box; transform-origin: 40px 15px; }
+.monke-body .monke-arm { animation: monke-hammer .4s steps(2, end) infinite; }
+.monke-laugh .monke-arm { animation-duration: .18s; }
+.monke-icon .monke-arm { transform: rotate(-25deg); }
+@keyframes monke-hammer { 0% { transform: rotate(-45deg); } 50% { transform: rotate(25deg); } }
+@media (prefers-reduced-motion: reduce) { .monke-body .monke-arm { animation: none; } }
