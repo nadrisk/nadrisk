@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MONKE } from "@/audio/monke";
+import { MONKE, nextVisitDelay } from "@/audio/monke";
 
 type Visit = { mode: "summon" | "periodic"; started: number; catches: number; position: number; mutations: number; phase: "enter" | "raid" | "leave" };
 type Controls = { available: boolean; playing: boolean; step: number; target: string; begin: () => boolean; mutate: () => number | null; end: () => void; showSequence: () => void };
@@ -13,7 +13,7 @@ export function useMonke(controls: Controls) {
     latest.current.end();
     const v = current.current;
     if (v && v.phase !== "leave") { const next = { ...v, phase: "leave" as const, started: Date.now() }; current.current = next; setVisit(next); }
-    due.current = Date.now() + MONKE.intervalMin + Math.random() * (MONKE.intervalMax - MONKE.intervalMin);
+    due.current = Date.now() + nextVisitDelay();
   }, []);
   const start = useCallback((mode: Visit["mode"]) => {
     if (current.current || !latest.current.available || !latest.current.begin()) return;
@@ -42,7 +42,7 @@ export function useMonke(controls: Controls) {
     if (controls.playing && controls.step >= 0 && controls.step % 2 === 0) pulse();
   }, [controls.step, controls.playing, pulse]);
   useEffect(() => {
-    if (armed) due.current = Date.now() + MONKE.intervalMin + Math.random() * (MONKE.intervalMax - MONKE.intervalMin);
+    if (armed) due.current = Date.now() + nextVisitDelay();
     else if (current.current?.mode === "periodic") finish();
   }, [armed, finish]);
   useEffect(() => {

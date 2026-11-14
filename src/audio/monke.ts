@@ -1,7 +1,12 @@
 import type { Bank, Slot, StepVal } from "@/hooks/useGroovebox";
 import { setSpan, spanOf } from "./noteSpan";
 
-export const MONKE = { summonMs: 6000, periodicMs: 12000, catches: 5, intervalMin: 20000, intervalMax: 45000 } as const;
+export const MONKE = { summonMs: 6000, periodicMs: 12000, catches: 5, intervalMin: 12000, intervalMax: 75000 } as const;
+/** Unpredictable wait between visits: wide range plus a random mood stretch (sometimes he lingers, sometimes he pounces fast). */
+export function nextVisitDelay(random = Math.random) {
+  const base = MONKE.intervalMin + random() * (MONKE.intervalMax - MONKE.intervalMin);
+  return Math.round(base * (0.6 + random() * 1.1));
+}
 export type MonkeEdit = "add" | "offset" | "length" | "roll" | "nudge" | "pitch" | "accent";
 const edits: MonkeEdit[] = ["add", "offset", "length", "roll", "nudge", "pitch", "accent"];
 /** Immutable, bounded musical edits: only one row and its bank's pitch lane. No sound/FX changes. */

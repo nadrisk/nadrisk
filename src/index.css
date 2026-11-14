@@ -1496,6 +1496,8 @@ body.perf-lock { overflow: hidden; }
 }
 .instrument-workspace .gb-topbar .gb-cycle:hover,
 .instrument-workspace .gb-topbar .gb-cycle:active { background: hsl(var(--foreground)) !important; color: hsl(var(--background)) !important; }
+.instrument-workspace .gb-topbar .monke-toggle[aria-pressed="false"]:hover,
+.instrument-workspace .gb-topbar .monke-toggle[aria-pressed="false"]:active { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; }
 .instrument-workspace .gb-topbar .gb-top-transport[aria-pressed="true"] { outline: 1px solid hsl(var(--foreground)); outline-offset: 2px; }
 @media (max-width: 1023px), (pointer: coarse) {
   .instrument-workspace .workspace-heading.gb-topbar { grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px; }
