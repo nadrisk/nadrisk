@@ -1,3 +1,4 @@
+import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
 import { shiftRow } from "@/audio/rowShift";
 import { inspirePattern, type MonkeOp } from "@/audio/monke";
 import { createDeckStage } from "@/audio/deckStage";
@@ -55,9 +56,9 @@ export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: nu
 export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
 /** Maximum steps per row; each bank plays 16 or 32 (Bank.steps). */
 export const STEPS = 32;
-export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams };
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Group bus 1-4; 0/undefined = direct to master. */ group?: number; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string; dest?: number }[]; groups: { input: DelayNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; chain: FxNode[]; sig: string; tap: GainNode }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -138,8 +139,9 @@ const defaultBank = (): Bank => {
 /** Audio connections follow the slot's fx order: gain -> enabled units in order -> pan. */
 const defaultFxParams = (type: FxType) => Object.fromEntries(Object.entries(FX_DEFS[type].params).map(([k, r]) => [k, r[0]]));
 const TAIL_FX = new Set<string>(["delay", "reverb", "reverseDelay", "metal", "hack"]);
-function syncChain(e: Engine, i: number, s: Slot) {
-  const out = e.outs[i], live = s.fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
+function syncChain(e: Engine, i: number, s: Slot) { syncChainOn(e, e.outs[i], padFx(s)); }
+function syncChainOn(e: Engine, out: { filter: BiquadFilterNode; gain: GainNode; chain: FxNode[]; sig: string }, fx: FxUnit[]) {
+  const live = fx.filter(f => f.on), sig = (fxEco() ? "e:" : "") + live.map(f => `${f.id}:${f.type}:${f.params.source ?? 0}`).join(",");
   if (sig !== out.sig) {
     out.filter.disconnect(); out.chain.forEach(f => f.dispose());
     out.chain = live.map(f => { try { return createFx(e.ctx, f.type, { ...defaultFxParams(f.type), ...f.params }); } catch (err) { console.error("FX build failed", f.type, err); const g = e.ctx.createGain(); return { input: g, output: g, update: () => {}, dispose: () => g.disconnect() } as unknown as FxNode; } });
@@ -148,6 +150,11 @@ function syncChain(e: Engine, i: number, s: Slot) {
     out.chain.forEach((f, k) => { if (f.keyInput) { const key = f.keyInput, source = e.outs[Math.max(0, Math.min(15, Math.round(live[k].params.source ?? 1) - 1))].tap; source.connect(key); const dispose = f.dispose; f.dispose = () => { try { source.disconnect(key); } catch { /* already detached */ } dispose(); }; } });
     out.sig = sig;
   } else live.forEach((f, k) => { try { out.chain[k].update({ ...Object.fromEntries(Object.entries(defaultFxParams(f.type))), ...f.params }); } catch (err) { console.error("FX update failed", f.type, err); } });
+}
+
+/** Send a pad's post-pan output to master or its group bus (meter tap stays attached). */
+function route(e: Engine, i: number, s: Slot) {
+  const o = e.outs[i], g = groupOf(s); const prev = o.dest === undefined ? e.master : o.dest ? e.groups[o.dest - 1].input : e.master; if (o.dest === g) return; try { o.pan.disconnect(prev); } catch { /* not attached */ } o.pan.connect(g ? e.groups[g - 1].input : e.master); o.dest = g;
 }
 
 /** Set while the one-device crate owns the shared transport: the editor's own sequence stays silent. */
@@ -218,6 +225,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const [latency, setLatency] = useState<number | null>(null);
   const [meter, setMeter] = useState<MasterMeter>({ m: -Infinity, s: -Infinity, i: -Infinity, sub: -Infinity, subPeak: -Infinity });
   const meterPeak = useRef(-Infinity);
+  const [groups, setGroups] = useState<GroupBus[]>(() => defaultGroups());
+  const groupsRef = useRef(groups); groupsRef.current = groups;
+  const syncedGroups = useRef<(FxUnit[] | undefined)[]>([]);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
   // AV live-code screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
@@ -574,7 +584,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const master = ctx.createGain(); master.gain.value = volume / 100 * 0.8; const perf = createPerformance(ctx, ctx.destination); const deck = createDeckStage(ctx); master.connect(deck.input); deck.output.connect(perf.input); perf.output.connect(tapeBus(ctx)); deckRef.current = deck; perf.update(performanceRef.current, bpmRef.current); perf.setNad(nadRef.current);
     perf.meter.port.onmessage = (ev: MessageEvent<{ m: number; s: number; i: number; sub: number; peak: number }>) => { const v = ev.data; meterPeak.current = Math.max(v.peak, meterPeak.current - .6); setMeter({ m: v.m, s: v.s, i: v.i, sub: v.sub, subPeak: meterPeak.current }); };
     const analyser = new Tone.Analyser("waveform", 1024); Tone.connect(perf.output, analyser);
-    const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), input).connect(filter); filter.connect(gain); input.connect(tap); gain.connect(pan); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?" }; });
+    const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), input).connect(filter); filter.connect(gain); input.connect(tap); gain.connect(pan); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?", dest: 0 }; });
+    const groupNodes = groupsRef.current.map(gb => { const input = ctx.createDelay(.01), filter = ctx.createBiquadFilter(), gain = ctx.createGain(), pan = ctx.createStereoPanner(), tap = ctx.createGain(); input.delayTime.value = 0; filter.frequency.value = 20000; input.connect(filter); filter.connect(gain); input.connect(tap); gain.gain.value = gb.level / 100; pan.pan.value = gb.pan; gain.connect(pan); pan.connect(master); return { input, filter, gain, pan, tap, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
     const loop = Tone.getTransport().scheduleRepeat(gridTime => {
       if (deckMode) { const transportStep = Math.round(Tone.getTransport().getTicksAtTime(gridTime) / (Tone.getTransport().PPQ / 4)); const a = deckArm.current; if (a != null && transportStep >= a) { deckArm.current = null; deckOn.current = true; cur = 0; } if (!deckOn.current) return; }
@@ -638,8 +649,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
     const lfos = slotsRef.current.map(() => { const o = ctx.createOscillator(); o.start(); return o; });
-    engine.current = { ctx, master, performance: perf, analyser, outs, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
-    const ready = engine.current; slotsRef.current.forEach((s, i) => syncChain(ready, i, s));
+    engine.current = { ctx, master, performance: perf, analyser, outs, groups: groupNodes, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
+    const ready = engine.current; slotsRef.current.forEach((s, i) => { route(ready, i, s); syncChain(ready, i, s); });
+    groupsRef.current.forEach((gb, k) => syncChainOn(ready, groupNodes[k], gb.fx)); syncedGroups.current = groupsRef.current.map(gb => gb.fx);
     syncedFx.current = slotsRef.current.map(s => s.fx);
     return engine.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -649,9 +661,15 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const e = engine.current; if (!e) return;
     slots.forEach((s, i) => { e.outs[i].gain.gain.setTargetAtTime((s.mute || (slots.some(x => x.solo) && !s.solo) ? 0 : s.level / 100), e.ctx.currentTime, 0.02); e.outs[i].pan.pan.setTargetAtTime(s.pan, e.ctx.currentTime, 0.02); { const o = e.lfos[i], sir = s.engine === "siren", w = (sir ? s.siren?.lfoWave : s.synth.lfo.wave) ?? "sine", r = (sir ? s.siren?.rate : s.synth.lfo.rate) ?? 1; if (o.type !== w && w !== ("additive" as string)) o.type = w as OscillatorType; o.frequency.setTargetAtTime(r, e.ctx.currentTime, .02); }
       configureEq(e.outs[i].eq, { ...defaultEQ(), ...(s.engine === "sampler" ? applyXY(s).eq : s.eq) }, (pr, v) => pr.setTargetAtTime(v, e.ctx.currentTime, .02));
-      if (syncedFx.current[i] !== s.fx) { syncChain(e, i, s); syncedFx.current[i] = s.fx; }
+      const grouped = groupOf(s) !== (e.outs[i].dest ?? 0);
+      if (grouped) route(e, i, s);
+      if (grouped || syncedFx.current[i] !== s.fx) { syncChain(e, i, s); syncedFx.current[i] = s.fx; }
     });
   }, [slots]);
+  useEffect(() => { const e = engine.current; if (!e) return;
+    groups.forEach((gb, k) => { const n = e.groups[k]; n.gain.gain.setTargetAtTime(gb.level / 100, e.ctx.currentTime, .02); n.pan.pan.setTargetAtTime(gb.pan, e.ctx.currentTime, .02);
+      if (syncedGroups.current[k] !== gb.fx) { syncChainOn(e, n, gb.fx); syncedGroups.current[k] = gb.fx; } });
+  }, [groups]);
   useEffect(() => { const e = engine.current; e?.master.gain.setTargetAtTime(volume / 100 * 0.8, e.ctx.currentTime, 0.02); }, [volume]);
   useEffect(() => { engine.current?.performance.update(performance, bpm); }, [performance, bpm]);
   useEffect(() => {
@@ -687,7 +705,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   useEffect(() => () => {
     startRequest.current++;
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.groups.forEach(gn => { gn.chain.forEach(f => f.dispose()); gn.input.disconnect(); gn.filter.disconnect(); gn.gain.disconnect(); gn.pan.disconnect(); gn.tap.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
@@ -696,9 +714,12 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   /** Ableton-style double-STOP: rebuild every tail-carrying FX chain (fresh nodes = empty delay lines and reverb) after a short fade. */
   const killTails = useCallback(() => {
     const e = engine.current; if (!e) return; e.performance.flush?.();
-    e.outs.forEach((o, i) => { if (!o.chain.some((_, k) => TAIL_FX.has(slotsRef.current[i].fx.filter(f => f.on)[k]?.type))) return;
+    e.outs.forEach((o, i) => { if (!o.chain.some((_, k) => TAIL_FX.has(padFx(slotsRef.current[i]).filter(f => f.on)[k]?.type))) return;
       o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
       setTimeout(() => { o.sig = ""; syncChain(e, i, slotsRef.current[i]); }, 35); });
+    e.groups.forEach((o, k) => { const fx = groupsRef.current[k].fx.filter(f => f.on); if (!o.chain.some((_, j) => TAIL_FX.has(fx[j]?.type))) return;
+      o.chain.forEach(f => { const v = f.output.gain; v.cancelScheduledValues(e.ctx.currentTime); v.setTargetAtTime(0, e.ctx.currentTime, .006); });
+      setTimeout(() => { o.sig = ""; syncChainOn(e, o, groupsRef.current[k].fx); }, 35); });
   }, []);
   const togglePlay = useCallback(async () => {
     startRequest.current++;
@@ -782,6 +803,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const getFxLevels = useCallback((slot: number, id: number): FxLevels | null => {
     const e = engine.current, s = slotsRef.current[slot];
     if (!e || !s) return null;
+    const gi = groupOf(s);
+    if (gi) { const index = groupsRef.current[gi - 1].fx.filter(f => f.on).findIndex(f => f.id === id); return index < 0 ? null : e.groups[gi - 1].chain[index]?.levels() ?? null; }
     const index = s.fx.filter(f => f.on).findIndex(f => f.id === id);
     return index < 0 ? null : e.outs[slot].chain[index]?.levels() ?? null;
   }, []);
@@ -1018,7 +1041,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, groups: groupsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
   const applySet = useCallback((st: GrooveSet) => {
     disarmInput();
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
@@ -1026,6 +1049,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth ?? x.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: padMods(o.mods ?? x.mods), fx: o.fx ? migrateFx(o.fx) : x.fx }; }).map((x, i) => acidTo808(old || !st.slots?.[i] ? migrateSlot(x) : x)));
     setHarmonyState({ ...defaultHarmony(), ...st.harmony });
+    setGroups(hydrateGroups(st.groups?.map(gb => ({ ...gb, fx: migrateFx(gb.fx ?? []) }))));
     if (st.banks?.length) setBanks(Array.from({ length: NBANKS }, (_, i) => (st.banks![i] ? fixBank(st.banks![i]) : makeBank(emptyPattern()))));
     undoRef.current = []; redoRef.current = []; setHist(h => h + 1);
     bankRef.current = st.bank ?? 0; setBank(bankRef.current); queuedRef.current = null; setQueued(null);
@@ -1120,7 +1144,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     setSlots(sl => sl.map((y, j) => j !== i ? y : { ...y, arp: { ...y.arp, on: false }, mods: y.mods.map((m, k) => k !== mi ? m : { ...m, on: true, target: "pitch", range: 24, values: out.pitch }) }));
   };
   // The default kit's bundled samples load straight away (decoding works before audio is started).
-  const newBlank = () => { disarmInput(); loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
+  const newBlank = () => { disarmInput(); loadGen.current++; const t = Tone.getTransport(); interrupted.current = false; t.stop(); skip.current.clear(); lastTick.current = null; for (let k = 0; k < 16; k++) cancelBooked(k); setStep(-1); setPlaying(false); setPaused(false); setPerformance(defaultPerformance()); setGroups(defaultGroups()); setSlots(blankSlots()); setBanks(Array.from({ length: NBANKS }, () => makeBank(emptyPattern()))); bankRef.current = 0; setBank(0); queuedRef.current = null; setQueued(null); setSelected(0); buffers.current = Array(16).fill(null); setPeaks(Array(16).fill(null)); };
   const resetAll = newBlank;
 
   const getSlices = useCallback((i: number, sm: SamplerParams) => detectSlices(buffers.current[i], sm.sliceSens ?? 0, sm.start, sm.end ?? 1), []);
@@ -1135,7 +1159,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
-export type GrooveSet = { v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
+export type GrooveSet = { groups?: GroupBus[]; v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

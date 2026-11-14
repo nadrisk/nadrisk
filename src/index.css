@@ -1567,3 +1567,9 @@ body.perf-lock { overflow: hidden; }
 .monke-icon .monke-arm { transform: rotate(-25deg); }
 @keyframes monke-hammer { 0% { transform: rotate(-45deg); } 50% { transform: rotate(25deg); } }
 @media (prefers-reduced-motion: reduce) { .monke-body .monke-arm { animation: none; } }
+.instrument-workspace .gb-groupbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; font-family: 'Silkscreen', monospace; font-size: 8px; color: hsl(var(--foreground)); }
+.instrument-workspace .gb-groupbar .gb-cycle { min-height: 26px; min-width: 30px; }
+.instrument-workspace .gb-groupbar .gb-cycle[aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.instrument-workspace .gb-groupbar-bus { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
+.instrument-workspace .gb-groupbar-bus b { font-weight: normal; min-width: 44px; text-align: center; }
+.instrument-workspace .gb-groupbar-note { flex-basis: 100%; margin: 0; opacity: .75; }
