@@ -9,6 +9,7 @@ import { ACID_WORKLET } from "./acid";
 import { MOD_WORKLETS } from "./modWorklets";
 import { REC_WORKLET } from "./liveInput";
 import { PEAK_LIMITER_WORKLET } from "./peakLimiter";
+import { NOIZ_WORKLET } from "./noizWorklet";
 
 // [default, min, max, step]
 type Range = [number, number, number, number];
@@ -47,6 +48,7 @@ export const FX_DEFS = {
   hack: { label: "hack~", params: { short: [0, 0, 1, 0.01], clock: [0, 0, 1, 0.01], starve: [0, 0, 1, 0.01], skip: [0, 0, 1, 0.01], rate: [2, 0, 3, 1], steps: [16, 4, 16, 4], depth: [0.5, 0, 1, 0.01], smth: [0, 0, 1, 0.01], size: [0.5, 0, 1, 0.01], lock: [1, 0, 1, 1], mix: [1, 0, 1, 0.01], seed: [0, 0, 2147483647, 1] } },
   dyneq: { label: "dyn.eq~", params: { source: [1, 1, 16, 1], freq: [1000, 40, 12000, 10], q: [1.5, 0.3, 8, 0.1], gain: [6, 0, 15, 0.5], threshold: [-30, -60, 0, 1], dir: [0, 0, 1, 1], attack: [0.005, 0.001, 0.1, 0.001], release: [0.12, 0.02, 1, 0.01] } },
   morph: { label: "morph.flt~", params: { typeA: [0, 0, 3, 1], typeB: [2, 0, 3, 1], cutoff: [1200, 40, 16000, 10], res: [2, 0.5, 12, 0.1], morph: [0, 0, 1, 0.01], oppose: [0, 0, 1, 1], depth: [0.4, 0, 1, 0.01], mix: [1, 0, 1, 0.01], wave: [0, 0, 4, 1], rate: [1, 0.05, 20, 0.01], sync: [0, 0, 11, 1], smooth: [0.2, 0, 1, 0.01], retrig: [0, 0, 1, 1] } },
+  noiz: { label: "noiz~", params: { amt: [0.25, 0, 1, 0.01], nmode: [0, 0, 2, 1], tone: [6000, 400, 14000, 10], pre: [2000, 100, 16000, 10], width: [0.5, 0, 1, 0.01], mix: [1, 0, 1, 0.01] } },
   ott: { label: "ott~", params: { depth: [0.6, 0, 1, 0.01], speed: [0.5, 0, 1, 0.01], makeup: [0, -12, 12, 0.5] } },
 } satisfies Record<string, { label: string; params: Record<string, Range> }>;
 export type FxType = keyof typeof FX_DEFS;
@@ -237,7 +239,8 @@ class DynEq extends AudioWorkletProcessor {
     return true; }
 }
 registerProcessor('nad-dyneq', DynEq);
-registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);`;
+registerProcessor('nad-crush', Crush); registerProcessor('nad-follow', Follow);
+${NOIZ_WORKLET}`;
 
 let loading: Promise<void> | null = null;
 export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS, REC_WORKLET, PEAK_LIMITER_WORKLET, HACK_WORKLET], { type: "application/javascript" }))));
@@ -458,6 +461,9 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     input.connect(sh).connect(lp).connect(wet); let k = 0;
     const out = ctx.createGain(); nodes.push(out); lp.disconnect(); lp.connect(out).connect(wet);
     apply = p => { if (p.drive !== k) { k = p.drive; sh.curve = warmCurve(k); } set(out.gain, curveComp(sh.curve)); set(lp.frequency, p.tone); };
+  } else if (type === "noiz") {
+    const nz = worklet("nad-noiz"); input.connect(nz).connect(wet);
+    apply = p => wp(nz, p, ["amt", "nmode", "tone", "pre", "width"]);
   } else if (type === "bitcrush") {
     const cr = Tone.getContext().createAudioWorkletNode("nad-crush", { outputChannelCount: [2] }) as unknown as AudioWorkletNode; nodes.push(cr);
     // SP mode, modelled on what makes these machines recognisable:
@@ -585,12 +591,12 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
 }
 
 /** Relative CPU cost of each effect; the whole groovebox may hold at most MAX_FX_LOAD (Zoom MS-50G style). */
-export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 5, reverb: 6, chorus: 3, flanger: 3, phaser: 4, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, morph: 2, gain: 1, hack: 4, dyneq: 2 } as Record<FxType, number>;
+export const FX_COST: Record<FxType, number> = { saturation: 2, bitcrush: 2, delay: 5, reverb: 6, chorus: 3, flanger: 3, phaser: 4, vibrato: 1, tremolo: 1, gate: 1, compressor: 2, metal: 4, spectral: 5, sidechain: 2, djfilter: 1, reverseDelay: 3, acid: 3, eq: 1, noisegate: 1, drumbus: 4, ott: 5, morph: 2, gain: 1, hack: 4, dyneq: 2, noiz: 1 } as Record<FxType, number>;
 export const MAX_FX_LOAD = 90;
 export const fxLoad = (lists: FxUnit[][]) => lists.reduce((a, l) => a + l.reduce((b, f) => b + (FX_COST[f.type] ?? 2), 0), 0);
 /** Parameters a step-sequencer row can modulate for each effect (mix/amount for everything, more for the core four). */
 // Only the targets that make an obvious difference per step are offered, so the MOD lane list stays short.
-export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["send"], reverseDelay: ["mix"], saturation: ["drive"], acid: ["drive"], phaser: ["mix"], chorus: ["mix"], flanger: ["mix"], bitcrush: ["mix"], vibrato: ["depth"], tremolo: ["depth"], gate: ["mix"], morph: ["morph"], hack: ["short"], djfilter: ["sweep"], ott: ["depth"], metal: ["thresh"] };
+export const MOD_PARAMS: Partial<Record<FxType, string[]>> = { reverb: ["mix"], delay: ["send"], reverseDelay: ["mix"], saturation: ["drive"], acid: ["drive"], phaser: ["mix"], chorus: ["mix"], flanger: ["mix"], bitcrush: ["mix"], vibrato: ["depth"], tremolo: ["depth"], gate: ["mix"], morph: ["morph"], hack: ["short"], djfilter: ["sweep"], ott: ["depth"], metal: ["thresh"], noiz: ["amt"] };
 export const modParamsOf = (t: FxType) => MOD_PARAMS[t] ?? [];
 export const MOD_LABEL: Record<string, string> = { mix: "amount", size: "decay", time: "time", feedback: "feedback", depth: "amount", low: "low", mid: "mid", high: "high", reese: "reese", growl: "growl", squelch: "squelch", gain: "gain", freq: "freq", send: "send", drive: "drive", morph: "morph", short: "short", sweep: "sweep", thresh: "thresh" };
 /** Maps a 0..1 lane value onto the param's real range. */

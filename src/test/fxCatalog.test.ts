@@ -6,7 +6,7 @@ describe("effect categorization", () => {
   const groups = [
     ["compressor", "noisegate", "sidechain", "ott", "gain", "drumbus"],
     ["eq", "dyneq", "djfilter", "morph", "spectral"],
-    ["saturation", "acid", "bitcrush", "metal", "hack"],
+    ["saturation", "acid", "bitcrush", "metal", "hack", "noiz"],
     ["chorus", "flanger", "phaser", "vibrato", "tremolo", "gate"],
     ["delay", "reverseDelay", "reverb"],
   ];
@@ -17,7 +17,7 @@ describe("effect categorization", () => {
   });
   it("offers every effect exactly once", () => {
     const all = FX_CATEGORIES.flatMap(group => [...group.effects]);
-    expect(all).toHaveLength(25);
+    expect(all).toHaveLength(26);
     expect([...new Set(all)].sort()).toEqual([...FX_TYPES].sort());
   });
 });
