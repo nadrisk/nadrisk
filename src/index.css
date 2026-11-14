@@ -1551,7 +1551,6 @@ body.perf-lock { overflow: hidden; }
 @keyframes monke-chuckle { 50% { transform: translateY(2px); } }
 @media (prefers-reduced-motion: reduce) { .monke-body * { animation: none !important; } .monke-run .monke-limbs-b { display: none; } }
 
-.gb-row-shift { display: flex; padding: 0; overflow: hidden; }
-.gb-row-shift > button { flex: 1; min-width: 0; height: 100%; font: inherit; color: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; }
-.gb-row-shift > button + button { border-left: 1px solid hsl(var(--foreground)); }
+.gb-row-shift { display: flex; gap: 2px; padding: 0; border: 0; background: transparent; min-width: 0; }
+.gb-row-shift > button { flex: 1; min-width: 0; height: 100%; font: 7px 'Silkscreen', monospace; line-height: 1; color: hsl(var(--foreground)); background: hsl(var(--background)); border: 1px solid hsl(var(--foreground)); padding: 0; cursor: pointer; touch-action: manipulation; }
 .gb-row-shift > button:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
