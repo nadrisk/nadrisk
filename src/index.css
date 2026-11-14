@@ -1519,8 +1519,9 @@ body.perf-lock { overflow: hidden; }
 /* MONKE lives inside the grid; the sequencer's controls (including undo) stay accessible. */
 .monke-sprite { display: block; width: 100%; height: 100%; }
 .instrument-workspace button svg.monke-sprite { display: block; width: 100%; height: 100%; }
-.gb-seq-head-tools { display: flex; gap: 2px; min-width: 0; }
-.gb-seq-head-tools > * { flex: 1 1 0; min-width: 0; }
+.gb-seq-head-tools { display: flex; gap: var(--seq-gap); min-width: 0; }
+.gb-seq-head-tools > * { flex: 0 0 var(--seq-length); min-width: 0; }
+.instrument-workspace .gb-row .gb-mod-lane { width: var(--seq-length); min-height: 26px; padding: 0 !important; display: flex; align-items: center; justify-content: center; }
 .gb-row-head .gb-seq-head-tools { align-items: stretch; }
 .instrument-workspace .gb-row .monke-toggle { flex: 0 0 var(--seq-length); width: var(--seq-length); height: auto; min-height: 26px; padding: 3px !important; align-self: stretch; display: flex; align-items: center; justify-content: center; }
 .monke-stage { position: relative; min-width: 0; grid-column: 1 / -1; }
