@@ -1528,7 +1528,7 @@ body.perf-lock { overflow: hidden; }
 .monke-active > .gb-seq-grid { animation: monke-jitter .5s steps(1, end) infinite; }
 .monke-flash { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: none; background: hsl(var(--background) / .88); color: hsl(var(--foreground)); }
 .monke-flash .monke-sprite { width: min(80vw, 400px); height: auto; aspect-ratio: 25 / 20; }
-.monke-hunt { position: absolute; z-index: 5; width: 72px; height: 72px; pointer-events: none; color: hsl(var(--foreground)); }
+.monke-hunt { position: absolute; z-index: 5; width: 96px; height: 66px; pointer-events: none; color: hsl(var(--foreground)); }
 .monke-pos-0 { left: 4%; top: 8%; } .monke-pos-1 { left: 35%; top: 12%; }
 .monke-pos-2 { right: 4%; top: 24%; } .monke-pos-3 { left: 20%; top: 40%; }
 .monke-pos-4 { right: 20%; top: 52%; } .monke-pos-5 { left: 4%; bottom: 12%; }
@@ -1556,3 +1556,11 @@ body.perf-lock { overflow: hidden; }
 .gb-row-shift { display: flex; gap: 2px; padding: 0; border: 0; background: transparent; min-width: 0; }
 .gb-row-shift > button { flex: 1; min-width: 0; height: 100%; font: 7px 'Silkscreen', monospace; line-height: 1; color: hsl(var(--foreground)); background: hsl(var(--background)); border: 1px solid hsl(var(--foreground)); padding: 0; cursor: pointer; touch-action: manipulation; }
 .gb-row-shift > button:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+
+.monke-body .monke-f { display: none; }
+.monke-body .monke-f0 { display: block; }
+.monke-run .monke-f { display: block; opacity: 0; animation: monke-walk .4s steps(1, end) infinite; }
+.monke-run .monke-f1 { animation-delay: .1s; } .monke-run .monke-f2 { animation-delay: .2s; } .monke-run .monke-f3 { animation-delay: .3s; }
+@keyframes monke-walk { 0%, 24.9% { opacity: 1; } 25%, 100% { opacity: 0; } }
+.monke-laugh { animation: monke-chuckle .18s steps(2, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .monke-run .monke-f { animation: none; opacity: 0; } .monke-run .monke-f0 { opacity: 1; } }

@@ -6,7 +6,7 @@ import { harmonyOn, snapNote, type Harmony } from "./harmony";
 
 /** One press = one job: face in, a few staged edits, laugh + face out. */
 export const MONKE = { enterMs: 600, exitMs: 700, editGapMs: 550, minEdits: 6, maxEdits: 9 } as const;
-export type MonkeKind = "pickup" | "ghost" | "flam" | "swell" | "push" | "roll" | "octave" | "slide" | "space" | "answer" | "hold" | "fill" | "starter" | "chop" | "shift";
+export type MonkeKind = "pickup" | "ghost" | "flam" | "swell" | "push" | "roll" | "octave" | "slide" | "space" | "answer" | "hold" | "fill" | "starter" | "chop" | "shift" | "hocket" | "counter" | "suspend" | "cadence" | "drop" | "hemiola";
 export type MonkeOp = { row: number; column: number; kind: MonkeKind; apply: (bank: Bank, slots: Slot[]) => { bank: Bank; slots: Slot[] } };
 type Role = "kick" | "snare" | "hat" | "bass" | "melodic" | "perc";
 
@@ -101,7 +101,37 @@ export function inspirePattern(bank: Bank, slots: Slot[], bankIndex: number, har
     for (let t = 0; t < 4; t++) { const op = pick(menu)?.(); if (op) return op; }
     return null;
   };
-  const taken = new Set<string>();
+  // Arranger brain: reads the whole bank first, so the big moves come from the first press.
+  const total = Math.max(...rows.map(r => lenOf(bank, r)));
+  const density = Array.from({ length: total }, (_, c) => used.reduce((n, r) => n + (bank.pattern[r][c % lenOf(bank, r)] ? 1 : 0), 0));
+  const melodic = used.filter(r => monkeRole(slots[r]) === "melodic"), bass = used.filter(r => monkeRole(slots[r]) === "bass");
+  const hitsOf = (r: number) => bank.pattern[r].slice(0, lenOf(bank, r)).flatMap((v, c) => v === 1 ? [c] : []);
+  const brain: (() => MonkeOp | null)[] = [
+    // Hocket: answer in the emptiest off-beat pocket of the whole arrangement.
+    () => { const r = pick(used.filter(r => ["hat", "perc", "melodic"].includes(monkeRole(slots[r])))); if (r === undefined) return null;
+      const len = lenOf(bank, r), pockets = Array.from({ length: len }, (_, c) => c).filter(c => c % 2 === 1 && free(bank, r, c)), low = Math.min(...pockets.map(c => density[c]));
+      const c = pick(pockets.filter(c => density[c] === low)); return c === undefined ? null : { row: r, column: c, kind: "hocket", apply: (b, sl) => ({ bank: hit(b, r, c, .6), slots: sl }) }; },
+    // Contrary motion: when a line rises, the other voice falls (and vice versa) on its later hits.
+    () => { const lead = pick(melodic), r = pick([...bass, ...melodic].filter(x => x !== lead)); if (lead === undefined || r === undefined) return null;
+      const up = (slots[lead].note ?? 60) <= (slots[r].note ?? 60) ? -1 : 1, hs = hitsOf(r).filter(c => c >= lenOf(bank, r) >> 1 && !isAnchor(monkeRole(slots[r]), c)); if (!hs.length) return null;
+      return { row: r, column: hs[0], kind: "counter", apply: (b, sl) => { let n = sl; hs.slice(0, 3).forEach((c, i) => { const root = slots[r].note ?? 60; n = pitch(n, r, bankIndex, c, (harmonyOn(harmony) ? snapNote(harmony, root - up * 2 * (i + 1)) : root - up * 2 * (i + 1)) - root); }); return { bank: b, slots: n }; } }; },
+    // 4-3 suspension: hold into the half-bar, then fall one scale step.
+    () => { const r = pick(melodic); if (r === undefined) return null; const len = lenOf(bank, r), mid = len >> 1, c = mid - 2;
+      return { row: r, column: mid, kind: "suspend", apply: (b, sl) => { const base = b.pattern[r][c] ? b : hit(b, r, c, .9), nr = setSpan(base.pattern[r], c, 3, len, true), nb = hit(nr ? setRow(base, r, nr) : base, r, mid + 1, .8);
+        const root = slots[r].note ?? 60, down = (harmonyOn(harmony) ? snapNote(harmony, root - 2) : root - 2) - root; return { bank: nb, slots: pitch(sl, r, bankIndex, mid + 1, down) }; } }; },
+    // Cadence: question rises to the 5th mid-pattern, answer resolves to the root at the end.
+    () => { const r = pick([...melodic, ...bass]); if (r === undefined) return null; const hs = hitsOf(r), len = lenOf(bank, r), q = hs.filter(c => c < len >> 1).pop(), a = hs.filter(c => c >= len >> 1).pop(); if (q === undefined || a === undefined || q === 0) return null;
+      return { row: r, column: a, kind: "cadence", apply: (b, sl) => ({ bank: b, slots: pitch(pitch(sl, r, bankIndex, q, 7), r, bankIndex, a, 0) }) }; },
+    // Subito drop: clear the low end in the last beat so step 1 lands harder.
+    () => { const low = used.filter(r => ["kick", "bass"].includes(monkeRole(slots[r]))); if (!low.length) return null;
+      return { row: low[0], column: lenOf(bank, low[0]) - 4, kind: "drop", apply: (b, sl) => { let n = b; for (const r of low) { const len = lenOf(n, r), nr = n.pattern[r].slice(); for (let c = len - 4; c < len; c++) if (!isAnchor(monkeRole(slots[r]), c)) nr[c] = 0; if (nr[len - 4] >= 2) nr[len - 4] = 0; n = setRow(n, r, nr); } return { bank: n, slots: sl }; } }; },
+    // Hemiola: 3+3+2 pickup on the snare or hats into the downbeat.
+    () => { const r = pick(used.filter(r => ["snare", "hat", "perc"].includes(monkeRole(slots[r])))); if (r === undefined) return null; const len = lenOf(bank, r), cols = [len - 8, len - 5, len - 2];
+      return { row: r, column: len - 8, kind: "hemiola", apply: (b, sl) => { let n = b; cols.forEach((c, i) => { if (!n.pattern[r][c]) n = hit(n, r, c, .65 + i * .15); else n = lane(n, "vel", r, c, .65 + i * .15, 1); }); return { bank: n, slots: sl }; } }; },
+  ];
+  const big = brain.slice().sort(() => random() - .5);
+  for (const f of big) { if (ops.length >= 3) break; const op = f(); if (op) ops.push(op); }
+  const taken = new Set<string>(ops.map(o => `${o.row}:${o.column}:${o.kind}`));
   for (let i = 0; i < count * 5 && ops.length < count; i++) {
     const op = idea(tracks[i % tracks.length]);
     if (!op || taken.has(`${op.row}:${op.column}:${op.kind}`)) continue;

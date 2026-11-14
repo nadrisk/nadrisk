@@ -21,8 +21,8 @@ const fixture = () => {
 };
 const roles = ["kick", "snare", "hat", "bass", "melodic"] as const;
 describe("Monke musical ideas", () => {
-  it("makes between 3 and 6 changes per press", () => {
-    for (let s = 1; s < 40; s++) { const { bank, slots } = fixture(); const n = inspirePattern(bank, slots, 0, { key: 0, scale: "minor" }, seeded(s)).length; expect(n).toBeGreaterThanOrEqual(3); expect(n).toBeLessThanOrEqual(6); }
+  it("makes a noticeable job per press", () => {
+    for (let s = 1; s < 40; s++) { const { bank, slots } = fixture(); const n = inspirePattern(bank, slots, 0, { key: 0, scale: "minor" }, seeded(s)).length; expect(n).toBeGreaterThanOrEqual(MONKE.minEdits); expect(n).toBeLessThanOrEqual(MONKE.maxEdits); }
   });
   it("never removes beat 1, kick quarters or snare backbeats", () => {
     for (let s = 1; s < 60; s++) {
@@ -46,6 +46,13 @@ describe("Monke musical ideas", () => {
       const ops = inspirePattern(bank, slots, 0, { key: 0, scale: "minor" }, seeded(s)).filter(o => o.kind === "fill");
       for (const o of ops) expect([2, 9]).toContain(o.apply(bank, slots).bank.cond![o.row][o.column]);
     }
+  });
+  it("starts every job with arranger moves that read the whole pattern", () => {
+    const big = ["hocket", "counter", "suspend", "cadence", "drop", "hemiola"];
+    for (let s = 1; s < 40; s++) { const { bank, slots } = fixture(); const ops = inspirePattern(bank, slots, 0, { key: 0, scale: "minor" }, seeded(s)); expect(ops.slice(0, 3).every(o => big.includes(o.kind))).toBe(true); }
+  });
+  it("hockets land only on empty steps", () => {
+    for (let s = 1; s < 80; s++) { const { bank, slots } = fixture(); for (const o of inspirePattern(bank, slots, 0, { key: 0, scale: "minor" }, seeded(s)).filter(o => o.kind === "hocket")) expect(bank.pattern[o.row][o.column]).toBe(0); }
   });
   it("an empty bank gets a small starter groove", () => {
     const { bank, slots } = fixture(); bank.pattern = bank.pattern.map(r => r.map(() => 0));
