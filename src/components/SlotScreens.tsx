@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import { DisplayThemeContext, Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
-import { CHORDS, type ChordArp, type ChordPlay } from "@/audio/musical";
+import { CHORD_CORES, CHORD_EXTS, chordSelection, type ChordArp, type ChordPlay } from "@/audio/musical";
+import { HarmonyContext } from "./harmonyKnob";
+import { harmonyOn } from "@/audio/harmony";
 import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
@@ -78,29 +80,35 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
   </>;
 }
 
-const VOI = Object.keys(CHORDS) as (keyof typeof CHORDS)[];
 const RT = Object.keys(RATES) as RateName[];
 const ORD: ChordArp[] = ["up", "down", "updown", "random"];
 const PLAY: ChordPlay[] = ["block", "strum", "arp"];
 
 export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const c = slot.chord, set = (x: Partial<Slot["chord"]>) => onChange({ chord: { ...c, ...x } });
+  const harmony = useContext(HarmonyContext), inKey = c.fit !== "fixed", keyed = inKey && harmonyOn(harmony);
+  const selection = chordSelection(c);
+  const cores = keyed ? (["power", "major", "sus2", "sus4"] as const) : CHORD_CORES;
+  const exts = keyed ? CHORD_EXTS.slice(0, 5) : CHORD_EXTS;
+  const coreLabel = (core: string) => core === "power" ? "5" : keyed && (core === "major" || core === "minor" || core === "dim" || core === "aug") ? "TRI" : ({ major: "MAJ", minor: "MIN" }[core] ?? core.toUpperCase());
+  const activeCore = keyed && !cores.some(core => core === selection.core) ? "major" : selection.core;
+  const activeExt = keyed ? selection.ext === "maj7" ? "7" : selection.ext === "maj9" ? "9" : selection.ext : selection.ext;
   const play = c.play ?? "block", ord = c.arp ?? "up";
   const knobs: Knob[] = [
-    { label: "Chord voicing", short: "VOI", value: Math.max(0, VOI.indexOf(c.type)), min: 0, max: VOI.length - 1, step: 1, fmt: v => String(VOI[v]).toUpperCase(), set: v => set({ type: VOI[v] }) },
+    { label: "Chord core", short: "CORE", value: Math.max(0, cores.findIndex(core => core === activeCore)), min: 0, max: cores.length - 1, step: 1, fmt: v => coreLabel(cores[v]), set: v => set({ ...selection, core: cores[v] }) },
+    { label: "Chord extension", short: "EXT", value: Math.max(0, exts.indexOf(activeExt)), min: 0, max: exts.length - 1, step: 1, fmt: v => exts[v] === "off" ? "OFF" : exts[v].toUpperCase(), set: v => set({ ...selection, ext: exts[v] }) },
     { label: "Chord inversion", short: "INV", value: c.inversion, min: 0, max: 2, step: 1, fmt: v => String(v), set: v => set({ inversion: v }) },
     { label: "Strum time", short: "STRM", value: c.strum ?? 30, min: 5, max: 150, step: 1, fmt: v => `${v}MS`, set: v => set({ strum: v }) },
     { label: "Chord arp rate", short: "RATE", value: Math.max(0, RT.indexOf(c.rate ?? "1/16")), min: 0, max: RT.length - 1, step: 1, fmt: v => RT[v], set: v => set({ rate: RT[v] }) },
   ];
   // Strum time only matters for STRUM, rate and order only for ARP, so other modes hide them.
   const shown = knobs.filter(k => k.short === "STRM" ? play === "strum" : k.short === "RATE" ? play === "arp" : true);
-  const inKey = c.fit !== "fixed";
-  return <Panel name="CHORD" label="Chord pad" pages={["CHD"]} deps={[JSON.stringify(c)]} knobs={() => shown}
+  return <Panel name="CHORD" label="Chord pad" pages={["CHD"]} deps={[JSON.stringify(c), keyed]} knobs={() => shown}
     body={p => {
       key(p, c.on ? "ON" : "OFF", 1, 11, 20, c.on);
       key(p, "SPRD", 23, 11, 22, c.spread);
       PLAY.forEach((m, i) => key(p, m.slice(0, 4).toUpperCase(), 47 + i * 27, 11, 26, play === m));
-      p.text(String(c.type).toUpperCase().slice(0, 12), 2, 24);
+      p.text(`${coreLabel(selection.core)} ${activeExt === "off" ? "" : activeExt.toUpperCase()}`.trim().slice(0, 11), 2, 24);
       key(p, "FOLD", 48, 22, 22, !!(c.fold ?? c.lead));
       key(p, inKey ? "KEY" : "FREE", 72, 22, 20, inKey);
       if (play === "arp") key(p, ord.slice(0, 4).toUpperCase(), 94, 22, 33, true);

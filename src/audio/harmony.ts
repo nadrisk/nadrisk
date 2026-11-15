@@ -1,6 +1,7 @@
 // Global key + scale for the pads. Pad NOTE knobs snap to the scale, phrases walk the scale from the
 // pad's note, and chords take the quality (maj/min/dim) of their degree, so pads build progressions.
 import { NOTE_NAMES, SCALES, degreeOf, degreeToSemi, noteName, scaleChordOffsets, type ScaleName } from "./arp";
+import { chordNotes, type ChordParams } from "./musical";
 
 export type Harmony = { key: number; scale: ScaleName | "off" };
 export const defaultHarmony = (): Harmony => ({ key: 0, scale: "off" });
@@ -38,6 +39,11 @@ export function phraseSemi(h: Harmony, padNote: number, phraseScale: ScaleName, 
 export function keyChord(h: Harmony, midi: number, size: number) {
   if (!harmonyOn(h)) return null;
   return scaleChordOffsets(h.scale, snapNote(h, midi) - h.key, size);
+}
+/** Shared CORE/EXT voicing for live chords, sequencer hits and phrase locks. */
+export function keyedChord(h: Harmony, midi: number, p: ChordParams): number[] | null {
+  if (!harmonyOn(h) || p.fit === "fixed") return null;
+  return chordNotes(p, h.scale, snapNote(h, midi) - h.key);
 }
 export const keyName = (h: Harmony) => `${NOTE_NAMES[h.key]} ${h.scale === "off" ? "OFF" : h.scale.toUpperCase()}`;
 

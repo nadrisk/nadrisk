@@ -13,7 +13,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import * as Tone from "tone";
 import { createFx, migrateFx, fxEco, loadWorklets, setFxEco, setFxBpm, modValue, modParamsOf, FX_DEFS, type FxType, type FxNode, type FxUnit, type FxLevels } from "@/audio/effects";
 import { condPass, nudgeSec } from "@/audio/stepCond";
-import { defaultHarmony, harmonyOn, keyChord, foldChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
+import { defaultHarmony, harmonyOn, keyedChord, foldChord, modPitchNote, phraseSemi, type Harmony } from "@/audio/harmony";
 import { lockToChord, defaultArp, degreeToSemi, midiOf, stepSeconds, RATES, type ArpParams, type RateName , phraseOrder, chordWalk, intvWalkSteps, SCALES, scaleChordOffsets, shapeInScale, spreadDeg } from "@/audio/arp";
 import { cacheFile, getSampleBlob, cacheId, putSample } from "@/audio/sampleStore";
 import { LiveInput, requestInputStream, inputError, encodeWav, trimStart, type LiveStatus } from "@/audio/liveInput";
@@ -39,7 +39,7 @@ import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler
 
 import { breakTiming, playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
-import { CHORDS, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
+import { chordShape, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
 // Buffer mode is fixed when the audio context is created: LIVE asks for the smallest buffer, PROD for a large one (more CPU headroom).
@@ -312,19 +312,13 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     let notes = noteIdx !== -1 && (s.engine === "sampler" || s.engine === "pad" || (s.engine === "synth" && !monoSyn)) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const free = s.chord.fit === "fixed";
-    const kc = notes.length > 1 && !free ? keyChord(harmonyRef.current, s.note + semi, CHORDS[s.chord.type].length) : null;
+    const kc = notes.length > 1 && !free ? keyedChord(harmonyRef.current, s.note + semi, s.chord) : null;
     if (kc) {
-      // Global key: chords take the quality of their degree (I maj, ii min, vii° dim…); the chosen type sets the size.
-      let ns = [...kc];
-      for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      notes = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y).slice(0, cl?.voices ?? 8);
+      notes = kc.slice(0, cl?.voices ?? 8);
     } else if (notes.length > 1 && !free && s.arp.on) {
       // Off-scale pitches (pitch mod, chromatic scale) keep the fixed shape so the chord root never jumps to another note.
       // The selected chord is kept (with its voicing) when it already fits the scale; otherwise in-key thirds replace it.
-      const fit = shapeInScale(s.arp.scale, semi, CHORDS[s.chord.type]) ? null : scaleChordOffsets(s.arp.scale, semi, CHORDS[s.chord.type].length);
-      if (fit) { let ns = fit;
-      for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
-      ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns.slice(0, cl?.voices ?? 8); }
+      if (!shapeInScale(s.arp.scale, semi, chordShape(s.chord))) notes = chordNotes(s.chord, s.arp.scale, semi).slice(0, cl?.voices ?? 8);
     }
     // FOLD tracks the root; only voices more than one octave from the pad pitch fold.
     if ((s.chord.fold ?? s.chord.lead) && notes.length > 1) {
@@ -433,7 +427,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
    *  Locked steps play one note each, so the phrase walks the chord instead of stacking it. */
   const chordLock = useCallback((i: number, a: ArpParams): number[] | null => {
     const s = slotsRef.current[i]; if (!a.chordSync || !s.chord.on) return null;
-    return (s.chord.fit === "fixed" ? null : keyChord(harmonyRef.current, s.note, CHORDS[s.chord.type].length)) ?? chordNotes(s.chord);
+    return keyedChord(harmonyRef.current, s.note, s.chord) ?? chordNotes(s.chord);
   }, []);
 
   // CHRD walk: TRNC/EUCL phrases step through the chord tones one note per hit; RAND/manual phrases snap to the nearest tone.
