@@ -49,10 +49,10 @@ export function modPitchNote(h: Harmony, padNote: number, value: number, range =
   return Math.min(padNote + 12, Math.max(padNote - 12, snapNote(h, n)));
 }
 
-/** LEAD tracks the played root; only tones outside the saved pad note's ±24 semitones fold.
+/** FOLD tracks the played root; only tones more than one octave from the pad's pitch (NOTE/OCT) fold.
  * Whole-octave folding preserves chord quality and every voice, including octave doubles. */
 export function foldChord(chord: readonly number[], padNote: number): number[] {
-  const lo = padNote - 24, hi = padNote + 24;
+  const lo = padNote - 12, hi = padNote + 12;
   return chord.map(n => {
     if (n > hi) return n - Math.ceil((n - hi) / 12) * 12;
     if (n < lo) return n + Math.ceil((lo - n) / 12) * 12;

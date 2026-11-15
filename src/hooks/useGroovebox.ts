@@ -326,8 +326,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       for (let k = 0; k < Math.min(s.chord.inversion, ns.length - 1); k++) { const f = ns.shift(); if (f !== undefined) ns.push(f + 12); }
       ns = ns.map((x, k) => x + (s.chord.spread && k % 2 ? 12 : 0)).sort((x, y) => x - y); notes = ns.slice(0, cl?.voices ?? 8); }
     }
-    // LEAD tracks the root; only voices crossing the pad's ±2-octave limits fold.
-    if (s.chord.lead && notes.length > 1) {
+    // FOLD tracks the root; only voices more than one octave from the pad pitch fold.
+    if ((s.chord.fold ?? s.chord.lead) && notes.length > 1) {
       const base = s.note + semi;
       notes = foldChord(notes.map(x => x + base), s.note).map(x => x - base);
     }
