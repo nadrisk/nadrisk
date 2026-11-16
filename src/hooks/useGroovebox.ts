@@ -425,9 +425,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
 
   /** CHRD lock: chord tones (offsets from the pad root) a phrase snaps to, or null when off / no chord.
    *  Locked steps play one note each, so the phrase walks the chord instead of stacking it. */
-  const chordLock = useCallback((i: number, a: ArpParams): number[] | null => {
+  const chordLock = useCallback((i: number, a: ArpParams, root = slotsRef.current[i].note): number[] | null => {
     const s = slotsRef.current[i]; if (!a.chordSync || !s.chord.on) return null;
-    return keyedChord(harmonyRef.current, s.note, s.chord) ?? chordNotes(s.chord);
+    return keyedChord(harmonyRef.current, root, s.chord) ?? chordNotes(s.chord);
   }, []);
 
   // CHRD walk: TRNC/EUCL phrases step through the chord tones one note per hit; RAND/manual phrases snap to the nearest tone.
@@ -443,7 +443,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   /** One phrase-sequencer step. Slide steps glide the running note; the note before a slide is held through it. */
   const phraseStep = useCallback((i: number, a: ArpParams, k: number, t: number, sd: number, end: number, velMul: number, first: boolean, semiAdd = 0) => {
     const c = a.cells[k % a.steps]; if (!c.on) return false;
-    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a), semi = (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
+    // The sequencer step's pitch is the phrase root, so the phrase re-walks the key from it instead of transposing.
+    const root = slotsRef.current[i].note + semiAdd, raw = phraseSemi(harmonyRef.current, root, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a, root), semi = (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, first) : raw) + semiAdd, prev = a.cells[(k - 1 + a.steps) % a.steps], mono = engine.current?.mono[i];
     const so = slotsRef.current[i], canSlide = isSlotMono({ engine: so.engine, synthVoices: so.engine === "synth" ? cleanOf(so.synth).voices : undefined, samplerMode: so.sampler.mode });
     if (canSlide && c.slide && !first && prev.on && mono?.glide) { mono.glide(semi, t, (a.glide ?? 80) / 1000); return true; }
     let n = 1; while (canSlide && n < a.steps && a.cells[(k + n) % a.steps].on && a.cells[(k + n) % a.steps].slide) n++;
@@ -457,7 +458,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const a = slotsRef.current[i].arp, order = phraseOrder(a), k = order[cursor.current[i] % order.length];
     cursor.current[i] = (cursor.current[i] + 1) % order.length;
     const c = a.cells[k]; if (!c?.on) return false;
-    const raw = phraseSemi(harmonyRef.current, slotsRef.current[i].note, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a);
+    const root = slotsRef.current[i].note + semiAdd, raw = phraseSemi(harmonyRef.current, root, a.scale, spreadDeg(c.deg, a.spread)), lk = chordLock(i, a, root);
     trigger(i, t, c.vel * velMul, (lk ? walkedSemi(i, a, spreadDeg(c.deg, a.spread), raw, lk, false) : raw) + semiAdd, gate, lk ? -1 : undefined); return true;
   }, [trigger, chordLock, walkedSemi]);
 
