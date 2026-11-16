@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Split CHORD into CORE + EXT, preserve saved voicings, and verify scale-aware playback and compact controls.
+- [x] CHORD CORE + EXT: saved voicings preserved; 20 tests passed; live power/7/KEY ninth notes and phone/desktop STRUM/ARP controls checked.
 - [x] LEAD: root-tracking chord folding within the pad’s ±2 octaves; 18 regression tests passed and live sequencer root/+12/+24 chord notes verified.
 - [x] MONKE 2.0: momentary ideas button, role-aware musical edits, locked until done, one undo
 - [x] MONKE overhaul: whole-bank roaming, absorbed note merges, animated full-body monkey, fair random 1–5-hit catches, silent summon and visit undo; 15 tests plus phone playback/catch/undo and desktop layout checked
