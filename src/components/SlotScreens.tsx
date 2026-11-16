@@ -89,10 +89,10 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
   const harmony = useContext(HarmonyContext), inKey = c.fit !== "fixed", keyed = inKey && harmonyOn(harmony);
   const selection = chordSelection(c);
   const cores = keyed ? (["power", "major", "sus2", "sus4"] as const) : CHORD_CORES;
-  const exts = keyed ? CHORD_EXTS.slice(0, 5) : CHORD_EXTS;
+  const exts = CHORD_EXTS;
   const coreLabel = (core: string) => core === "power" ? "5" : keyed && (core === "major" || core === "minor" || core === "dim" || core === "aug") ? "TRI" : ({ major: "MAJ", minor: "MIN" }[core] ?? core.toUpperCase());
   const activeCore = keyed && !cores.some(core => core === selection.core) ? "major" : selection.core;
-  const activeExt = keyed ? selection.ext === "maj7" ? "7" : selection.ext === "maj9" ? "9" : selection.ext : selection.ext;
+  const activeExt = selection.ext;
   const play = c.play ?? "block", ord = c.arp ?? "up";
   const knobs: Knob[] = [
     { label: "Chord core", short: "CORE", value: Math.max(0, cores.findIndex(core => core === activeCore)), min: 0, max: cores.length - 1, step: 1, fmt: v => coreLabel(cores[v]), set: v => set({ ...selection, core: cores[v] }) },

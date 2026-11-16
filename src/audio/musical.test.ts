@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHORDS, chordNotes, chordSelection, defaultChord } from "./musical";
+import { CHORDS, CHORD_EXTS, chordNotes, chordSelection, defaultChord } from "./musical";
 import { keyedChord, foldChord } from "./harmony";
 
 describe("CORE + EXT chords", () => {
@@ -36,7 +36,10 @@ describe("CORE + EXT chords", () => {
     for (const type of Object.keys(CHORDS) as (keyof typeof CHORDS)[]) {
       expect(chordNotes({ ...defaultChord(), on: true, type })).toEqual([...CHORDS[type]]);
     }
-    expect(chordSelection({ ...defaultChord(), type: "maj9" })).toEqual({ core: "major", ext: "maj9" });
+    expect(chordSelection({ ...defaultChord(), type: "maj9" })).toEqual({ core: "major", ext: "9" });
+  });
+  it("orders EXT sequentially without maj7/maj9", () => {
+    expect([...CHORD_EXTS]).toEqual(["off", "6", "7", "9", "11"]);
   });
   it("round-trips new selections in saved chord data", () => {
     const chord = { ...p, core: "sus4", ext: "9", inversion: 1 };
