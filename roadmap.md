@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Sequencer: larger length grips, bipolar scale-stepped pitch/readout, fine relative modulation drag, F1/F3/C3 defaults and C3 slice mapping.
 - [x] CHORD CORE + EXT: saved voicings preserved; 20 tests passed; live power/7/KEY ninth notes and phone/desktop STRUM/ARP controls checked.
 - [x] LEAD: root-tracking chord folding within the pad’s ±2 octaves; 18 regression tests passed and live sequencer root/+12/+24 chord notes verified.
 - [x] MONKE 2.0: momentary ideas button, role-aware musical edits, locked until done, one undo

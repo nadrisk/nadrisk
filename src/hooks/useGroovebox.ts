@@ -1,3 +1,4 @@
+import { defaultInstrumentNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
 import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
 import { shiftRow } from "@/audio/rowShift";
 import { inspirePattern, type MonkeOp } from "@/audio/monke";
@@ -68,9 +69,9 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
 /** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
-const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", ...o });
+const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", rootNote: SAMPLE_ROOT, ...o });
 
-const base = (name: string, engine: EngineKind, note = 48, extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), idm: defaultIdm(), pad: defaultPad(), xy: { x: 0, y: 0 }, ...extra });
+const base = (name: string, engine: EngineKind, note = defaultInstrumentNote(engine), extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), idm: defaultIdm(), pad: defaultPad(), xy: { x: 0, y: 0 }, ...extra });
 /** Fresh slate: 16 silent, empty sampler pads, so random patterns stay quiet until a pad gets a sound. */
 export const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "sampler", 48));
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
@@ -105,7 +106,7 @@ const migrateSlot = (x: Slot): Slot => {
   let note = x.note; const sm = x.sampler;
   if (x.engine === "sampler") note = 60 + Math.round(sm.pitch ?? 0);
   else if (x.arp?.on && x.engine !== "drum" && x.engine !== "siren") note = midiOf(x.arp, 0);
-  return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, fine: sm.fine ?? 0 } };
+  return { ...x, note, sampler: { ...sm, pitch: 0, sampleKey: sm.sampleKey ?? 0, rootNote: sm.rootNote ?? 60, fine: sm.fine ?? 0 } };
 };
 // ACID moved from POLY to the 808: old POLY-ACID pads load as 808 pads in ACID mode with their settings.
 const acidTo808 = migrateEngine;
@@ -327,8 +328,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     }
     const pm = performanceRef.current.chordMode ?? "pad", mode = notes.length > 1 ? (pm === "pad" ? s.chord.play ?? "block" : pm) : "block";
     const pitch = s.note + semi + (s.engine === "drum" || s.engine === "idm" ? 0 : tuneRef.current);
-    // Sampler: NOTE relative to the sample's own key (S-KEY), plus FINE cents; C4 with S-KEY C plays the file as recorded.
-    const sp = s.note + (s.engine === "drum" ? 0 : tuneRef.current) - 60 - (s.sampler.sampleKey ?? 0) + Math.max(-50, Math.min(50, s.sampler.fine ?? 0)) / 100;
+    // Sampler: new files use C3; old saved files retain their C4 reference.
+    const sp = sampleTranspose(s.note + tuneRef.current, s.sampler.sampleKey, s.sampler.rootNote) + Math.max(-50, Math.min(50, s.sampler.fine ?? 0)) / 100;
     if (s.engine === "sampler" && !buffers.current[i]) return; // empty sampler pads stay silent until a sample is loaded
     const raw = buffers.current[i] ?? fallbackBuf(), buf = s.sampler.reverse ? reverseOf(e.ctx, raw) : raw;
     // Breakbeats: WARP fits the loop to the tempo without changing pitch; SLICES plays one slice per note
@@ -337,7 +338,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const sl = s.engine === "sampler" && !s.sampler.grain && (s.sampler.sliceSens ?? 0) > 0 ? detectSlices(raw, s.sampler.sliceSens!, s.sampler.start, s.sampler.end ?? 1) : [];
     // Slice index = played key (one semitone, one slice); chord offsets are taken relative to the chord's first note so
     // key-snapped chord voicings never shift or collapse the slice a key picks.
-    const sIdx = (semi: number, offset: number) => { const k = Math.round(semi + offset - (notes[0] ?? 0)); return ((k % sl.length) + sl.length) % sl.length; };
+    const sIdx = (semi: number, offset: number) => { return sliceIndex(s.note + semi + offset - (notes[0] ?? 0), sl.length); };
     const sliced = sl.length > 1, sliceOf = (semi: number, offset: number) => sl[sIdx(semi, offset)];
     const samplerRun = (sm: SamplerParams, dur: number, semi: number, offset: number, factor: number): SamplerParams => {
       const base = { ...sm, env: scaledEnv(sm.env, factor), pitch: sp + semi + offset };
@@ -346,7 +347,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       if (sl.length > 1) { const k = sIdx(semi, offset), s0 = sm.start, s1 = sm.end ?? 1;
         // VNT unlocked: slices follow the played pitch; LOCK (and plain slicing) keep the original pitch.
         const vnt = sm.stretch && !sm.warp; Object.assign(base, { start: s0 + sl[k] * (s1 - s0), loop: false, pitch: vnt && !sm.pitchLock ? sp + semi + offset - (notes[0] ?? 0) : vnt ? Math.max(-50, Math.min(50, sm.fine ?? 0)) / 100 : sp }); return base; }
-      if (n > 1) { const k = ((Math.round(semi) % n) + n) % n; Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sp + offset }); }
+      if (n > 1) { const k = sliceIndex(s.note + semi, n); Object.assign(base, { start: k / n, endFrac: (k + 1) / n, loop: false, pitch: sp + offset }); }
       // VNT LOCK: notes still pick slices, but playback stays at the file's original pitch (FINE only).
       if (sm.stretch && !sm.warp && sm.pitchLock) base.pitch = Math.max(-50, Math.min(50, sm.fine ?? 0)) / 100;
       return base;
@@ -885,7 +886,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (cut) { const n = Math.floor(MAX_SAMPLE_SEC * buf.sampleRate), b = ctxOf().createBuffer(buf.numberOfChannels, n, buf.sampleRate); for (let c = 0; c < buf.numberOfChannels; c++) b.copyToChannel(buf.getChannelData(c).subarray(0, n), c); buf = b; }
     buffers.current[i] = buf;
     setPeaks(p => p.map((x, j) => (j === i ? peaksOf(buf) : x)));
-    setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: name, sampleId } } : x)));
+    setSlots(s => s.map((x, j) => (j === i ? { ...x, engine: "sampler", ...(x.engine !== "sampler" ? { note: SAMPLE_ROOT } : {}), sampler: { ...x.sampler, rootNote: x.sampler.rootNote ?? SAMPLE_ROOT, sampleName: name, sampleId } } : x)));
     return cut;
   }, []);
   // Pasting a sampler pad shares the source pad's decoded audio (buffers are never mutated in place).
@@ -940,7 +941,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
         // Baked-in tail: a short fade so stopped takes never end on a click.
         { const f = Math.min(a.length, Math.round(sr * .012)); for (let j = 0; j < f; j++) { const g = j / f; a[a.length - 1 - j] *= g; b[b.length - 1 - j] *= g; } }
         const name = `REC ${String(++takeNo.current).padStart(2, "0")}`, blob = encodeWav([a, b], sr), id = `db:rec-${Date.now()}`;
-        const fresh = (x: Slot): Slot => ({ ...x, note: 60, sampler: { ...x.sampler, mode: "one", start: 0, end: 1, endFrac: 1, sampleKey: 0, fine: 0, loop: false, reverse: false, warp: false, grain: false, stretch: false } });
+        const fresh = (x: Slot): Slot => ({ ...x, note: SAMPLE_ROOT, sampler: { ...x.sampler, rootNote: SAMPLE_ROOT, mode: "one", start: 0, end: 1, endFrac: 1, sampleKey: 0, fine: 0, loop: false, reverse: false, warp: false, grain: false, stretch: false } });
         void putSample(id, name, blob).then(() => setBuffer(k, blob, name, id), () => setBuffer(k, blob, name)).then(() => {
           slotsRef.current = slotsRef.current.map((x, j) => j === k ? fresh({ ...x, engine: "sampler", sampler: { ...x.sampler, sampleName: name, sampleId: id } }) : x);
           setSlots(s => s.map((x, j) => j === k ? fresh(x) : x)); setLastTake({ n: takeNo.current, name });
@@ -1041,7 +1042,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
-    setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth ?? x.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: padMods(o.mods ?? x.mods), fx: o.fx ? migrateFx(o.fx) : x.fx }; }).map((x, i) => acidTo808(old || !st.slots?.[i] ? migrateSlot(x) : x)));
+    setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth ?? x.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler, rootNote: o.sampler?.rootNote ?? 60 }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: padMods(o.mods ?? x.mods), fx: o.fx ? migrateFx(o.fx) : x.fx }; }).map((x, i) => acidTo808(old || !st.slots?.[i] ? migrateSlot(x) : x)));
     setHarmonyState({ ...defaultHarmony(), ...st.harmony });
     setGroups(hydrateGroups(st.groups?.map(gb => ({ ...gb, fx: migrateFx(gb.fx ?? []) }))));
     if (st.banks?.length) setBanks(Array.from({ length: NBANKS }, (_, i) => (st.banks![i] ? fixBank(st.banks![i]) : makeBank(emptyPattern()))));
@@ -1061,7 +1062,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const i = selectedRef.current; cancelBooked(i); idle();
     setSlots(sl => sl.map((x, j) => { if (j !== i) return x; const oldSynth = o.synth ?? x.synth;
       const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }, filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 };
-      return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, idm: o.idm ?? x.idm, pad: o.pad ?? x.pad, xy: { x: 0, y: 0 }, eq: { ...x.eq, ...o.eq }, fx: migrateFx(o.fx ?? []) }); }));
+      return acidTo808({ ...x, engine: o.engine ?? x.engine, note: o.note ?? x.note, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler, rootNote: o.sampler?.rootNote ?? 60 }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, idm: o.idm ?? x.idm, pad: o.pad ?? x.pad, xy: { x: 0, y: 0 }, eq: { ...x.eq, ...o.eq }, fx: migrateFx(o.fx ?? []) }); }));
     if (o.engine === "sampler" && o.sampler?.sampleId) void loadById(i, o.sampler.sampleId, o.sampler.sampleName ?? "sample");
   }, [loadById]);
   const monkeOps = useRef<MonkeOp[]>([]);

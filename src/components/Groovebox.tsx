@@ -1,3 +1,4 @@
+import { draggedValue, inLengthGrip } from "./stepDrag";
 import MonkeSprite, { MonkeHunter } from "./MonkeSprite";
 import MonkeVisitor from "./MonkeVisitor";
 import { useMonke } from "@/hooks/useMonke";
@@ -37,7 +38,7 @@ import DevicePanel from "./DevicePanel";
 import FxChain from "./FxChain";
 import ArpEditor from "./ArpEditor";
 import { HarmonyContext } from "./harmonyKnob";
-import { HARMONY_SCALES, phraseSemi, modPitchNote } from "@/audio/harmony";
+import { HARMONY_SCALES, phraseSemi, modPitchNote, modPitchOffset, degreeLabel } from "@/audio/harmony";
 import { noteName } from "@/audio/arp";
 import { useQwerty } from "@/hooks/useQwerty";
 import { NOTE_NAMES } from "@/audio/arp";
@@ -126,7 +127,7 @@ const condName = (x: number) => CONDS[Math.round(x * (CONDS.length - 1))];
 const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, cond, nudge, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock, onAudition, modLane, onModLane, onRnd, steps = 16, onSteps, onSpan, monkeBtn, onShift, monkeAt }: { monkeAt?: { row: number; col: number; laughing: boolean } | null; onShift?: (r: number, d: number) => void; monkeBtn?: React.ReactNode; steps?: number; onSteps?: () => void; onSpan?: (r: number, c: number, n: number, begin?: boolean, absorb?: boolean) => void;
   pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; cond: number[][]; nudge: number[][]; offset: number; loop: number; onClearRow: (r: number) => void; onAudition: (r: number) => void; modLane: number; onModLane: () => void; onRnd: (r: number) => void; lenLock: boolean; onLenLock: () => void; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onRow: (view: View, r: number, v: number) => void; onModTarget: (r: number, t: string) => void;
 }) {
-  // Relative drag: tap sets the value at tap height, then the whole drag distance refines it (1% per 2px).
+  // Relative drag preserves the existing value; 4px deadzone and 450px full travel.
   const dragRef = useRef<{ r: number; c: number; y: number; v0: number } | null>(null);
   // Unlit/NOTE taps toggle on pointer-up within 8px, so iOS scroll-cancelled clicks can't swallow them; one touch toggles once.
   const tapRef = useRef<{ id: number; x: number; y: number; k: string } | null>(null);
@@ -135,7 +136,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 35) return; lastToggle.current = { k, t }; onToggle(r, c); };
   const rz = useRef<{ id: number; r: number; c: number; x0: number; w: number; n0: number; n: number; moved: boolean; abs: boolean; t: number } | null>(null);
   const [rzBadge, setRzBadge] = useState<{ text: string; x: number; y: number } | null>(null);
-  const edgeHit = (ev: React.PointerEvent<HTMLButtonElement>) => { const b = ev.currentTarget.getBoundingClientRect(); return ev.pointerType === "mouse" ? b.right - ev.clientX <= 6 : ev.clientX - b.left >= b.width * .6; };
+  const edgeHit = (ev: React.PointerEvent<HTMLButtonElement>) => { const b = ev.currentTarget.getBoundingClientRect(); return inLengthGrip(b.width, b.right - ev.clientX, ev.pointerType === "mouse"); };
   const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
   const labelTap = useRef({ r: -1, t: 0 });
   // RND keys read raw touches (fire once on lift <8px, preventDefault) so iOS never swallows fast taps
@@ -156,17 +157,21 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
   const short = (v: number) => view === "roll" ? `X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : view === "cond" ? condName(v) : view === "nudge" ? nudgeLabel(v) : `${Math.round(v * 100)}%`;
   const harmony = useContext(HarmonyContext);
   const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
-  const fmtV = (r: number, v: number) => view === "mod" && slots[r].mods?.[bank + modLane * 4]?.target === "pitch" ? `PTCH ${noteName(modPitchNote(harmony, slots[r].note, v))}` : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : view === "cond" ? `COND ${condName(v)}` : view === "nudge" ? `NUDG ${nudgeLabel(v)}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
-  const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const q = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
+  const pitchLane = (r: number) => view === "mod" && slots[r].mods?.[bank + modLane * 4]?.target === "pitch";
+  const pitchRange = (r: number) => slots[r].mods?.[bank + modLane * 4]?.range ?? 12;
+  const signed = (v: number) => v > 0 ? `+${v}` : String(v);
+  const pitchText = (r: number, v: number) => { const n = modPitchNote(harmony, slots[r].note, v, pitchRange(r)); return `PTCH ${noteName(n)} (${signed(modPitchOffset(v, pitchRange(r)))}) ${degreeLabel(harmony, n)}`.trim(); };
+  const fmtV = (r: number, v: number) => pitchLane(r) ? pitchText(r, v) : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : view === "cond" ? `COND ${condName(v)}` : view === "nudge" ? `NUDG ${nudgeLabel(v)}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
+  const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const divisions = pitchLane(r) ? pitchRange(r) * 2 : 100; const q = Math.round(Math.min(1, Math.max(0, v)) * divisions) / divisions; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
   const down = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => {
     const k = `${r}:${c}`, now = performance.now();
     if (lastTap.current.k === k && now - lastTap.current.t < 300) { lastTap.current = { k: "", t: 0 }; dragRef.current = null; apply(r, c, homeOf(view), e); return; }
     lastTap.current = { k, t: now };
-    const b = e.currentTarget.getBoundingClientRect();
-    const v0 = apply(r, c, 1 - (e.clientY - b.top) / b.height, e);
+    const v0 = view === "mod" ? slots[r].mods?.[bank + modLane * 4]?.values[c] ?? .5 : valOf(r, c);
+    setReadout({ text: fmtV(r, v0), x: e.clientX, y: e.clientY });
     dragRef.current = { r, c, y: e.clientY, v0 };
   };
-  const move = (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (!d || !e.buttons) return; apply(d.r, d.c, d.v0 + (d.y - e.clientY) / 200, e); };
+  const move = (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (!d || !e.buttons) return; if (Math.abs(d.y - e.clientY) < 4) return; apply(d.r, d.c, draggedValue(d.v0, d.y - e.clientY, pitchLane(d.r) ? pitchRange(d.r) * 2 : 100), e); };
   const up = () => { dragRef.current = null; setTimeout(() => setReadout(null), 600); };
   const [manualPage, setManualPage] = useState<number | null>(null);
   const playPage = step >= 0 && steps > 16 ? (stepAt(step, lengths[selected] ?? steps, loop, offset) >= 16 ? 16 : 0) : 0;
@@ -202,19 +207,20 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
         <span style={{ position: "relative", mixBlendMode: "difference", color: "hsl(var(--foreground))" }}>{short(rv)}</span></button>; })() : view === "note" ? <span className="gb-row-shift"><button type="button" aria-label={`${slots[r].name || r + 1} shift row left`} onClick={() => onShift?.(r, -1)}>◀</button><button type="button" aria-label={`${slots[r].name || r + 1} shift row right`} onClick={() => onShift?.(r, 1)}>▶</button></span> :     <button className={`gb-cycle ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} onClick={() => onModTarget(r, cyc(opts.map(o => o[0]), tv))}>{(opts.find(o => o[0] === tv)?.[1] ?? "off").slice(0, 10)}</button>}
     {row.slice(page, page + 16).map((v, cc) => { const c = cc + page, off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, label = v >= 2 ? "tie" : v === 1 ? "hit" : "off"; const pitched = slots[r].engine !== "drum" && slots[r].engine !== "idm", shape = v === 0 ? "" : v === 1 ? (tieNext ? "n-head" : "n-solo") : tieNext ? "n-body" : "n-tail";
       const val = view === "mod" || view === "note" ? lane?.values[c] ?? .5 : valOf(r, c);
+      const bipolar = pitchLane(r);
       const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
-      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? (view === "roll" ? ` roll x${ratchet[r]?.[c] ?? 1}` : view === "cond" ? ` condition ${condName(val)}` : view === "nudge" ? ` nudge ${nudgeLabel(val)}` : ` ${view} ${Math.round(val * 100)}%`) : ""}`}
+      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? (view === "roll" ? ` roll x${ratchet[r]?.[c] ?? 1}` : view === "cond" ? ` condition ${condName(val)}` : view === "nudge" ? ` nudge ${nudgeLabel(val)}` : bipolar ? ` ${pitchText(r, val)}` : ` ${view} ${Math.round(val * 100)}%`) : ""}`}
         onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); down(r, c, ev); return; } if (view === "note" && v !== 0) { let h = c; while (h > 0 && row[h] >= 2) h--; if (row[h] === 1 && (v >= 2 || edgeHit(ev))) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); const n0 = spanOf(row, h, len); rz.current = { id: ev.pointerId, r, c: h, x0: ev.clientX, w: ev.currentTarget.getBoundingClientRect().width + 2, n0, n: n0, moved: false, abs: false, t: window.setTimeout(() => { const q = rz.current; if (q && q.id === ev.pointerId && !q.moved) { q.abs = true; navigator.vibrate?.(30); setRzBadge(b => ({ text: `${b ? b.text.replace(' [ABSORB]', '') : spanLabel(n0)} [ABSORB]`, x: b?.x ?? q.x0, y: b?.y ?? 0 })); } }, 700) }; tapRef.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, k: `${r}:${c}` }; return; } } tapRef.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, k: `${r}:${c}` }; }}
         onClick={ev => { if (!drag2 && ev.detail === 0) toggle(r, c); }}
-        onPointerMove={ev => { if (drag2) return move(ev); const z = rz.current; if (!z || z.id !== ev.pointerId) return; const dx = ev.clientX - z.x0; if (!z.moved && Math.abs(dx) < 6) return; const n = Math.max(1, z.n0 + Math.round(dx / z.w)); if (!z.moved || n !== z.n) { onSpan?.(z.r, z.c, n, !z.moved, z.abs); if (z.moved) navigator.vibrate?.(4); z.moved = true; z.n = n; } setRzBadge({ text: spanLabel(Math.min(n, maxSpan(pattern[z.r], z.c, lengths[z.r], z.abs))) + (z.abs ? ' [ABSORB]' : ''), x: ev.clientX, y: ev.clientY }); }}
-        onPointerUp={ev => { if (drag2) return up(); const z = rz.current; if (z && z.id === ev.pointerId) { clearTimeout(z.t); rz.current = null; setRzBadge(null); if (z.moved) { tapRef.current = null; return; } } const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && t.k === `${r}:${c}` && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); }}
+        onPointerMove={ev => { if (drag2) return move(ev); const z = rz.current; if (!z || z.id !== ev.pointerId) return; const dx = ev.clientX - z.x0; if (!z.moved && Math.abs(dx) < 4) return; const n = Math.max(1, z.n0 + Math.round(dx / z.w)); if (!z.moved || n !== z.n) { onSpan?.(z.r, z.c, n, !z.moved, z.abs); if (z.moved) navigator.vibrate?.(4); z.moved = true; z.n = n; } setRzBadge({ text: spanLabel(Math.min(n, maxSpan(pattern[z.r], z.c, lengths[z.r], z.abs))) + (z.abs ? ' [ABSORB]' : ''), x: ev.clientX, y: ev.clientY }); }}
+        onPointerUp={ev => { if (drag2) return up(); const z = rz.current; if (z && z.id === ev.pointerId) { clearTimeout(z.t); rz.current = null; setRzBadge(null); tapRef.current = null; return; } const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && t.k === `${r}:${c}` && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); }}
         onPointerCancel={ev => { if (rz.current?.id === ev.pointerId) { const z = rz.current; clearTimeout(z.t); rz.current = null; setRzBadge(null); if (z.moved) { tapRef.current = null; return; } } if (!drag2) { const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); } else up(); }}
-        onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? .05 : -.05)))); } }}
-        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${c > 0 && c % 4 === 0 ? "group" : ""} ${drag2 ? "mod" : ""} ${shape} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>
+        onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? 1 : -1) / (bipolar ? pitchRange(r) * 2 : 100)))); } }}
+        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${c > 0 && c % 4 === 0 ? "group" : ""} ${drag2 ? "mod" : ""} ${bipolar ? "pitch-mod" : ""} ${shape} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>
         {view === "note" && v === 1 && tieNext && pitched && <b className="gb-step-pitch" aria-hidden>{noteName(slots[r].note)}</b>}
         {view === "note" && v !== 0 && !tieNext && <i className="gb-step-grip" aria-hidden />}
-        {drag2 && <i className="gb-step-fill" style={{ height: `${val * 100}%` }} />}
-        {drag2 && view !== "roll" && view !== "cond" && <b className="gb-step-val">{view === "nudge" ? nudgeLabel(val) : Math.round(val * 100)}</b>}
+        {drag2 && <i className="gb-step-fill" style={bipolar ? { height: `${Math.abs(val - .5) * 100}%`, bottom: `${Math.min(val, .5) * 100}%` } : { height: `${val * 100}%` }} />}
+        {drag2 && view !== "roll" && view !== "cond" && <b className="gb-step-val">{bipolar ? signed(modPitchOffset(val, pitchRange(r))) : view === "nudge" ? nudgeLabel(val) : Math.round(val * 100)}</b>}
         {drag2 && view === "cond" && <b className="gb-step-roll">{condName(val)}</b>}
         {drag2 && view === "roll" && <b className="gb-step-roll">X{ratchet[r]?.[c] ?? 1}</b>}
         {view === "note" && v === 1 && (ratchet[r]?.[c] ?? 1) > 1 && <b className="gb-step-roll">{ratchet[r]?.[c]}</b>}

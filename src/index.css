@@ -1119,7 +1119,10 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace:not([data-lcd="studio"]) .gb-step.tie-next::after { background: hsl(var(--foreground)); }
 .gb-step.n-head, .gb-step.n-body { border-right-color: transparent !important; }
 .gb-step.n-body, .gb-step.n-tail { border-left-color: transparent !important; }
-.gb-step-grip { width: 3px; border-left: 1px solid hsl(var(--background)); border-right: 1px solid hsl(var(--background)); background: transparent !important; right: 2px; }
+.gb-step-grip { width: 5px; max-width: 40%; border: 1px solid hsl(var(--background)); border-left: 0; background: transparent !important; right: 2px; z-index: 3; }
+.gb-seq-grid.is-mod .gb-step.pitch-mod { background: linear-gradient(hsl(var(--foreground) / .4), hsl(var(--foreground) / .4)) center / 100% 1px no-repeat !important; }
+.gb-seq-grid.is-mod .gb-step.pitch-mod .gb-step-fill { min-height: 0; }
+.gb-seq-grid.is-mod .gb-step.pitch-mod .gb-step-fill::before { display: none; }
 .gb-step-pitch { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font: 12px/1 'VT323', monospace; color: hsl(var(--background)); pointer-events: none; white-space: nowrap; z-index: 2; }
 .gb-seq-grid .gb-step.current { outline: none !important; }
 .gb-seq-grid .gb-step.current::before { content: ""; position: absolute; left: -2px; top: -3px; bottom: -3px; width: 2px; background: hsl(var(--foreground)); mix-blend-mode: difference; pointer-events: none; z-index: 3; }

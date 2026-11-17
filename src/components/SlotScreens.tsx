@@ -1,3 +1,4 @@
+import { defaultInstrumentNote, SAMPLE_ROOT } from "@/audio/instrumentPitch";
 import { useSpectrum, drawSpectrum, type GetSpectrum } from "@/components/SpectrumScreen";
 import { eqCurve, EQ_KILL } from "@/audio/eqResponse";
 import { useContext, useState } from "react";
@@ -69,7 +70,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
       if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 46);
     }}
     extra={() => <>
-      {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e === "sampler" && slot.engine !== "sampler" ? { note: 60 } : {}) })} />)}
+      {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e !== slot.engine ? { note: defaultInstrumentNote(e), ...(e === "sampler" ? { sampler: { ...slot.sampler, rootNote: SAMPLE_ROOT } } : {}) } : {}) })} />)}
       <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
       <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
