@@ -28,7 +28,7 @@ export default function WavetableLibrary({ value, onPick }: { value?: string; on
         const n = Math.max(1, all.length), h = Math.max(3, Math.round(25 * ROWS / Math.max(ROWS, n))), y = 12 + Math.round((25 - h) * (top / Math.max(1, n - ROWS)));
         p.rect(123, y, 3, h);
         [["LOAD", 1], ["IMPRT", 64]].forEach(([s, x]) => { p.box(x as number, 42, 63, 11); p.textC(s as string, (x as number) + 31, 45); });
-        p.text((msg || `${all.length} WAVETABLES`).toUpperCase().slice(0, 31), 2, 57);
+        p.text((msg || (list.length ? `${list.length} IMPORTED TABLE${list.length>1?"S":""}` : "IMPRT YOUR OWN .WAV TABLES")).toUpperCase().slice(0, 31), 2, 57);
       }}
       extra={() => <>
         {vis.map((s, i) => <Tap key={s.id} x={0} y={11 + i * 9} w={102} h={9} label={`Wavetable ${s.name}`} pressed={top + i === sel} onClick={() => setSel(top + i)} />)}
