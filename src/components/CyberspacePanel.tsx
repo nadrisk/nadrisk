@@ -13,20 +13,38 @@ export function useWavetable(id?: string): WtTable {
   useEffect(() => { let live = true; const get = () => { if (id && id !== "basic") loadTable(id).then(x => { if (live) setT(x); }); else setT(null); }; get(); const off = onTablesChanged(get); return () => { live = false; off(); }; }, [id]);
   return t ?? basicTable();
 }
-/** 2.5D wireframe: the table's frames stacked in depth, the playing (interpolated) frame drawn solid at its depth. */
+/** Serum-style 3D wavetable terrain: frames stacked back-to-front with hidden-line occlusion, phase ribs linking frames, and the playing (interpolated) frame drawn bold. */
 function drawStack(p: import("@/pixel/draw").Px, t: WtTable, wave: number, basicMix: number[] | null) {
-  const n = t.view.length, pos = wave / 3, W = 78, A = 7, pts = 48;
-  const place = (d: number) => [6 + Math.round(d * 38), 37 - Math.round(d * 14)];
-  const line = (vals: number[], d: number, solid: boolean) => { const [ox, oy] = place(d); let py = 0;
-    for (let i = 0; i < pts; i++) { const x = ox + Math.round(i * W / (pts - 1)), y = oy - Math.round(Math.max(-1, Math.min(1, vals[i])) * A);
-      if (solid) { if (i) p.line(ox + Math.round((i - 1) * W / (pts - 1)), py, x, y); } else if (i % 2 === 0) p.dot(x, y); py = y; } };
-  const shown = Math.min(n, 12);
-  for (let s = shown - 1; s >= 0; s--) { const k = shown === 1 ? 0 : Math.round(s * (n - 1) / (shown - 1)); line(t.view[k], n > 1 ? k / (n - 1) : 0, false); }
+  const n = t.view.length, pos = wave / 3, W = 84, A = 8, pts = 48, DX = 34, DY = 12;
+  const place = (d: number) => [5 + d * DX, 34 - d * DY];
+  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+  const pt = (vals: number[], d: number, i: number) => { const [ox, oy] = place(d); return [Math.round(ox + i * W / (pts - 1)), Math.round(oy - clamp(vals[i]) * A)]; };
+  const shown = Math.min(n, 14), ks: number[] = [];
+  for (let s = 0; s < shown; s++) ks.push(shown === 1 ? 0 : Math.round(s * (n - 1) / (shown - 1)));
+  const depth = (k: number) => n > 1 ? k / (n - 1) : 0;
+  // Fill under a profile with background so nearer frames hide farther ones.
+  const mask = (vals: number[], d: number) => { const [, oy] = place(d);
+    for (let i = 0; i < pts - 1; i++) { const [x0, y0] = pt(vals, d, i), [x1, y1] = pt(vals, d, i + 1);
+      for (let x = x0; x <= x1; x++) { const y = Math.round(y0 + (y1 - y0) * (x1 === x0 ? 0 : (x - x0) / (x1 - x0))); p.rect(x, y, 1, Math.max(1, Math.round(oy + A + 1) - y), false); } } };
+  const prof = (vals: number[], d: number, dotted: boolean) => { for (let i = 1; i < pts; i++) { const [x0, y0] = pt(vals, d, i - 1), [x1, y1] = pt(vals, d, i); p.line(x0, y0, x1, y1, dotted); } };
   let cur: number[];
   if (basicMix) cur = Array.from({ length: pts }, (_, i) => basicMix.reduce((a, w, k) => a + w * t.view[k][i], 0));
   else { const fp = framePair(pos, n), a = fp.frames[0], b = fp.frames[1]; cur = Array.from({ length: pts }, (_, i) => fp.weights[0] * t.view[a][i] + fp.weights[1] * t.view[b][i]); }
-  line(cur, n > 1 ? pos : 0, true);
-  const [ox, oy] = place(n > 1 ? pos : 0); p.line(ox - 2, oy, ox - 1, oy); p.line(ox + W + 1, oy, ox + W + 2, oy);
+  const cd = n > 1 ? pos : 0;
+  // Depth rails (floor edges) behind everything.
+  { const [fx, fy] = place(0), [bx, by] = place(1); p.line(fx, fy + A + 1, bx, by + A + 1, true); p.line(fx + W, fy + A + 1, bx + W, by + A + 1, true); }
+  let drewCur = false;
+  for (let s = ks.length - 1; s >= 0; s--) {
+    const k = ks[s], d = depth(k);
+    if (!drewCur && cd >= d) { mask(cur, cd); prof(cur, cd, false); drewCur = true; }
+    mask(t.view[k], d); prof(t.view[k], d, !(drewCur && Math.abs(d - cd) < 1e-3) && true);
+    // Phase ribs to the next farther frame.
+    if (s < ks.length - 1) { const k2 = ks[s + 1], d2 = depth(k2); for (let i = 0; i < pts; i += 8) { const [x0, y0] = pt(t.view[k], d, i), [x1, y1] = pt(t.view[k2], d2, i); p.line(x0, y0, x1, y1, true); } }
+  }
+  if (!drewCur) { mask(cur, cd); prof(cur, cd, false); }
+  // Bold active slice + depth cursor on the right rail.
+  { for (let i = 1; i < pts; i++) { const [x0, y0] = pt(cur, cd, i - 1), [x1, y1] = pt(cur, cd, i); p.line(x0, y0 - 1, x1, y1 - 1); }
+    const [ox, oy] = place(cd); p.line(ox + W + 2, oy + A + 1, ox + W + 5, oy + A + 1); p.dot(ox + W + 3, oy + A); p.dot(ox + W + 3, oy + A + 2); }
 }
 const shape = (k: number, ph: number) => { const t = ph - Math.floor(ph); return k === 0 ? t * 2 - 1 : k === 1 ? (t < .5 ? 1 : -1) : k === 2 ? 1 - Math.abs(t * 4 - 2) : Math.sin(t * Math.PI * 2); };
 const waveName = (w: number) => { const i = Math.round(w); return Math.abs(w - i) < .08 ? WAVE_NAMES[i] : `${WAVE_NAMES[Math.floor(w)]}>${WAVE_NAMES[Math.min(3, Math.floor(w) + 1)]}`; };
