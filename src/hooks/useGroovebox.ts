@@ -67,7 +67,7 @@ const synth = (o: Partial<SynthParams>): SynthParams => ({
   osc1: { wave: "sawtooth", gain: 0.8, coarse: 0, fine: 0 }, osc2: { wave: "sine", gain: 0, coarse: 0, fine: 0, mode: "mix", fmAmount: 1 },
   partials: [1, 0.6, 0.5, 0.3, 0.3, 0.15, 0.2, 0.08, 0.1, 0, 0.05, 0, 0, 0, 0, 0], noise: 0,
   env: { a: 0.005, d: 0.25, s: 0.3, r: 0.15 }, pitchEnvShape: { a: .001, d: .05, s: 0, r: .02 }, filterEnvShape: { a: .001, d: .2, s: 0, r: .02 }, filter: "lowpass", cutoff: 900, res: 4, filterEnv: 2, filterDecay: 0.2, wet: 1,
-  pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, ...o });
+  pitchEnv: 0, pitchDecay: 0.05, lfo: { wave: "sine", rate: 4, depth: 0, target: "cutoff" }, clean: defaultClean(), ...o });
 /** Nearest power-of-two beat count for a loop at this tempo (2..64), used when WARP has no explicit length. */
 export const guessBeats = (dur: number, bpm: number) => 2 ** Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, dur * bpm / 60)))));
 const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, loop: false, pitch: 0, env: { a: 0.002, d: 0.3, s: 1, r: 0.1 }, sampleName: "EMPTY", rootNote: SAMPLE_ROOT, ...o });
