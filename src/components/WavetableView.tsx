@@ -14,40 +14,38 @@ export default function WavetableView({ x, y, w, h, table, wave, basic }: { x: n
       const g = el.getContext("2d")!; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
       const { fg, bg } = colors(el), n = table.view.length, pts = table.view[0]?.length ?? 0; if (!pts) return;
       const p = Math.max(0, Math.min(1, wave / 3));
-      // Geometry: front slice bottom-left, back slice up-right, mild foreshortening; all inside the box with a margin.
-      const m = 2, DX = W * .22, DY = H * .34, FW = W - DX - m * 2, A0 = (H - DY - m * 2) * .48, base = H - m - 1;
-      const geo = (d: number) => { const s = 1 - d * .18; return { x0: m + d * DX, wd: FW * s, by: base - d * DY - A0 * s, amp: A0 * s }; };
-      const path = (vals: ArrayLike<number>, d: number) => { const q = geo(d); g.beginPath();
-        for (let i = 0; i < pts; i++) { const px = q.x0 + i / (pts - 1) * q.wd, py = q.by - Math.max(-1, Math.min(1, vals[i])) * q.amp; i ? g.lineTo(px, py) : g.moveTo(px, py); } return q; };
-      g.lineJoin = "round"; g.lineCap = "round";
-      // Cage: floor rails and back frame.
-      g.strokeStyle = fg; g.globalAlpha = .22; g.lineWidth = .75;
+      // Geometry: front slice bottom-left, back slice up-right; every slice's peaks and floor stay inside a fixed margin.
+      const m = 3, DX = W * .24, DY = H * .36, A = Math.max(1, (H - m * 2 - DY) / 2 - 1), FW = W - m * 2 - DX - 3;
+      const geo = (d: number) => { const s = 1 - d * .12, fl = H - m - d * DY; return { x0: m + d * DX, wd: FW * s, fl, by: fl - A, amp: A }; };
+      const ptsOf = (vals: ArrayLike<number>, d: number) => { const q = geo(d); return Array.from({ length: pts }, (_, i) => [q.x0 + i / (pts - 1) * q.wd, q.by - Math.max(-1, Math.min(1, vals[i])) * q.amp * .96] as const); };
+      const stroke = (pp: ReadonlyArray<readonly [number, number]>) => { g.beginPath(); pp.forEach(([px, py], i) => i ? g.lineTo(px, py) : g.moveTo(px, py)); g.stroke(); };
+      g.lineJoin = "round"; g.lineCap = "round"; g.strokeStyle = fg; g.fillStyle = fg;
+      // Cage: floor and back posts.
       const f = geo(0), b = geo(1);
-      g.beginPath(); g.moveTo(f.x0, f.by + f.amp); g.lineTo(b.x0, b.by + b.amp); g.lineTo(b.x0 + b.wd, b.by + b.amp); g.lineTo(f.x0 + f.wd, f.by + f.amp); g.closePath(); g.stroke();
-      g.beginPath(); g.moveTo(b.x0, b.by - b.amp); g.lineTo(b.x0, b.by + b.amp); g.moveTo(b.x0 + b.wd, b.by - b.amp); g.lineTo(b.x0 + b.wd, b.by + b.amp); g.stroke();
-      g.globalAlpha = 1;
+      g.globalAlpha = .25; g.lineWidth = .75;
+      g.beginPath(); g.moveTo(f.x0, f.fl); g.lineTo(b.x0, b.fl); g.lineTo(b.x0 + b.wd, b.fl); g.lineTo(f.x0 + f.wd, f.fl); g.closePath(); g.stroke();
+      g.beginPath(); g.moveTo(b.x0, b.fl); g.lineTo(b.x0, b.fl - 2 * A); g.moveTo(b.x0 + b.wd, b.fl); g.lineTo(b.x0 + b.wd, b.fl - 2 * A); g.stroke();
       // Current (interpolated) wave.
       let cur: number[];
       if (basic) { const mix = waveMix(wave); cur = Array.from({ length: pts }, (_, i) => mix.reduce((a, wk, k) => a + wk * (table.view[k]?.[i] ?? 0), 0)); }
       else { const fp = framePair(p, n); cur = Array.from({ length: pts }, (_, i) => fp.weights[0] * table.view[fp.frames[0]][i] + fp.weights[1] * table.view[fp.frames[1]][i]); }
-      const shown = Math.min(n, basic ? 4 : 20), ks = Array.from({ length: shown }, (_, s) => shown === 1 ? 0 : Math.round(s * (n - 1) / (shown - 1)));
+      const shown = Math.min(n, basic ? 4 : 24), ks = Array.from({ length: shown }, (_, s) => shown === 1 ? 0 : Math.round(s * (n - 1) / (shown - 1)));
       const dOf = (k: number) => n > 1 ? k / (n - 1) : 0;
-      const slice = (vals: ArrayLike<number>, d: number, active: boolean) => {
-        // Occlude farther slices with a background fill down to the floor.
-        const q = path(vals, d); g.lineTo(q.x0 + q.wd, q.by + q.amp + 1); g.lineTo(q.x0, q.by + q.amp + 1); g.closePath();
-        g.globalAlpha = 1; g.fillStyle = bg; g.fill();
-        if (active) { const gr = g.createLinearGradient(0, q.by - q.amp, 0, q.by + q.amp); gr.addColorStop(0, fg); gr.addColorStop(1, "transparent");
-          g.globalAlpha = .28; g.fillStyle = gr; g.fill(); }
-        path(vals, d); g.strokeStyle = fg; g.globalAlpha = active ? 1 : .2 + .5 * (1 - d); g.lineWidth = active ? 1.8 : .8; g.stroke();
-      };
-      let drawn = false;
-      for (let s = ks.length - 1; s >= 0; s--) { const d = dOf(ks[s]); if (!drawn && p >= d - 1e-6 && n > 1) { slice(cur, p, true); drawn = true; } slice(table.view[ks[s]], d, false); }
-      if (!drawn) slice(cur, n > 1 ? p : 0, true);
+      // Transparent mesh: every slice visible (no occlusion), back to front, plus front-to-back ribs.
+      const rows = ks.map(k => ptsOf(table.view[k], dOf(k)));
+      g.lineWidth = .7;
+      for (let r = rows.length - 1; r >= 0; r--) { g.globalAlpha = .22 + .2 * (1 - dOf(ks[r])); stroke(rows[r]); }
+      if (rows.length > 1) { g.globalAlpha = .14; for (let i = 0; i < pts; i += 4) stroke(rows.map(row => row[i])); }
+      // Active wave on top: curtain to its floor + bold line, so it reads through the mesh at any depth.
+      const dA = n > 1 ? p : 0, act = ptsOf(cur, dA), qa = geo(dA);
+      g.beginPath(); act.forEach(([px, py], i) => i ? g.lineTo(px, py) : g.moveTo(px, py)); g.lineTo(qa.x0 + qa.wd, qa.by); g.lineTo(qa.x0, qa.by); g.closePath();
+      g.globalAlpha = .22; g.fill();
+      g.globalAlpha = 1; g.lineWidth = 2.6; g.strokeStyle = bg; stroke(act); g.strokeStyle = fg; g.lineWidth = 1.6; stroke(act);
       // Position marker on the right floor rail.
-      const q = geo(n > 1 ? p : 0); g.globalAlpha = 1; g.fillStyle = fg; g.beginPath(); g.arc(q.x0 + q.wd + 2, q.by + q.amp, 1.6, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(qa.x0 + qa.wd + 1.5, qa.fl, 1.4, 0, Math.PI * 2); g.fill();
     };
     paint();
     const ro = new ResizeObserver(paint); ro.observe(el); return () => ro.disconnect();
   }, [table, wave, basic]);
-  return <div aria-hidden className="pointer-events-none absolute" style={pos(x, y, w, h)}><canvas ref={cv} style={{ display: "block", width: "100%", height: "100%", imageRendering: "auto" }} /></div>;
+  return <div aria-hidden className="pointer-events-none absolute overflow-hidden" style={pos(x, y, w, h)}><canvas ref={cv} style={{ display: "block", width: "100%", height: "100%", imageRendering: "auto" }} /></div>;
 }
