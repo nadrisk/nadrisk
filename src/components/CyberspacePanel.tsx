@@ -59,7 +59,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   };
   const extra = (page: string) => {
     if (page === "OSC") return <>
-      <WavetableView x={4} y={19} w={120} h={25} table={tbl} wave={c.wave} basic={basic} />
+      <WavetableView x={3} y={12} w={122} h={32} table={tbl} wave={c.wave} basic={basic} />
       <Zone x={2} y={11} w={124} h={34} horizontal label="Synth wavetable position" value={c.wave} min={0} max={3} step={.001} reset={home.wave} onChange={wave => C({ wave })} />
       <Tap x={90} y={11} w={36} h={8} label="Synth voices: tap to toggle mono or 8 voices" pressed={c.voices === 1} onClick={() => C({ voices: c.voices === 1 ? 8 : 1 })} />
     </>;
