@@ -7,6 +7,7 @@ import { pkey } from "@/components/HwScreens";
 import type { Px } from "@/pixel/draw";
 import { glyph } from "@/pixel/font";
 import { GATE_PRESETS, FX_COST, FX_DEFS, MAX_FX_LOAD, SYNC_DIVS, GAIN_ZERO, gainDbToPos, gainPosToDb, makeFx, tremoloShape, fxRate, type FxLevels, type FxType, type FxUnit } from "@/audio/effects";
+import { DIGI_OFFS } from "@/audio/digiDelay";
 import { FX_CATEGORIES, FX_CHOOSER_NAMES, fxCategoryRect, fxChoiceRect } from "./fxCatalog";
 import { hackPattern } from "@/audio/hack";
 
@@ -14,6 +15,7 @@ const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const HEAD_NAMES = ["1", "2", "3", "1+2", "2+3", "1+3", "1+2+3"];
 const MORPH_T = ["LP", "HP", "BP", "NTCH"], MORPH_W = ["SIN", "TRI", "SAW", "SQR", "S&H"];
 const hzFmt = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`;
+const digiFmt = (k: string, v: number) => k === "sync" ? (Math.round(v) ? SYNC_DIVS[Math.round(v)][0] : "FREE") : k === "time" ? `${Math.round(v * 1000)}MS` : k === "mode" ? (v >= .5 ? "PING" : "DUAL") : k === "offs" ? DIGI_OFFS[Math.round(v)]?.[0] ?? "SAME" : k === "hp" || k === "damp" ? (k === "damp" && v >= 19990 ? "OPEN" : hzFmt(v)) : `${Math.round(v * 100)}%`;
 const noizFmt = (k: string, v: number) => k === "nmode" ? ["CRSP", "FULL", "ALTR"][Math.round(v)] ?? "CRSP" : k === "tone" || k === "pre" ? hzFmt(v) : k === "width" ? (v < .02 ? "MONO" : v > .98 ? "WIDE" : `${Math.round(v * 100)}%`) : `${Math.round(v * 100)}%`;
 const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
   k === "typeA" || k === "typeB" ? MORPH_T[Math.round(v)] ?? "LP" : k === "wave" ? MORPH_W[Math.round(v)] ?? "SIN" : k === "retrig" ? (v >= .5 ? "NOTE" : "FREE") : k === "morph" ? `${Math.round(v * 100)}%` : k === "res" ? v.toFixed(1) : k === "cutoff" ? (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${Math.round(v)}HZ`) :
@@ -31,7 +33,7 @@ const fmt = (k: string, v: number, p: Record<string, number> = {}) =>
 // Short screen names; FX_DEFS labels stay unchanged so saved MIDI mappings keep working.
 const SHORT_NAME: Partial<Record<FxType, string>> = { delay: "DLAY", hack: "HACK", reverb: "RVRB", reverseDelay: "RVRS", metal: "METAL", gate: "TRANCE", eq: "EQ" };
 const nm = (t: FxType) => SHORT_NAME[t] ?? FX_DEFS[t].label.replace(/~$/, "").replace(/\./g, " ").toUpperCase();
-const short = (k: string, t?: FxType) => t === "noiz" ? ({ amt: "AMT", nmode: "MODE", tone: "TONE", pre: "PRE", width: "WDTH", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "hack" ? ({ short: "SHRT", clock: "CLK", starve: "STRV", skip: "SKIP", size: "SIZE", rate: "RATE", steps: "STPS", depth: "DPTH", smth: "SMTH", lock: "SYNC", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
+const short = (k: string, t?: FxType) => t === "digi" ? ({ time: "TIME", sync: "SYNC", mode: "MODE", offs: "OFFS", feedback: "FDBK", hp: "HP", damp: "DAMP", duck: "DUCK", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "noiz" ? ({ amt: "AMT", nmode: "MODE", tone: "TONE", pre: "PRE", width: "WDTH", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "hack" ? ({ short: "SHRT", clock: "CLK", starve: "STRV", skip: "SKIP", size: "SIZE", rate: "RATE", steps: "STPS", depth: "DPTH", smth: "SMTH", lock: "SYNC", mix: "MIX" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase() : t === "metal" && ({ note: 1, feedback: 1, metal: 1, tone: 1 } as Record<string, number>)[k] ? ({ note: "TUNE", feedback: "RING", metal: "CLNG", tone: "DAMP" } as Record<string, string>)[k] : t === "morph" && ({ typeA: 1, typeB: 1, cutoff: 1, retrig: 1, smooth: 1, morph: 1 } as Record<string, number>)[k] ? ({ typeA: "FLTA", typeB: "FLTB", cutoff: "CUT", retrig: "RTRG", smooth: "SMTH", morph: "MRPH" } as Record<string, string>)[k] : t === "acid" && k === "drive" ? "SUST" : t === "acid" && k === "blend" ? "TONE" : t === "flanger" && k === "depth" ? "RNGE" : t === "flanger" && k === "feedback" ? "ENH" : t === "chorus" && k === "noise" ? "NOIS" : t === "sidechain" && k === "depth" ? "DUCK" : t === "sidechain" && k === "attack" ? "SMTH" : ({ feedback: "FDBK", threshold: "THR", release: "REL", attack: "ATK", source: "KEY", reduce: "DOWN", manual: "MAN", decay: "DCY", density: "DENS", random: "RND", smash: "SMSH", preset: "PATT", tight: "TGHT", trans: "TIGHT", lofi: "MODE", oppose: "OPPS", bump: "BUMP", oxide: "OXID", amount: "AMT", sp: "SP", track: "TRCK", metal: "METL", reese: "REES", growl: "GRWL", squelch: "SQLC", mode: "HEAD", shape: "SHAP", focus: "FOCS", crush: "CRSH", dir: "DIR", spring: "SPRG", width: "WDTH", ping: "PING", hp: "HP", thresh: "THRS" } as Record<string, string>)[k] ?? k.slice(0, 4).toUpperCase();
 const ROWS = 4;
 
 const pv = (p: Record<string, number>, k: string, fallback: number) => p[k] ?? fallback;
@@ -108,6 +110,20 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     const sp = pv(p, "spring", 0), amp = Math.round(1 + sp * 6); let py = 33;
     d.text("SPRG", 78, 23);
     for (let x = 78; x < 124; x++) { const y = 36 + Math.round(Math.sin((x - 78) * 1.4) * amp * (sp > 0 ? 1 : .2)); d.line(x - 1, py, x, y); py = y; }
+    return;
+  }
+  if (type === "digi") {
+    // Header: time readout. Left/right tap rows shrink with FDBK (PING alternates sides). Right: live duck meter.
+    const ping = pv(p, "mode", 0) >= .5, fb = pv(p, "feedback", .35), oi = Math.round(pv(p, "offs", 0)), sy = Math.round(pv(p, "sync", 4));
+    const tl = sy ? SYNC_DIVS[sy][0] : `${Math.round(pv(p, "time", .25) * 1000)}MS`;
+    d.text(ping ? `PING ${tl}` : oi ? `${tl} ${DIGI_OFFS[oi][0]}` : tl, 3, 22);
+    const ratio = DIGI_OFFS[oi]?.[1] ?? 1, gap = 12;
+    d.line(3, 30, 98, 30, true); d.line(3, 41, 98, 41, true); d.rect(3, 26, 2, 4);
+    for (let k = 1; k <= 8; k++) { const h = Math.max(1, Math.round(4 * fb ** (k - 1)));
+      if (ping) { const x = 3 + k * gap; if (x > 96) break; if (k % 2) d.rect(x, 30 - h, 2, h); else d.rect(x, 41 - h, 2, h); }
+      else { const xl = 3 + k * gap, xr = 3 + Math.round(k * gap * ratio); if (xl <= 96) d.rect(xl, 30 - h, 2, h); if (xr <= 96) d.rect(xr, 41 - h, 2, h); } }
+    const db = Math.max(-18, Math.min(0, levels?.state?.[0] ?? 0)), hh = Math.round(-db / 18 * 17);
+    d.box(106, 24, 9, 19); if (hh) d.rect(108, 26, 5, hh);
     return;
   }
   if (type === "noiz") {
@@ -334,7 +350,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   const pageSize = f?.type === "metal" ? 5 : 4;
   const pages = Math.max(1, Math.ceil(params.length / pageSize)), pi = Math.min(pg, pages - 1);
   const top = Math.max(0, Math.min(i - 1, fx.length - ROWS));
-  const liveMeter = !!f && ["hack", "compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal", "acid", "reverseDelay", "vibrato"].includes(f.type);
+  const liveMeter = !!f && ["digi", "hack", "compressor", "sidechain", "ott", "drumbus", "noisegate", "dyneq", "spectral", "metal", "acid", "reverseDelay", "vibrato"].includes(f.type);
   useEffect(() => {
     if (!f || !liveMeter || !f.on) { setLevels(null); return; }
     hist.current = []; let last = 0, smooth: FxLevels = { input: -60, output: -60 };
@@ -356,7 +372,7 @@ function FxChain({ slotIndex, slotName, slots, fx, onChange, getLevels, load }: 
   }, [f?.id, f?.on, getLevels, liveMeter, slotIndex]);
   const knobs = (page: string): Knob[] => page !== "EDT" || !f ? [] : params.slice(pi * pageSize, pi * pageSize + pageSize).map(([k, r]) => ({
     label: `${FX_DEFS[f.type].label} ${k}`, short: short(k, f.type), value: f.params[k] ?? (k === "level" && f.params.gain !== undefined ? gainDbToPos(f.params.gain) : k === "width" ? 0 : r[0]), min: k === "source" ? 1 : r[1], max: k === "source" ? slots.length : r[2], step: k === "source" ? 1 : r[3],
-    reset: k === "source" ? undefined : r[0], fmt: v => (f.type === "noiz" ? noizFmt(k, v) : k === "source" ? `${v} ${slots[v - 1] ?? ""}` : f.type === "hack" && k === "rate" ? ["1/4", "1/8", "1/16", "1/32"][Math.round(v)] ?? "1/16" : f.type === "hack" && k === "steps" ? `${Math.round(v)}` : (f.type === "hack" && (k === "depth" || k === "smth")) ? `${Math.round(v * 100)}%` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
+    reset: k === "source" ? undefined : r[0], fmt: v => (f.type === "digi" ? digiFmt(k, v) : f.type === "noiz" ? noizFmt(k, v) : k === "source" ? `${v} ${slots[v - 1] ?? ""}` : f.type === "hack" && k === "rate" ? ["1/4", "1/8", "1/16", "1/32"][Math.round(v)] ?? "1/16" : f.type === "hack" && k === "steps" ? `${Math.round(v)}` : (f.type === "hack" && (k === "depth" || k === "smth")) ? `${Math.round(v * 100)}%` : fmt(k, v, f.params)), set: v => set({ params: { ...f.params, [k]: v, ...(k === "preset" ? { mask: GATE_PRESETS[Math.round(v)][1], steps: 16 } : {}) } }),
   }));
   const mask = Math.round(f?.params.mask ?? 21845), gsteps = Math.round(f?.params.steps ?? 16);
   const acts: [string, string, number, () => void, boolean][] = [["UP", "Move earlier", 1, () => move(-1), i > 0], ["DN", "Move later", 33, () => move(1), i < fx.length - 1], [f?.on ? "ON" : "BYP", f?.on ? "Bypass effect" : "Enable effect", 65, () => f && set({ on: !f.on }), !!f], ["DEL", "Remove effect", 97, () => onChange(fx.filter((_, j) => j !== i)), !!f]];

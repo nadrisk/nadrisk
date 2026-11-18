@@ -8,7 +8,7 @@ describe("effect categorization", () => {
     ["eq", "dyneq", "djfilter", "morph", "spectral"],
     ["saturation", "acid", "bitcrush", "metal", "hack", "noiz"],
     ["chorus", "flanger", "phaser", "vibrato", "tremolo", "gate"],
-    ["delay", "reverseDelay", "reverb"],
+    ["delay", "digi", "reverseDelay", "reverb"],
   ];
   FX_CATEGORIES.forEach((group, index) => {
     it(`keeps the planned effects in ${group.label}`, () => {
@@ -17,7 +17,7 @@ describe("effect categorization", () => {
   });
   it("offers every effect exactly once", () => {
     const all = FX_CATEGORIES.flatMap(group => [...group.effects]);
-    expect(all).toHaveLength(26);
+    expect(all).toHaveLength(27);
     expect([...new Set(all)].sort()).toEqual([...FX_TYPES].sort());
   });
 });

@@ -50,3 +50,4 @@
 - Sampler ADSR mode uses samplerAdsr (attack, punch hold, dB-linear decay) instead of the synth adsr, so short DEC tightens tails without losing the hit's loudness.
 - Four group buses (groups.ts) receive grouped pads' post-pan output before master; grouped pads keep their own FX saved but bypassed, and the FX screen edits the group rack, so ungrouping restores the pad sound.
 - SYN wavetables (src/audio/wavetable.ts) keep BASIC on native oscillators and play imported 2048-sample WAV frames as cached PeriodicWaves (raw WAV parse, no resampling) stored in their own IndexedDB; frame k stays on oscillator k % 2 so position moves never swap a sounding wave, and WAVE 0-3 remains the position so old sets load unchanged.
+- digi.delay~ keeps its DSP in a self-contained DigiCore class embedded by source into the shared worklet bundle, so tests run the exact browser code; DUCK follows dry input only.
