@@ -523,7 +523,17 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const tickPump = useRef(() => pumpRef.current()).current;
   const startHold = useCallback((i: number, kind: Hold["kind"]) => {
     const e = engine.current; if (!e || holds.current.has(i) || !pressed.current.has(i)) return;
-    holds.current.set(i, { next: e.ctx.currentTime, idx: 0, count: 0, kind }); pump();
+    let next = e.ctx.currentTime;
+    // Repeat locks to the running beat grid: quantize the first hit to the nearest
+    // rate subdivision of the transport clock so off-beat presses stay in time.
+    const lt = lastTick.current;
+    if (kind === "repeat" && lt && Tone.getTransport().state === "started") {
+      const dur = 60 / bpmRef.current * RATES[repeatRef.current.rate];
+      let k = Math.round((next - lt.time) / dur);
+      if (lt.time + k * dur < next - 0.02) k++;
+      next = lt.time + k * dur;
+    }
+    holds.current.set(i, { next, idx: 0, count: 0, kind }); pump();
     if (!timer.current) { Tone.getContext().on("tick", tickPump); timer.current = true; }
   }, [pump]);
   const stopHold = useCallback((i: number) => { if (!holds.current.delete(i)) return; cancelBooked(i); idle(); }, [cancelBooked]);
