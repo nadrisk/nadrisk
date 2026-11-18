@@ -70,7 +70,56 @@ const ACID_RHYTHMS = [
   "x.xx.x.xx.x.xx.x", "x..x..x.x..x..x.", "xx.x.xx.xx.x.x.x", "x.x.xx.x.xx.x.xx",
   "x..xx.x.x..xx.xx", ".xx.x.xx.xx.x.x.", "x.xxx..xx.x.x..x", "x..x.xx..x.x.xx.",
 ];
-export function randomizeArp(a: ArpParams, rnd: () => number = Math.random): ArpParams {
+export type PhraseCharacter = "bass" | "melodic";
+/** Bass pads (BAS engine, drums, or pitched below C3) keep acid RAND; everything else gets melodic RAND. */
+export const phraseCharacter = (engine: string, note: number | undefined): PhraseCharacter =>
+  engine === "808" || engine === "drum" || engine === "idm" || (note ?? 48) < 48 ? "bass" : "melodic";
+export function randomizeArp(a: ArpParams, rnd: () => number = Math.random, character: PhraseCharacter = "bass"): ArpParams {
+  return character === "melodic" ? melodicArp(a, rnd) : acidArp(a, rnd);
+}
+const MELODY_RHYTHMS = [
+  "x.x.x.xxx.x...x.", "x..x..x.x.x.x...", "x.xx..x.x...x.x.", "x...x.xxx...x.x.",
+  "x.x..xx.x.x.x...", "xx..x.x.x..x.x..",
+];
+/** Melodic RAND: stepwise contour (mostly +-1/2 degrees) as a rising call and a resolving answer,
+ *  colour tones on strong beats, long gates on focal notes and slides into peaks. */
+function melodicArp(a: ArpParams, rnd: () => number): ArpParams {
+  const span = degreeCount(a.scale), n = SCALES[a.scale].length, len = a.cells.length;
+  const pick = <T,>(xs: T[]) => xs[Math.floor(rnd() * xs.length) % xs.length];
+  const rhythm = pick(MELODY_RHYTHMS), clamp = (d: number) => Math.max(0, Math.min(span - 1, d));
+  const colour = [0, 2, 4, 1, 5, 6].map(d => d % n); // root, 3rd, 5th, 2nd, 6th, 7th as scale degrees
+  const peak = clamp(n + pick([0, 2, 4 % n]));
+  let deg = pick([0, 2, 4].map(d => d % n)), dir = 1, prev = -1, prev2 = -1, first = true;
+  const move = (pos: number) => {
+    if (first) { first = false; return; }
+    if (pos % 8 === 0 && rnd() < .35) { deg = clamp(pick(colour) + (deg >= n ? n : 0)); return; }
+    const step = rnd() < .8 ? (rnd() < .65 ? 1 : 2) : pick([3, 4]);
+    if (deg + dir * step > peak || deg + dir * step < 0 || rnd() < .2) dir = -dir;
+    deg = clamp(deg + dir * step);
+    if (deg === prev && deg === prev2) deg = clamp(deg + (deg + dir < 0 ? 1 : dir));
+  };
+  const cells: ArpStep[] = Array.from({ length: len }, (_, i) => {
+    const pos = i % 16, on = rhythm[pos] === "x" || pos === 0;
+    if (on) {
+      move(pos);
+      // Answer resolves: the last notes of each 16 drift home toward the root or 3rd.
+      if (pos >= 13 && Math.floor(i / 8) % 2 === 1) { const home = deg >= n ? n : 0; deg = clamp(deg > home ? deg - 1 : deg); if (pos >= 14 && rnd() < .6) deg = home; }
+      prev2 = prev; prev = deg;
+    }
+    return { on, deg, vel: pos % 4 === 0 ? .8 + rnd() * .15 : .6 + rnd() * .15, gate: .35, slide: false };
+  });
+  for (let i = 0; i < len; i++) {
+    const c = cells[i]; if (!c.on) continue;
+    let rest = 0; for (let j = i + 1; j < len && !cells[j].on; j++) rest++;
+    const next = cells[i + 1];
+    c.gate = rest >= 1 || i % 4 === 0 ? .65 + rnd() * .25 : .3 + rnd() * .1;
+    if (next?.on && next.deg > c.deg && next.deg - c.deg <= 2 && rnd() < .3) { c.slide = true; c.gate = 1; }
+  }
+  const used = new Set(cells.slice(0, a.steps).filter(c => c.on).map(c => c.deg));
+  if (used.size < 3) { const f = cells.slice(1, a.steps).filter(c => c.on); f.forEach((c, k) => { if (used.size < 3) { c.deg = clamp(c.deg + k + 1); used.add(c.deg); } }); }
+  return { ...a, cells };
+}
+function acidArp(a: ArpParams, rnd: () => number): ArpParams {
   const span = degreeCount(a.scale), n = SCALES[a.scale].length, oct = Math.min(n, span - 1);
   const pick = <T,>(xs: T[]) => xs[Math.floor(rnd() * xs.length) % xs.length];
   const wpick = (ws: [number, number][]) => { let t = rnd() * ws.reduce((s, w) => s + w[1], 0); for (const [v, w] of ws) if ((t -= w) <= 0) return v; return ws[0][0]; };

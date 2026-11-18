@@ -4,12 +4,12 @@ import { harmonyOn } from "@/audio/harmony";
 import { Tap } from "@/pixel/PixelScreen";
 import { Panel, type Knob } from "@/components/pixelScreens";
 import { pkey } from "@/components/HwScreens";
-import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, spreadDeg, noteName, randomizeArp, trancePhrase, defaultTrance, TRANCE_PATTERNS, INTV_NAMES, applyEucl, defaultEucl, PHRASE_DIRS, euclid, type ArpParams, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
+import { NOTE_NAMES, RATES, SCALES, degreeCount, midiOf, spreadDeg, noteName, randomizeArp, trancePhrase, defaultTrance, TRANCE_PATTERNS, INTV_NAMES, applyEucl, defaultEucl, PHRASE_DIRS, euclid, type ArpParams, type PhraseCharacter, type ArpStep, type RateName, type ScaleName } from "@/audio/arp";
 
-type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void; note?: number; onNote?: (n: number) => void; noteOf?: (deg: number) => number };
+type Props = { arp: ArpParams; slotName: string; onChange: (arp: ArpParams) => void; note?: number; onNote?: (n: number) => void; noteOf?: (deg: number) => number; character?: PhraseCharacter };
 const RT = Object.keys(RATES) as RateName[];
 
-function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf }: Props) {
+function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf, character }: Props) {
   // The pad NOTE is the phrase root: ROOT/OCT read and write it, so there is one place to set it.
   const arp = note === undefined ? arp0 : { ...arp0, root: note % 12, octave: Math.floor(note / 12) - 1 };
   const onChange = (a: ArpParams) => { if (onNote && note !== undefined && (a.root !== arp.root || a.octave !== arp.octave)) onNote((a.octave + 1) * 12 + a.root); onArp({ ...a, root: a.root, octave: a.octave }); };
@@ -61,7 +61,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf 
   const keysFor = (page: string): Key[] => page === "RUN" ? [
     // Lit key = phrase on; its label shows the play mode chosen on LOOP (RUN or STEP).
     [arp.on ? (step ? "STEP" : "RUN") : "OFF", "Phrase on", 1, arp.on, () => set({ on: !arp.on })],
-    ["RAND", "Randomize phrase", 33, false, () => onChange(randomizeArp(arp))],
+    ["RAND", "Randomize phrase", 33, false, () => onChange(randomizeArp(arp, Math.random, character))],
     ["SLIDE", "Step slide", 65, !!cur.slide, () => setCell({ slide: !cur.slide, on: true })],
     [arp.sync ? "SYNC" : "FREE", "Phrase sync", 97, arp.sync, () => set({ sync: !arp.sync })],
   ] : page === "PATT" ? [

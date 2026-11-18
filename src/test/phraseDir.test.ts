@@ -33,3 +33,21 @@ describe("RAND acid feel", () => {
     }
   });
 });
+
+import { phraseCharacter } from "@/audio/arp";
+describe("RAND character", () => {
+  it("bass pads stay acid, synth pads go melodic", () => {
+    expect(phraseCharacter("808", 29)).toBe("bass");
+    expect(phraseCharacter("synth", 29)).toBe("bass");
+    expect(phraseCharacter("synth", 53)).toBe("melodic");
+  });
+  it("melodic RAND moves mostly by step", () => {
+    let small = 0, all = 0;
+    for (let s = 1; s < 40; s++) {
+      let x = s; const r = randomizeArp(defaultArp(), () => ((x = (x * 16807) % 2147483647) / 2147483647), "melodic");
+      const on = r.cells.filter(c => c.on).map(c => c.deg);
+      for (let i = 1; i < on.length; i++) { all++; if (Math.abs(on[i] - on[i - 1]) <= 2) small++; }
+    }
+    expect(small / all).toBeGreaterThan(0.6);
+  });
+});
