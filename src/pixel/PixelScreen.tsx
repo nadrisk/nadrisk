@@ -7,6 +7,12 @@ export const W = 128, H = 64;
 export const DisplayThemeContext = createContext("oled");
 
 // Fixed 128x64 display scaled by a whole number (nearest neighbour), so every pixel is identical on any device.
+// Theme vars can be missing for a frame after a cold reload; an invalid "hsl()" is ignored by canvas and paints black-on-black.
+function colors(c: HTMLElement) {
+  const cs = getComputedStyle(c), f = cs.getPropertyValue("--foreground").trim(), b = cs.getPropertyValue("--background").trim();
+  return { fg: f ? `hsl(${f})` : "#fff", bg: b ? `hsl(${b})` : "#000", ok: Boolean(f && b) };
+}
+
 export default function PixelScreen({ draw, deps, children, label, live }: { draw: (p: Px) => void; deps: unknown[]; children?: ReactNode; label: string; live?: () => boolean }) {
   const wrap = useRef<HTMLDivElement>(null), cv = useRef<HTMLCanvasElement>(null);
   const latest = useRef({ draw, live }); latest.current = { draw, live };
@@ -32,20 +38,24 @@ export default function PixelScreen({ draw, deps, children, label, live }: { dra
   useEffect(() => {
     const c = cv.current, ctx = c?.getContext("2d"); if (!c || !ctx) return;
     ctx.imageSmoothingEnabled = false;
-    const cs = getComputedStyle(c), fg = `hsl(${cs.getPropertyValue("--foreground")})`, bg = `hsl(${cs.getPropertyValue("--background")})`;
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    draw(new Px(ctx, fg, bg));
+    const paint = () => { const { fg, bg, ok } = colors(c); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); latest.current.draw(new Px(ctx, fg, bg)); return ok; };
+    const ok = paint();
+    // Repaint once styles/fonts settle so a reload never leaves a dark screen until touched.
+    let r1 = 0, r2 = 0, alive = true;
+    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => { if (alive) paint(); }); });
+    if (!ok || document.readyState !== "complete") { window.addEventListener("load", paint, { once: true }); document.fonts?.ready.then(() => { if (alive) paint(); }); }
+    return () => { alive = false; cancelAnimationFrame(r1); cancelAnimationFrame(r2); window.removeEventListener("load", paint); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme, ...deps]);
   const hasLive = Boolean(live);
   useEffect(() => {
     if (!hasLive) return;
     const c = cv.current, ctx = c?.getContext("2d"); if (!c || !ctx) return;
-    const cs=getComputedStyle(c), fg=`hsl(${cs.getPropertyValue("--foreground")})`, bg=`hsl(${cs.getPropertyValue("--background")})`;
     let last=0;
     return gatedLoop(c, now => {
       if (now-last<60) return; last=now;
       if (!latest.current.live?.()) return;
+      const { fg, bg } = colors(c);
       ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
       latest.current.draw(new Px(ctx,fg,bg));
     });
