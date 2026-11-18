@@ -104,9 +104,18 @@ export function loadTable(id: string): Promise<WtTable | null> {
   if (!p) { p = tx<Stored | undefined>("readonly", s => s.get(id)).then(r => { if (!r) return null; const frames = Array.from({ length: r.n }, (_, k) => r.data.slice(k * FRAME, (k + 1) * FRAME)); const t = buildTable(id, r.name, frames); mem.set(id, t); emit(); return t; }).catch(() => null).finally(() => loading.delete(id)); loading.set(id, p); }
   return p;
 }
-export async function importWavetable(file: File): Promise<WtTable> {
-  const { data, frameSize } = parseWav(await file.arrayBuffer());
-  const frames = toFrames(data, frameSize), id = `wt:${file.name}-${file.size}`, name = file.name.replace(/\.[^.]+$/, "");
+export async function importWavetable(file: File): Promise<WtTable> { return storeWav(await file.arrayBuffer(), `wt:${file.name}-${file.size}`, file.name.replace(/\.[^.]+$/, "")); }
+/** WaveEdit Online banks (CC0): 64 cycles of 256 samples, streamed from the CDN once, then kept on this device. */
+export const cloudId = (file: string) => `wt:${file}-0`;
+export async function loadCloudTable(file: string): Promise<WtTable> {
+  const id = cloudId(file), have = await loadTable(id); if (have) return have;
+  const r = await fetch(`https://cdn.jsdelivr.net/gh/smpldsnds/wavedit-online@main/samples/${encodeURIComponent(file)}.WAV`);
+  if (!r.ok) throw new Error("DOWNLOAD FAILED");
+  return storeWav(await r.arrayBuffer(), id, file, 256);
+}
+async function storeWav(buf: ArrayBuffer, id: string, name: string, forceFrame?: number): Promise<WtTable> {
+  const { data, frameSize } = parseWav(buf);
+  const frames = toFrames(data, forceFrame ?? frameSize);
   const flat = new Float32Array(frames.length * FRAME); frames.forEach((f, k) => flat.set(f, k * FRAME));
   await tx("readwrite", s => s.put({ name, n: frames.length, data: flat } satisfies Stored, id));
   const t = buildTable(id, name, frames); mem.set(id, t); emit(); return t;
