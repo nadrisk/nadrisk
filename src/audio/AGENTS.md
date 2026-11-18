@@ -51,3 +51,4 @@
 - Four group buses (groups.ts) receive grouped pads' post-pan output before master; grouped pads keep their own FX saved but bypassed, and the FX screen edits the group rack, so ungrouping restores the pad sound.
 - SYN wavetables (src/audio/wavetable.ts) keep BASIC on native oscillators and play imported 2048-sample WAV frames as cached PeriodicWaves (raw WAV parse, no resampling) stored in their own IndexedDB; frame k stays on oscillator k % 2 so position moves never swap a sounding wave, and WAVE 0-3 remains the position so old sets load unchanged.
 - digi.delay~ keeps its DSP in a self-contained DigiCore class embedded by source into the shared worklet bundle, so tests run the exact browser code; DUCK follows dry input only.
+- SYN WT env (src/audio/wtEnv.ts, ADS + LOOP, no release) is a pure level function sampled by a 16 ms per-voice control loop only when depth ≠ 0, so default patches build no timers and tests cover the same curve the voice plays.

@@ -1,11 +1,12 @@
 import { ENGINE_TRIM } from "./loudness";
+import { WT_ENV_HOME, wtEnvOffset, type WtEnv } from "./wtEnv";
 import { framePair, frameWave, tableNow } from "./wavetable";
 import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type ADSR, type SynthParams, type Voice } from "./voices";
 
 /** SYN: a clean subtractive voice. WAVE morphs saw > square > triangle > sine; VOICES 1 = mono glide, 2-8 = poly. */
 export type CleanParams = { wave: number; sub: number; detune: number; voices: number; cutoff: number; res: number; envAmt: number; drive: number; env: ADSR; glide: number; /** Filter model: 0 CLEAN, 1 LADDER, 2 SEM, 3 MS20 (missing = CLEAN). */ flt?: number;
-  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number };
-export const defaultClean = (): CleanParams => ({ wave: 0, sub: 0, detune: 0, voices: 8, cutoff: 16000, res: 0, envAmt: 0, drive: 0, env: { a: .005, d: .35, s: .6, r: .3 }, glide: .06, noise: 0, pAmt: 0, pDec: .05 });
+  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number } & Partial<WtEnv>;
+export const defaultClean = (): CleanParams => ({ wave: 0, sub: 0, detune: 0, voices: 8, cutoff: 16000, res: 0, envAmt: 0, drive: 0, env: { a: .005, d: .35, s: .6, r: .3 }, glide: .06, noise: 0, pAmt: 0, pDec: .05, ...WT_ENV_HOME });
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 const WAVE_OF: Record<string, number> = { sawtooth: 0, square: 1, triangle: 2, sine: 3, additive: 0 };
 export const WAVES: OscillatorType[] = ["sawtooth", "square", "triangle", "sine"];
@@ -21,7 +22,8 @@ export function cleanOf(s?: Partial<SynthParams>): CleanParams {
   const d = defaultClean(), c = s?.clean;
   const legacy: Partial<CleanParams> = c ? {} : { wave: WAVE_OF[s?.osc1?.wave ?? "sawtooth"] ?? 0, cutoff: s?.cutoff ?? d.cutoff, res: clamp(((s?.res ?? 1) - .7) / 12, 0, 1), envAmt: clamp((s?.filterEnv ?? 1.4) / 4, 0, 1), env: s?.env ?? d.env };
   const p = { ...d, ...legacy, ...c, env: { ...d.env, ...legacy.env, ...c?.env } };
-  return { ...p, wave: clamp(p.wave, 0, 3), sub: clamp(p.sub, 0, 1), detune: clamp(p.detune, 0, 1), voices: Math.round(clamp(p.voices, 1, 8)), cutoff: clamp(p.cutoff, 40, 16000), res: clamp(p.res, 0, 1), envAmt: clamp(p.envAmt, 0, 1), drive: clamp(p.drive, 0, 1), glide: clamp(p.glide, 0, .5), flt: Math.round(clamp(p.flt ?? 0, 0, 3)), noise: clamp(p.noise ?? 0, 0, 1), pAmt: clamp(p.pAmt ?? 0, -24, 24), pDec: clamp(p.pDec ?? .05, .002, 1) };
+  return { ...p, wave: clamp(p.wave, 0, 3), sub: clamp(p.sub, 0, 1), detune: clamp(p.detune, 0, 1), voices: Math.round(clamp(p.voices, 1, 8)), cutoff: clamp(p.cutoff, 40, 16000), res: clamp(p.res, 0, 1), envAmt: clamp(p.envAmt, 0, 1), drive: clamp(p.drive, 0, 1), glide: clamp(p.glide, 0, .5), flt: Math.round(clamp(p.flt ?? 0, 0, 3)), noise: clamp(p.noise ?? 0, 0, 1), pAmt: clamp(p.pAmt ?? 0, -24, 24), pDec: clamp(p.pDec ?? .05, .002, 1),
+    wA: clamp(p.wA ?? WT_ENV_HOME.wA, .001, 5), wD: clamp(p.wD ?? WT_ENV_HOME.wD, .002, 10), wS: clamp(p.wS ?? 0, 0, 1), wSm: clamp(p.wSm ?? WT_ENV_HOME.wSm, 0, 1), wDp: clamp(p.wDp ?? 0, -1, 1), wLoop: !!p.wLoop, wBi: !!p.wBi };
 }
 
 const driveCache = new Map<number, Float32Array<ArrayBuffer>>();
@@ -54,17 +56,18 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const freqs: AudioParam[] = [], dets: [OscillatorNode, number][] = [];
   // Each detuned pair is panned apart (and each chord voice gets its own spot), so detune widens in stereo instead of combing in mono.
   const cents = c.detune * 28, tbl = tableNow(c.wt);
+  const env = (): WtEnv => ({ ...WT_ENV_HOME, ...cur }), cur: CleanParams = { ...c }, posAt = (el: number) => Math.max(0, Math.min(3, cur.wave + (cur.wDp ? wtEnvOffset(env(), el) : 0))), pos0 = posAt(0);
   const addOsc = (sg: number, gain: number, setWave: (o: OscillatorNode) => void) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); setWave(o); o.detune.value = sg * cents; g.gain.value = gain;
     const pn = ctx.createStereoPanner(); pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
     o.connect(g).connect(pn).connect(mix); nodes.push(pn, o, g); freqs.push(o.frequency); dets.push([o, sg]); srcs.push(o); return { o, g }; };
   // Imported table: two oscillators per detune side; frame k lives on oscillator k % 2 so position moves crossfade without swapping a sounding wave.
   const wt: { o: OscillatorNode; g: GainNode }[][] = [];
   let wtFrames: [number, number] = [-1, -1];
-  if (tbl) { const fp = framePair(c.wave / 3, tbl.frames.length); wtFrames = [...fp.frames];
+  if (tbl) { const fp = framePair(pos0 / 3, tbl.frames.length); wtFrames = [...fp.frames];
     [-1, 1].forEach(sg => wt.push([0, 1].map(j => addOsc(sg, fp.weights[j] * .32, o => o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j])))))); }
   // BASIC: all four waves run per side so a held note morphs live (silent ones sit at gain 0).
   const basicOsc: { g: GainNode; k: number }[] = [];
-  if (!tbl) waveMix(c.wave).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * WAVE_GAIN[k] * .5, o => { o.type = WAVES[k]; }).g, k })));
+  if (!tbl) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * WAVE_GAIN[k] * .5, o => { o.type = WAVES[k]; }).g, k })));
   // Noise oscillator, pre-filter so the envelope and filter shape it.
   let ng: GainNode | null = null;
   if ((c.noise ?? 0) > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; n.loopStart = Math.random(); ng = ctx.createGain(); ng.gain.value = (c.noise ?? 0) ** 2 * .35; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
@@ -74,7 +77,14 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   // Pitch envelope: starts pAmt semitones away and falls exponentially home over pDec.
   if (c.pAmt) { const pa = c.pAmt * 100; dets.forEach(([o, s]) => { const base = s * cents; o.detune.setValueAtTime(base + pa, t); o.detune.setTargetAtTime(base, t, (c.pDec ?? .05) / 4); });
     sub.detune.setValueAtTime(pa, t); sub.detune.setTargetAtTime(0, t, (c.pDec ?? .05) / 4); }
-  const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp);
+  let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => clearInterval(tick));
+  const setPos = (w: number, n: number, tc: number) => {
+    if (basicOsc.length) { const m = waveMix(w); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * WAVE_GAIN[k] * .5, n, tc)); }
+    if (tbl && wt.length) { const fp = framePair(w / 3, tbl.frames.length);
+      [0, 1].forEach(j => { if (fp.frames[j] !== wtFrames[j] && fp.weights[j] > 0) { wt.forEach(side => side[j].o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j]))); wtFrames[j] = fp.frames[j]; } wt.forEach(side => side[j].g.gain.setTargetAtTime(fp.weights[j] * .32, n, tc)); }); } };
+  // WT env: a light control-rate loop (16 ms, 30 ms ahead) moves the position while the voice lives; SMTH also slews it.
+  const run = () => { if (tick || !cur.wDp || typeof window === "undefined") return; tick = window.setInterval(() => { const n = Math.max(ctx.currentTime + .03, t); setPos(posAt(n - t), n, .006 + (cur.wSm ?? 0) * .05); }, 16); };
+  run();
   v.glide = (delta, a, time) => [...freqs, sub.frequency].forEach(p => { const q = p as AudioParam & { __base?: number }; const b = q.__base ?? p.value; p.cancelScheduledValues(a); p.setTargetAtTime(b * 2 ** (delta / 12), a, Math.max(.005, time / 3)); });
   v.update = q => { const nc = (q as { clean?: Partial<CleanParams> }).clean; if (!nc) return; const n = ctx.currentTime, tc = .01;
     if (nc.cutoff) { const ct = 1200 * Math.log2(nc.cutoff / c.cutoff); tracked.forEach(b => b.detune.setTargetAtTime(ct, n, tc)); }
@@ -83,8 +93,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     if (nc.detune !== undefined) dets.forEach(([o, s]) => o.detune.setTargetAtTime(s * nc.detune! * 28, n, tc));
     if (nc.sub !== undefined) sg.gain.setTargetAtTime(nc.sub * .6, n, tc);
     if (nc.noise !== undefined && ng) ng.gain.setTargetAtTime(nc.noise ** 2 * .35, n, tc);
-    if (nc.wave !== undefined && basicOsc.length) { const m = waveMix(Math.max(0, Math.min(3, nc.wave))); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * WAVE_GAIN[k] * .5, n, tc)); }
-    if (nc.wave !== undefined && tbl && wt.length) { const fp = framePair(nc.wave / 3, tbl.frames.length);
-      [0, 1].forEach(j => { if (fp.frames[j] !== wtFrames[j] && fp.weights[j] > 0) { wt.forEach(side => side[j].o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j]))); wtFrames[j] = fp.frames[j]; } wt.forEach(side => side[j].g.gain.setTargetAtTime(fp.weights[j] * .32, n, tc)); }); } };
+    Object.assign(cur, nc); if (cur.wDp) run();
+    if (nc.wave !== undefined || nc.wDp !== undefined) setPos(posAt(Math.max(0, n - t)), n, tc); };
   return v;
 }

@@ -5,9 +5,10 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import WavetableView from "./WavetableView";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
+import { wtEnvLevel, type WtEnv } from "@/audio/wtEnv";
 import { cleanOf, defaultClean, FILTER_MODELS, modelQ, waveMix, WAVE_NAMES, type CleanParams } from "@/audio/clean";
 
-const PAGES = ["OSC", "MOD", "FLT", "ENV"] as const;
+const PAGES = ["OSC", "WT", "MOD", "FLT", "ENV"] as const;
 /** Table for the screen: BASIC instantly, imported ones once loaded (re-renders when the library changes). */
 export function useWavetable(id?: string): WtTable {
   const [t, setT] = useState<WtTable | null>(null);
@@ -24,11 +25,14 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const noteK = useNoteKnob(slot, onChange);
   const tbl = useWavetable(c.wt), basic = !c.wt || c.wt === "basic", nF = basic ? 4 : tbl.view.length;
   const posName = (w: number) => basic ? waveName(w) : `${Math.round(w / 3 * (nF - 1)) + 1}/${nF}`;
-  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "wt">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
-    ({ label: `Synth ${label}`, short, value: c[key], min, max, step, fmt, log, reset: home[key], set: v => C({ [key]: v }) });
+  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "wt" | "wLoop" | "wBi">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
+    ({ label: `Synth ${label}`, short, value: c[key] as number, min, max, step, fmt, log, reset: home[key] as number, set: v => C({ [key]: v }) });
   const knobs = (page: string): Knob[] => {
     if (page === "OSC") return [noteK, K("wave", "WAVE", "wave", 0, 3, .001, posName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
       K("voices", "VOX", "voices", 1, 8, 1, v => (v === 1 ? "MONO" : `${v}V`))];
+    if (page === "WT") { const tm = (v: number) => v < 1 ? `${Math.round(v * 1000)}MS` : `${v.toFixed(1)}S`;
+      return [K("wavetable envelope attack", "ATK", "wA", .001, 5, .001, tm, true), K("wavetable envelope decay", "DEC", "wD", .002, 10, .001, tm, true), K("wavetable envelope sustain", "SUS", "wS", 0, 1, .01, pct),
+        K("wavetable envelope smoothing", "SMTH", "wSm", 0, 1, .01, pct), K("wavetable envelope depth", "DPTH", "wDp", -1, 1, .01, v => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`)]; }
     if (page === "MOD") return [K("pitch envelope amount", "P.AMT", "pAmt", -24, 24, 1, v => `${v > 0 ? "+" : ""}${Math.round(v)}ST`), K("pitch envelope decay", "P.DEC", "pDec", .002, 1, .001, v => v < 1 ? `${Math.round(v * 1000)}MS` : "1S", true),
       K("noise", "NOIS", "noise", 0, 1, .01, pct), K("glide", "GLID", "glide", 0, .5, .001, v => `${Math.round(v * 1000)}MS`)];
     if (page === "FLT") return [K("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), K("resonance", "RES", "res", 0, 1, .01, pct), K("filter envelope", "ENV", "envAmt", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
@@ -40,6 +44,17 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       p.text((basic ? waveName(c.wave) : `${tbl.name.toUpperCase().slice(0, 10)} ${posName(c.wave)}`).slice(0, 18), 4, 13);
       // Voice dots: lit = available voices, one bar = mono.
       if (c.voices === 1) p.text("MONO", 104, 13); else for (let i = 0; i < 8; i++) { if (i < c.voices) p.rect(92 + i * 4, 13, 3, 4); else p.dot(93 + i * 4, 16); }
+    } else if (page === "WT") {
+      p.box(2, 11, 124, 34);
+      // Envelope shape over a fixed window (one-shot: attack+decay+hold; loop: three cycles); BI draws the centre line.
+      const e = c as WtEnv, span = e.wLoop ? e.wA + e.wD + 2 * (e.wA + e.wD) : (e.wA + e.wD) * 1.4, top = 21, bot = 43, mid = (top + bot) >> 1;
+      if (e.wBi) for (let x = 4; x < 124; x += 3) p.dot(x, mid);
+      const dp = Math.max(.08, Math.abs(e.wDp)) * (e.wDp < 0 ? -1 : 1); let py = bot;
+      for (let x = 0; x < 120; x++) { const l = wtEnvLevel(e, (x / 119) * span), u = e.wBi ? l * 2 - 1 : l, y = Math.round((e.wBi ? mid : dp < 0 ? top : bot) - u * dp * (e.wBi ? (bot - top) / 2 : bot - top));
+        if (x) p.line(3 + x, py, 4 + x, y); py = y; }
+      p.rect(2, 11, 26, 8); p.textC(e.wLoop ? "LOOP" : "1SHT", 15, 12, false);
+      p.rect(30, 11, 18, 8); p.textC(e.wBi ? "BI" : "UNI", 39, 12, false);
+      if (!e.wDp) p.text("DPTH 0", 92, 13);
     } else if (page === "MOD") {
       p.box(2, 11, 124, 34);
       // Pitch envelope: exponential fall from P.AMT to the note over P.DEC (time axis 0..1 s, log-ish).
@@ -62,6 +77,10 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       <WavetableView x={3} y={12} w={122} h={32} table={tbl} wave={c.wave} basic={basic} />
       <Zone x={2} y={11} w={124} h={34} horizontal label="Synth wavetable position" value={c.wave} min={0} max={3} step={.001} reset={home.wave} onChange={wave => C({ wave })} />
       <Tap x={90} y={11} w={36} h={8} label="Synth voices: tap to toggle mono or 8 voices" pressed={c.voices === 1} onClick={() => C({ voices: c.voices === 1 ? 8 : 1 })} />
+    </>;
+    if (page === "WT") return <>
+      <Tap x={2} y={11} w={26} h={8} label={`Wavetable envelope ${c.wLoop ? "loop" : "one shot"}: tap to toggle`} pressed={!!c.wLoop} onClick={() => C({ wLoop: !c.wLoop })} />
+      <Tap x={30} y={11} w={18} h={8} label={`Wavetable envelope ${c.wBi ? "bipolar" : "unipolar"}: tap to toggle`} pressed={!!c.wBi} onClick={() => C({ wBi: !c.wBi })} />
     </>;
     if (page === "FLT") return <><Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />
       <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
