@@ -8,7 +8,7 @@ export const DisplayThemeContext = createContext("oled");
 
 // Fixed 128x64 display scaled by a whole number (nearest neighbour), so every pixel is identical on any device.
 // Theme vars can be missing for a frame after a cold reload; an invalid "hsl()" is ignored by canvas and paints black-on-black.
-function colors(c: HTMLElement) {
+export function colors(c: HTMLElement) {
   const cs = getComputedStyle(c), f = cs.getPropertyValue("--foreground").trim(), b = cs.getPropertyValue("--background").trim();
   return { fg: f ? `hsl(${f})` : "#fff", bg: b ? `hsl(${b})` : "#000", ok: Boolean(f && b) };
 }
@@ -68,7 +68,7 @@ export default function PixelScreen({ draw, deps, children, label, live }: { dra
   </div>;
 }
 
-const pos = (x: number, y: number, w: number, h: number) => ({ left: `${x / W * 100}%`, top: `${y / H * 100}%`, width: `${w / W * 100}%`, height: `${h / H * 100}%` });
+export const pos = (x: number, y: number, w: number, h: number) => ({ left: `${x / W * 100}%`, top: `${y / H * 100}%`, width: `${w / W * 100}%`, height: `${h / H * 100}%` });
 
 export function XYZone({ x, y, w, h, label, onDrag }: { x: number; y: number; w: number; h: number; label: string; onDrag: (dx: number, dy: number) => void }) {
   const start = useRef({ x: 0, y: 0 });

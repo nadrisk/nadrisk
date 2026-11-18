@@ -62,7 +62,9 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   let wtFrames: [number, number] = [-1, -1];
   if (tbl) { const fp = framePair(c.wave / 3, tbl.frames.length); wtFrames = [...fp.frames];
     [-1, 1].forEach(sg => wt.push([0, 1].map(j => addOsc(sg, fp.weights[j] * .32, o => o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j])))))); }
-  else waveMix(c.wave).forEach((w, k) => { if (w < .01) return; [-1, 1].forEach(sg => addOsc(sg, w * WAVE_GAIN[k] * .5, o => { o.type = WAVES[k]; })); });
+  // BASIC: all four waves run per side so a held note morphs live (silent ones sit at gain 0).
+  const basicOsc: { g: GainNode; k: number }[] = [];
+  if (!tbl) waveMix(c.wave).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * WAVE_GAIN[k] * .5, o => { o.type = WAVES[k]; }).g, k })));
   // Noise oscillator, pre-filter so the envelope and filter shape it.
   let ng: GainNode | null = null;
   if ((c.noise ?? 0) > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; n.loopStart = Math.random(); ng = ctx.createGain(); ng.gain.value = (c.noise ?? 0) ** 2 * .35; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
@@ -81,6 +83,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     if (nc.detune !== undefined) dets.forEach(([o, s]) => o.detune.setTargetAtTime(s * nc.detune! * 28, n, tc));
     if (nc.sub !== undefined) sg.gain.setTargetAtTime(nc.sub * .6, n, tc);
     if (nc.noise !== undefined && ng) ng.gain.setTargetAtTime(nc.noise ** 2 * .35, n, tc);
+    if (nc.wave !== undefined && basicOsc.length) { const m = waveMix(Math.max(0, Math.min(3, nc.wave))); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * WAVE_GAIN[k] * .5, n, tc)); }
     if (nc.wave !== undefined && tbl && wt.length) { const fp = framePair(nc.wave / 3, tbl.frames.length);
       [0, 1].forEach(j => { if (fp.frames[j] !== wtFrames[j] && fp.weights[j] > 0) { wt.forEach(side => side[j].o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j]))); wtFrames[j] = fp.frames[j]; } wt.forEach(side => side[j].g.gain.setTargetAtTime(fp.weights[j] * .32, n, tc)); }); } };
   return v;
