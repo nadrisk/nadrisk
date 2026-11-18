@@ -5,7 +5,7 @@ import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type ADSR, type Syn
 
 /** SYN: a clean subtractive voice. WAVE morphs saw > square > triangle > sine; VOICES 1 = mono glide, 2-8 = poly. */
 export type CleanParams = { wave: number; sub: number; detune: number; voices: number; cutoff: number; res: number; envAmt: number; drive: number; env: ADSR; glide: number; /** Filter model: 0 CLEAN, 1 LADDER, 2 SEM, 3 MS20 (missing = CLEAN). */ flt?: number;
-  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number } & Partial<WtEnv>;
+  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number; /** Tempo for WT SYNC (set per trigger, not saved). */ bpm?: number } & Partial<WtEnv>;
 export const defaultClean = (): CleanParams => ({ wave: 0, sub: 0, detune: 0, voices: 8, cutoff: 16000, res: 0, envAmt: 0, drive: 0, env: { a: .005, d: .35, s: .6, r: .3 }, glide: .06, noise: 0, pAmt: 0, pDec: .05, ...WT_ENV_HOME });
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 const WAVE_OF: Record<string, number> = { sawtooth: 0, square: 1, triangle: 2, sine: 3, additive: 0 };
@@ -56,13 +56,13 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const freqs: AudioParam[] = [], dets: [OscillatorNode, number][] = [];
   // Each detuned pair is panned apart (and each chord voice gets its own spot), so detune widens in stereo instead of combing in mono.
   const cents = c.detune * 28, tbl = tableNow(c.wt);
-  const env = (): WtEnv => ({ ...WT_ENV_HOME, ...cur }), cur: CleanParams = { ...c }, posAt = (el: number) => Math.max(0, Math.min(3, cur.wave + (cur.wDp ? wtEnvOffset(env(), el) : 0))), pos0 = posAt(0);
+  const env = (): WtEnv => ({ ...WT_ENV_HOME, ...cur }), cur: CleanParams = { ...c }, posAt = (el: number) => Math.max(0, Math.min(3, cur.wave + (cur.wDp ? wtEnvOffset(env(), el, cur.bpm ?? 120) : 0))), pos0 = posAt(0);
   const addOsc = (sg: number, gain: number, setWave: (o: OscillatorNode) => void) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); setWave(o); o.detune.value = sg * cents; g.gain.value = gain;
     const pn = ctx.createStereoPanner(); pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
     o.connect(g).connect(pn).connect(mix); nodes.push(pn, o, g); freqs.push(o.frequency); dets.push([o, sg]); srcs.push(o); return { o, g }; };
   // Imported table: two oscillators per detune side; frame k lives on oscillator k % 2 so position moves crossfade without swapping a sounding wave.
   const wt: { o: OscillatorNode; g: GainNode }[][] = [];
-  let wtFrames: [number, number] = [-1, -1];
+  let wtFrames: [number, number] = [-1, -1], dead = false; const wtPend = [false, false], wtWant: [number, number][] = [[-1, 0], [-1, 0]];
   if (tbl) { const fp = framePair(pos0 / 3, tbl.frames.length); wtFrames = [...fp.frames];
     [-1, 1].forEach(sg => wt.push([0, 1].map(j => addOsc(sg, fp.weights[j] * .32, o => o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j])))))); }
   // BASIC: all four waves run per side so a held note morphs live (silent ones sit at gain 0).
@@ -77,11 +77,19 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   // Pitch envelope: starts pAmt semitones away and falls exponentially home over pDec.
   if (c.pAmt) { const pa = c.pAmt * 100; dets.forEach(([o, s]) => { const base = s * cents; o.detune.setValueAtTime(base + pa, t); o.detune.setTargetAtTime(base, t, (c.pDec ?? .05) / 4); });
     sub.detune.setValueAtTime(pa, t); sub.detune.setTargetAtTime(0, t, (c.pDec ?? .05) / 4); }
-  let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => clearInterval(tick));
+  let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => { dead = true; clearInterval(tick); });
   const setPos = (w: number, n: number, tc: number) => {
     if (basicOsc.length) { const m = waveMix(w); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * WAVE_GAIN[k] * .5, n, tc)); }
     if (tbl && wt.length) { const fp = framePair(w / 3, tbl.frames.length);
-      [0, 1].forEach(j => { if (fp.frames[j] !== wtFrames[j] && fp.weights[j] > 0) { wt.forEach(side => side[j].o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j]))); wtFrames[j] = fp.frames[j]; } wt.forEach(side => side[j].g.gain.setTargetAtTime(fp.weights[j] * .32, n, tc)); }); } };
+      // Click-free: a new frame only loads into an oscillator while it is silent (setPeriodicWave jumps phase);
+      // if it is still audible, fade it out first and swap a moment later.
+      [0, 1].forEach(j => { const want = fp.frames[j], g = fp.weights[j] * .32; wtWant[j] = [want, g];
+        if (want === wtFrames[j]) { if (!wtPend[j]) wt.forEach(side => side[j].g.gain.setTargetAtTime(g, n, tc)); return; }
+        if (wtPend[j]) return;
+        const swap = () => { const [fw, fg] = wtWant[j]; wt.forEach(side => side[j].o.setPeriodicWave(frameWave(ctx, tbl, fw))); wtFrames[j] = fw; wt.forEach(side => side[j].g.gain.setTargetAtTime(fg, Math.max(ctx.currentTime, n), tc)); };
+        if (wt.every(side => side[j].g.gain.value < .003) && g < .02) { swap(); return; }
+        wtPend[j] = true; const now = ctx.currentTime; wt.forEach(side => { side[j].g.gain.cancelScheduledValues(now); side[j].g.gain.setTargetAtTime(0, now, .003); });
+        setTimeout(() => { wtPend[j] = false; if (!dead) swap(); }, 22); }); } };
   // WT env: a light control-rate loop (16 ms, 30 ms ahead) moves the position while the voice lives; SMTH also slews it.
   const run = () => { if (tick || !cur.wDp || typeof window === "undefined") return; tick = window.setInterval(() => { const n = Math.max(ctx.currentTime + .03, t); setPos(posAt(n - t), n, .006 + (cur.wSm ?? 0) * .05); }, 16); };
   run();

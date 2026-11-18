@@ -12,3 +12,12 @@ describe("wavetable env", () => {
     expect(wtEnvOffset({ ...e, wDp: 1, wBi: true }, 0.0001)).toBeCloseTo(-3, 1); expect(wtEnvOffset({ ...e, wDp: -1 }, .1)).toBeCloseTo(-3); expect(wtEnvOffset({ ...e, wDp: 0 }, .1)).toBe(0);
   });
 });
+
+import { wtTimes as _wtTimes } from "./wtEnv";
+describe("WT env sync", () => {
+  it("1/4 at 120 BPM makes one loop cycle last 0.5 s, keeping the A:D ratio", () => {
+    const t = _wtTimes({ wA: .25, wD: .5, wS: 0, wSm: 0, wDp: 1, wLoop: true, wBi: false, wSync: 3 }, 120);
+    expect(t.a + t.d).toBeCloseTo(.5); expect(t.d / t.a).toBeCloseTo(2);
+  });
+  it("FREE keeps the knob times", () => { const t = _wtTimes({ wA: .25, wD: .5, wS: 0, wSm: 0, wDp: 1, wLoop: true, wBi: false }, 90); expect(t.a).toBe(.25); expect(t.d).toBe(.5); });
+});

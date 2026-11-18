@@ -5,7 +5,7 @@ import { Tap, Zone } from "@/pixel/PixelScreen";
 import WavetableView from "./WavetableView";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { wtEnvLevel, type WtEnv } from "@/audio/wtEnv";
+import { wtEnvLevel, wtTimes, WT_SYNC, type WtEnv } from "@/audio/wtEnv";
 import { cleanOf, defaultClean, FILTER_MODELS, modelQ, waveMix, WAVE_NAMES, type CleanParams } from "@/audio/clean";
 
 const PAGES = ["OSC", "WT", "MOD", "FLT", "ENV"] as const;
@@ -25,7 +25,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
   const noteK = useNoteKnob(slot, onChange);
   const tbl = useWavetable(c.wt), basic = !c.wt || c.wt === "basic", nF = basic ? 4 : tbl.view.length;
   const posName = (w: number) => basic ? waveName(w) : `${Math.round(w / 3 * (nF - 1)) + 1}/${nF}`;
-  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "wt" | "wLoop" | "wBi">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
+  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "wt" | "wLoop" | "wBi" | "wSync" | "bpm">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `Synth ${label}`, short, value: c[key] as number, min, max, step, fmt, log, reset: home[key] as number, set: v => C({ [key]: v }) });
   const knobs = (page: string): Knob[] => {
     if (page === "OSC") return [noteK, K("wave", "WAVE", "wave", 0, 3, .001, posName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
@@ -47,13 +47,14 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     } else if (page === "WT") {
       p.box(2, 11, 124, 34);
       // Envelope shape over a fixed window (one-shot: attack+decay+hold; loop: three cycles); BI draws the centre line.
-      const e = c as WtEnv, span = e.wLoop ? e.wA + e.wD + 2 * (e.wA + e.wD) : (e.wA + e.wD) * 1.4, top = 21, bot = 43, mid = (top + bot) >> 1;
+      const e = c as WtEnv, tm = wtTimes(e), span = e.wLoop ? 3 * (tm.a + tm.d) : (tm.a + tm.d) * 1.4, top = 21, bot = 43, mid = (top + bot) >> 1;
       if (e.wBi) for (let x = 4; x < 124; x += 3) p.dot(x, mid);
       const dp = Math.max(.08, Math.abs(e.wDp)) * (e.wDp < 0 ? -1 : 1); let py = bot;
       for (let x = 0; x < 120; x++) { const l = wtEnvLevel(e, (x / 119) * span), u = e.wBi ? l * 2 - 1 : l, y = Math.round((e.wBi ? mid : dp < 0 ? top : bot) - u * dp * (e.wBi ? (bot - top) / 2 : bot - top));
         if (x) p.line(3 + x, py, 4 + x, y); py = y; }
       p.rect(2, 11, 26, 8); p.textC(e.wLoop ? "LOOP" : "1SHT", 15, 12, false);
       p.rect(30, 11, 18, 8); p.textC(e.wBi ? "BI" : "UNI", 39, 12, false);
+      p.rect(50, 11, 26, 8); p.textC(WT_SYNC[e.wSync ?? 0]?.name ?? "FREE", 63, 12, false);
       if (!e.wDp) p.text("DPTH 0", 92, 13);
     } else if (page === "MOD") {
       p.box(2, 11, 124, 34);
@@ -81,6 +82,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "WT") return <>
       <Tap x={2} y={11} w={26} h={8} label={`Wavetable envelope ${c.wLoop ? "loop" : "one shot"}: tap to toggle`} pressed={!!c.wLoop} onClick={() => C({ wLoop: !c.wLoop })} />
       <Tap x={30} y={11} w={18} h={8} label={`Wavetable envelope ${c.wBi ? "bipolar" : "unipolar"}: tap to toggle`} pressed={!!c.wBi} onClick={() => C({ wBi: !c.wBi })} />
+      <Tap x={50} y={11} w={26} h={8} label={`Wavetable envelope sync ${WT_SYNC[c.wSync ?? 0]?.name ?? "FREE"}: tap for next`} pressed={!!c.wSync} onClick={() => C({ wSync: ((c.wSync ?? 0) + 1) % WT_SYNC.length })} />
     </>;
     if (page === "FLT") return <><Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />
       <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
