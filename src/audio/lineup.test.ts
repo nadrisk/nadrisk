@@ -38,7 +38,7 @@ describe("instrument XY", () => {
     expect(applyXY(s)).toBe(s);
   });
   it("brightens SYN upward and opens it rightward", () => {
-    const s = pad({ engine: "synth" }), c = cleanOf(s.synth);
+    const s0 = pad({ engine: "synth" }), s = { ...s0, synth: { ...s0.synth, clean: { ...cleanOf(s0.synth), cutoff: 2400 } } }, c = cleanOf(s.synth);
     const up = cleanOf(applyXY({ ...s, xy: { x: 1, y: 1 } }).synth);
     expect(up.cutoff).toBeGreaterThan(c.cutoff); expect(up.env.r).toBeGreaterThan(c.env.r);
     const down = cleanOf(applyXY({ ...s, xy: { x: -1, y: -1 } }).synth);

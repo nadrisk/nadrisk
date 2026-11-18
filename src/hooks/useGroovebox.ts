@@ -22,6 +22,7 @@ import { reeseParams } from "@/audio/reese";
 import { acidParams, playAcid } from "@/audio/acid";
 import { isSlotMono } from "@/audio/pitchFmt";
 import { cleanOf, defaultClean, playClean } from "@/audio/clean";
+import { tableNow } from "@/audio/wavetable";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
 import { defaultPad, padParams, padRingCap, playPad, type PadParams } from "@/audio/pad";
@@ -179,6 +180,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const [slots, setSlots] = useState<Slot[]>(() => blankSlots());
   const timeMod = useRef<number[]>(Array(16).fill(1));
   const startMod = useRef<(number | null)[]>(Array(16).fill(null));
+  const waveMod = useRef<(number | null)[]>(Array(16).fill(null));
   const [modLane, setModLane] = useState(0);
   const modLaneRef = useRef(0); modLaneRef.current = modLane;
   const loadGen = useRef(0);
@@ -230,6 +232,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const syncedGroups = useRef<(FxUnit[] | undefined)[]>([]);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
+  // Imported wavetables load from local storage ahead of the first note.
+  useEffect(() => { slots.forEach(x => { if (x.engine === "synth" && x.synth.clean?.wt) tableNow(x.synth.clean.wt); }); }, [slots]);
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
   // AV live-code screen: mirror the current bank + pad sounds (debounced; resent when a TV window says hello).
   useEffect(() => {
@@ -309,7 +313,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const t0 = time ?? e.ctx.currentTime + (chordHit ? 0.025 : 0.005), dest = e.outs[i].input, gate0 = gateSec ?? 60 / bpmRef.current / 4;
     const factor = 2 ** (performanceRef.current.time * 2) * (time !== undefined ? timeMod.current[i] : 1);
     e.outs[i].chain.forEach(f => { f.setPitch?.(semi, t0); f.trigger?.(t0); });
-    const cl = s.engine === "synth" ? cleanOf(s.synth) : null, monoSyn = cl?.voices === 1;
+    const cl0 = s.engine === "synth" ? cleanOf(s.synth) : null, wm = time !== undefined ? waveMod.current[i] : null, cl = cl0 && wm != null ? { ...cl0, wave: wm } : cl0, monoSyn = cl?.voices === 1;
     let notes = noteIdx !== -1 && (s.engine === "sampler" || s.engine === "pad" || (s.engine === "synth" && !monoSyn)) ? chordNotes(s.chord).slice(0, cl?.voices ?? 8) : [0];
     // Chords on a phrase pad: SCALE fit stacks thirds from the scale so progressions stay in key; FIXED moves the shape unchanged.
     const free = s.chord.fit === "fixed";
@@ -600,7 +604,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
         const eng = engine.current, slot = slotsRef.current[i], lane = slot.mods?.[bankRef.current], v = row[st];
         // Mod row: each active step sets its parameter to the drawn fill (0-100%) on the audio clock.
         let semiAt = 0, cutMod = false;
-        timeMod.current[i] = 1; startMod.current[i] = null;
+        timeMod.current[i] = 1; startMod.current[i] = null; waveMod.current[i] = null;
         for (let li = 0; li < MOD_LANES; li++) { const lane = slot.mods?.[bankRef.current + li * NBANKS];
         if (lane?.on && lane.target === "cutoff") cutMod = true;
         if (eng && lane?.on && v !== 0) {
@@ -609,6 +613,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
           else if (lane.target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
           else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value, lane.range) - slot.note;
           else if (lane.target === "start") startMod.current[i] = Math.min(.98, value);
+          else if (lane.target === "wave") waveMod.current[i] = value * 3;
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } }

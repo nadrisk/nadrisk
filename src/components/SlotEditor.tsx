@@ -13,6 +13,7 @@ import DevicePanel from "@/components/DevicePanel";
 import ScopeScreen, { type GetWave } from "@/components/ScopeScreen";
 import SpectrumScreen, { type GetSpectrum } from "@/components/SpectrumScreen";
 import { cleanOf } from "@/audio/clean";
+import WavetableLibrary from "@/components/WavetableLibrary";
 
 function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, onChange, onLoad, onLoadId, onLoadFolder, onCopyBuffer, live }: { onCopyBuffer?: (from: number) => void; live?: LiveProps; slot: Slot; index?: number; getWave?: GetWave; getSpectrum?: GetSpectrum; getSlices?: (i: number, sm: Slot["sampler"]) => number[]; peaks: number[] | null; onChange: (p: Partial<Slot>) => void; onLoad: (f: File) => void; onLoadId: (id: string, name: string) => void; onLoadFolder: (f: File[]) => Promise<{ total: number; matched: number }> }) {
   const sm = slot.sampler, chords = slot.engine === "sampler" || slot.engine === "pad" || (slot.engine === "synth" && cleanOf(slot.synth).voices > 1);
@@ -28,7 +29,8 @@ function SlotEditor({ slot, index = 0, getWave, getSpectrum, getSlices, peaks, o
     </DevicePanel>
     <DevicePanel className="gb-ed-insert gb-ed-device" label="EQ"><ChannelEqScreen slot={slot} onChange={onChange} index={index} getSpectrum={getSpectrum} noSpectrum={!chords} /></DevicePanel>
     <DevicePanel className="gb-ed-xy gb-ed-device" label="XY"><XyScreen slot={slot} onChange={onChange} /></DevicePanel>
-    {slot.engine !== "sampler" && <DevicePanel className="gb-ed-scope gb-ed-device" label="Scope"><ScopeScreen slot={index} name={slot.name} getWave={getWave} /></DevicePanel>}
+    {slot.engine === "synth" && <DevicePanel className="gb-ed-scope gb-ed-device" label="Library"><WavetableLibrary value={slot.synth.clean?.wt} onPick={wt => onChange({ synth: { ...slot.synth, clean: { ...cleanOf(slot.synth), wt } } })} /></DevicePanel>}
+    {slot.engine !== "sampler" && slot.engine !== "synth" && <DevicePanel className="gb-ed-scope gb-ed-device" label="Scope"><ScopeScreen slot={index} name={slot.name} getWave={getWave} /></DevicePanel>}
     {!chords && <DevicePanel className="gb-ed-spectrum gb-ed-device" label="Spectrum"><SpectrumScreen slot={index} name={slot.name} getSpectrum={getSpectrum} /></DevicePanel>}
     {chords && <DevicePanel className="gb-ed-chord gb-ed-device" label="Chord"><ChordScreen slot={slot} onChange={onChange} /></DevicePanel>}
     {slot.engine === "sampler" && <DevicePanel className="gb-ed-library gb-ed-device" label="Library"><LibraryScreen value={sm.sampleId} onPick={onLoadId} onFolder={onLoadFolder} onLoad={onLoad} /></DevicePanel>}
