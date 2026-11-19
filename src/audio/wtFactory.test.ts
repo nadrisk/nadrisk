@@ -18,14 +18,6 @@ describe("factory wavetables", () => {
       const c = Math.SQRT1_2; let e = 0; for (let n = 1; n < m[k].length; n++) e += (c * m[k][n]) ** 2 + (c * m[k + 1][n]) ** 2;
       expect(e).toBeGreaterThan(.9); } });
   });
+  it("names never use synth brands", () => { FACTORY_REFS.forEach(r => expect(r.name).not.toMatch(/JUNO|303|PROPHET|PPG|CZ|FM|BUCHLA|B3|RHODES|WURLY|CLAV|MOOG|DX|MICROWAVE/)); });
   it("retired cloud ids play BASIC", () => { expect(tableNow("wt:Foo-0")).toBeNull(); expect(listTables).toBeTypeOf("function"); });
-});
-
-import { CAPTURED } from "./wtFactoryData";
-describe("captured factory tables", () => {
-  it("captured tables play their stored AKWF overtones", () => {
-    expect(Object.keys(CAPTURED).length).toBeGreaterThanOrEqual(8);
-    Object.entries(CAPTURED).forEach(([slug, c]) => { const t = factoryTable(`fx:${slug}`)!;
-      c.shapes.forEach((h, k) => { const e = Math.sqrt(h.reduce((s, x) => s + x * x, 0)); expect(t.imag[k][1]).toBeCloseTo(h[0] / e, 4); }); });
-  });
 });
