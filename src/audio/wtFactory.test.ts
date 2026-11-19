@@ -20,3 +20,12 @@ describe("factory wavetables", () => {
   });
   it("retired cloud ids play BASIC", () => { expect(tableNow("wt:Foo-0")).toBeNull(); expect(listTables).toBeTypeOf("function"); });
 });
+
+import { CAPTURED } from "./wtFactoryData";
+describe("captured factory tables", () => {
+  it("captured tables play their stored AKWF overtones", () => {
+    expect(Object.keys(CAPTURED).length).toBeGreaterThanOrEqual(8);
+    Object.entries(CAPTURED).forEach(([slug, c]) => { const t = factoryTable(`fx:${slug}`)!;
+      c.shapes.forEach((h, k) => { const e = Math.sqrt(h.reduce((s, x) => s + x * x, 0)); expect(t.imag[k][1]).toBeCloseTo(h[0] / e, 4); }); });
+  });
+});
