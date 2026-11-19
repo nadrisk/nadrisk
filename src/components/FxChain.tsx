@@ -116,18 +116,22 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     // Top line: time + mode. Rows: L and R echo taps shrinking with FDBK (PING alternates). Right: HP/DAMP band, duck meter.
     const ping = pv(p, "mode", 0) >= .5, fb = pv(p, "feedback", .35), oi = Math.round(pv(p, "offs", 0)), sy = Math.round(pv(p, "sync", 4));
     const tl = sy ? SYNC_DIVS[sy][0] : `${Math.round(pv(p, "time", .25) * 1000)}MS`;
-    d.text(`${tl} ${ping ? "PING" : oi ? DIGI_OFFS[oi][0] : "DUAL"}`.slice(0, 18), 3, 21);
-    const ratio = DIGI_OFFS[oi]?.[1] ?? 1, gap = 8, X0 = 10, XM = 76;
-    d.text("L", 3, 29); d.text("R", 3, 37); d.line(X0, 35, XM, 35, true); d.line(X0, 43, XM, 43, true); d.rect(X0, 31, 1, 4); d.rect(X0, 39, 1, 4);
-    for (let k = 1; k <= 12; k++) { const h = Math.max(1, Math.round(4 * fb ** (k - 1)));
-      if (ping) { const x = X0 + k * gap; if (x > XM) break; if (k % 2) d.rect(x, 35 - h, 2, h); else d.rect(x, 43 - h, 2, h); }
-      else { const xl = X0 + k * gap, xr = X0 + Math.round(k * gap * ratio); if (xl <= XM) d.rect(xl, 35 - h, 2, h); if (xr <= XM) d.rect(xr, 43 - h, 2, h); } }
-    // Filter band (log 20 Hz..20 kHz over x 80..101): flat between HP and DAMP, sloping outside.
-    const fx = (hz: number) => 80 + Math.round(Math.log(hz / 20) / Math.log(1000) * 21), hx = fx(pv(p, "hp", 20)), dx = fx(pv(p, "damp", 20000));
-    d.box(79, 29, 24, 15, true); let py = 43;
-    for (let x = 80; x <= 101; x++) { const y = x < hx ? 43 - Math.max(0, 10 - (hx - x) * 3) : x > dx ? 43 - Math.max(0, 10 - (x - dx) * 3) : 33; if (x > 80) d.line(x - 1, py, x, y); py = y; }
-    const db = Math.max(-18, Math.min(0, levels?.state?.[0] ?? 0)), hh = Math.round(-db / 18 * 12);
-    d.text("DK", 106, 21); d.box(106, 29, 9, 15); if (hh) d.rect(108, 31, 5, hh);
+    // Digital rack: inverted readout badge | L/R tap lanes | passband window | duck ladder. All inside x2..125, y22..44.
+    const mode = ping ? "PING" : oi ? DIGI_OFFS[oi][0] : "DUAL";
+    d.box(2, 22, 35, 23); d.rect(3, 23, 33, 9); d.text(tl.slice(0, 7), 5, 25, false); d.text(mode.slice(0, 7), 5, 36);
+    const ratio = DIGI_OFFS[oi]?.[1] ?? 1, gap = 6, X0 = 46, XM = 85, lead = Math.max(.3, Math.min(1, ((levels?.input ?? -80) + 54) / 54));
+    d.text("L", 40, 24); d.text("R", 40, 36); d.line(X0, 31, XM, 31, true); d.line(X0, 43, XM, 43, true);
+    d.rect(X0, 31 - Math.round(7 * lead), 2, Math.round(7 * lead)); d.rect(X0, 43 - Math.round(7 * lead), 2, Math.round(7 * lead));
+    for (let k = 1; k <= 12; k++) { const h = Math.max(1, Math.round(7 * fb ** (k - 1)));
+      if (ping) { const x = X0 + k * gap; if (x > XM - 1) break; if (k % 2) d.rect(x, 43 - h, 2, h); else d.rect(x, 31 - h, 2, h); }
+      else { const xl = X0 + k * gap, xr = X0 + Math.round(k * gap * ratio); if (xl <= XM - 1) d.rect(xl, 31 - h, 2, h); if (xr <= XM - 1) d.rect(xr, 43 - h, 2, h); } }
+    // Passband (log 20 Hz..20 kHz across x 91..111): flat between HP and DAMP, sloping outside.
+    const fx = (hz: number) => 91 + Math.round(Math.log(hz / 20) / Math.log(1000) * 20), hx = fx(pv(p, "hp", 20)), dx = fx(pv(p, "damp", 20000));
+    d.box(89, 22, 25, 23); d.text(dx >= 111 && hx <= 91 ? "FLAT" : "FILT", 94, 24); let py = 43;
+    for (let x = 91; x <= 111; x++) { const y = x < hx ? 43 - Math.max(0, 12 - (hx - x) * 3) : x > dx ? 43 - Math.max(0, 12 - (x - dx) * 3) : 31; if (x > 91) d.line(x - 1, py, x, y); py = y; }
+    const db = Math.max(-18, Math.min(0, levels?.state?.[0] ?? 0)), lit = Math.round(-db / 18 * 5);
+    d.box(116, 22, 10, 23); d.text("D", 119, 24);
+    for (let i = 0; i < 5; i++) { if (i < lit) d.rect(118, 31 + i * 3, 6, 2); else d.dot(120, 31 + i * 3 + 1); }
     return;
   }
   if (type === "noiz") {
