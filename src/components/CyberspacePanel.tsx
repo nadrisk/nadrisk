@@ -31,12 +31,12 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     if (page === "OSC") return [noteK, K("wave", "WAVE", "wave", 0, 3, .001, posName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
       K("voices", "VOX", "voices", 1, 8, 1, v => (v === 1 ? "MONO" : `${v}V`))];
     if (page === "WT") { const tm = (v: number) => v < 1 ? `${Math.round(v * 1000)}MS` : `${v.toFixed(1)}S`;
-      return [K("wavetable envelope attack", "ATK", "wA", .001, 5, .001, tm, true), K("wavetable envelope decay", "DEC", "wD", .002, 10, .001, tm, true), K("wavetable envelope sustain", "SUS", "wS", 0, 1, .01, pct),
+      return [K("wavetable envelope attack", "ATK", "wA", .001, 1, .001, tm, true), K("wavetable envelope decay", "DEC", "wD", .002, 1, .001, tm, true), K("wavetable envelope sustain", "SUS", "wS", 0, 1, .01, pct),
         K("wavetable envelope smoothing", "SMTH", "wSm", 0, 1, .01, pct), K("wavetable envelope depth", "DPTH", "wDp", -1, 1, .01, v => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`)]; }
     if (page === "MOD") return [K("pitch envelope amount", "P.AMT", "pAmt", -24, 24, 1, v => `${v > 0 ? "+" : ""}${Math.round(v)}ST`), K("pitch envelope decay", "P.DEC", "pDec", .002, 1, .001, v => v < 1 ? `${Math.round(v * 1000)}MS` : "1S", true),
       K("noise", "NOIS", "noise", 0, 1, .01, pct), K("glide", "GLID", "glide", 0, .5, .001, v => `${Math.round(v * 1000)}MS`)];
     if (page === "FLT") return [K("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), K("resonance", "RES", "res", 0, 1, .01, pct), K("filter envelope", "ENV", "envAmt", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
-    return envKnobs(c.env, env => C({ env }), home.env).map(k => ({ ...k, label: `Synth ${k.label}` }));
+    return envKnobs(c.env, env => C({ env }), home.env, 1).map(k => ({ ...k, label: `Synth ${k.label}` }));
   };
   const body = (p: import("@/pixel/draw").Px, page: string) => {
     if (page === "OSC") {
@@ -86,7 +86,7 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     </>;
     if (page === "FLT") return <><Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />
       <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
-    return <EnvZones env={c.env} set={env => C({ env })} />;
+    return <EnvZones env={c.env} set={env => C({ env })} max={1} />;
   };
   return <Panel name={slot.name || "SYN"} pages={PAGES} label="Wavetable synth" compactReadout knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value, tbl]} />;
 }

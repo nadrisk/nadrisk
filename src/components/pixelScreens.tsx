@@ -90,22 +90,22 @@ export function drawEnvGraph(p: Px, env: ADSR, x0 = 2, y0 = 11, w = 124, h = 34)
   pts.slice(1, 4).forEach(([x, y]) => p.rect(x - 1, y - 1, 3, 3));
 }
 
-export function EnvZones({ env, set, x0 = 2, y0 = 11, w = 124, h = 34 }: { env: ADSR; set: (env: ADSR) => void; x0?: number; y0?: number; w?: number; h?: number }) {
+export function EnvZones({ env, set, x0 = 2, y0 = 11, w = 124, h = 34, max }: { env: ADSR; set: (env: ADSR) => void; x0?: number; y0?: number; w?: number; h?: number; /** Optional ceiling (s) for attack/decay/release drags. */ max?: number }) {
   const t = env.a + env.d + env.r + .6, X = (v: number) => x0 + Math.round(v / t * (w - 2)), Y = (v: number) => y0 + h - 1 - Math.round(v * (h - 4));
   const nodes = [[X(env.a), Y(1)], [X(env.a + env.d), Y(env.s)], [X(env.a + env.d + .6), Y(env.s)]];
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
   // Curved, slowed drags: times scale relative to their current value so short times stay fine-grained.
   const tm = (v: number, dx: number, min: number, max: number) => clamp((v + .01) * 2 ** (dx * 1.2) - .01, min, max);
   return <>
-    <XYZone x={nodes[0][0] - 6} y={nodes[0][1] - 6} w={12} h={14} label="Drag envelope attack" onDrag={(dx) => set({ ...env, a: tm(env.a, dx, .001, 2) })} />
-    <XYZone x={nodes[1][0] - 6} y={nodes[1][1] - 7} w={12} h={14} label="Drag envelope decay and sustain" onDrag={(dx, dy) => set({ ...env, d: tm(env.d, dx, .01, 2), s: clamp(env.s - dy / 3, 0, 1) })} />
-    <XYZone x={nodes[2][0] - 6} y={nodes[2][1] - 7} w={12} h={14} label="Drag envelope release" onDrag={(dx) => set({ ...env, r: tm(env.r, dx, .01, 3) })} />
+    <XYZone x={nodes[0][0] - 6} y={nodes[0][1] - 6} w={12} h={14} label="Drag envelope attack" onDrag={(dx) => set({ ...env, a: tm(env.a, dx, .001, max ?? 2) })} />
+    <XYZone x={nodes[1][0] - 6} y={nodes[1][1] - 7} w={12} h={14} label="Drag envelope decay and sustain" onDrag={(dx, dy) => set({ ...env, d: tm(env.d, dx, .01, max ?? 2), s: clamp(env.s - dy / 3, 0, 1) })} />
+    <XYZone x={nodes[2][0] - 6} y={nodes[2][1] - 7} w={12} h={14} label="Drag envelope release" onDrag={(dx) => set({ ...env, r: tm(env.r, dx, .01, max ?? 3) })} />
   </>;
 }
 
-export const envKnobs = (env: ADSR, set: (e: ADSR) => void, home?: ADSR): Knob[] => (["a", "d", "s", "r"] as const).map(k => ({
+export const envKnobs = (env: ADSR, set: (e: ADSR) => void, home?: ADSR, cap?: number): Knob[] => (["a", "d", "s", "r"] as const).map(k => ({
   label: k.toUpperCase(), short: { a: "ATK", d: "DEC", s: "SUS", r: "REL" }[k], value: env[k],
-  min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : k === "r" ? 3 : 2, step: k === "a" ? .001 : .01,
+  min: k === "a" ? .001 : k === "s" ? 0 : .01, max: k === "s" ? 1 : cap ?? (k === "r" ? 3 : 2), step: k === "a" ? .001 : .01,
   fmt: k === "s" ? pct : ms, reset: home?.[k], set: (v: number) => set({ ...env, [k]: v }),
 }));
 

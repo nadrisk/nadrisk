@@ -22,9 +22,10 @@ const scream = () => screamCache.c ??= (() => { const c = new Float32Array(new A
 export function cleanOf(s?: Partial<SynthParams>): CleanParams {
   const d = defaultClean(), c = s?.clean;
   const legacy: Partial<CleanParams> = c ? {} : { wave: WAVE_OF[s?.osc1?.wave ?? "sawtooth"] ?? 0, cutoff: s?.cutoff ?? d.cutoff, res: clamp(((s?.res ?? 1) - .7) / 12, 0, 1), envAmt: clamp((s?.filterEnv ?? 1.4) / 4, 0, 1), env: s?.env ?? d.env };
-  const p = { ...d, ...legacy, ...c, env: { ...d.env, ...legacy.env, ...c?.env } };
+  const e0 = { ...d.env, ...legacy.env, ...c?.env };
+  const p = { ...d, ...legacy, ...c, env: { a: clamp(e0.a, .001, 1), d: clamp(e0.d, .005, 1), s: clamp(e0.s, 0, 1), r: clamp(e0.r, .005, 1) } };
   return { ...p, wave: clamp(p.wave, 0, 3), sub: clamp(p.sub, 0, 1), detune: clamp(p.detune, 0, 1), voices: Math.round(clamp(p.voices, 1, 8)), cutoff: clamp(p.cutoff, 40, 16000), res: clamp(p.res, 0, 1), envAmt: clamp(p.envAmt, 0, 1), drive: clamp(p.drive, 0, 1), glide: clamp(p.glide, 0, .5), flt: Math.round(clamp(p.flt ?? 0, 0, 3)), noise: clamp(p.noise ?? 0, 0, 1), pAmt: clamp(p.pAmt ?? 0, -24, 24), pDec: clamp(p.pDec ?? .05, .002, 1),
-    wA: clamp(p.wA ?? WT_ENV_HOME.wA, .001, 5), wD: clamp(p.wD ?? WT_ENV_HOME.wD, .002, 10), wS: clamp(p.wS ?? 0, 0, 1), wSm: clamp(p.wSm ?? WT_ENV_HOME.wSm, 0, 1), wDp: clamp(p.wDp ?? 0, -1, 1), wLoop: !!p.wLoop, wBi: !!p.wBi };
+    wA: clamp(p.wA ?? WT_ENV_HOME.wA, .001, 1), wD: clamp(p.wD ?? WT_ENV_HOME.wD, .002, 1), wS: clamp(p.wS ?? 0, 0, 1), wSm: clamp(p.wSm ?? WT_ENV_HOME.wSm, 0, 1), wDp: clamp(p.wDp ?? 0, -1, 1), wLoop: !!p.wLoop, wBi: !!p.wBi };
 }
 
 const driveCache = new Map<number, Float32Array<ArrayBuffer>>();

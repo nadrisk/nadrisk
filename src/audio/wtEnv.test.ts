@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WT_ENV_HOME, wtEnvLevel, wtEnvOffset } from "./wtEnv";
+import { WT_ENV_HOME, wtEnvLevel, wtEnvOffset, wtTimes } from "./wtEnv";
 const e = { ...WT_ENV_HOME, wA: .1, wD: .2, wS: .25, wSm: 0 };
 describe("wavetable env", () => {
   it("one-shot rises, falls to sustain and holds (no release)", () => {
@@ -20,4 +20,10 @@ describe("WT env sync", () => {
     expect(t.a + t.d).toBeCloseTo(.5); expect(t.d / t.a).toBeCloseTo(2);
   });
   it("FREE keeps the knob times", () => { const t = _wtTimes({ wA: .25, wD: .5, wS: 0, wSm: 0, wDp: 1, wLoop: true, wBi: false }, 90); expect(t.a).toBe(.25); expect(t.d).toBe(.5); });
+});
+
+import { cleanOf } from "./clean";
+describe("envelope ranges", () => {
+  it("caps WT env times at 1 s", () => { expect(wtTimes({ ...WT_ENV_HOME, wA: 5, wD: 10 }, 120)).toEqual({ a: 1, d: 1 }); });
+  it("caps synth volume env times at 1 s", () => { const e = cleanOf({ clean: { env: { a: 2, d: 2, s: .5, r: 3 } } } as never).env; expect([e.a, e.d, e.r]).toEqual([1, 1, 1]); });
 });

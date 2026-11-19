@@ -5,7 +5,7 @@ export const WT_ENV_HOME: WtEnv = { wA: .25, wD: .5, wS: 0, wSm: .3, wDp: 0, wLo
 export const WT_SYNC: { name: string; q: number }[] = [{ name: "FREE", q: 0 }, { name: "1/16", q: .25 }, { name: "1/8", q: .5 }, { name: "1/4", q: 1 }, { name: "1/2", q: 2 }, { name: "1BAR", q: 4 }, { name: "2BAR", q: 8 }];
 /** In SYNC the A:D ratio is kept but A+D is stretched to the note value at bpm. */
 export function wtTimes(e: WtEnv, bpm = 120): { a: number; d: number } {
-  const a = Math.max(.001, e.wA), d = Math.max(.002, e.wD), q = WT_SYNC[e.wSync ?? 0]?.q ?? 0;
+  const a = Math.min(1, Math.max(.001, e.wA)), d = Math.min(1, Math.max(.002, e.wD)), q = WT_SYNC[e.wSync ?? 0]?.q ?? 0;
   if (!q) return { a, d };
   const len = q * 60 / Math.max(20, bpm), k = len / (a + d); return { a: a * k, d: d * k };
 }
