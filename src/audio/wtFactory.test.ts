@@ -3,8 +3,8 @@ import { FACTORY_REFS, factoryTable } from "./wtFactory";
 import { tableNow, listTables } from "./wavetable";
 
 describe("factory wavetables", () => {
-  it("ships exactly 20 tables of 4 keyframes", () => {
-    expect(FACTORY_REFS).toHaveLength(20);
+  it("ships exactly 26 tables of 4 keyframes", () => {
+    expect(FACTORY_REFS).toHaveLength(26);
     FACTORY_REFS.forEach(r => { const t = factoryTable(r.id)!; expect(t.name).toBe(r.name); expect(t.imag).toHaveLength(4); });
   });
   it("keyframes are finite, sine-phase and equal RMS", () => {

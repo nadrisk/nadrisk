@@ -27,6 +27,10 @@ const fold = (g: number) => shape(t => Math.sin(g * Math.sin(2 * Math.PI * t)));
 const detSaw = (spreads: number[]) => spec(n => spreads.reduce((s, d) => s + Math.abs(Math.cos(n * d)), 0) / spreads.length / n);
 const asym = (b: number) => shape(t => { const s = 1 - 2 * t, x = Math.sin(2 * Math.PI * t); return Math.tanh(b * (x + .4)) * (1 - b * .1) + b * .05 * s; });
 
+const isPrime = (n: number) => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
+const FIB = [1, 2, 3, 5, 8, 13, 21, 34, 55];
+/** Walsh function wal(k,t): product of Rademacher signs for each set bit of the Gray code of k. */
+const walsh = (k: number, t: number) => { const g = k ^ (k >> 1); let v = 1; for (let b = 0; b < 6; b++) if (g >> b & 1) v *= Math.sin(2 * Math.PI * 2 ** b * (t + 1e-6)) >= 0 ? 1 : -1; return v; };
 type Def = [string, string, Float32Array[]];
 const s = spec;
 // Vowel formants (Hz → harmonic at ~C3 130 Hz): A 800/1150, E 400/1600, I 270/2300, O 450/800, U 325/700.
@@ -53,6 +57,12 @@ const DEFS = () => defs ??= [
   ["choir-vox", "AIR CHOIR", [vowel(300, 700), vowel(450, 800), vowel(600, 1000), vowel(800, 1200)]],
   ["glass-harm", "ODD GLASS", [s(n => n === 1 ? 1 : 0), s(n => odd(n) && n <= 5 ? 1 / n : 0), s(n => odd(n) && n <= 11 ? 1 / Math.sqrt(n) : 0), s(n => odd(n) && n <= 21 ? .8 : 0)]],
   ["lofi-8bit", "BRIGHT AIR", [s(n => Math.exp(-n / 6) / n), s(n => Math.exp(-n / 14) / Math.sqrt(n)), s(n => Math.exp(-n / 28) / Math.sqrt(n)), s(n => 1 / n ** .6)]],
+  ["math-cheby", "CHEBYSHEV", [s(n => n === 1 ? 1 : 0), s(n => n === 1 ? 1 : n === 2 ? .7 : 0), s(n => n <= 3 ? 1 / n ** .5 : 0), s(n => n <= 5 ? 1 / n ** .3 : 0)]],
+  ["math-primes", "PRIMES", [5, 13, 31, 61].map(m => s(n => isPrime(n) && n <= m || n === 1 ? 1 / n ** .7 : 0))],
+  ["math-fractal", "FRACTAL", [.3, .5, .65, .8].map(a => s(n => { const k = Math.log2(n); return Number.isInteger(k) ? a ** k : 0; }))],
+  ["math-walsh", "WALSH", [1, 3, 5, 6].map(k => shape(t => walsh(k, t)))],
+  ["math-zeta", "ZETA TILT", [2, 1.4, 1, .6].map(e => s(n => 1 / n ** e))],
+  ["math-fib", "FIBONACCI", [8, 21, 34, 55].map(m => s(n => FIB.includes(n) && n <= m ? 1 / Math.sqrt(n) : 0))],
 ] as Def[];
 
 /** Equal RMS (Σa² = 1), so neighbours crossfade at a constant level. */
@@ -63,7 +73,7 @@ const build = ([slug, name, shapes]: Def): WtTable => {
   return { id: `fx:${slug}`, name, frames, real: mags.map(() => new Float32Array(NH + 1)), imag: mags, keys: true,
     view: frames.map(f => Array.from({ length: 48 }, (_, i) => f[Math.floor(i * FRAME / 48)] / (pk || 1))) };
 };
-export const FACTORY_REFS = ["juno-pwm THIN PULSE","acid-303 RUBBER SQUARE","mini-fat-saw FAT SAW","prophet-vs MORPH SAW","ppg-reso GLASS PEAKS","microwave FROST EDGE","cz-reso-saw WARP SAW","cz-reso-trap KNEE SLOPE","fm-bass METAL PUNCH","fm-bell CRYSTAL BELL","fm-growl GROWL","buchla-fold SINE FOLD","b3-drawbars WARM BARS","rhodes-tine SOFT TINE","wurly-reed HOLLOW REED","clavinet TWANG","vowel-talk VOWEL GLIDE","choir-vox AIR CHOIR","glass-harm ODD GLASS","lofi-8bit BRIGHT AIR"].map(x => { const i = x.indexOf(" "); return { id: `fx:${x.slice(0, i)}`, name: x.slice(i + 1) }; });
+export const FACTORY_REFS = ["juno-pwm THIN PULSE","acid-303 RUBBER SQUARE","mini-fat-saw FAT SAW","prophet-vs MORPH SAW","ppg-reso GLASS PEAKS","microwave FROST EDGE","cz-reso-saw WARP SAW","cz-reso-trap KNEE SLOPE","fm-bass METAL PUNCH","fm-bell CRYSTAL BELL","fm-growl GROWL","buchla-fold SINE FOLD","b3-drawbars WARM BARS","rhodes-tine SOFT TINE","wurly-reed HOLLOW REED","clavinet TWANG","vowel-talk VOWEL GLIDE","choir-vox AIR CHOIR","glass-harm ODD GLASS","lofi-8bit BRIGHT AIR","math-cheby CHEBYSHEV","math-primes PRIMES","math-fractal FRACTAL","math-walsh WALSH","math-zeta ZETA TILT","math-fib FIBONACCI"].map(x => { const i = x.indexOf(" "); return { id: `fx:${x.slice(0, i)}`, name: x.slice(i + 1) }; });
 const cache = new Map<string, WtTable>();
 export const factoryTable = (id: string): WtTable | null => { const c = cache.get(id); if (c) return c; const d = DEFS().find(x => `fx:${x[0]}` === id); if (!d) return null; const t = build(d); cache.set(id, t); return t; };
 export const isFactory = (id?: string) => !!id && id.startsWith("fx:");
