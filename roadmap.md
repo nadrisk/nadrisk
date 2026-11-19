@@ -35,3 +35,15 @@
 - [ ] CRATE: AV visuals don't follow crate decks yet (AV still listens to the editor)
 
 - [x] Streamlined sampler REC (threshold start, NOTE punch-in, auto SMP) + piano XY
+- [x] Desktop FX group bar visible
+- [x] PRC FOLD default 0
+- [x] Sequencer pitch MOD row readable
+- [x] Clap as loud as other drums
+- [x] D-DLY screen redesign, no corner overlap
+- [x] PROD/LIVE shows the current mode
+- [x] Euclidean removed
+- [x] Trance removed from phrase sequencer
+- [x] Default note C
+- [x] EQ SCP renamed SPC
+- [x] Crave arp modes
+- [x] Click-free synth envelope on long attacks

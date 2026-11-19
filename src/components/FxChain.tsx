@@ -113,17 +113,21 @@ function drawFxVisual(d: Px, f: FxUnit, levels: FxLevels | null, hist: number[][
     return;
   }
   if (type === "digi") {
-    // Header: time readout. Left/right tap rows shrink with FDBK (PING alternates sides). Right: live duck meter.
+    // Top line: time + mode. Rows: L and R echo taps shrinking with FDBK (PING alternates). Right: HP/DAMP band, duck meter.
     const ping = pv(p, "mode", 0) >= .5, fb = pv(p, "feedback", .35), oi = Math.round(pv(p, "offs", 0)), sy = Math.round(pv(p, "sync", 4));
     const tl = sy ? SYNC_DIVS[sy][0] : `${Math.round(pv(p, "time", .25) * 1000)}MS`;
-    d.text(ping ? `PING ${tl}` : oi ? `${tl} ${DIGI_OFFS[oi][0]}` : tl, 3, 22);
-    const ratio = DIGI_OFFS[oi]?.[1] ?? 1, gap = 12;
-    d.line(3, 30, 98, 30, true); d.line(3, 41, 98, 41, true); d.rect(3, 26, 2, 4);
-    for (let k = 1; k <= 8; k++) { const h = Math.max(1, Math.round(4 * fb ** (k - 1)));
-      if (ping) { const x = 3 + k * gap; if (x > 96) break; if (k % 2) d.rect(x, 30 - h, 2, h); else d.rect(x, 41 - h, 2, h); }
-      else { const xl = 3 + k * gap, xr = 3 + Math.round(k * gap * ratio); if (xl <= 96) d.rect(xl, 30 - h, 2, h); if (xr <= 96) d.rect(xr, 41 - h, 2, h); } }
-    const db = Math.max(-18, Math.min(0, levels?.state?.[0] ?? 0)), hh = Math.round(-db / 18 * 17);
-    d.box(106, 24, 9, 19); if (hh) d.rect(108, 26, 5, hh);
+    d.text(`${tl} ${ping ? "PING" : oi ? DIGI_OFFS[oi][0] : "DUAL"}`.slice(0, 18), 3, 21);
+    const ratio = DIGI_OFFS[oi]?.[1] ?? 1, gap = 8, X0 = 10, XM = 76;
+    d.text("L", 3, 29); d.text("R", 3, 37); d.line(X0, 35, XM, 35, true); d.line(X0, 43, XM, 43, true); d.rect(X0, 31, 1, 4); d.rect(X0, 39, 1, 4);
+    for (let k = 1; k <= 12; k++) { const h = Math.max(1, Math.round(4 * fb ** (k - 1)));
+      if (ping) { const x = X0 + k * gap; if (x > XM) break; if (k % 2) d.rect(x, 35 - h, 2, h); else d.rect(x, 43 - h, 2, h); }
+      else { const xl = X0 + k * gap, xr = X0 + Math.round(k * gap * ratio); if (xl <= XM) d.rect(xl, 35 - h, 2, h); if (xr <= XM) d.rect(xr, 43 - h, 2, h); } }
+    // Filter band (log 20 Hz..20 kHz over x 80..101): flat between HP and DAMP, sloping outside.
+    const fx = (hz: number) => 80 + Math.round(Math.log(hz / 20) / Math.log(1000) * 21), hx = fx(pv(p, "hp", 20)), dx = fx(pv(p, "damp", 20000));
+    d.box(79, 29, 24, 15, true); let py = 43;
+    for (let x = 80; x <= 101; x++) { const y = x < hx ? 43 - Math.max(0, 10 - (hx - x) * 3) : x > dx ? 43 - Math.max(0, 10 - (x - dx) * 3) : 33; if (x > 80) d.line(x - 1, py, x, y); py = y; }
+    const db = Math.max(-18, Math.min(0, levels?.state?.[0] ?? 0)), hh = Math.round(-db / 18 * 12);
+    d.text("DK", 106, 21); d.box(106, 29, 9, 15); if (hh) d.rect(108, 31, 5, hh);
     return;
   }
   if (type === "noiz") {

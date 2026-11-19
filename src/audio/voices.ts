@@ -42,11 +42,18 @@ export function noiseBuffer(ctx: BaseAudioContext) {
 /** k = release time constants per e.r (3 = classic; 5 lets long tails actually reach silence before the voice stops). */
 export function adsr(p: AudioParam, t: number, e: ADSR, gate: number, peak: number, k = 3) {
   p.setValueAtTime(0, t);
+  // A note shorter than its attack releases at its gate from the level the ramp reached, never rising past note-off.
+  if (gate < e.a) { const rel = t + Math.max(0, gate), lvl = peak * Math.max(0, gate) / Math.max(1e-4, e.a);
+    p.linearRampToValueAtTime(lvl, rel); p.setTargetAtTime(0, rel, e.r / k + 0.001); return rel + e.r * 1.5 + 0.05; }
   p.linearRampToValueAtTime(peak, t + e.a);
   p.setTargetAtTime(peak * e.s, t + e.a, e.d / 3 + 0.001);
-  const rel = t + Math.max(gate, e.a);
+  const rel = t + gate;
   p.setTargetAtTime(0, rel, e.r / k + 0.001);
   return rel + e.r * 1.5 + 0.05;
+}
+/** Freezes a param at its current curve value from `at` (keeps a mid-ramp level instead of snapping to the last event). */
+export function holdAt(p: AudioParam, at: number) {
+  if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(at); else { p.cancelScheduledValues(at); p.setValueAtTime(p.value, at); }
 }
 
 /** Sampler punch window: the hit holds full level before decay starts, so a short DEC tightens the tail, not the body. */
@@ -81,7 +88,7 @@ function modAdsr(p: AudioParam, t: number, e: ADSR | undefined, gate: number, ba
 export function link(amp: GainNode, dest: AudioNode) { const rg = amp.context.createGain(); rg.gain.value = 1; amp.connect(rg).connect(dest); (amp as GainNode & { __rg?: GainNode }).__rg = rg; }
 function fadeOut(amp: GainNode, at: number, r: number, k = 3) {
   const rg = (amp as GainNode & { __rg?: GainNode }).__rg, g = rg ? rg.gain : amp.gain;
-  g.cancelScheduledValues(at); g.setTargetAtTime(0, at, Math.max(.001, r) / k + .001);
+  holdAt(g, at); g.setTargetAtTime(0, at, Math.max(.001, r) / k + .001);
   return at + Math.max(.001, r) * 1.5 + .06;
 }
 export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end: number, amp: GainNode, onClean?: () => void, k = 3): Voice {
@@ -91,7 +98,7 @@ export function finish(srcs: AudioScheduledSourceNode[], nodes: AudioNode[], end
   const timer = window.setTimeout(cleanup, Math.max(0, (end - amp.context.currentTime) * 1000) + 200);
   srcs[0].onended = () => { clearTimeout(timer); cleanup(); };
   let endT = end;
-  return { stop: at => { endT = at; amp.gain.cancelScheduledValues(at); amp.gain.setTargetAtTime(0, at, 0.004); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
+  return { stop: at => { endT = at; holdAt(amp.gain, at); amp.gain.setTargetAtTime(0, at, 0.0012); srcs.forEach(s => { try { s.stop(at + 0.04); } catch { /* already stopped */ } }); },
     release: (at, r) => { if (at + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, at, r, k); srcs.forEach(s => { try { s.stop(endT); } catch { /* already stopped */ } }); } };
 }
 export const at = <T extends AudioScheduledSourceNode>(s: T, t: number) => { (s as unknown as { _t: number })._t = t; return s; };
@@ -194,7 +201,7 @@ export function playDrum(ctx: BaseAudioContext, dest: AudioNode, p0: DrumParams,
     const tt = t + (nb - 1) * p.burstGap + .002; g.gain.setValueAtTime(p.tail, tt); g.gain.setTargetAtTime(0, tt + .001, Math.max(.01, p.env.d) / 3);
     noise().connect(g).connect(bp).connect(bus);
     const clapEnv: ADSR = { ...p.env, d: p.env.d + (nb - 1) * p.burstGap, a: Math.min(p.env.a, .001) };
-    const end = adsr(amp.gain, t, { ...clapEnv, s: 1 }, clapEnv.d + .05, vel * 1.6);
+    const end = adsr(amp.gain, t, { ...clapEnv, s: 1 }, clapEnv.d + .05, vel * 3.2);
     return finish(srcs, nodes, end, amp);
   }
   const end = adsr(amp.gain, t, p.env, p.env.a + p.env.d, vel);
@@ -366,7 +373,7 @@ export function playSampler(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPa
   const cleanup = () => { src.disconnect(); amp.disconnect(); };
   const timer = window.setTimeout(cleanup, Math.max(0, (endT - ctx.currentTime) * 1000) + 200);
   src.onended = () => { clearTimeout(timer); cleanup(); };
-  return { stop: s => { endT = s; amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, 0.004); try { src.stop(s + 0.04); } catch { /* stopped */ } },
+  return { stop: s => { endT = s; holdAt(amp.gain, s); amp.gain.setTargetAtTime(0, s, 0.0012); try { src.stop(s + 0.04); } catch { /* stopped */ } },
     release: (s, r) => { if (oneShot || s + r * 1.5 + .06 >= endT) return; endT = fadeOut(amp, s, r); try { src.stop(endT); } catch { /* stopped */ } },
     glide: (delta, a, time) => { if (!(p.stretch && !p.warp && p.pitchLock)) glideParams([src.playbackRate], delta, a, time); } };
 }
@@ -416,7 +423,7 @@ export function playGrains(ctx: BaseAudioContext, dest: AudioNode, p: SamplerPar
     if (next >= stopAt) { clearInterval(iv); window.setTimeout(() => { cloud.disconnect(); tone.disconnect(); amp.disconnect(); }, Math.max(0, (stopAt + duration - ctx.currentTime) * 1000) + 100); }
   };
   const iv = window.setInterval(pump, 40); pump();
-  return { stop: s => { amp.gain.cancelScheduledValues(s); amp.gain.setTargetAtTime(0, s, .004); stopAt = Math.min(stopAt, s + .05); },
+  return { stop: s => { holdAt(amp.gain, s); amp.gain.setTargetAtTime(0, s, .0012); stopAt = Math.min(stopAt, s + .05); },
     release: (s, r) => { if (s + r * 1.5 + .06 >= stopAt) return; stopAt = fadeOut(amp, s, r); },
     update: q => { const g = q.grainLive; if (!g) return;
       const nlo = g.start != null ? Math.max(0, Math.min(D - .001, g.start * D)) : cur.lo, nhi = g.end != null ? Math.min(D, Math.max(nlo + .001, g.end * D)) : Math.max(nlo + .001, cur.hi);

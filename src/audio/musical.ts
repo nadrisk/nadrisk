@@ -2,7 +2,10 @@ import type { ADSR } from "./voices";
 import { degreeOf, degreeToSemi, type RateName, type ScaleName } from "./arp";
 export const CHORDS = { major: [0, 4, 7], minor: [0, 3, 7], maj7: [0, 4, 7, 11], min7: [0, 3, 7, 10], dom7: [0, 4, 7, 10], maj9: [0, 4, 7, 11, 14], min9: [0, 3, 7, 10, 14], "house m9": [0, 7, 10, 15, 26] } as const;
 export type ChordPlay = "block" | "strum" | "arp";
-export type ChordArp = "up" | "down" | "updown" | "random";
+export type ChordArp = "up" | "up2" | "down" | "down2" | "updown1" | "updown" | "order" | "random";
+/** Crave-style arp modes in tap order; "updown" (legacy) is U/D2 without repeated ends. */
+export const CHORD_ARPS: ChordArp[] = ["up", "up2", "down", "down2", "updown1", "updown", "order", "random"];
+export const ARP_LABEL: Record<ChordArp, string> = { up: "UP1", up2: "UP2", down: "DN1", down2: "DN2", updown1: "U/D1", updown: "U/D2", order: "ORDR", random: "RND" };
 export const CHORD_CORES = ["power", "major", "minor", "sus2", "sus4", "dim", "aug"] as const;
 export const CHORD_EXTS = ["off", "6", "7", "9", "11"] as const;
 export type ChordCore = typeof CHORD_CORES[number];
@@ -42,8 +45,15 @@ export function arpIndex(mode: ChordArp, k: number, n: number) {
   if (n <= 1) return 0;
   if (mode === "down") return n - 1 - (k % n);
   if (mode === "updown") { const c = 2 * n - 2, x = k % c; return x < n ? x : c - x; }
+  if (mode === "updown1") { const c = 2 * n, x = k % c; return x < n ? x : c - 1 - x; }
   if (mode === "random") return Math.floor(Math.random() * n);
   return k % n;
+}
+/** Note an arp plays on its k-th step; UP2/DN2 run the chord over two octaves, ORDR keeps chord-shape order. */
+export function arpNote(mode: ChordArp, k: number, notes: readonly number[], shape?: readonly number[]): number {
+  if (mode === "up2" || mode === "down2") { const two = [...notes, ...notes.map(x => x + 12)], n = two.length; return two[mode === "up2" ? k % n : n - 1 - (k % n)]; }
+  if (mode === "order") { const o = shape && shape.length === notes.length ? shape : notes; return o[k % o.length]; }
+  return notes[arpIndex(mode, k, notes.length)];
 }
 export type ModLane = { on: boolean; target: string; steps: number; values: number[]; /** Pitch lanes: 24 = two octaves, exact notes (keyboard step recording). */ range?: number };
 export const defaultMod = (): ModLane => ({ on: false, target: "cutoff", steps: 16, values: Array(32).fill(.5) });

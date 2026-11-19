@@ -41,7 +41,7 @@ import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler
 
 import { breakTiming, playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
-import { chordShape, arpIndex, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
+import { chordShape, arpNote, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
 // Buffer mode is fixed when the audio context is created: LIVE asks for the smallest buffer, PROD for a large one (more CPU headroom).
@@ -365,7 +365,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       if ((s.engine === "808" && s.bass.mode !== "reese") || s.engine === "siren") { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
       // Sliced and one-shot samplers are monophonic: each hit cuts the previous one (4 ms declick stop).
       if (sliced || (s.engine === "sampler" && s.sampler.mode === "one")) { e.ring[i].forEach(r => r.stop(t)); e.ring[i] = []; e.mono[i]?.stop(t); }
-      const ns0 = idx === undefined ? notes : [notes[arpIndex(s.chord.arp ?? "up", idx, notes.length)]];
+      const ns0 = idx === undefined ? notes : [arpNote(s.chord.arp ?? "up", idx, notes)];
       const ns = sliced && idx === undefined && mode !== "strum" ? ns0.slice(0, 1) : ns0;
       const strum = mode === "strum" && idx === undefined ? (s.chord.strum ?? 30) / 1000 : 0, at = (k: number) => t + k * strum, gk = (k: number) => Math.max(.02, gate - k * strum);
       const role = detectRole(s), kind = vjKindOf(role, s.engine);

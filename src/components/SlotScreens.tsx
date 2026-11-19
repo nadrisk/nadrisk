@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { DisplayThemeContext, Tap } from "@/pixel/PixelScreen";
 import type { Px } from "@/pixel/draw";
 import { Panel, type Knob } from "@/components/pixelScreens";
-import { CHORD_CORES, CHORD_EXTS, chordSelection, type ChordArp, type ChordPlay } from "@/audio/musical";
+import { CHORD_CORES, CHORD_EXTS, chordSelection, CHORD_ARPS, ARP_LABEL, type ChordArp, type ChordPlay } from "@/audio/musical";
 import { HarmonyContext } from "./harmonyKnob";
 import { harmonyOn } from "@/audio/harmony";
 import { RATES, type RateName } from "@/audio/arp";
@@ -82,7 +82,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
 }
 
 const RT = Object.keys(RATES) as RateName[];
-const ORD: ChordArp[] = ["up", "down", "updown", "random"];
+const ORD: ChordArp[] = CHORD_ARPS;
 const PLAY: ChordPlay[] = ["block", "strum", "arp"];
 
 export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
@@ -112,7 +112,7 @@ export function ChordScreen({ slot, onChange }: { slot: Slot; onChange: (p: Part
       p.text(`${coreLabel(selection.core)} ${activeExt === "off" ? "" : activeExt.toUpperCase()}`.trim().slice(0, 11), 2, 24);
       key(p, "FOLD", 48, 22, 22, !!(c.fold ?? c.lead));
       key(p, inKey ? "KEY" : "FREE", 72, 22, 20, inKey);
-      if (play === "arp") key(p, ord.slice(0, 4).toUpperCase(), 94, 22, 33, true);
+      if (play === "arp") key(p, ARP_LABEL[ord] ?? "UP1", 94, 22, 33, true);
     }}
     extra={() => <>
       <Tap x={1} y={11} w={20} h={9} label="Chord on" pressed={c.on} onClick={() => set({ on: !c.on })} />
@@ -128,7 +128,7 @@ const EQ_FREQS = Float32Array.from({ length: 121 }, (_, i) => 20 * 1000 ** (i / 
 export function ChannelEqScreen({ slot, onChange, index = 0, getSpectrum, noSpectrum }: { slot: Slot; onChange: (p: Partial<Slot>) => void; index?: number; getSpectrum?: GetSpectrum; noSpectrum?: boolean }) {
   // SCP page turns the EQ tile into this pad's live spectrum; it only polls while that page is showing.
   const [pg, setPg] = useState("LVL");
-  const scope = useSpectrum(index, getSpectrum, pg === "SCP" && !noSpectrum);
+  const scope = useSpectrum(index, getSpectrum, pg === "SPC" && !noSpectrum);
   const eq = { lowFreq: 100, highFreq: 9000, q: .7, ...slot.eq }, set = (x: Partial<Slot["eq"]>) => onChange({ eq: { ...eq, ...x } });
   const gainKnobs: Knob[] = [
     { label: "Low shelf EQ", short: "LOW", value: eq.low, min: -24, max: 12, step: .5, reset: 0, fmt: v => (v <= EQ_KILL ? "CUT" : `${v > 0 ? "+" : ""}${v}DB`), set: low => set({ low }) },
@@ -141,9 +141,9 @@ export function ChannelEqScreen({ slot, onChange, index = 0, getSpectrum, noSpec
     { label: "Mid Q", short: "Q", value: eq.q, min: .3, max: 8, step: .1, reset: .7, fmt: v => v.toFixed(1), set: q => set({ q }) },
     { label: "High shelf frequency", short: "HI-F", value: eq.highFreq, min: 2000, max: 16000, step: 50, reset: 9000, fmt: v => `${Math.round(v)}HZ`, set: highFreq => set({ highFreq }) },
   ];
-  return <Panel name={pg === "SCP" ? "SPECTRUM" : "EQ"} label="Channel EQ insert" pages={noSpectrum ? ["LVL", "FRQ"] : ["LVL", "FRQ", "SCP"]} onPage={setPg} deps={[scope.tick, !!noSpectrum, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
+  return <Panel name={pg === "SPC" ? "SPECTRUM" : "EQ"} label="Channel EQ insert" pages={noSpectrum ? ["LVL", "FRQ"] : ["LVL", "FRQ", "SPC"]} onPage={setPg} deps={[scope.tick, !!noSpectrum, eq.low, eq.lowFreq, eq.mid, eq.midFreq, eq.q, eq.high, eq.highFreq]} knobs={page => page === "LVL" ? gainKnobs : page === "FRQ" ? freqKnobs : []}
     body={(p, page) => {
-      if (page === "SCP") { drawSpectrum(p, scope.bars, scope.peaks); return; }
+      if (page === "SPC") { drawSpectrum(p, scope.bars, scope.peaks); return; }
       // Drawn from the real filter response (same biquads as the audio), so the curve is what you hear.
       // If the response can't be read yet (or a value is missing) the curve falls back to flat instead of leaving a blank screen.
       const xOf = (hz: number) => 4 + Math.log10(hz / 20) / 3 * 120, midX = xOf(eq.midFreq || 1000);

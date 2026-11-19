@@ -23,13 +23,14 @@ export type ArpParams = { on: boolean; root: number; scale: ScaleName; octave: n
 /** Legacy loop (ignored on playback, kept so old sets type-check). */
 export type PhraseLoop = { where: "first" | "last"; len: number; times: number };
 
-export const PHRASE_DIRS = ["fwd", "rev", "pp", "rnd"] as const;
+export const PHRASE_DIRS = ["fwd", "rev", "pp1", "pp", "rnd"] as const;
 export type PhraseDir = typeof PHRASE_DIRS[number];
 /** Play order of cell indexes for the phrase direction; shared by the scheduler and the editor. */
 export function phraseOrder(a: Pick<ArpParams, "steps" | "dir">, rnd: () => number = Math.random): number[] {
   const n = Math.max(1, a.steps), all = Array.from({ length: n }, (_, i) => i);
   switch (a.dir) {
     case "rev": return all.reverse();
+    case "pp1": return n < 2 ? all : [...all, ...all.slice().reverse()];
     case "pp": return n < 3 ? all : [...all, ...all.slice(1, -1).reverse()];
     case "rnd": { for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; } return all; }
     default: return all;

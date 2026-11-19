@@ -20,7 +20,7 @@ export const IDM_MIN_DECAY = .005, IDM_MAX_DECAY = .15;
 /** Starting sound per engine (DRV always starts at 0). */
 export const IDM_INIT: Record<IdmModel, Omit<IdmParams, "model">> = {
   nois: { rout: 0, tune: 1200, a: .4, penv: .2, decay: .06, grit: 0, drive: 0 },
-  vco: { rout: 0, tune: 160, a: .35, penv: .45, decay: .09, grit: 0, drive: 0 },
+  vco: { rout: 0, tune: 160, a: 0, penv: .45, decay: .09, grit: 0, drive: 0 },
 };
 export const defaultIdm = (model: IdmModel = "nois"): IdmParams => ({ model, ...IDM_INIT[model] });
 /** Retired models load as the closest engine + routing (shared DEC/GRIT/DRV kept). */

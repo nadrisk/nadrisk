@@ -43,7 +43,7 @@
 - Per-engine output trims live in src/audio/loudness.ts (ENGINE_TRIM) and multiply each voice's amp peak, so instruments sit level with the drums without touching tone or saved channel levels.
 - hack~ gates to exact zero below -80 dBFS input and stops its pattern/flushes stutter memory on transport stop/pause (run port message), so it never sounds from silence.
 
-- EUCL rhythms use true Bjorklund (arp.ts bjorklund/euclid) for both phrases and the GEN EUCL page, so patterns match canonical Euclidean rhythms.
+- Euclidean and trance phrase writers are removed from the UI; their arp.ts helpers stay only so old sets that saved them still play.
 - Chord FOLD (chord.fold, legacy chord.lead, default off) uses harmony.foldChord on absolute notes in the pad pitch's ±12-semitone window; only crossing tones fold by octaves, so root modulation stays audible without previous-chord register collapse.
 - SYN filter models (clean.flt: CLEAN/LADDER/SEM/MS20) are native biquad stages with shared cutoff/env tracking in playClean; missing flt = CLEAN so old patches are unchanged. Browser oscillators are already band-limited, so no PolyBLEP worklet is used.
 - PAD (src/audio/pad.ts + padPresets.ts) is its own engine kind with optional slot.pad filled by padParams(); voices are dry (no internal ensemble, LFO or reverb, presets never touch slot FX) so space comes only from the slot's own FX rack; saved motion/space fields are ignored; rings are capped by padRingCap.
@@ -55,3 +55,5 @@
 - Imported wavetables play through the nad-wt worklet (src/audio/wtOsc.ts: continuous phase, per-octave band-limited mipmaps, per-sample smoothed frame interpolation, neighbour phase matching (flip harmonics >90° off the previous frame), energy-preserving frame blend from precomputed frame energies/dots, 15 ms position lag with a per-cycle slew cap); the PeriodicWave pair is only a fallback before worklets load, so sweeps never reset phase or click.
 - SYN pitch decay is a per-voice ConstantSource signal summed into native and worklet detune AudioParams, separate from stereo detune edits, so live controls cannot interrupt its audio-clock exponential fall; the shared voice lifecycle stops and disconnects it.
 - Factory wavetables (src/audio/wtFactory.ts, ids fx:<slug>) are 4 equal-RMS sine-phase keyframes built lazily from formulas and played through the BASIC native-oscillator crossfade with unnormalized PeriodicWaves, so they sweep as smoothly as BASIC; retired online-archive ids (wt:*-0) resolve to BASIC and are hidden from the library.
+- Chord arp modes are Crave-style (musical.ts CHORD_ARPS/arpNote: UP1/2, DN1/2, U/D1 repeats ends, U/D2 legacy "updown", ORDR, RND) and legacy ids keep their meaning, so old sets play unchanged.
+- adsr releases a note shorter than its attack at its gate from the reached level, and voice stop/release freeze the current curve value with holdAt (cancelAndHoldAtTime) before fading, so stolen or cut voices never snap and click.

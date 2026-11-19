@@ -1120,7 +1120,8 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .gb-step.n-head, .gb-step.n-body { border-right-color: transparent !important; }
 .gb-step.n-body, .gb-step.n-tail { border-left-color: transparent !important; }
 .gb-step-grip { width: 5px; max-width: 40%; border: 1px solid hsl(var(--background)); border-left: 0; background: transparent !important; right: 2px; z-index: 3; }
-.gb-seq-grid.is-mod .gb-step.pitch-mod { background: linear-gradient(hsl(var(--foreground) / .4), hsl(var(--foreground) / .4)) center / 100% 1px no-repeat !important; }
+.gb-seq-grid.is-mod .gb-step.pitch-mod.mod::after { content: ""; position: absolute; left: 25%; right: 25%; top: 50%; height: 1px; background: hsl(var(--foreground) / .5); pointer-events: none; }
+.gb-seq-grid.is-mod .gb-step.pitch-mod .gb-step-fill { left: calc(50% - 2px); width: 4px; }
 .gb-seq-grid.is-mod .gb-step.pitch-mod .gb-step-fill { min-height: 0; }
 .gb-seq-grid.is-mod .gb-step.pitch-mod .gb-step-fill::before { display: none; }
 .gb-step-pitch { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font: 12px/1 'VT323', monospace; color: hsl(var(--background)); pointer-events: none; white-space: nowrap; z-index: 2; }
@@ -1576,3 +1577,7 @@ body.perf-lock { overflow: hidden; }
 .instrument-workspace .gb-groupbar-bus { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
 .instrument-workspace .gb-groupbar-bus b { font-weight: normal; min-width: 44px; text-align: center; }
 .instrument-workspace .gb-groupbar-note { flex-basis: 100%; margin: 0; opacity: .75; }
+/* Desktop device FX: the group bar sits on its own row above the screen, over the chassis header strip. */
+.instrument-workspace .device-panel .gb-groupbar { position: relative; z-index: 3; margin: 0; padding: 2px 4px; gap: 3px; background: hsl(var(--background)); border-bottom: 1px solid hsl(var(--foreground)); }
+.instrument-workspace .device-panel .gb-groupbar .gb-cycle { min-height: 18px; height: 18px; min-width: 26px; padding: 0 4px; }
+.instrument-workspace .device-panel .gb-groupbar-note { display: none; }

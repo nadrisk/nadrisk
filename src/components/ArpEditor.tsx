@@ -21,7 +21,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf,
   const span = degreeCount(scl), si = Math.min(sel, arp.steps - 1), cur = arp.cells[si];
   const setCell = (p: Partial<ArpStep>) => set({ cells: arp.cells.map((c, j) => (j === si ? { ...c, ...p } : c)) });
   const W = Math.floor(128 / arp.steps); const step = arp.mode === "step";
-  const dirI = Math.max(0, PHRASE_DIRS.indexOf(arp.dir ?? "fwd")), DIRN = ["FWD", "REV", "P-P", "RND"];
+  const dirI = Math.max(0, PHRASE_DIRS.indexOf(arp.dir ?? "fwd")), DIRN = ["UP", "DOWN", "U/D1", "U/D2", "RND"];
   const rateK: Knob = arp.sync
     ? { label: "Phrase rate", short: "RATE", value: RT.indexOf(arp.rate), min: 0, max: RT.length - 1, step: 1, fmt: v => RT[v], set: v => set({ rate: RT[v] }) }
     : { label: "Phrase free time", short: "MS", value: arp.freeMs, min: 40, max: 1000, step: 1, fmt: v => `${v}MS`, set: freeMs => set({ freeMs }) };
@@ -36,7 +36,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf,
     { label: "Phrase octave", short: "OCT", value: arp.octave, min: 0, max: 6, step: 1, fmt: v => `OCT${Math.round(v)}`, reset: 3, set: octave => set({ octave: Math.round(octave) }) },
     { label: "Phrase spread", short: "SPRD", value: spr, min: 0, max: 1, step: .01, fmt: v => `${Math.round(v * 200)}%`, reset: .5, set: spread => set({ spread }) },
     { label: "Phrase steps", short: "STPS", value: arp.steps, min: 1, max: 16, step: 1, fmt: String, set: steps => set({ steps }) },
-    { label: "Phrase direction", short: "DIR", value: dirI, min: 0, max: 3, step: 1, fmt: v => DIRN[Math.round(v)], reset: 0, set: v => set({ dir: PHRASE_DIRS[Math.round(v)] }) },
+    { label: "Phrase direction", short: "DIR", value: dirI, min: 0, max: PHRASE_DIRS.length - 1, step: 1, fmt: v => DIRN[Math.round(v)], reset: 0, set: v => set({ dir: PHRASE_DIRS[Math.round(v)] }) },
   ];
   const tr = { ...defaultTrance(), ...arp.trance }, trOn = !!arp.trance?.on;
   // TRANCE writes a classic 16-step phrase into the normal cells, so playback and editing stay the same.
@@ -73,7 +73,7 @@ function ArpEditor({ arp: arp0, slotName, onChange: onArp, note, onNote, noteOf,
     [euOn ? "ON" : "OFF", "Euclid mode", 1, euOn, () => setEu({ on: !euOn })],
   ] : [];
   return <div className="node-body arp-body">
-    <Panel compactReadout name="PHRASE" label="Phrase sequencer" pages={["RUN", "PATT", "TRNC", "EUCL"]} deps={[JSON.stringify(arp), si, slotName, h.key, h.scale]} knobs={knobs}
+    <Panel compactReadout name="PHRASE" label="Phrase sequencer" pages={["RUN", "PATT"]} deps={[JSON.stringify(arp), si, slotName, h.key, h.scale]} knobs={knobs}
       body={(p, page) => {
         if (page === "RUN") {
           arp.cells.slice(0, arp.steps).forEach((c, i) => {
