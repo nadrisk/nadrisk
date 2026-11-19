@@ -104,7 +104,8 @@ const ORDER: [string, string[]][] = [
   ["MTH", ["math-zeta", "math-cheby", "math-fib", "math-primes", "math-fractal", "math-walsh", "math-dirichlet", "math-hermite"]],
   ["CHS", ["chaos-chirp", "chaos-logistic"]],
 ];
-export const FACTORY_REFS: { id: string; name: string; group: string }[] = ORDER.flatMap(([group, slugs]) => slugs.map(slug => ({ id: `fx:${slug}`, name: DEFS().find(d => d[0] === slug)![1], group })));
+let refs: { id: string; name: string; group: string }[] | undefined;
+export const factoryRefs = () => refs ??= ORDER.flatMap(([group, slugs]) => slugs.map(slug => ({ id: `fx:${slug}`, name: DEFS().find(d => d[0] === slug)![1], group })));
 const cache = new Map<string, WtTable>();
 export const factoryTable = (id: string): WtTable | null => { const c = cache.get(id); if (c) return c; const d = DEFS().find(x => `fx:${x[0]}` === id); if (!d) return null; const t = build(d); cache.set(id, t); return t; };
 export const isFactory = (id?: string) => !!id && id.startsWith("fx:");
