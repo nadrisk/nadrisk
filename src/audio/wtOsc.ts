@@ -12,7 +12,7 @@ class NadWt extends AudioWorkletProcessor {
     { name: 'frequency', defaultValue: 440, automationRate: 'a-rate' },
     { name: 'detune', defaultValue: 0, automationRate: 'a-rate' },
     { name: 'pos', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'a-rate' }]; }
-  constructor() { super(); this.ph = Math.random(); this.x = -1; this.id = ''; this.dead = false; this.a = 1 - Math.exp(-1 / (sampleRate * .004));
+  constructor() { super(); this.ph = Math.random(); this.x = -1; this.id = ''; this.dead = false; this.a = 1 - Math.exp(-1 / (sampleRate * .015));
     this.port.onmessage = e => { const d = e.data; if (d.table) NAD_WT.set(d.table.id, d.table); if (d.use) this.id = d.use; if (d.stop) this.dead = true; if ('env' in d) this.env = d.env; }; this.env = null; }
   // WT env on the audio clock (mirrors wtEnvLevel in wtEnv.ts): position in table units 0..1.
   envPos(e, tm) { const t = tm - e.t0, a = e.a, d = e.d, s = e.s, sm = e.sm, ez = x => x + (((1 - Math.cos(Math.PI * x)) / 2) - x) * sm; let l;
@@ -28,14 +28,15 @@ class NadWt extends AudioWorkletProcessor {
     const L = Math.max(0, Math.min(${WT_LEVELS - 1}, Math.ceil(Math.log2(Math.max(1e-9, 512 * Math.abs(f) / (sr * .5))))));
     const lv = T.lv[L];
     if (this.x < 0) this.x = (this.env ? this.envPos(this.env, currentTime) : Math.min(1, Math.max(0, ps[0]))) * (n - 1);
-    let ph = this.ph, x = this.x; const a = this.a, E = this.env, sr1 = 1 / sr;
+    let ph = this.ph, x = this.x; const a = this.a, E = this.env, sr1 = 1 / sr, en = T.en, dp = T.dp;
     for (let i = 0; i < o.length; i++) {
       if (fpc) f = fq[fq.length > 1 ? i : 0] * Math.pow(2, dt[dt.length > 1 ? i : 0] / 1200);
-      const tgt = (E ? this.envPos(E, currentTime + i * sr1) : Math.min(1, Math.max(0, ps[ps.length > 1 ? i : 0]))) * (n - 1); x += (tgt - x) * a;
+      const tgt = (E ? this.envPos(E, currentTime + i * sr1) : Math.min(1, Math.max(0, ps[ps.length > 1 ? i : 0]))) * (n - 1); let dx = (tgt - x) * a; const cap = 2 * Math.abs(f) / sr + 1e-4; if (dx > cap) dx = cap; else if (dx < -cap) dx = -cap; x += dx;
       const k = n > 1 ? Math.min(n - 2, x | 0) : 0, w = n > 1 ? x - k : 0;
       const idx = ph * S, i0 = idx | 0, fr = idx - i0, i1 = (i0 + 1) & M, a0 = k * S, b0 = n > 1 ? a0 + S : a0;
       const s0 = lv[a0 + i0] + (lv[a0 + i1] - lv[a0 + i0]) * fr, s1 = lv[b0 + i0] + (lv[b0 + i1] - lv[b0 + i0]) * fr;
-      o[i] = s0 + (s1 - s0) * w;
+      let g = 1; if (en && w > 0) { const ea = en[k], eb = en[k + 1], d = dp[k], wa = 1 - w, E = wa * wa * ea + w * w * eb + 2 * wa * w * d, Et = wa * ea + w * eb; if (E > 1e-9) g = Math.min(2, Math.max(.5, Math.sqrt(Et / E))); }
+      o[i] = (s0 + (s1 - s0) * w) * g;
       ph += f / sr; ph -= Math.floor(ph);
     }
     this.ph = ph; this.x = x; return true;
@@ -58,26 +59,24 @@ export function synthCycle(real: Float32Array, imag: Float32Array, h: number): F
   for (let k = 1; k <= m; k++) { re[k] = real[k]; im[k] = imag[k]; }
   fft(re, im); const out = new Float32Array(WT_SIZE); for (let i = 0; i < WT_SIZE; i++) out[i] = re[i]; return out;
 }
-/** Spectral phase alignment (Serum/Vital practice): every harmonic keeps its per-frame magnitude but shares ONE phase
- * across all frames (the energy-weighted circular mean), so blending neighbouring frames only ever blends magnitudes
- * and harmonics can never cancel mid-sweep. Single-frame tables are untouched. */
-export function alignPhases(re: Float32Array[], im: Float32Array[]): { real: Float32Array[]; imag: Float32Array[] } {
-  const n = re.length; if (n < 2) return { real: re, imag: im };
-  const H = re[0].length, cr = new Float64Array(H), ci = new Float64Array(H);
-  for (let f = 0; f < n; f++) for (let k = 1; k < H; k++) { const m2 = re[f][k] ** 2 + im[f][k] ** 2; if (m2 < 1e-18) continue; const m = Math.sqrt(m2); cr[k] += re[f][k] * m; ci[k] += im[f][k] * m; }
-  const real = re.map(() => new Float32Array(H)), imag = re.map(() => new Float32Array(H));
-  for (let k = 1; k < H; k++) { const l = Math.hypot(cr[k], ci[k]), c = l > 1e-12 ? cr[k] / l : 1, sn = l > 1e-12 ? ci[k] / l : 0;
-    for (let f = 0; f < n; f++) { const m = Math.hypot(re[f][k], im[f][k]); real[f][k] = m * c; imag[f][k] = m * sn; } }
+/** Neighbour phase matching: each frame keeps its own magnitudes and nearly its own shape; any harmonic pointing
+ * more than 90 degrees away from the previous (already matched) frame is flipped, so neighbours never cancel. */
+export function matchNeighbourPhases(re: Float32Array[], im: Float32Array[]): { real: Float32Array[]; imag: Float32Array[] } {
+  const real = re.map(a => Float32Array.from(a)), imag = im.map(a => Float32Array.from(a));
+  for (let f = 1; f < real.length; f++) for (let k = 1; k < real[f].length; k++)
+    if (real[f][k] * real[f - 1][k] + imag[f][k] * imag[f - 1][k] < 0) { real[f][k] = -real[f][k]; imag[f][k] = -imag[f][k]; }
   return { real, imag };
 }
-export type WtMips = { id: string; n: number; lv: Float32Array[] };
+export type WtMips = { id: string; n: number; lv: Float32Array[]; en: Float32Array; dp: Float32Array };
 const mips = new Map<string, WtMips>();
 export function buildMips(t: WtTable): WtMips {
   const hit = mips.get(t.id); if (hit) return hit;
-  const n = t.frames.length, lv: Float32Array[] = [], { real, imag } = alignPhases(t.real, t.imag);
+  const n = t.frames.length, lv: Float32Array[] = [], { real, imag } = matchNeighbourPhases(t.real, t.imag);
   for (let L = 0; L < WT_LEVELS; L++) { const a = new Float32Array(n * WT_SIZE); for (let k = 0; k < n; k++) a.set(synthCycle(real[k], imag[k], 512 >> L), k * WT_SIZE); lv.push(a); }
   let pk = 0; lv[0].forEach(v => { pk = Math.max(pk, Math.abs(v)); }); const g = pk > 1e-6 ? 1 / pk : 1; lv.forEach(a => { for (let i = 0; i < a.length; i++) a[i] *= g; });
-  const r = { id: t.id, n, lv }; mips.set(t.id, r); return r;
+  const en = new Float32Array(n), dp = new Float32Array(Math.max(1, n - 1)), l0 = lv[0];
+  for (let k = 0; k < n; k++) { let e = 0, d = 0; for (let i = 0; i < WT_SIZE; i++) { const v = l0[k * WT_SIZE + i]; e += v * v; if (k < n - 1) d += v * l0[(k + 1) * WT_SIZE + i]; } en[k] = e / WT_SIZE; if (k < n - 1) dp[k] = d / WT_SIZE; }
+  const r = { id: t.id, n, lv, en, dp }; mips.set(t.id, r); return r;
 }
 const sent = new WeakMap<BaseAudioContext, Set<string>>();
 /** Wavetable oscillator node, or null if the worklet isn't loaded yet (caller falls back). */
