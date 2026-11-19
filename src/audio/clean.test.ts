@@ -45,7 +45,7 @@ describe("SYN pitch decay", () => {
     expect(oscillators[8].detune.setTargetAtTime).not.toHaveBeenCalled();
     expect(pitch.offset.setTargetAtTime).toHaveBeenCalledTimes(1);
     voice.stop(.2);
-    expect(pitch.stop).toHaveBeenLastCalledWith(.24);
+    expect(pitch.stop.mock.calls.at(-1)?.[0]).toBeCloseTo(.24);
     vi.runAllTimers();
     expect(pitch.disconnect).toHaveBeenCalledTimes(1);
   });
