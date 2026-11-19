@@ -43,6 +43,9 @@ const logistic = (r: number) => { let x = .4; for (let i = 0; i < 200; i++) x = 
   return shape(t => Math.sin(TAU * t + 1.6 * xs[Math.min(7, Math.floor(t * 8))])); };
 const chirp = (b: number) => shape(t => Math.sin(TAU * (Math.exp(b * t) - 1) / (Math.exp(b) - 1)));
 const hermite = (k: number) => shape(t => { const u = (t - .5) * 7; let h0 = 1, h1 = 2 * u; for (let i = 1; i < k; i++) [h0, h1] = [h1, 2 * u * h1 - 2 * i * h0]; return (k ? h1 : h0) * Math.exp(-u * u / 2); });
+// Metallic FM: sine carrier phase-modulated by a sine/square/its own output (sine phase kept per keyframe).
+const sqrFm = (I: number, r: number) => shape(t => Math.sin(TAU * t + I * Math.tanh(6 * Math.sin(TAU * r * t))));
+const fbFm = (b: number) => shape(t => { let y = 0; for (let i = 0; i < 40; i++) y = .5 * y + .5 * Math.sin(TAU * t + b * y); return y; });
 const s = spec;
 // Vowel formants (Hz → harmonic at ~C3 130 Hz): A 800/1150, E 400/1600, I 270/2300, O 450/800, U 325/700.
 const vowel = (f1: number, f2: number) => s(formant(saw, [[f1 / 130, 1.5, 1], [f2 / 130, 2.5, .6], [2600 / 130, 3, .25]]));
@@ -83,6 +86,10 @@ const DEFS = () => defs ??= [
   ["chaos-logistic", "LOGISTIC", [2.8, 3.2, 3.56, 3.9].map(logistic)],
   ["chaos-chirp", "CHIRP", [.01, 1.5, 3.5, 6].map(chirp)],
   ["math-hermite", "HERMITE", [0, 1, 2, 4].map(hermite)],
+  ["fm-steel", "STEEL RATIO", [fm(1.5, 2), fm(2, 3), fm(2.5, 5), fm(3, 7)]],
+  ["fm-chrome", "CHROME RING", [fm(1, 4, 3), fm(3, 4, 3), fm(5, 5, 3), fm(8, 6)]],
+  ["fm-square", "SQUARE SCREAM", [sqrFm(1, 2), sqrFm(2.5, 2), sqrFm(4, 3), sqrFm(6, 4)]],
+  ["fm-iron", "IRON FEEDBACK", [.5, 1, 1.5, 2.2].map(fbFm)],
 ] as Def[];
 
 /** Equal RMS (Σa² = 1), so neighbours crossfade at a constant level. */
@@ -99,7 +106,7 @@ const ORDER: [string, string[]][] = [
   ["SAW", ["mini-fat-saw", "prophet-vs", "cz-reso-saw", "cz-reso-trap"]],
   ["ADD", ["b3-drawbars", "rhodes-tine", "wurly-reed", "clavinet", "glass-harm", "lofi-8bit", "microwave"]],
   ["FMT", ["ppg-reso", "vowel-talk", "choir-vox"]],
-  ["FM", ["fm-bass", "fm-bell", "fm-growl"]],
+  ["FM", ["fm-bass", "fm-bell", "fm-growl", "fm-steel", "fm-chrome", "fm-square", "fm-iron"]],
   ["FLD", ["buchla-fold", "fold-tri", "fold-asym", "fold-lockhart", "fold-cheby"]],
   ["MTH", ["math-zeta", "math-cheby", "math-fib", "math-primes", "math-fractal", "math-walsh", "math-dirichlet", "math-hermite"]],
   ["CHS", ["chaos-chirp", "chaos-logistic"]],
@@ -109,3 +116,7 @@ export const factoryRefs = () => refs ??= ORDER.flatMap(([group, slugs]) => slug
 const cache = new Map<string, WtTable>();
 export const factoryTable = (id: string): WtTable | null => { const c = cache.get(id); if (c) return c; const d = DEFS().find(x => `fx:${x[0]}` === id); if (!d) return null; const t = build(d); cache.set(id, t); return t; };
 export const isFactory = (id?: string) => !!id && id.startsWith("fx:");
+/** Truly random factory/user pick that never repeats the current table. */
+export const randomPick = <T extends { id: string }>(all: T[], cur?: string): T | undefined => {
+  const pool = all.filter(a => a.id !== cur); if (!pool.length) return all[0];
+  const u = new Uint32Array(1); crypto.getRandomValues(u); return pool[u[0] % pool.length]; };
