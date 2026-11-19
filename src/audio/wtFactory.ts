@@ -45,7 +45,10 @@ const chirp = (b: number) => shape(t => Math.sin(TAU * (Math.exp(b * t) - 1) / (
 const hermite = (k: number) => shape(t => { const u = (t - .5) * 7; let h0 = 1, h1 = 2 * u; for (let i = 1; i < k; i++) [h0, h1] = [h1, 2 * u * h1 - 2 * i * h0]; return (k ? h1 : h0) * Math.exp(-u * u / 2); });
 // Metallic FM: sine carrier phase-modulated by a sine/square/its own output (sine phase kept per keyframe).
 const sqrFm = (I: number, r: number) => shape(t => Math.sin(TAU * t + I * Math.tanh(6 * Math.sin(TAU * r * t))));
-const fbFm = (b: number) => shape(t => { let y = 0; for (let i = 0; i < 40; i++) y = .5 * y + .5 * Math.sin(TAU * t + b * y); return y; });
+/** Real feedback loop: carrier ⇄ 2× modulator cross-modulate through one-sample delays (modulator also feeds itself), run to a steady limit cycle. */
+const fbFm = (b: number) => { const C = 12, x = new Float32Array(FRAME); let px = 0, py = 0;
+  for (let i = 0; i < FRAME * C; i++) { const t = i / FRAME, ny = Math.sin(TAU * 2 * t + b * (.7 * px + .5 * py)), nx = Math.sin(TAU * t + b * py); px = nx; py = ny; if (i >= FRAME * (C - 1)) x[i - FRAME * (C - 1)] = nx; }
+  return shape(t => x[Math.min(FRAME - 1, Math.round(t * FRAME))]); };
 const s = spec;
 // Vowel formants (Hz → harmonic at ~C3 130 Hz): A 800/1150, E 400/1600, I 270/2300, O 450/800, U 325/700.
 const vowel = (f1: number, f2: number) => s(formant(saw, [[f1 / 130, 1.5, 1], [f2 / 130, 2.5, .6], [2600 / 130, 3, .25]]));
@@ -89,7 +92,7 @@ const DEFS = () => defs ??= [
   ["fm-steel", "STEEL RATIO", [fm(1.5, 2), fm(2, 3), fm(2.5, 5), fm(3, 7)]],
   ["fm-chrome", "CHROME RING", [fm(1, 4, 3), fm(3, 4, 3), fm(5, 5, 3), fm(8, 6)]],
   ["fm-square", "SQUARE SCREAM", [sqrFm(1, 2), sqrFm(2.5, 2), sqrFm(4, 3), sqrFm(6, 4)]],
-  ["fm-iron", "IRON FEEDBACK", [.5, 1, 1.5, 2.2].map(fbFm)],
+  ["fm-iron", "IRON FEEDBACK", [.6, 1.4, 2.2, 3.2].map(fbFm)],
 ] as Def[];
 
 /** Equal RMS (Σa² = 1), so neighbours crossfade at a constant level. */
