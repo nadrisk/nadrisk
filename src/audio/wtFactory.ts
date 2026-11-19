@@ -32,6 +32,17 @@ const FIB = [1, 2, 3, 5, 8, 13, 21, 34, 55];
 /** Walsh function wal(k,t): product of Rademacher signs for each set bit of the Gray code of k. */
 const walsh = (k: number, t: number) => { const g = k ^ (k >> 1); let v = 1; for (let b = 0; b < 6; b++) if (g >> b & 1) v *= Math.sin(2 * Math.PI * 2 ** b * (t + 1e-6)) >= 0 ? 1 : -1; return v; };
 type Def = [string, string, Float32Array[]];
+const TAU = 2 * Math.PI;
+const triFold = (g: number) => shape(t => 2 / Math.PI * Math.asin(Math.sin(Math.PI / 2 * g * Math.sin(TAU * t))));
+const asymFold = (g: number) => shape(t => Math.sin(g * (Math.sin(TAU * t) + .35)));
+const lockhart = (g: number) => shape(t => Math.tanh(1.5 * Math.sin(g * Math.sin(TAU * t))));
+const chebFold = (m: number) => shape(t => { const th = Math.acos(Math.sin(TAU * t)); let y = 0; for (let k = 1; k <= m; k++) y += Math.cos(k * th) / k; return y; });
+const curvePwm = (a: number, th: number) => shape(t => Math.tanh(6 * (Math.sin(TAU * t ** a) - th)));
+const dirichlet = (N: number) => spec(n => n <= N ? 1 : 0);
+const logistic = (r: number) => { let x = .4; for (let i = 0; i < 200; i++) x = r * x * (1 - x); const xs = Array.from({ length: 8 }, () => (x = r * x * (1 - x)));
+  return shape(t => Math.sin(TAU * t + 1.6 * xs[Math.min(7, Math.floor(t * 8))])); };
+const chirp = (b: number) => shape(t => Math.sin(TAU * (Math.exp(b * t) - 1) / (Math.exp(b) - 1)));
+const hermite = (k: number) => shape(t => { const u = (t - .5) * 7; let h0 = 1, h1 = 2 * u; for (let i = 1; i < k; i++) [h0, h1] = [h1, 2 * u * h1 - 2 * i * h0]; return (k ? h1 : h0) * Math.exp(-u * u / 2); });
 const s = spec;
 // Vowel formants (Hz → harmonic at ~C3 130 Hz): A 800/1150, E 400/1600, I 270/2300, O 450/800, U 325/700.
 const vowel = (f1: number, f2: number) => s(formant(saw, [[f1 / 130, 1.5, 1], [f2 / 130, 2.5, .6], [2600 / 130, 3, .25]]));
@@ -63,6 +74,15 @@ const DEFS = () => defs ??= [
   ["math-walsh", "WALSH", [1, 3, 5, 6].map(k => shape(t => walsh(k, t)))],
   ["math-zeta", "ZETA TILT", [2, 1.4, 1, .6].map(e => s(n => 1 / n ** e))],
   ["math-fib", "FIBONACCI", [8, 21, 34, 55].map(m => s(n => FIB.includes(n) && n <= m ? 1 / Math.sqrt(n) : 0))],
+  ["fold-tri", "TRI FOLD", [triFold(1), triFold(2), triFold(4), triFold(7)]],
+  ["fold-asym", "ASYM FOLD", [asymFold(1), asymFold(2.5), asymFold(5), asymFold(8)]],
+  ["fold-lockhart", "LOCKHART", [lockhart(1.2), lockhart(2.5), lockhart(4), lockhart(6)]],
+  ["fold-cheby", "CHEBY FOLD", [chebFold(1), chebFold(3), chebFold(6), chebFold(10)]],
+  ["mod-curve-pwm", "CURVE PWM", [curvePwm(1, 0), curvePwm(1.5, .3), curvePwm(2.2, .55), curvePwm(3, .8)]],
+  ["math-dirichlet", "DIRICHLET", [1, 4, 10, 24].map(dirichlet)],
+  ["chaos-logistic", "LOGISTIC", [2.8, 3.2, 3.56, 3.9].map(logistic)],
+  ["chaos-chirp", "CHIRP", [.01, 1.5, 3.5, 6].map(chirp)],
+  ["math-hermite", "HERMITE", [0, 1, 2, 4].map(hermite)],
 ] as Def[];
 
 /** Equal RMS (Σa² = 1), so neighbours crossfade at a constant level. */
@@ -73,7 +93,18 @@ const build = ([slug, name, shapes]: Def): WtTable => {
   return { id: `fx:${slug}`, name, frames, real: mags.map(() => new Float32Array(NH + 1)), imag: mags, keys: true,
     view: frames.map(f => Array.from({ length: 48 }, (_, i) => f[Math.floor(i * FRAME / 48)] / (pk || 1))) };
 };
-export const FACTORY_REFS = ["juno-pwm THIN PULSE","acid-303 RUBBER SQUARE","mini-fat-saw FAT SAW","prophet-vs MORPH SAW","ppg-reso GLASS PEAKS","microwave FROST EDGE","cz-reso-saw WARP SAW","cz-reso-trap KNEE SLOPE","fm-bass METAL PUNCH","fm-bell CRYSTAL BELL","fm-growl GROWL","buchla-fold SINE FOLD","b3-drawbars WARM BARS","rhodes-tine SOFT TINE","wurly-reed HOLLOW REED","clavinet TWANG","vowel-talk VOWEL GLIDE","choir-vox AIR CHOIR","glass-harm ODD GLASS","lofi-8bit BRIGHT AIR","math-cheby CHEBYSHEV","math-primes PRIMES","math-fractal FRACTAL","math-walsh WALSH","math-zeta ZETA TILT","math-fib FIBONACCI"].map(x => { const i = x.indexOf(" "); return { id: `fx:${x.slice(0, i)}`, name: x.slice(i + 1) }; });
+/** Library order: grouped by wave type, simple to complex. Ids never change, so saved sets keep working. */
+const ORDER: [string, string[]][] = [
+  ["PLS", ["juno-pwm", "mod-curve-pwm", "acid-303"]],
+  ["SAW", ["mini-fat-saw", "prophet-vs", "cz-reso-saw", "cz-reso-trap"]],
+  ["ADD", ["b3-drawbars", "rhodes-tine", "wurly-reed", "clavinet", "glass-harm", "lofi-8bit", "microwave"]],
+  ["FMT", ["ppg-reso", "vowel-talk", "choir-vox"]],
+  ["FM", ["fm-bass", "fm-bell", "fm-growl"]],
+  ["FLD", ["buchla-fold", "fold-tri", "fold-asym", "fold-lockhart", "fold-cheby"]],
+  ["MTH", ["math-zeta", "math-cheby", "math-fib", "math-primes", "math-fractal", "math-walsh", "math-dirichlet", "math-hermite"]],
+  ["CHS", ["chaos-chirp", "chaos-logistic"]],
+];
+export const FACTORY_REFS: { id: string; name: string; group: string }[] = ORDER.flatMap(([group, slugs]) => slugs.map(slug => ({ id: `fx:${slug}`, name: DEFS().find(d => d[0] === slug)![1], group })));
 const cache = new Map<string, WtTable>();
 export const factoryTable = (id: string): WtTable | null => { const c = cache.get(id); if (c) return c; const d = DEFS().find(x => `fx:${x[0]}` === id); if (!d) return null; const t = build(d); cache.set(id, t); return t; };
 export const isFactory = (id?: string) => !!id && id.startsWith("fx:");

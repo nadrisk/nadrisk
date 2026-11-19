@@ -6,7 +6,7 @@ import { BASIC_ID, deleteTable, importWavetable, listTables, onTablesChanged, ty
 
 const ROWS = 3;
 
-/** SYN wavetable browser: BASIC and 20 factory tables first, then the user's imported tables (stored on this device). */
+/** SYN wavetable browser: BASIC and the factory tables grouped by wave type, then the user's imported tables (stored on this device). */
 export default function WavetableLibrary({ value, onPick }: { value?: string; onPick: (id: string) => void }) {
   const [list, setList] = useState<WtRef[]>([]);
   const [sel, setSel] = useState(0);
@@ -22,7 +22,7 @@ export default function WavetableLibrary({ value, onPick }: { value?: string; on
       body={p => {
         vis.forEach((s, i) => { const y = 11 + i * 9, idx = top + i, on = idx === sel;
           if (on) p.rect(0, y, 116, 9);
-          p.text(`${String(idx + 1).padStart(2, "0")} ${s.name.toUpperCase()}`.slice(0, 20), 2, y + 2, !on);
+          p.text(`${String(idx + 1).padStart(2, "0")} ${"group" in s ? `${(s as { group: string }).group} ` : ""}${s.name.toUpperCase()}`.slice(0, 20), 2, y + 2, !on);
           if (s.id === cur) p.text("*", 96, y + 2, !on);
           if (on && s.id !== BASIC_ID && !isFactory(s.id)) { p.rect(104, y + 1, 11, 7, false); p.text("X", 108, y + 2, true); } });
         p.box(122, 11, 5, 27);

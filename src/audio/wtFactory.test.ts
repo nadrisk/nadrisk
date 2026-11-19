@@ -3,8 +3,8 @@ import { FACTORY_REFS, factoryTable } from "./wtFactory";
 import { tableNow, listTables } from "./wavetable";
 
 describe("factory wavetables", () => {
-  it("ships exactly 26 tables of 4 keyframes", () => {
-    expect(FACTORY_REFS).toHaveLength(26);
+  it("ships exactly 35 tables of 4 keyframes", () => {
+    expect(FACTORY_REFS).toHaveLength(35);
     FACTORY_REFS.forEach(r => { const t = factoryTable(r.id)!; expect(t.name).toBe(r.name); expect(t.imag).toHaveLength(4); });
   });
   it("keyframes are finite, sine-phase and equal RMS", () => {
@@ -19,5 +19,10 @@ describe("factory wavetables", () => {
       expect(e).toBeGreaterThan(.9); } });
   });
   it("names never use synth brands", () => { FACTORY_REFS.forEach(r => expect(r.name).not.toMatch(/JUNO|303|PROPHET|PPG|CZ|FM|BUCHLA|B3|RHODES|WURLY|CLAV|MOOG|DX|MICROWAVE/)); });
+  it("library is grouped by wave type and keeps old ids", () => {
+    const g = FACTORY_REFS.map(r => r.group); expect([...new Set(g)]).toEqual(["PLS", "SAW", "ADD", "FMT", "FM", "FLD", "MTH", "CHS"]);
+    g.forEach((x, i) => { if (i && x !== g[i - 1]) expect(g.slice(i).includes(g[i - 1])).toBe(false); });
+    ["fx:juno-pwm", "fx:buchla-fold", "fx:math-fib"].forEach(id => expect(factoryTable(id)).not.toBeNull());
+  });
   it("retired cloud ids play BASIC", () => { expect(tableNow("wt:Foo-0")).toBeNull(); expect(listTables).toBeTypeOf("function"); });
 });
