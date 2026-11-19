@@ -40,7 +40,10 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const from = glideFrom != null && c.glide > .001 ? 440 * 2 ** ((glideFrom - 69) / 12) : f;
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
   const mix = ctx.createGain(), sh = ctx.createWaveShaper(), post = ctx.createGain();
-  sh.curve = softCurve(c.drive); sh.oversample = "2x"; mix.gain.value = 1 + c.drive * 2; post.gain.value = 1 / (1 + c.drive * 1.2);
+  // DRIVE 0 must be a clean wire: tanh(1·x)/tanh(1) still bends loud peaks (~5% THD), so bypass the shaper entirely.
+  const dry = c.drive <= 0;
+  if (!dry) { sh.curve = softCurve(c.drive); sh.oversample = "2x"; }
+  mix.gain.value = dry ? 1 : 1 + c.drive * 2; post.gain.value = dry ? 1 : 1 / (1 + c.drive * 1.2);
   // Filter model: env-tracked stages (fs) share cutoff + envelope; extras give each model its character.
   const flt = c.flt ?? 0, qs = modelQ(flt, c.res), fs = qs.map((q, k) => { const b = ctx.createBiquadFilter(); b.type = flt === 3 && k === 1 ? "highpass" : "lowpass"; b.Q.value = q; return b; });
   const envOf = (b: BiquadFilterNode, mul = 1) => filterEnvAdsr(b.frequency, t, c.env, gate, c.cutoff * mul, c.envAmt * 5);
@@ -52,7 +55,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     shelf = ctx.createBiquadFilter(); shelf.type = "lowshelf"; shelf.frequency.value = 180; shelf.gain.value = -c.res * 6;
     chain.unshift(shelf); chain.push(peak);
   } else if (flt === 3) { const w = ctx.createWaveShaper(); w.curve = scream(); w.oversample = "2x"; chain.splice(1, 0, w); }
-  let last: AudioNode = post; mix.connect(sh).connect(post); for (const n of chain) { last.connect(n); last = n; } last.connect(amp);
+  let last: AudioNode = post; if (dry) mix.connect(post); else mix.connect(sh).connect(post); for (const n of chain) { last.connect(n); last = n; } last.connect(amp);
   nodes.push(mix, sh, post, ...chain, amp);
   const tracked = peak ? [...fs, peak] : fs;
   const freqs: AudioParam[] = [], dets: [AudioParam, number][] = [];

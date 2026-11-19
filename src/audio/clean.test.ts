@@ -22,6 +22,38 @@ function fixture() {
 }
 
 afterEach(() => vi.useRealTimers());
+describe("SYN drive", () => {
+  const rig = (drive: number) => {
+    const param = () => ({ value: 0, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() });
+    const node = () => ({ connect: vi.fn().mockReturnThis(), disconnect: vi.fn() });
+    const shapers: { curve: unknown }[] = [], gains: { gain: { value: number } }[] = [];
+    const ctx = {
+      currentTime: 0,
+      createGain: () => { const g = { ...node(), context: ctx, gain: param() }; gains.push(g); return g; },
+      createWaveShaper: () => { const s = { ...node(), curve: null as unknown }; shapers.push(s); return s; },
+      createBiquadFilter: () => ({ ...node(), frequency: param(), Q: param(), detune: param() }),
+      createStereoPanner: () => ({ ...node(), pan: param() }),
+      createOscillator: () => ({ ...node(), frequency: param(), detune: param(), start: vi.fn(), stop: vi.fn(), onended: null }),
+      createConstantSource: () => ({ ...node(), offset: param(), start: vi.fn(), stop: vi.fn() }),
+    };
+    playClean(ctx as unknown as BaseAudioContext, node() as unknown as AudioNode, { ...defaultClean(), drive }, 60, 0, 1);
+    return { shapers, gains };
+  };
+
+  it("leaves the shaper flat and the trims at unity when DRIVE is 0", () => {
+    const { shapers, gains } = rig(0);
+    expect(shapers[0].curve).toBeNull();
+    expect(gains[2].gain.value).toBe(1); // mix: no boost
+    expect(gains[3].gain.value).toBe(1); // post: no trim
+  });
+
+  it("shapes and compensates when DRIVE is up", () => {
+    const { shapers, gains } = rig(.5);
+    expect(shapers[0].curve).not.toBeNull();
+    expect(gains[2].gain.value).toBe(2); // mix boost 1 + drive*2
+    expect(gains[3].gain.value).toBeCloseTo(1 / 1.6); // post trim
+  });
+});
 describe("SYN pitch decay", () => {
   it("preserves a 12-semitone, 500ms decay through full-patch live edits", () => {
     vi.useFakeTimers();
