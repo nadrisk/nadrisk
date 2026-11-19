@@ -1,5 +1,5 @@
 import { ENGINE_TRIM } from "./loudness";
-import { WT_ENV_HOME, wtEnvOffset, type WtEnv } from "./wtEnv";
+import { WT_ENV_HOME, wtEnvOffset, wtTimes, type WtEnv } from "./wtEnv";
 import { framePair, frameWave, tableNow } from "./wavetable";
 import { wtOsc } from "./wtOsc";
 import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type ADSR, type SynthParams, type Voice } from "./voices";
@@ -98,7 +98,11 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
         wtPend[j] = true; const now = ctx.currentTime; wt.forEach(side => { side[j].g.gain.cancelScheduledValues(now); side[j].g.gain.setTargetAtTime(0, now, .003); });
         setTimeout(() => { wtPend[j] = false; if (!dead) swap(); }, 22); }); } };
   // WT env: a light control-rate loop (16 ms, 30 ms ahead) moves the position while the voice lives; SMTH also slews it.
-  const run = () => { if (tick || !cur.wDp || typeof window === "undefined") return; tick = window.setInterval(() => { const n = Math.max(ctx.currentTime + .03, t); setPos(posAt(n - t), n, .006 + (cur.wSm ?? 0) * .05); }, 16); };
+  // Worklet path: the envelope runs per sample inside the oscillator (no UI timer, no iOS jitter).
+  const sendEnv = () => { if (!wtn.length) return false; const e = env(), { a, d } = wtTimes(e, cur.bpm ?? 120);
+    const msg = cur.wDp ? { env: { t0: t, a, d, s: Math.min(1, Math.max(0, e.wS)), sm: Math.min(1, Math.max(0, e.wSm)), dp: e.wDp, loop: !!e.wLoop, bi: !!e.wBi, base: cur.wave } } : { env: null };
+    wtn.forEach(o => o.port.postMessage(msg)); return true; };
+  const run = () => { if (sendEnv()) return; if (tick || !cur.wDp || typeof window === "undefined") return; tick = window.setInterval(() => { const n = Math.max(ctx.currentTime + .03, t); setPos(posAt(n - t), n, .006 + (cur.wSm ?? 0) * .05); }, 16); };
   run();
   v.glide = (delta, a, time) => [...freqs, sub.frequency].forEach(p => { const q = p as AudioParam & { __base?: number }; const b = q.__base ?? p.value; p.cancelScheduledValues(a); p.setTargetAtTime(b * 2 ** (delta / 12), a, Math.max(.005, time / 3)); });
   v.update = q => { const nc = (q as { clean?: Partial<CleanParams> }).clean; if (!nc) return; const n = ctx.currentTime, tc = .01;
@@ -108,7 +112,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     if (nc.detune !== undefined) dets.forEach(([o, s]) => o.detune.setTargetAtTime(s * nc.detune! * 28, n, tc));
     if (nc.sub !== undefined) sg.gain.setTargetAtTime(nc.sub * .6, n, tc);
     if (nc.noise !== undefined && ng) ng.gain.setTargetAtTime(nc.noise ** 2 * .35, n, tc);
-    Object.assign(cur, nc); if (cur.wDp) run();
+    Object.assign(cur, nc); run();
     if (nc.wave !== undefined || nc.wDp !== undefined) setPos(posAt(Math.max(0, n - t)), n, tc); };
   return v;
 }

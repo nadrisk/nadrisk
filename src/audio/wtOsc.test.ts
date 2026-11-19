@@ -21,3 +21,15 @@ describe("nad-wt oscillator", () => {
     expect(sweep).toBeLessThan(still * 1.15);
   });
 });
+
+import { alignPhases } from "./wtOsc";
+describe("spectral phase alignment", () => {
+  it("opposite-phase frames keep full energy halfway through a sweep", () => {
+    const H = 8, re = [new Float32Array(H), new Float32Array(H)], im = [new Float32Array(H), new Float32Array(H)];
+    im[0][3] = 1; im[1][3] = -1; re[0][1] = 1; re[1][1] = 1; // 3rd harmonic flipped between frames
+    const { real, imag } = alignPhases(re, im);
+    const midR = (real[0][3] + real[1][3]) / 2, midI = (imag[0][3] + imag[1][3]) / 2;
+    expect(Math.hypot(midR, midI)).toBeCloseTo(1); // naive crossfade would give 0
+    expect(Math.hypot(real[0][1], imag[0][1])).toBeCloseTo(1);
+  });
+});
