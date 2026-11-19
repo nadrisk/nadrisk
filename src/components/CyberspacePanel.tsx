@@ -88,6 +88,6 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
       <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
     return <EnvZones env={c.env} set={env => C({ env })} />;
   };
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Wavetable synth" knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value, tbl]} />;
+  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Wavetable synth" compactReadout knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value, tbl]} />;
 }
 export default memo(CyberspacePanel);

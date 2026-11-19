@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] SYN: complete dial readouts and uninterrupted audio-clock pitch decay during live edits; regression tests and phone/desktop checks.
 - [x] Sequencer: larger length grips, bipolar scale-stepped pitch/readout, fine relative modulation drag, F1/F3/C3 defaults and C3 slice mapping; 40 tests passed and phone defaults, stretching, safe edge taps, pitch dragging and playback verified.
 - [x] CHORD CORE + EXT: saved voicings preserved; 20 tests passed; live power/7/KEY ninth notes and phone/desktop STRUM/ARP controls checked.
 - [x] LEAD: root-tracking chord folding within the pad’s ±2 octaves; 18 regression tests passed and live sequencer root/+12/+24 chord notes verified.
