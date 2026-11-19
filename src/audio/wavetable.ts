@@ -6,8 +6,11 @@ export const FRAME = 2048;
 export const MAX_FRAMES = 256;
 const HARM = 512;
 export const BASIC_ID = "basic";
+import { factoryTable, isFactory } from "./wtFactory";
+/** Retired online-archive ids (wt:<name>-0) fall back to BASIC. */
+export const isRetiredCloud = (id?: string) => !!id && /^wt:.*-0$/.test(id);
 export type WtRef = { id: string; name: string };
-export type WtTable = { id: string; name: string; frames: Float32Array[]; real: Float32Array[]; imag: Float32Array[]; view: number[][] };
+export type WtTable = { id: string; name: string; frames: Float32Array[]; real: Float32Array[]; imag: Float32Array[]; view: number[][]; /** Factory table: 4 equal-RMS sine-phase keyframes played like BASIC. */ keys?: boolean };
 
 /** Reads PCM 8/16/24/32-bit int or 32/64-bit float WAV, first channel, plus Serum's "clm " frame size. No resampling. */
 export function parseWav(buf: ArrayBuffer): { data: Float32Array; frameSize?: number } {
@@ -94,34 +97,28 @@ const emit = () => listeners.forEach(f => f());
 
 /** Synchronous lookup for the audio path; starts loading a missing table so the next note has it. */
 export function tableNow(id?: string): WtTable | null {
-  if (!id || id === BASIC_ID) return null;
+  if (!id || id === BASIC_ID || isRetiredCloud(id)) return null;
+  if (isFactory(id)) return factoryTable(id);
   const t = mem.get(id); if (t) return t; void loadTable(id); return null;
 }
 export function loadTable(id: string): Promise<WtTable | null> {
-  if (id === BASIC_ID) return Promise.resolve(basicTable());
+  if (id === BASIC_ID || isRetiredCloud(id)) return Promise.resolve(basicTable());
+  if (isFactory(id)) return Promise.resolve(factoryTable(id) ?? basicTable());
   const m = mem.get(id); if (m) return Promise.resolve(m);
   let p = loading.get(id);
   if (!p) { p = tx<Stored | undefined>("readonly", s => s.get(id)).then(r => { if (!r) return null; const frames = Array.from({ length: r.n }, (_, k) => r.data.slice(k * FRAME, (k + 1) * FRAME)); const t = buildTable(id, r.name, frames); mem.set(id, t); emit(); return t; }).catch(() => null).finally(() => loading.delete(id)); loading.set(id, p); }
   return p;
 }
 export async function importWavetable(file: File): Promise<WtTable> { return storeWav(await file.arrayBuffer(), `wt:${file.name}-${file.size}`, file.name.replace(/\.[^.]+$/, "")); }
-/** WaveEdit Online banks (CC0): 64 cycles of 256 samples, streamed from the CDN once, then kept on this device. */
-export const cloudId = (file: string) => `wt:${file}-0`;
-export async function loadCloudTable(file: string): Promise<WtTable> {
-  const id = cloudId(file), have = await loadTable(id); if (have) return have;
-  const r = await fetch(`https://cdn.jsdelivr.net/gh/smpldsnds/wavedit-online@main/samples/${encodeURIComponent(file)}.WAV`);
-  if (!r.ok) throw new Error("DOWNLOAD FAILED");
-  return storeWav(await r.arrayBuffer(), id, file, 256);
-}
-async function storeWav(buf: ArrayBuffer, id: string, name: string, forceFrame?: number): Promise<WtTable> {
+async function storeWav(buf: ArrayBuffer, id: string, name: string): Promise<WtTable> {
   const { data, frameSize } = parseWav(buf);
-  const frames = toFrames(data, forceFrame ?? frameSize);
+  const frames = toFrames(data, frameSize);
   const flat = new Float32Array(frames.length * FRAME); frames.forEach((f, k) => flat.set(f, k * FRAME));
   await tx("readwrite", s => s.put({ name, n: frames.length, data: flat } satisfies Stored, id));
   const t = buildTable(id, name, frames); mem.set(id, t); emit(); return t;
 }
 export async function listTables(): Promise<WtRef[]> {
-  try { const keys = (await tx("readonly", s => s.getAllKeys())) as string[]; return keys.map(id => ({ id, name: id.slice(3).replace(/-\d+$/, "").replace(/\.[^.]+$/, "") })); } catch { return []; }
+  try { const keys = (await tx("readonly", s => s.getAllKeys())) as string[]; return keys.filter(id => !isRetiredCloud(id)).map(id => ({ id, name: id.slice(3).replace(/-\d+$/, "").replace(/\.[^.]+$/, "") })); } catch { return []; }
 }
 export async function deleteTable(id: string) { await tx("readwrite", s => s.delete(id)); mem.delete(id); emit(); }
 
@@ -130,6 +127,6 @@ const waves = new WeakMap<BaseAudioContext, Map<string, PeriodicWave>>();
 export function frameWave(ctx: BaseAudioContext, t: WtTable, k: number): PeriodicWave {
   let m = waves.get(ctx); if (!m) waves.set(ctx, m = new Map());
   const key = `${t.id}#${k}`; let w = m.get(key);
-  if (!w) { w = ctx.createPeriodicWave(t.real[k], t.imag[k]); m.set(key, w); }
+  if (!w) { w = ctx.createPeriodicWave(t.real[k], t.imag[k], t.keys ? { disableNormalization: true } : undefined); m.set(key, w); }
   return w;
 }

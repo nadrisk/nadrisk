@@ -56,7 +56,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const tracked = peak ? [...fs, peak] : fs;
   const freqs: AudioParam[] = [], dets: [AudioParam, number][] = [];
   // Each detuned pair is panned apart (and each chord voice gets its own spot), so detune widens in stereo instead of combing in mono.
-  const cents = c.detune * 28, tbl = tableNow(c.wt);
+  const cents = c.detune * 28, tbl0 = tableNow(c.wt), fac = tbl0?.keys ? tbl0 : null, tbl = fac ? null : tbl0;
   const env = (): WtEnv => ({ ...WT_ENV_HOME, ...cur }), cur: CleanParams = { ...c }, posAt = (el: number) => Math.max(0, Math.min(3, cur.wave + (cur.wDp ? wtEnvOffset(env(), el, cur.bpm ?? 120) : 0))), pos0 = posAt(0);
   const addOsc = (sg: number, gain: number, setWave: (o: OscillatorNode) => void) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); setWave(o); o.detune.value = sg * cents; g.gain.value = gain;
     const pn = ctx.createStereoPanner(); pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
@@ -76,7 +76,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     [-1, 1].forEach(sg => wt.push([0, 1].map(j => addOsc(sg, fp.weights[j] * .32, o => o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j])))))); }
   // BASIC: all four waves run per side so a held note morphs live (silent ones sit at gain 0).
   const basicOsc: { g: GainNode; k: number }[] = [];
-  if (!tbl) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * WAVE_GAIN[k] * .5, o => { o.type = WAVES[k]; }).g, k })));
+  if (!tbl) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * (fac ? .5 : WAVE_GAIN[k]) * .5, o => { if (fac) o.setPeriodicWave(frameWave(ctx, fac, k)); else o.type = WAVES[k]; }).g, k })));
   // Noise oscillator, pre-filter so the envelope and filter shape it.
   let ng: GainNode | null = null;
   if ((c.noise ?? 0) > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; n.loopStart = Math.random(); ng = ctx.createGain(); ng.gain.value = (c.noise ?? 0) ** 2 * .35; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
@@ -94,7 +94,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   }
   let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => { dead = true; clearInterval(tick); wtn.forEach(o => o.port.postMessage({ stop: 1 })); });
   const setPos = (w: number, n: number, tc: number) => {
-    if (basicOsc.length) { const m = waveMix(w); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * WAVE_GAIN[k] * .5, n, tc)); }
+    if (basicOsc.length) { const m = waveMix(w); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * (fac ? .5 : WAVE_GAIN[k]) * .5, n, tc)); }
     if (wtn.length) { wtn.forEach(o => o.parameters.get("pos")?.setTargetAtTime(Math.max(0, Math.min(1, w / 3)), n, tc)); return; }
     if (tbl && wt.length) { const fp = framePair(w / 3, tbl.frames.length);
       // Click-free: a new frame only loads into an oscillator while it is silent (setPeriodicWave jumps phase);
