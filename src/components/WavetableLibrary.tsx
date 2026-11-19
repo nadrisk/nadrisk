@@ -13,7 +13,7 @@ export default function WavetableLibrary({ value, onPick }: { value?: string; on
   const [msg, setMsg] = useState("");
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => { const r = () => { listTables().then(setList); }; r(); return onTablesChanged(r); }, []);
-  const all: WtRef[] = [{ id: BASIC_ID, name: "BASIC WAVES" }, ...factoryRefs, ...list], cur = value || BASIC_ID;
+  const all: WtRef[] = [{ id: BASIC_ID, name: "BASIC WAVES" }, ...factoryRefs(), ...list], cur = value || BASIC_ID;
   useEffect(() => { const i = all.findIndex(a => a.id === cur); if (i >= 0) setSel(i); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [cur, list.length]);
   const top = Math.max(0, Math.min(sel - 1, all.length - ROWS)), vis = all.slice(top, top + ROWS);
   const pick = (i: number) => { setSel(i); const r = all[i]; if (r) onPick(r.id); };
