@@ -54,7 +54,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
   const [clip, setClip] = useState(0);
   const copy = () => { padClip = structuredClone(Object.fromEntries(PAD_SOUND.map(k => [k, slot[k]]))) as Partial<Slot>; padClipFrom = index; setClip(c => c + 1); };
   const paste = () => { if (!padClip) return; onChange(structuredClone(padClip)); if (padClip.engine === "sampler" && padClipFrom >= 0 && padClipFrom !== index) onCopyBuffer?.(padClipFrom); };
-  const knobs: Knob[] = slot.engine === "sampler" ? [] : [
+  const knobs: Knob[] = [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
   ];
@@ -67,7 +67,6 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
       key(p, slot.choke ? `CHK${slot.choke}` : "CHK-", 96, 22, 31, slot.choke > 0);
       key(p, "COPY", 1, 32, 62, false); key(p, padClip ? "PASTE" : "PASTE -", 64, 32, 63, false);
-      if (!knobs.length) p.text("LEVEL ON SMP PAGE", 2, 46);
     }}
     extra={() => <>
       {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e !== slot.engine ? { note: defaultInstrumentNote(e), ...(e === "sampler" ? { sampler: { ...slot.sampler, rootNote: SAMPLE_ROOT } } : {}) } : {}) })} />)}

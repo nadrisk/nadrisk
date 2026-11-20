@@ -1,3 +1,4 @@
+import { foldOneSided } from "@/audio/monoFold";
 import { defaultInstrumentNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
 import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
 import { shiftRow } from "@/audio/rowShift";
@@ -895,7 +896,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (patch.bass?.mode === "acid") live({ acid: patch.bass.acid } as never); setSlots(s => s.map((x, j) => (j === selectedRef.current ? { ...x, ...patch } : x))); }, []);
   // Decode a blob into pad i. Every user file is cached in IndexedDB so sets can recall it later.
   const setBuffer = useCallback(async (i: number, blob: Blob, name: string, sampleId?: string) => {
-    let buf = await ctxOf().decodeAudioData(await blob.arrayBuffer());
+    let buf = foldOneSided(ctxOf(), await ctxOf().decodeAudioData(await blob.arrayBuffer()));
     // Samples are capped at 30 s: longer files keep their first 30 seconds.
     const cut = buf.duration > MAX_SAMPLE_SEC;
     if (cut) { const n = Math.floor(MAX_SAMPLE_SEC * buf.sampleRate), b = ctxOf().createBuffer(buf.numberOfChannels, n, buf.sampleRate); for (let c = 0; c < buf.numberOfChannels; c++) b.copyToChannel(buf.getChannelData(c).subarray(0, n), c); buf = b; }
