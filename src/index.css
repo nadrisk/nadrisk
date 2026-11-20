@@ -600,7 +600,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace .gb-repeat .gb-banks .gb-bank + .gb-bank { border-left: 0; }
 .instrument-workspace .gb-repeat .selected, .instrument-workspace .gb-repeat .active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 @media (max-width: 520px) { .instrument-workspace .gb-repeat { grid-template-columns: 1fr 1.4fr 1fr 1fr; } .instrument-workspace .gb-repeat .gb-banks { grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(3, 1fr); } }
-.instrument-workspace .selected:not(.gb-row), .instrument-workspace [aria-pressed="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.instrument-workspace .selected:not(.gb-row):not(.gb-strip), .instrument-workspace [aria-pressed="true"]:not(.gb-strip) { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .instrument-workspace .gb-row.selected { background: transparent !important; color: inherit; }
 .instrument-workspace .node-heading, .instrument-workspace .node-heading * { color: hsl(var(--background)) !important; }
 .instrument-workspace .gb-repeat .gb-bank { padding: 0 2px !important; font-size: 9px !important; min-width: 0; width: 100%; overflow: hidden; font-family: 'JetBrains Mono', monospace; }
@@ -765,7 +765,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-mixer-head button + button { border-left: 0 !important; }
 .instrument-workspace .gb-mixer { grid-template-columns: repeat(8, minmax(38px, 1fr)); gap: 1px; overflow: hidden; padding: 4px 0 0; }
 .instrument-workspace .gb-strip { position: relative; gap: 3px; padding: 3px 1px; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); min-width: 0; }
-.instrument-workspace .gb-strip.selected { outline: 1px solid hsl(var(--foreground)); outline-offset: -3px; }
+.instrument-workspace .gb-strip.selected { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .instrument-workspace .gb-strip-index { align-self: stretch; text-align: center; color: hsl(var(--background)); background: hsl(var(--foreground)); font-size: 7px; }
 .instrument-workspace .gb-strip-val { font-family: 'VT323', monospace !important; font-size: 13px; }
 .instrument-workspace .gb-meter { display: flex; flex-direction: column-reverse; gap: 1px; width: 5px; height: 40px; position: absolute; right: 3px; top: 36px; }
@@ -773,6 +773,7 @@ section.instrument-workspace .gb-grid .patch-node > .node-heading * { color: hsl
 .instrument-workspace .gb-meter i.on { background: hsl(var(--foreground)); }
 .instrument-workspace .gb-vslider { height: 86px; }
 .instrument-workspace .gb-strip-name { width: 100%; min-height: 22px; font-size: 6px !important; padding: 1px !important; }
+.instrument-workspace .gb-strip.selected .gb-strip-name { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 
 /* Full 16-track sequencer grid: compact rows, all tracks visible at once. */
 .instrument-workspace .gb-seq-workspace { min-width: 0; display: flex; flex-direction: column; }

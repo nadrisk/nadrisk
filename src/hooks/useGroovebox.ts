@@ -1,5 +1,5 @@
 import { foldOneSided } from "@/audio/monoFold";
-import { defaultInstrumentNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
+import { defaultInstrumentNote, instrumentKeyNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
 import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
 import { shiftRow } from "@/audio/rowShift";
 import { inspirePattern, type MonkeOp } from "@/audio/monke";
@@ -42,7 +42,7 @@ import { DRUM_INIT, stretchBuffer, defaultSample, peaksOf, playDrum, playSampler
 
 import { breakTiming, playBreak, prepareBreak } from "@/audio/breaks";
 import { configureEq, makeEqNodes } from "@/audio/eqResponse";
-import { chordShape, arpNote, chordNotes, defaultChord, defaultMod, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
+import { chordShape, arpNote, chordNotes, defaultChord, defaultMod, copyBankMods, scaledEnv, type ChordParams, type ModLane } from "@/audio/musical";
 import { createPerformance, defaultPerformance, type PerformanceParams } from "@/audio/performance";
 
 // Buffer mode is fixed when the audio context is created: LIVE asks for the smallest buffer, PROD for a large one (more CPU headroom).
@@ -213,10 +213,15 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const tuneRef = useRef(0); tuneRef.current = tune;
   const [harmony, setHarmonyState] = useState<Harmony>(defaultHarmony);
   const harmonyRef = useRef(harmony); harmonyRef.current = harmony;
-  // Changing KEY moves every pitched pad by the same interval, so a pad progression stays a progression.
+  // KEY and SCL edits unify roots in each pad's octave; pitch lanes already resolve from slot.note.
   const setHarmony = useCallback((h: Harmony) => {
-    const d0 = h.key - harmonyRef.current.key, d = d0 > 6 ? d0 - 12 : d0 < -5 ? d0 + 12 : d0;
-    if (d && harmonyOn(h)) setSlots(ss => ss.map(x => (x.engine === "drum" || x.engine === "idm" || x.engine === "siren" ? x : { ...x, note: x.note + d })));
+    if (h.key !== harmonyRef.current.key || h.scale !== harmonyRef.current.scale) {
+      setSlots(ss => ss.map(x => {
+        const note = instrumentKeyNote(x.engine, x.note, h.key);
+        return note === x.note ? x : { ...x, note };
+      }));
+    }
+    harmonyRef.current = h;
     setHarmonyState(h);
   }, []);
   const [volume, setVolume] = useState(60);
@@ -1045,7 +1050,12 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (Tone.getTransport().state === "started") { queuedRef.current = b; setQueued(b); }
     else { bankRef.current = b; setBank(b); }
   }, []);
-  const copyBank = useCallback(() => { snap(); setBanks(bs => { const src = bs[bankRef.current], dst = (bankRef.current + 1) % bs.length; return bs.map((b, i) => (i !== dst ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]), ...(src.cond ? { cond: src.cond.map(r => [...r]) } : {}), ...(src.nudge ? { nudge: src.nudge.map(r => [...r]) } : {}), steps: src.steps, grown: src.grown })); }); }, [snap]);
+  const copyBank = useCallback(() => {
+    snap();
+    const source = bankRef.current, destination = (source + 1) % NBANKS;
+    setBanks(bs => { const src = bs[source]; return bs.map((b, i) => (i !== destination ? b : { pattern: src.pattern.map(r => [...r]), lengths: [...src.lengths], vel: src.vel.map(r => [...r]), chance: src.chance.map(r => [...r]), ratchet: (src.ratchet ?? ones()).map(r => [...r]), ...(src.cond ? { cond: src.cond.map(r => [...r]) } : {}), ...(src.nudge ? { nudge: src.nudge.map(r => [...r]) } : {}), steps: src.steps, grown: src.grown })); });
+    setSlots(ss => ss.map(x => ({ ...x, mods: copyBankMods(x.mods, source, destination, NBANKS) })));
+  }, [snap]);
   const setLevel = useCallback((i: number, level: number) => updateSlot(i, { level }), [updateSlot]);
   const toggleMute = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, mute: !x.mute } : x))), []);
   const unmuteAll = useCallback(() => setSlots(s => s.some(x => x.mute) ? s.map(x => ({ ...x, mute: false })) : s), []);

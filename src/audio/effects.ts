@@ -252,6 +252,8 @@ export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorklet
 let eco = false;
 /** Reverb MIX law [dry, wet]: dry full until 50%, wet full from 50%, eased (sine) at the corners. */
 export const reverbMixLaw = (m: number): [number, number] => { const c = Math.max(0, Math.min(1, m)); return [Math.sin(Math.min(1, 2 * (1 - c)) * Math.PI / 2), Math.sin(Math.min(1, 2 * c) * Math.PI / 2)]; };
+export const fxMixLaw = (type: FxType, mix: number): [number, number] =>
+  type === "reverb" || type === "delay" || type === "digi" ? reverbMixLaw(mix) : [1 - mix, mix];
 /** Eco mode trades quality for CPU: no oversampling, shorter reverb tails. */
 export const setFxEco = (on: boolean) => { eco = on; };
 export const fxEco = () => eco;
@@ -590,8 +592,8 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     apply = p => { aps.forEach((a, i) => set(a.frequency, p.manual * (1 + i * 0.5))); set(m.o.frequency, rateOf(p)); set(m.g.gain, p.depth * p.manual * 0.8); set(env.gain, p.env * 6000); set(fb.gain, p.feedback); };
   }
   const update = (p: Record<string, number>, at = ctx.currentTime) => { automationTime = at; const mix = type === "ott" ? p.depth : "mix" in FX_DEFS[type].params ? p.mix ?? 1 : 1; apply(p);
-    // Reverb and tape delay use a dry-hold law: dry stays full to 50% while wet fades in, then dry fades out under full wet.
-    const [d, w] = type === "reverb" || type === "delay" ? reverbMixLaw(mix) : [1 - mix, mix];
+    // Reverb and both delays hold dry full to 50%, then fade dry out under full wet.
+    const [d, w] = fxMixLaw(type, mix);
     set(wet.gain, type === "ott" ? 1 : w); set(dry.gain, type === "ott" ? 0 : d); };
   update(init);
   return { input, output, update, levels: () => ({ input: meterDb(inputMeter, inputData), output: meterDb(outputMeter, outputData), state }), keyInput, setPitch, trigger, dispose: () => { cleanups.forEach(c => c()); oscs.forEach(o => o.stop()); nodes.forEach(n => n.disconnect()); } };

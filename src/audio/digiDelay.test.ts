@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { DigiCore, digiTimes } from "./digiDelay";
-import { SYNC_DIVS, FX_DEFS } from "./effects";
+import { SYNC_DIVS, FX_DEFS, fxMixLaw } from "./effects";
 
 const P = { tl: .01, tr: .01, ping: 0, fb: .35, hp: 20, damp: 20000, duck: 0 };
 const run = (core: DigiCore, l: Float32Array, p: Record<string, number>, r = l) => { const a = new Float32Array(l.length), b = new Float32Array(l.length); core.process(l, r, a, b, p); return [a, b]; };
 
 describe("digi.delay", () => {
+  it("holds dry at unity through 50% MIX while wet reaches unity", () => {
+    expect(fxMixLaw("digi", 0)).toEqual([1, 0]);
+    expect(fxMixLaw("digi", .3)[0]).toBe(1);
+    expect(fxMixLaw("digi", .3)[1]).toBeCloseTo(.809016994);
+    expect(fxMixLaw("digi", .5)).toEqual([1, 1]);
+    expect(fxMixLaw("digi", .75)[0]).toBeCloseTo(Math.SQRT1_2);
+    expect(fxMixLaw("digi", .75)[1]).toBe(1);
+    expect(fxMixLaw("digi", 1)).toEqual([0, 1]);
+  });
   it("Hermite passes through its sample points", () => {
     expect(DigiCore.herm(.1, .5, -.3, .9, 0)).toBeCloseTo(.5); expect(DigiCore.herm(.1, .5, -.3, .9, 1)).toBeCloseTo(-.3);
   });
