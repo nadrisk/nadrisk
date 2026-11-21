@@ -22,7 +22,8 @@ export function useMonke(controls: Controls) {
   }, []);
   const edit = useCallback(() => {
     const v = current.current; if (!v || v.phase !== "work") return;
-    const hit = latest.current.mutate();
+    let hit: { row: number; column: number } | null = null;
+    try { hit = latest.current.mutate(); } catch { hit = null; }
     if (hit === null) { leave(); return; }
     editAt.current = Date.now(); laughUntil.current = Date.now() + 320;
     set({ ...v, edits: v.edits + 1, reaction: "laugh", row: hit.row, col: hit.column });
@@ -33,6 +34,8 @@ export function useMonke(controls: Controls) {
     const timer = window.setInterval(() => {
       const now = Date.now(), v = current.current, c = latest.current;
       if (!v) return;
+      // Watchdog: never let a visit hang (enter stuck or work stalled).
+      if (v.phase !== "exit" && now - (v.phase === "enter" ? v.started : editAt.current) > 4000) { try { leave(); } catch { set(null); } return; }
       if (v.phase === "exit") { if (now - v.started >= MONKE.exitMs) set(null); return; }
       if (c.target !== target.current || !c.available) { leave(); return; }
       if (v.phase === "enter") { if (now - v.started >= MONKE.enterMs) { editAt.current = now; set({ ...v, phase: "work" }); } return; }
@@ -45,6 +48,7 @@ export function useMonke(controls: Controls) {
     let buffer = "", last = 0;
     const key = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
+      if (e.key === "Escape" && current.current) { leave(); set(null); return; }
       if (e.repeat || el?.isContentEditable || (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
       if (Date.now() - last > 1800) buffer = "";

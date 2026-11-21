@@ -1107,7 +1107,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (!t || t.bank !== bankRef.current || t.load !== loadGen.current) { monkeTarget.current = null; return null; }
     const b = banksRef.current[t.bank]; if (!b) return null;
     const op = monkeOps.current.shift(); if (!op) return null;
-    const result = { ...op.apply(b, slotsRef.current), row: op.row, column: op.column };
+    let applied; try { applied = op.apply(b, slotsRef.current); } catch (e) { console.warn("monke op failed", e); monkeOps.current = []; return null; }
+    if (op.column < 0 || !applied?.bank) return null;
+    const result = { ...applied, row: op.row, column: op.column };
     banksRef.current = banksRef.current.map((x, i) => i === t.bank ? result.bank : x);
     setBanks(bs => bs.map((x, i) => i === t.bank ? result.bank : x));
     slotsRef.current = slotsRef.current.map((x, i) => ({ ...x, mods: result.slots[i]?.mods ?? x.mods }));

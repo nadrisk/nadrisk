@@ -130,9 +130,10 @@ export function inspirePattern(bank: Bank, slots: Slot[], bankIndex: number, har
       return { row: r, column: a, kind: "cadence", apply: (b, sl) => ({ bank: b, slots: pitch(pitch(sl, r, bankIndex, q, 7), r, bankIndex, a, 0) }) }; },
     // Subito drop: clear the low end in the last beat so step 1 lands harder.
     () => { const low = used.filter(r => ["kick", "bass"].includes(monkeRole(slots[r]))); if (!low.length) return null;
+      if (low.some(r => lenOf(bank, r) < 4)) return null;
       return { row: low[0], column: lenOf(bank, low[0]) - 4, kind: "drop", apply: (b, sl) => { let n = b; for (const r of low) { const len = lenOf(n, r), nr = n.pattern[r].slice(); for (let c = len - 4; c < len; c++) if (!isAnchor(monkeRole(slots[r]), c)) nr[c] = 0; if (nr[len - 4] >= 2) nr[len - 4] = 0; n = setRow(n, r, nr); } return { bank: n, slots: sl }; } }; },
     // Hemiola: 3+3+2 pickup on the snare or hats into the downbeat.
-    () => { const r = pick(used.filter(r => ["snare", "hat", "perc"].includes(monkeRole(slots[r])))); if (r === undefined) return null; const len = lenOf(bank, r), cols = [len - 8, len - 5, len - 2];
+    () => { const r = pick(used.filter(r => ["snare", "hat", "perc"].includes(monkeRole(slots[r])))); if (r === undefined) return null; const len = lenOf(bank, r); if (len < 8) return null; const cols = [len - 8, len - 5, len - 2];
       return { row: r, column: len - 8, kind: "hemiola", apply: (b, sl) => { let n = b; cols.forEach((c, i) => { if (!n.pattern[r][c]) n = hit(n, r, c, .65 + i * .15); else n = lane(n, "vel", r, c, .65 + i * .15, 1); }); return { bank: n, slots: sl }; } }; },
   ];
   const big = brain.slice().sort(() => random() - .5);
