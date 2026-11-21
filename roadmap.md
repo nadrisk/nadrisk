@@ -1,8 +1,8 @@
 # Roadmap
-- [ ] Copy every MOD lane with pattern banks A–D, preserving independent edits.
-- [ ] D-DLY MIX uses the same dry-hold balance as reverb and tape delay.
-- [ ] Mixer selection highlights only the bottom pad name, keeping faders dark.
-- [ ] KEY/SCL changes align pitched pad roots with the chosen key and anchor pitch MOD.
+- [x] Copy every MOD lane with pattern banks A–D, preserving independent edits; unit tests and live A→B pitch-copy check passed.
+- [x] D-DLY MIX uses the same dry-hold balance as reverb and tape delay; mix gain and DSP tests passed.
+- [x] Mixer selection highlights only the bottom pad name, keeping faders dark; live selection and desktop capture checked.
+- [x] KEY/SCL changes align pitched pad roots in their existing octaves and anchor pitch MOD; live C#→D root/pitch shift and playback checked (36 regression tests passed).
 - [x] SYN: complete dial readouts and isolated audio-clock pitch decay during live edits; 12 regression tests passed, all five pages checked on phone, desktop readout and held-note live edits verified.
 - [x] Sequencer: larger length grips, bipolar scale-stepped pitch/readout, fine relative modulation drag, F1/F3/C3 defaults and C3 slice mapping; 40 tests passed and phone defaults, stretching, safe edge taps, pitch dragging and playback verified.
 - [x] CHORD CORE + EXT: saved voicings preserved; 20 tests passed; live power/7/KEY ninth notes and phone/desktop STRUM/ARP controls checked.
