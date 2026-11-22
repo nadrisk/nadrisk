@@ -29,6 +29,7 @@ import TapeDeck from "./TapeDeck";
 import { useTapeRecorder } from "@/hooks/useTapeRecorder";
 import { RATES, type RateName } from "@/audio/arp";
 import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
+import { padBadge, slotTitle } from "@/audio/slotState";
 import type { FxUnit } from "@/audio/effects";
 import { detectRole } from "@/audio/patternGen";
 import { phraseCharacter } from "@/audio/arp";
@@ -101,7 +102,7 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
 
   return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
-    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? "syn" : slot.engine === "idm" ? "prc" : slot.engine}</span>
+    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{padBadge(slot)}</span>
   </button>)}</div>;
 });
 
@@ -398,7 +399,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
       <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
-        <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine === "idm" ? "PRC" : s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
+        <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${slotTitle(s)}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
           <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} getSlices={g.getSlices} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} onCopyBuffer={from => g.copyBuffer(from, g.selected)} live={{ armed: g.liveState.armed === g.selected, rec: g.liveState.armed === g.selected ? g.liveState.rec : "off", peak: g.liveState.armed === g.selected ? g.liveState.peak : 0, error: g.liveState.error, opts: g.liveOpts, set: g.setLiveOpts, arm: () => void g.armInput(g.selected), record: () => void g.recInput(), take: g.lastTake }} /></ResetScope.Provider>
         </PatchNode>
         <div className="gb-desktop-views">
@@ -413,6 +414,6 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
       </div>
     </div>
     {tapeRecorder.url && <audio ref={tapeRecorder.audio} src={tapeRecorder.url} onEnded={tapeRecorder.ended} hidden />}
-    <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
+    <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRM / PRC / SYN <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section></DisplayThemeContext.Provider></HarmonyContext.Provider>;
 }

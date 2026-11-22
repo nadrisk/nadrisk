@@ -51,3 +51,6 @@
 - [x] EQ SCP renamed SPC
 - [x] Crave arp modes
 - [x] Click-free synth envelope on long attacks
+- [x] BAS, SMP and PAD disengaged from the slot bar (code kept for one-line recall); DRM/PRC/SYN fill the bar evenly
+- [x] Blank pads read BLNK on the pad badge, slot header and editor prompt; 3 tests plus live assign check
+- [x] Retired trance/euclid editor code removed from ArpEditor and the pattern generator
