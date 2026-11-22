@@ -57,3 +57,4 @@
 - Factory wavetables (src/audio/wtFactory.ts, ids fx:<slug>) are 4 equal-RMS sine-phase keyframes built lazily from formulas and played through the BASIC native-oscillator crossfade with unnormalized PeriodicWaves, so they sweep as smoothly as BASIC; retired online-archive ids (wt:*-0) resolve to BASIC and are hidden from the library.
 - Chord arp modes are Crave-style (musical.ts CHORD_ARPS/arpNote: UP1/2, DN1/2, U/D1 repeats ends, U/D2 legacy "updown", ORDR, RND) and legacy ids keep their meaning, so old sets play unchanged.
 - adsr releases a note shorter than its attack at its gate from the reached level, and voice stop/release freeze the current curve value with holdAt (cancelAndHoldAtTime) before fading, so stolen or cut voices never snap and click.
+- SURF terrain math is pure in src/audio/terrain.ts and shared by worklet and screen, so the drawn surface is the one you hear.

@@ -54,3 +54,12 @@
 - [x] BAS, SMP and PAD disengaged from the slot bar (code kept for one-line recall); DRM/PRC/SYN fill the bar evenly
 - [x] Blank pads read BLNK on the pad badge, slot header and editor prompt; 3 tests plus live assign check
 - [x] Retired trance/euclid editor code removed from ArpEditor and the pattern generator
+
+## NADRISK rebuild (approved plan)
+- [~] Phase 1 SURF terrain synth — shared terrain math + tests done; worklet, panel, wavetable removal pending
+- [ ] Phase 2 six fixed channels (KIK SNR HAT CLP PRC SURF)
+- [ ] Phase 3 CADENCE + LATTICE, scale last
+- [ ] Phase 4 TOPOMAP replaces step grid
+- [ ] Phase 5 PERF buses + QUAD-AXIS joysticks
+- [ ] Phase 6 MIDI learn + new .nadrisk.json version
+- [ ] Residue sweep, help, layout overlap tests, Playwright pass
