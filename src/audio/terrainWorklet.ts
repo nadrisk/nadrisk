@@ -27,19 +27,19 @@ class NadTerrain extends AudioWorkletProcessor {
     { name: 'snow', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: k },
     { name: 'fold', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: k }]; }
   constructor() { super(); this.ph = 0; this.hz = 0; this.h = new Float32Array(7); this.dead = false;
-    this.sl = 1 - Math.exp(-1 / (sampleRate * 2 * 0.008)); this.xs = 1 - Math.exp(-1 / (sampleRate * 2 * 0.015)); this.sx = null; this.sy = 0; this.sr = 0; this.port.onmessage = e => { if (e.data && e.data.stop) this.dead = true; }; }
+    this.sl = 1 - Math.exp(-1 / (sampleRate * 2 * 0.008)); this.xs = 1 - Math.exp(-1 / (sampleRate * 2 * 0.015)); this.sx = null; this.sy = 0; this.sr = 0; this.sf = 0; this.so = 0; this.port.onmessage = e => { if (e.data && e.data.stop) this.dead = true; }; }
   process(_i, outs, p) {
     if (this.dead) return false; const o = outs[0][0]; if (!o) return true;
     const f = p.frequency, dt = p.detune, tcx = p.cx[0], tcy = p.cy[0], tr = p.radius[0], xs = this.xs;
-    if (this.sx === null) { this.sx = tcx; this.sy = tcy; this.sr = tr; }
-    let cx = this.sx, cy = this.sy, r = this.sr; const fr = p.tfreq[0], hold = p.hold[0], snow = p.snow[0], fold = p.fold[0], h = this.h;
+    const tf = p.tfreq[0], tfo = p.fold[0]; if (this.sx === null) { this.sx = tcx; this.sy = tcy; this.sr = tr; this.sf = tf; this.so = tfo; }
+    let cx = this.sx, cy = this.sy, r = this.sr; let fr = this.sf, fold = this.so; const hold = p.hold[0], snow = p.snow[0], h = this.h;
     for (let n = 0; n < o.length; n++) { const tgt = (f.length > 1 ? f[n] : f[0]) * Math.pow(2, (dt.length > 1 ? dt[n] : dt[0]) / 1200);
-      for (let s = 0; s < 2; s++) { cx += (tcx - cx) * xs; cy += (tcy - cy) * xs; r += (tr - r) * xs; this.hz = this.hz ? this.hz + (tgt - this.hz) * this.sl : tgt;
+      for (let s = 0; s < 2; s++) { cx += (tcx - cx) * xs; cy += (tcy - cy) * xs; r += (tr - r) * xs; fr += (tf - fr) * xs; fold += (tfo - fold) * xs; this.hz = this.hz ? this.hz + (tgt - this.hz) * this.sl : tgt;
         this.ph += this.hz / (sampleRate * 2); this.ph -= Math.floor(this.ph); const a = this.ph * 2 * Math.PI;
         const z = tAt(T_CL(cx + r * Math.cos(a), -1, 1), T_CL(cy + r * Math.sin(a), -1, 1), fr, hold, snow, fold, tTaper(this.hz));
         h.copyWithin(0, 1); h[6] = z; }
       let y = 0; for (let j = 0; j < 7; j++) y += HB[j] * h[j]; o[n] = y; }
-    this.sx = cx; this.sy = cy; this.sr = r;
+    this.sx = cx; this.sy = cy; this.sr = r; this.sf = fr; this.so = fold;
     for (let c = 1; c < outs[0].length; c++) outs[0][c].set(o);
     return true; }
 }

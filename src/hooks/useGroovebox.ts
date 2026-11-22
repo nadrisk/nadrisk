@@ -60,7 +60,7 @@ export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFr
 export const STEPS = 32;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Group bus 1-4; 0/undefined = direct to master. */ group?: number; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
-type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string; dest?: number }[]; groups: { input: DelayNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; chain: FxNode[]; sig: string; tap: GainNode }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
+type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string; dest?: number }[]; groups: { input: DelayNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; chain: FxNode[]; sig: string; tap: GainNode }[]; loop: number; xyLoop?: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
 
 const drum = (o: Partial<DrumParams>): DrumParams => ({ kind: "kick", pitch: 48, pitchEnv: 36, pitchDecay: 0.06, transient: 0.4, drive: 0, env: { a: 0.001, d: 0.35, s: 0, r: 0.1 }, noise: 0.02, fm: 0, fmRatio: 1.5, ring: 0, ringFreq: 800, filter: "lowpass", cutoff: 6000, res: 1, filterEnv: 0, filterDecay: 0.1, ...o });
 const synth = (o: Partial<SynthParams>): SynthParams => ({
@@ -601,6 +601,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     const outs = slotsRef.current.map(s => { const eq = makeEqNodes(ctx); configureEq(eq, defaultEQ(), (pr, v) => { pr.value = v; }); const input = ctx.createDelay(.01), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), tap = ctx.createGain(), pan = ctx.createStereoPanner(); filter.frequency.value = 20000; filter.Q.value = .707; input.delayTime.value = 0; gain.gain.value = s.level / 100; eq.reduce<AudioNode>((a, b) => (a.connect(b), b), input).connect(filter); filter.connect(gain); input.connect(tap); gain.connect(pan); pan.pan.value = s.pan; pan.connect(master); const meter = ctx.createAnalyser(); meter.fftSize = 512; meter.smoothingTimeConstant = 0; pan.connect(meter); return { input, gain, eq, filter, tap, pan, meter, chain: [] as FxNode[], sig: "?", dest: 0 }; });
     const groupNodes = groupsRef.current.map(gb => { const input = ctx.createDelay(.01), filter = ctx.createBiquadFilter(), gain = ctx.createGain(), pan = ctx.createStereoPanner(), tap = ctx.createGain(); input.delayTime.value = 0; filter.frequency.value = 20000; input.connect(filter); filter.connect(gain); input.connect(tap); gain.gain.value = gb.level / 100; pan.pan.value = gb.pan; gain.connect(pan); pan.connect(master); return { input, filter, gain, pan, tap, chain: [] as FxNode[], sig: "?" }; });
     let cur = 0; resetTick.current = () => { cur = 0; };
+    // XY motion runs on its own ~20 ms clock (not the 16th grid) so LFO sweeps reach ringing voices smoothly.
+    const xyLoop = Tone.getTransport().scheduleRepeat(t => { slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushXyLive(i, applyXY(withMotion(sl, t))); }); }, 0.02);
     const loop = Tone.getTransport().scheduleRepeat(gridTime => {
       if (deckMode) { const transportStep = Math.round(Tone.getTransport().getTicksAtTime(gridTime) / (Tone.getTransport().PPQ / 4)); const a = deckArm.current; if (a != null && transportStep >= a) { deckArm.current = null; deckOn.current = true; cur = 0; } if (!deckOn.current) return; }
       else if (crateOwned) return;
@@ -612,7 +614,6 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
       // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
-      slotsRef.current.forEach((sl, i) => { if (motionOn(sl.xy)) pushXyLive(i, applyXY(withMotion(sl, time))); });
       cb.pattern.forEach((row, i) => {
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
@@ -664,7 +665,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     }, "16n");
     { const r = ctx as unknown as { baseLatency?: number; outputLatency?: number }; setLatency(Math.round(((r.baseLatency ?? 0) + (r.outputLatency ?? 0)) * 1000)); }
     const lfos = slotsRef.current.map(() => { const o = ctx.createOscillator(); o.start(); return o; });
-    engine.current = { ctx, master, performance: perf, analyser, outs, groups: groupNodes, loop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
+    engine.current = { ctx, master, performance: perf, analyser, outs, groups: groupNodes, loop, xyLoop, lfos, mono: Array(16).fill(null), ring: Array.from({ length: 16 }, () => []) };
     const ready = engine.current; slotsRef.current.forEach((s, i) => { route(ready, i, s); syncChain(ready, i, s); });
     groupsRef.current.forEach((gb, k) => syncChainOn(ready, groupNodes[k], gb.fx)); syncedGroups.current = groupsRef.current.map(gb => gb.fx);
     syncedFx.current = slotsRef.current.map(s => s.fx);
@@ -720,7 +721,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   useEffect(() => () => {
     startRequest.current++;
     const e = engine.current, t = Tone.getTransport();
-    t.stop(); if (e) { t.clear(e.loop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.groups.forEach(gn => { gn.chain.forEach(f => f.dispose()); gn.input.disconnect(); gn.filter.disconnect(); gn.gain.disconnect(); gn.pan.disconnect(); gn.tap.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
+    t.stop(); if (e) { t.clear(e.loop); if (e.xyLoop != null) t.clear(e.xyLoop); e.outs.forEach(o => { o.chain.forEach(f => f.dispose()); o.gain.disconnect(); o.eq.forEach(b => b.disconnect()); o.filter.disconnect(); o.tap.disconnect(); o.pan.disconnect(); o.meter.disconnect(); }); e.mono.forEach(v => v?.stop(e.ctx.currentTime)); e.ring.forEach(rl => rl.forEach(r => r.stop(e.ctx.currentTime))); e.lfos.forEach(o => { try { o.stop(); } catch { /* stopped */ } o.disconnect(); }); e.groups.forEach(gn => { gn.chain.forEach(f => f.dispose()); gn.input.disconnect(); gn.filter.disconnect(); gn.gain.disconnect(); gn.pan.disconnect(); gn.tap.disconnect(); }); e.performance.dispose(); e.master.disconnect(); e.analyser.dispose(); }
     holds.current.clear(); if (timer.current) { Tone.getContext().off("tick", tickPump); timer.current = false; }
     engine.current = null;
   }, []);
