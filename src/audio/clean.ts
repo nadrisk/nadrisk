@@ -56,12 +56,12 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const freqs: AudioParam[] = [], dets: [AudioParam, number][] = [];
   // Two orbiters per voice (detune sides, panned apart) read the same terrain; native sine only before worklets load.
   const cents = c.detune * 28, ters: AudioWorkletNode[] = [];
-  const TP = (o: AudioWorkletNode, k: string) => o.parameters.get(k);
+  const TP = (o: AudioWorkletNode, k: string) => o.parameters?.get(k);
   const terrainSet = (q: CleanParams, n: number, tc: number) => ters.forEach(o => { TP(o, "cx")?.setTargetAtTime(q.cx, n, tc); TP(o, "cy")?.setTargetAtTime(q.cy, n, tc); TP(o, "radius")?.setTargetAtTime(q.rad, n, tc);
     TP(o, "tfreq")?.setTargetAtTime(q.tfreq, n, tc); TP(o, "hold")?.setTargetAtTime(q.hold, n, tc); TP(o, "snow")?.setTargetAtTime(q.snow, n, tc); TP(o, "fold")?.setTargetAtTime(q.fold, n, tc); });
   for (const sg of [-1, 1]) {
     // Tone wraps the raw context (standardized-audio-context), so the native AudioWorkletNode constructor rejects it; Tone's factory works on both.
-    let o: AudioWorkletNode | null = null; try { o = Tone.getContext().createAudioWorkletNode("nad-terrain", { numberOfInputs: 0, outputChannelCount: [1] }) as unknown as AudioWorkletNode; } catch { o = null; }
+    let o: AudioWorkletNode | null = null; if ((Tone.getContext().rawContext as unknown) === ctx) try { o = Tone.getContext().createAudioWorkletNode("nad-terrain", { numberOfInputs: 0, outputChannelCount: [1] }) as unknown as AudioWorkletNode; } catch { o = null; }
     const g = ctx.createGain(), pn = ctx.createStereoPanner(); g.gain.value = .5; pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
     if (o && TP(o, "frequency") && TP(o, "detune")) { const fq = TP(o, "frequency")!, dt = TP(o, "detune")!; dt.value = sg * cents; ters.push(o); o.connect(g).connect(pn).connect(mix); nodes.push(o, g, pn); freqs.push(fq); dets.push([dt, sg]); }
     else { o?.disconnect(); const n = at(ctx.createOscillator(), t); n.type = "sine"; n.detune.value = sg * cents; n.connect(g).connect(pn).connect(mix); nodes.push(n, g, pn); srcs.push(n); freqs.push(n.frequency); dets.push([n.detune, sg]); }

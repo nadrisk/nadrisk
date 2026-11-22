@@ -1,3 +1,5 @@
+import { CHANNELS, CHANNEL_COUNT, pickChannels, droppedCount } from "@/audio/channels";
+import { DRUM_PRESETS, copyDrumPreset } from "@/audio/drumPresets";
 import { foldOneSided } from "@/audio/monoFold";
 import { defaultInstrumentNote, instrumentKeyNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
 import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
@@ -74,7 +76,10 @@ const sampler = (o: Partial<SamplerParams> = {}): SamplerParams => ({ start: 0, 
 
 const base = (name: string, engine: EngineKind, note = defaultInstrumentNote(engine), extra: Partial<Slot> = {}): Slot => ({ name, engine, note, level: 75, pan: 0, mute: false, solo: false, drum: drum({}), synth: synth({}), sampler: sampler(), fx: [], arp: defaultArp(), choke: 0, chord: defaultChord(), poly: defaultPoly(), mods: Array.from({ length: 12 }, defaultMod), bass: default808(), eq: defaultEQ(), siren: defaultSiren(), idm: defaultIdm(), pad: defaultPad(), xy: { x: 0, y: 0 }, ...extra });
 /** Fresh slate: 16 silent, empty sampler pads, so random patterns stay quiet until a pad gets a sound. */
-export const blankSlots = (): Slot[] => Array.from({ length: 16 }, () => base("", "sampler", 48));
+export const blankSlots = (): Slot[] => Array.from({ length: 16 }, (_, i) => {
+  const c = CHANNELS[i]; if (!c) return base("", "sampler", 48);
+  return c.kind ? base(c.id, "drum", defaultInstrumentNote("drum"), { drum: copyDrumPreset(DRUM_PRESETS[c.kind][0]) }) : base(c.id, c.engine);
+});
 /** Unassigned pad: the disengaged sampler engine with no sample loaded. Displayed as BLNK. */
 export { isBlankSlot } from "@/audio/slotState";
 /** Step cell: 0 off, 1 hit (new attack), 2 tie (sustains the previous hit). 3 = legacy glide, played as a tie. */
@@ -1062,14 +1067,16 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const toggleSolo = useCallback((i: number) => setSlots(s => s.map((x, j) => (j === i ? { ...x, solo: !x.solo } : x))), []);
   const clearSolo = useCallback(() => setSlots(s => s.map(x => ({ ...x, solo: false }))), []);
   // Sets: a full snapshot of sounds, effects, phrases, both patterns, tempo and volume. Loaded audio files aren't stored.
-  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, groups: groupsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
-  const applySet = useCallback((st: GrooveSet) => {
+  const getSet = useCallback((name: string): GrooveSet => ({ v: 2, ch: CHANNEL_COUNT, name, savedAt: Date.now(), bpm: bpmRef.current, swing: swingRef.current, tune: tuneRef.current, harmony: harmonyRef.current, volume, bank: bankRef.current, banks: banksRef.current, slots: slotsRef.current, groups: groupsRef.current, performance: { ...performanceRef.current, mode: 0 } }), [volume]);
+  const applySet = useCallback((raw: GrooveSet) => {
+    const { set: st, dropped } = toChannels(raw);
     disarmInput();
     for (let k = 0; k < 16; k++) cancelBooked(k); holds.current.clear(); idle();
     setPerformance({ ...defaultPerformance(), ...st.performance, mode: 0 });
     loadGen.current++; const d = blankSlots(), old = (st.v ?? 1) < 2;
     setSlots(d.map((x, i) => { const o = st.slots?.[i]; if (!o) return x; const oldSynth = o.synth ?? x.synth; const pitchEnvShape = oldSynth.pitchEnvShape ?? { a: .001, d: oldSynth.pitchDecay ?? .05, s: 0, r: .02 }; const filterEnvShape = oldSynth.filterEnvShape ?? { a: .001, d: oldSynth.filterDecay ?? .2, s: 0, r: .02 }; return { ...x, ...o, drum: { ...x.drum, ...o.drum }, synth: { ...x.synth, ...oldSynth, pitchEnvShape, filterEnvShape }, sampler: { ...x.sampler, ...o.sampler, rootNote: o.sampler?.rootNote ?? 60 }, arp: { ...x.arp, ...o.arp }, chord: { ...x.chord, ...o.chord }, poly: { ...x.poly, ...o.poly }, bass: { ...x.bass, ...o.bass }, siren: { ...defaultSiren(), ...o.siren }, eq: { ...x.eq, ...o.eq }, mods: padMods(o.mods ?? x.mods), fx: o.fx ? migrateFx(o.fx) : x.fx }; }).map((x, i) => acidTo808(old || !st.slots?.[i] ? migrateSlot(x) : x)));
     setHarmonyState({ ...defaultHarmony(), ...st.harmony });
+    setError(dropped ? `${dropped} OLD PAD${dropped > 1 ? "S" : ""} LEFT OUT · 6 CHANNELS` : "");
     setGroups(hydrateGroups(st.groups?.map(gb => ({ ...gb, fx: migrateFx(gb.fx ?? []) }))));
     if (st.banks?.length) setBanks(Array.from({ length: NBANKS }, (_, i) => (st.banks![i] ? fixBank(st.banks![i]) : makeBank(emptyPattern()))));
     undoRef.current = []; redoRef.current = []; setHist(h => h + 1);
@@ -1185,4 +1192,15 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   return { groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
-export type GrooveSet = { groups?: GroupBus[]; v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
+
+/** Older 16-pad sets: the first slot of each voice type moves to its fixed channel (rows follow); everything else is dropped. */
+function toChannels(st: GrooveSet): { set: GrooveSet; dropped: number } {
+  if (st.ch === CHANNEL_COUNT || !st.slots) return { set: st, dropped: 0 };
+  const map = pickChannels(st.slots), dropped = droppedCount(st.slots, map);
+  const src = (i: number) => (i < CHANNEL_COUNT ? map[i] : null);
+  const rows = <T,>(r: T[][] | undefined, fill: T): T[][] | undefined => r && Array.from({ length: 16 }, (_, i) => { const k = src(i); return k != null && r[k] ? r[k] : Array<T>(r[0]?.length ?? STEPS).fill(fill); });
+  const slots = Array.from({ length: 16 }, (_, i) => { const k = src(i); return k != null ? { ...st.slots[k], name: CHANNELS[i].id } : undefined; }) as unknown as Slot[];
+  const banks = (st.banks ?? []).map(b => ({ ...b, pattern: rows(b.pattern, 0 as StepVal)!, lengths: b.lengths && Array.from({ length: 16 }, (_, i) => { const k = src(i); return k != null ? b.lengths![k] ?? 16 : 16; }), vel: rows(b.vel, 1), chance: rows(b.chance, 1), ratchet: rows(b.ratchet, 1), cond: rows(b.cond, 0), nudge: rows(b.nudge, .5) }));
+  return { set: { ...st, ch: CHANNEL_COUNT, slots, banks }, dropped };
+}
+export type GrooveSet = { groups?: GroupBus[]; v: 1 | 2 | 3; harmony?: Harmony; /** v3: slot rows 0..5 are the fixed channels. */ ch?: number; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

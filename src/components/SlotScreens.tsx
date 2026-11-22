@@ -1,4 +1,3 @@
-import { defaultInstrumentNote, SAMPLE_ROOT } from "@/audio/instrumentPitch";
 import { useSpectrum, drawSpectrum, type GetSpectrum } from "@/components/SpectrumScreen";
 import { eqCurve, EQ_KILL } from "@/audio/eqResponse";
 import { useContext, useState } from "react";
@@ -15,7 +14,6 @@ import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
 /** Active instruments. Disengaged engines (code kept intact; move back into ENG to restore): ["808","BAS"], ["sampler","SMP"], ["pad","PAD"]. */
 const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"]];
-const EW = 42;
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
   const theme = useContext(DisplayThemeContext);
@@ -54,7 +52,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
   const [renaming, setRenaming] = useState(false);
   const [clip, setClip] = useState(0);
   const copy = () => { padClip = structuredClone(Object.fromEntries(PAD_SOUND.map(k => [k, slot[k]]))) as Partial<Slot>; padClipFrom = index; setClip(c => c + 1); };
-  const paste = () => { if (!padClip) return; onChange(structuredClone(padClip)); if (padClip.engine === "sampler" && padClipFrom >= 0 && padClipFrom !== index) onCopyBuffer?.(padClipFrom); };
+  const paste = () => { if (!padClip || padClip.engine !== slot.engine) return; onChange(structuredClone(padClip)); if (padClip.engine === "sampler" && padClipFrom >= 0 && padClipFrom !== index) onCopyBuffer?.(padClipFrom); };
   const knobs: Knob[] = [
     { label: "Volume", short: "VOL", value: slot.level, min: 0, max: 100, step: 1, fmt: v => `${v}%`, set: level => onChange({ level }) },
     { label: "Pan", short: "PAN", value: slot.pan, min: -1, max: 1, step: .01, fmt: v => (v === 0 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`), set: pan => onChange({ pan }) },
@@ -62,7 +60,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
   return <>
     <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan, clip]} knobs={() => knobs}
     body={p => {
-      ENG.forEach(([e, s], i) => key(p, s, 1 + i * EW, 11, EW, slot.engine === e));
+      key(p, `CH ${String(index + 1).padStart(2, "0")} · ${ENG.find(([e]) => e === slot.engine)?.[1] ?? "---"} · FIXED`, 1, 11, 126, false);
       p.box(1, 22, 62, 9);
       p.text(name.trimEnd() || "—", 4, 24);
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
@@ -70,12 +68,11 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
       key(p, "COPY", 1, 32, 62, false); key(p, padClip ? "PASTE" : "PASTE -", 64, 32, 63, false);
     }}
     extra={() => <>
-      {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e !== slot.engine ? { note: defaultInstrumentNote(e), ...(e === "sampler" ? { sampler: { ...slot.sampler, rootNote: SAMPLE_ROOT } } : {}) } : {}) })} />)}
       <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
       <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />
       <Tap x={1} y={32} w={62} h={8} label="Copy pad sound" onClick={copy} />
-      <Tap x={64} y={32} w={63} h={8} label="Paste pad sound" disabled={!padClip} onClick={paste} />
+      <Tap x={64} y={32} w={63} h={8} label="Paste pad sound" disabled={!padClip || padClip.engine !== slot.engine} onClick={paste} />
     </>} />
     {renaming && <RenameDialog value={slot.name} onClose={() => setRenaming(false)} onSave={n => onChange({ name: n })} />}
   </>;

@@ -1,3 +1,4 @@
+import { CHANNEL_COUNT } from "@/audio/channels";
 import { draggedValue, inLengthGrip } from "./stepDrag";
 import MonkeSprite, { MonkeHunter } from "./MonkeSprite";
 import MonkeVisitor from "./MonkeVisitor";
@@ -100,7 +101,7 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, []);
 
-  return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+  return <div ref={grid} className={`gb-pads gb-pads-ch ${velMode ? "vel-mode" : ""}`}>{slots.slice(0, CHANNEL_COUNT).map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
     <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{padBadge(slot)}</span>
   </button>)}</div>;
@@ -194,7 +195,7 @@ const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, ste
       <button className="gb-cycle" style={{ gridColumn: "span 3" }} aria-label={steps > 16 ? "Shrink pattern to 16 steps" : "Expand pattern to 32 steps"} onClick={() => { setManualPage(null); onSteps?.(); }}>{steps > 16 ? "X1" : "X2"}</button>
       {steps > 16 && <><button className={`gb-cycle ${manualPage !== null ? "on" : ""}`} style={{ gridColumn: "span 4" }} aria-label={manualPage === null ? `Following playhead, showing steps ${page + 1} to ${page + 16}, tap to pick half` : `Showing steps ${page + 1} to ${page + 16}, tap for other half`} onClick={() => setManualPage(p => p === null ? (page ? 0 : 16) : p === 0 ? 16 : null)}>{page ? "17-32" : "1-16"}</button>
         <span className="gb-cycle" style={{ gridColumn: "span 2", display: "flex", gap: 2, padding: 2 }} aria-hidden>{[0, 16].map(h => <i key={h} style={{ flex: 1, border: "1px solid hsl(var(--foreground))", background: step >= 0 && playPage === h ? "hsl(var(--foreground))" : "transparent" }} />)}</span></>}
-      </div><div className="gb-row gb-ruler" aria-hidden><span className="gb-row-label" /><span /><span /><span />{Array.from({ length: 16 }, (_, cc) => { const c = cc + page; return <span key={c} className={`gb-ruler-cell ${c % 4 === 0 ? "beat" : ""} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>{c % 4 === 0 ? `${Math.floor(c / 16) + 1}.${(Math.floor(c / 4) % 4) + 1}` : ""}</span>; })}</div>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank + modLane * 4], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+      </div><div className="gb-row gb-ruler" aria-hidden><span className="gb-row-label" /><span /><span /><span />{Array.from({ length: 16 }, (_, cc) => { const c = cc + page; return <span key={c} className={`gb-ruler-cell ${c % 4 === 0 ? "beat" : ""} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>{c % 4 === 0 ? `${Math.floor(c / 16) + 1}.${(Math.floor(c / 4) % 4) + 1}` : ""}</span>; })}</div>{pattern.slice(0, CHANNEL_COUNT).map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank + modLane * 4], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
     const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
     return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
     <button className="gb-row-label" aria-label={`${slots[r].name || r + 1} row, tap to play, double-tap to clear`} onClick={() => { const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); onAudition(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
@@ -237,9 +238,7 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
   getLevels: () => number[] | null;
   slots: Slot[]; selected: number; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
 }) {
-  const [page, setPage] = useState(0);
   const anySolo = slots.some(s => s.solo);
-  const start = page * 8;
   // Live post-fader dB meters: polled each frame and written straight to the DOM so playback never re-renders the mixer.
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -258,9 +257,9 @@ const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, on
     };
     return gatedLoop(root.current, poll);
   }, [getLevels]);
-  return <div className={`gb-mixer-workspace mixer-page-${page}`} ref={root}>
-    <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
-    <div className="gb-mixer">{slots.map((s, i) => <div key={i} data-ch={i} className={`gb-strip gb-strip-page-${Math.floor(i / 8)} ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
+  return <div className="gb-mixer-workspace" ref={root}>
+    <div className="gb-mixer-head"><span>MIXER / 6 CH</span><div><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
+    <div className="gb-mixer gb-mixer-ch">{slots.slice(0, CHANNEL_COUNT).map((s, i) => <div key={i} data-ch={i} className={`gb-strip ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
       <span className="gb-strip-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-strip-val" title="Peak dBFS">-INF</span>
       <div className="gb-meter" aria-hidden="true">{Array.from({ length: SEGS }, (_, n) => <i key={n} />)}</div>
       <Slider orientation="vertical" aria-label={`${s.name} volume`} min={0} max={100} value={[s.level]} onValueChange={([v]) => onLevel(i, v)} className="gb-vslider" />
