@@ -7,7 +7,6 @@ import { DRUM_PRESETS, drumPreset, copyDrumPreset, drumPresetEdited } from "@/au
 import { parseNote } from "@/audio/noteParse";
 
 const PAGES = ["TONE", "NOIS", "ENV", "PRST"] as const;
-const KINDS: DrumKind[] = ["kick", "snare", "hat", "clap"];
 const KLAB: Record<DrumKind, string> = { kick: "KICK", snare: "SNR", hat: "HAT", clap: "CLAP" };
 const f2 = (v: number) => v.toFixed(2);
 // Kick/snare tune reads as a musical note plus cents, so the body can be tuned to the track's key.
@@ -69,7 +68,7 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
       return;
     }
     if (page === "TONE" || page === "NOIS") {
-      KINDS.forEach((k, i) => { const x = 2 + i * 31; p.box(x, 10, 29, 9); if (k === d.kind) p.invert(x + 1, 11, 27, 7); p.textC(KLAB[k], x + 15, 12, k !== d.kind); });
+      p.box(2, 10, 122, 9); p.invert(3, 11, 120, 7); p.textC(`${KLAB[d.kind]} · FIXED VOICE`, 63, 12, false);
       if (d.kind === "hat") {
         // Six metallic partials on a log frequency axis; spread and tune move them.
         p.box(2, 20, 124, 25);
@@ -95,7 +94,6 @@ function DrumkitPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
   const extra = (page: string) => {
     if (page === "PRST") return DRUM_PRESETS[d.kind].map((preset, i) => <Tap key={preset.id} x={DRUM_PRESETS[d.kind].length > 4 ? 2 + (i % 2) * 63 : 2} y={12 + (DRUM_PRESETS[d.kind].length > 4 ? Math.floor(i / 2) : i) * 12} w={DRUM_PRESETS[d.kind].length > 4 ? 61 : 124} h={10} label={`Drum preset ${preset.name}`} pressed={preset.id === d0.preset} onClick={() => onChange({ name: preset.name, drum: copyDrumPreset(preset) })} />);
     if (page === "TONE" || page === "NOIS") return <>
-      {KINDS.map((k, i) => <Tap key={k} x={2 + i * 31} y={10} w={29} h={9} label={`Drum type ${k}`} pressed={k === d.kind} onClick={() => k !== d.kind && onChange({ drum: { kind: k, ...DRUM_INIT[k], env: { ...DRUM_INIT[k].env } } })} />)}
       {d.kind === "clap"
         ? <Zone x={2} y={20} w={124} h={25} horizontal label="Clap decay" reset={home.env.d} value={d.env.d} min={.02} max={1} step={.005} onChange={v => D({ env: { ...d.env, d: v } })} />
         : <Zone x={2} y={20} w={124} h={25} label="Sweep" reset={home.pitchEnv} value={d.pitchEnv} min={-48} max={48} step={1} onChange={pitchEnv => D({ pitchEnv })} />}
