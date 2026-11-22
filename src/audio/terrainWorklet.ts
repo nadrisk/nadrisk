@@ -18,6 +18,7 @@ const HB = [-0.0322, 0, 0.2822, 0.5, 0.2822, 0, -0.0322];
 class NadTerrain extends AudioWorkletProcessor {
   static get parameterDescriptors() { const k = 'k-rate'; return [
     { name: 'frequency', defaultValue: 110, minValue: 1, maxValue: 12000, automationRate: 'a-rate' },
+    { name: 'detune', defaultValue: 0, minValue: -4800, maxValue: 4800, automationRate: 'a-rate' },
     { name: 'cx', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: k },
     { name: 'cy', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: k },
     { name: 'radius', defaultValue: 0.6, minValue: 0, maxValue: 1, automationRate: k },
@@ -29,8 +30,8 @@ class NadTerrain extends AudioWorkletProcessor {
     this.sl = 1 - Math.exp(-1 / (sampleRate * 2 * 0.008)); this.port.onmessage = e => { if (e.data && e.data.stop) this.dead = true; }; }
   process(_i, outs, p) {
     if (this.dead) return false; const o = outs[0][0]; if (!o) return true;
-    const f = p.frequency, cx = p.cx[0], cy = p.cy[0], r = p.radius[0], fr = p.tfreq[0], hold = p.hold[0], snow = p.snow[0], fold = p.fold[0], h = this.h;
-    for (let n = 0; n < o.length; n++) { const tgt = f.length > 1 ? f[n] : f[0];
+    const f = p.frequency, dt = p.detune, cx = p.cx[0], cy = p.cy[0], r = p.radius[0], fr = p.tfreq[0], hold = p.hold[0], snow = p.snow[0], fold = p.fold[0], h = this.h;
+    for (let n = 0; n < o.length; n++) { const tgt = (f.length > 1 ? f[n] : f[0]) * Math.pow(2, (dt.length > 1 ? dt[n] : dt[0]) / 1200);
       for (let s = 0; s < 2; s++) { this.hz = this.hz ? this.hz + (tgt - this.hz) * this.sl : tgt;
         this.ph += this.hz / (sampleRate * 2); this.ph -= Math.floor(this.ph); const a = this.ph * 2 * Math.PI;
         const z = tAt(T_CL(cx + r * Math.cos(a), -1, 1), T_CL(cy + r * Math.sin(a), -1, 1), fr, hold, snow, fold, tTaper(this.hz));

@@ -8,7 +8,7 @@ function load() {
   new Function(...Object.keys(g), "globalThis", TERRAIN_WORKLET)(...Object.values(g), g);
   return { P: reg["nad-terrain"], at: g.__nadTerrainAt };
 }
-const params = (hz: number, o: Record<string, number> = {}) => ({ frequency: [hz], cx: [o.cx ?? 0], cy: [o.cy ?? 0], radius: [o.radius ?? .6], tfreq: [.25], hold: [o.hold ?? 0], snow: [o.snow ?? 0], fold: [o.fold ?? 0] });
+const params = (hz: number, o: Record<string, number> = {}) => ({ frequency: [hz], detune: [0], cx: [o.cx ?? 0], cy: [o.cy ?? 0], radius: [o.radius ?? .6], tfreq: [.25], hold: [o.hold ?? 0], snow: [o.snow ?? 0], fold: [o.fold ?? 0] });
 
 describe("nad-terrain worklet", () => {
   it("uses the same terrain as the screen", () => {

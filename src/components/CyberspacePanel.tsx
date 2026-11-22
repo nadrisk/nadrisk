@@ -1,61 +1,46 @@
 import { useNoteKnob } from "@/components/harmonyKnob";
-import { memo, useEffect, useState } from "react";
-import { basicTable, framePair, loadTable, onTablesChanged, type WtTable } from "@/audio/wavetable";
+import { memo } from "react";
 import { Tap, Zone } from "@/pixel/PixelScreen";
-import WavetableView from "./WavetableView";
 import { Panel, drawEnvGraph, drawFilterCurve, EnvZones, envKnobs, hz, pct, type Knob } from "./pixelScreens";
 import type { Slot } from "@/hooks/useGroovebox";
-import { wtEnvLevel, wtTimes, WT_SYNC, type WtEnv } from "@/audio/wtEnv";
-import { cleanOf, defaultClean, FILTER_MODELS, modelQ, waveMix, WAVE_NAMES, type CleanParams } from "@/audio/clean";
+import { cleanOf, defaultClean, FILTER_MODELS, modelQ, type CleanParams } from "@/audio/clean";
+import { terrainAt } from "@/audio/terrain";
 
-const PAGES = ["OSC", "WT", "MOD", "FLT", "ENV"] as const;
-/** Table for the screen: BASIC instantly, imported ones once loaded (re-renders when the library changes). */
-export function useWavetable(id?: string): WtTable {
-  const [t, setT] = useState<WtTable | null>(null);
-  useEffect(() => { let live = true; const get = () => { if (id && id !== "basic") loadTable(id).then(x => { if (live) setT(x); }); else setT(null); }; get(); const off = onTablesChanged(get); return () => { live = false; off(); }; }, [id]);
-  return t ?? basicTable();
+const PAGES = ["TRN", "ORB", "MOD", "FLT", "ENV"] as const;
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
+
+/** SURF terrain as a dithered 1-bit map with the orbit drawn on top, using the exact math the sound uses. */
+export function drawTerrain(p: import("@/pixel/draw").Px, c: CleanParams, x0: number, y0: number, w: number, h: number) {
+  const tp = { freq: c.tfreq, hold: c.hold, snow: c.snow, fold: c.fold };
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const z = terrainAt(i / (w - 1) * 2 - 1, j / (h - 1) * 2 - 1, tp);
+    if ((z + 1) * 8 > BAYER[(j & 3) * 4 + (i & 3)] + .5) p.dot(x0 + i, y0 + j); }
+  const ox = x0 + (c.cx + 1) / 2 * (w - 1), oy = y0 + (c.cy + 1) / 2 * (h - 1), rx = c.rad * (w - 1) / 2, ry = c.rad * (h - 1) / 2;
+  for (let k = 0; k < 96; k++) { const a = k / 96 * Math.PI * 2, x = Math.round(ox + rx * Math.cos(a)), y = Math.round(oy + ry * Math.sin(a));
+    if (x < x0 || x >= x0 + w || y < y0 || y >= y0 + h) continue; p.dot(x, y, k % 2 === 0); }
+  p.rect(Math.round(ox) - 1, Math.round(oy) - 1, 3, 3, false); p.dot(Math.round(ox), Math.round(oy));
 }
-export const shape = (k: number, ph: number) => { const t = ph - Math.floor(ph); return k === 0 ? t * 2 - 1 : k === 1 ? (t < .5 ? 1 : -1) : k === 2 ? 1 - Math.abs(t * 4 - 2) : Math.sin(t * Math.PI * 2); };
-const waveName = (w: number) => { const i = Math.round(w); return Math.abs(w - i) < .08 ? WAVE_NAMES[i] : `${WAVE_NAMES[Math.floor(w)]}>${WAVE_NAMES[Math.min(3, Math.floor(w) + 1)]}`; };
 
-// SYN: clean OP-1 style synth. Three flat pages, four knobs each, one graphic per page.
+// SYN = SURF wave-terrain synth: TRN tunes the terrain, MOD, FLT, ENV as before.
 function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const c = cleanOf(slot.synth), home = defaultClean();
   const C = (q: Partial<CleanParams>) => onChange({ synth: { ...slot.synth, clean: { ...c, ...q } } });
   const noteK = useNoteKnob(slot, onChange);
-  const tbl = useWavetable(c.wt), basic = !c.wt || c.wt === "basic", nF = basic ? 4 : tbl.view.length;
-  const posName = (w: number) => basic ? waveName(w) : `${Math.round(w / 3 * (nF - 1)) + 1}/${nF}`;
-  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "wt" | "wLoop" | "wBi" | "wSync" | "bpm">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
+  const K = (label: string, short: string, key: Exclude<keyof CleanParams, "env" | "bpm">, min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `Synth ${label}`, short, value: c[key] as number, min, max, step, fmt, log, reset: home[key] as number, set: v => C({ [key]: v }) });
   const knobs = (page: string): Knob[] => {
-    if (page === "OSC") return [noteK, K("wave", "WAVE", "wave", 0, 3, .001, posName), K("sub", "SUB", "sub", 0, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct),
-      K("voices", "VOX", "voices", 1, 8, 1, v => (v === 1 ? "MONO" : `${v}V`))];
-    if (page === "WT") { const tm = (v: number) => v < 1 ? `${Math.round(v * 1000)}MS` : `${v.toFixed(1)}S`;
-      return [K("wavetable envelope attack", "ATK", "wA", .001, 1, .001, tm, true), K("wavetable envelope decay", "DEC", "wD", .002, 1, .001, tm, true), K("wavetable envelope sustain", "SUS", "wS", 0, 1, .01, pct),
-        K("wavetable envelope smoothing", "SMTH", "wSm", 0, 1, .01, pct), K("wavetable envelope depth", "DPTH", "wDp", -1, 1, .01, v => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`)]; }
+    if (page === "TRN") return [noteK, K("terrain frequency", "FREQ", "tfreq", 0, 1, .01, pct), K("terrain hold", "HOLD", "hold", -1, 1, .01, signed), K("terrain snow", "SNOW", "snow", 0, 1, .01, pct),
+      K("terrain fold", "FOLD", "fold", 0, 1, .01, pct)];
+    if (page === "ORB") return [K("orbit size", "SIZE", "rad", .05, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct), K("sub", "SUB", "sub", 0, 1, .01, pct)];
     if (page === "MOD") return [K("pitch envelope amount", "P.AMT", "pAmt", -24, 24, 1, v => `${v > 0 ? "+" : ""}${Math.round(v)}ST`), K("pitch envelope decay", "P.DEC", "pDec", .002, 1, .001, v => v < 1 ? `${Math.round(v * 1000)}MS` : "1S", true),
       K("noise", "NOIS", "noise", 0, 1, .01, pct), K("glide", "GLID", "glide", 0, .5, .001, v => `${Math.round(v * 1000)}MS`)];
     if (page === "FLT") return [K("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), K("resonance", "RES", "res", 0, 1, .01, pct), K("filter envelope", "ENV", "envAmt", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
     return envKnobs(c.env, env => C({ env }), home.env, 1).map(k => ({ ...k, label: `Synth ${k.label}` }));
   };
   const body = (p: import("@/pixel/draw").Px, page: string) => {
-    if (page === "OSC") {
-      p.box(2, 11, 124, 34);
-      p.text((basic ? waveName(c.wave) : `${tbl.name.toUpperCase().slice(0, 10)} ${posName(c.wave)}`).slice(0, 18), 4, 13);
-      // Voice dots: lit = available voices, one bar = mono.
-      if (c.voices === 1) p.text("MONO", 104, 13); else for (let i = 0; i < 8; i++) { if (i < c.voices) p.rect(92 + i * 4, 13, 3, 4); else p.dot(93 + i * 4, 16); }
-    } else if (page === "WT") {
-      p.box(2, 11, 124, 34);
-      // Envelope shape over a fixed window (one-shot: attack+decay+hold; loop: three cycles); BI draws the centre line.
-      const e = c as WtEnv, tm = wtTimes(e), span = e.wLoop ? 3 * (tm.a + tm.d) : (tm.a + tm.d) * 1.4, top = 21, bot = 43, mid = (top + bot) >> 1;
-      if (e.wBi) for (let x = 4; x < 124; x += 3) p.dot(x, mid);
-      const dp = Math.max(.08, Math.abs(e.wDp)) * (e.wDp < 0 ? -1 : 1); let py = bot;
-      for (let x = 0; x < 120; x++) { const l = wtEnvLevel(e, (x / 119) * span), u = e.wBi ? l * 2 - 1 : l, y = Math.round((e.wBi ? mid : dp < 0 ? top : bot) - u * dp * (e.wBi ? (bot - top) / 2 : bot - top));
-        if (x) p.line(3 + x, py, 4 + x, y); py = y; }
-      p.rect(2, 11, 26, 8); p.textC(e.wLoop ? "LOOP" : "1SHT", 15, 12, false);
-      p.rect(30, 11, 18, 8); p.textC(e.wBi ? "BI" : "UNI", 39, 12, false);
-      p.rect(50, 11, 26, 8); p.textC(WT_SYNC[e.wSync ?? 0]?.name ?? "FREE", 63, 12, false);
-      if (!e.wDp) p.text("DPTH 0", 92, 13);
+    if (page === "TRN" || page === "ORB") {
+      p.box(2, 11, 124, 34); drawTerrain(p, c, 3, 12, 122, 32);
+      p.rect(90, 11, 36, 8, false); p.box(90, 11, 36, 8); p.textC(c.voices === 1 ? "MONO" : `${c.voices} VOX`, 108, 12);
     } else if (page === "MOD") {
       p.box(2, 11, 124, 34);
       // Pitch envelope: exponential fall from P.AMT to the note over P.DEC (time axis 0..1 s, log-ish).
@@ -74,20 +59,11 @@ function CyberspacePanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial
     } else drawEnvGraph(p, c.env);
   };
   const extra = (page: string) => {
-    if (page === "OSC") return <>
-      <WavetableView x={3} y={12} w={122} h={32} table={tbl} wave={c.wave} basic={basic} />
-      <Zone x={2} y={11} w={124} h={34} horizontal label="Synth wavetable position" value={c.wave} min={0} max={3} step={.001} reset={home.wave} onChange={wave => C({ wave })} />
-      <Tap x={90} y={11} w={36} h={8} label="Synth voices: tap to toggle mono or 8 voices" pressed={c.voices === 1} onClick={() => C({ voices: c.voices === 1 ? 8 : 1 })} />
-    </>;
-    if (page === "WT") return <>
-      <Tap x={2} y={11} w={26} h={8} label={`Wavetable envelope ${c.wLoop ? "loop" : "one shot"}: tap to toggle`} pressed={!!c.wLoop} onClick={() => C({ wLoop: !c.wLoop })} />
-      <Tap x={30} y={11} w={18} h={8} label={`Wavetable envelope ${c.wBi ? "bipolar" : "unipolar"}: tap to toggle`} pressed={!!c.wBi} onClick={() => C({ wBi: !c.wBi })} />
-      <Tap x={50} y={11} w={26} h={8} label={`Wavetable envelope sync ${WT_SYNC[c.wSync ?? 0]?.name ?? "FREE"}: tap for next`} pressed={!!c.wSync} onClick={() => C({ wSync: ((c.wSync ?? 0) + 1) % WT_SYNC.length })} />
-    </>;
+    if (page === "TRN") return <Tap x={90} y={11} w={36} h={8} label="Synth voices: tap to toggle mono or 8 voices" pressed={c.voices === 1} onClick={() => C({ voices: c.voices === 1 ? 8 : 1 })} />;
     if (page === "FLT") return <><Zone x={2} y={11} w={124} h={32} horizontal log label="Synth cutoff drag" value={c.cutoff} min={40} max={16000} step={1} onChange={cutoff => C({ cutoff })} />
       <Tap x={2} y={11} w={28} h={8} label={`Synth filter model ${FILTER_MODELS[c.flt ?? 0]}: tap for next`} onClick={() => C({ flt: ((c.flt ?? 0) + 1) % 4 })} /></>;
     return <EnvZones env={c.env} set={env => C({ env })} max={1} />;
   };
-  return <Panel name={slot.name || "SYN"} pages={PAGES} label="Wavetable synth" compactReadout knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value, tbl]} />;
+  return <Panel name={slot.name || "SURF"} pages={PAGES} label="SURF terrain synth" compactReadout knobs={knobs} body={body} extra={extra} deps={[slot.name, c, noteK.value]} />;
 }
 export default memo(CyberspacePanel);

@@ -61,9 +61,9 @@ describe("SYN pitch decay", () => {
     expect(pitch.offset.setValueAtTime).toHaveBeenCalledWith(1200, .1);
     expect(pitch.offset.setTargetAtTime).toHaveBeenCalledWith(0, .1, .125);
     expect(pitch.start).toHaveBeenCalledWith(.1);
-    expect(pitch.connect).toHaveBeenCalledTimes(9); // Eight basic oscillators + sub.
+    expect(pitch.connect).toHaveBeenCalledTimes(3); // Two orbiters (native fallback in tests) + sub.
     for (const o of oscillators) expect(pitch.connect).toHaveBeenCalledWith(o.detune);
-    voice.update?.({ clean: { ...clean, wave: 1, cutoff: 2400 } });
+    voice.update?.({ clean: { ...clean, tfreq: .6, cutoff: 2400 } });
     expect(pitch.offset.setTargetAtTime).toHaveBeenCalledTimes(1);
     for (const o of oscillators) expect(o.detune.setTargetAtTime).not.toHaveBeenCalled();
   });
@@ -74,7 +74,7 @@ describe("SYN pitch decay", () => {
     voice.update?.({ clean: { ...clean, detune: .5 } });
     expect(oscillators[0].detune.setTargetAtTime).toHaveBeenCalledWith(-14, .125, .01);
     expect(oscillators[1].detune.setTargetAtTime).toHaveBeenCalledWith(14, .125, .01);
-    expect(oscillators[8].detune.setTargetAtTime).not.toHaveBeenCalled();
+    expect(oscillators[2].detune.setTargetAtTime).not.toHaveBeenCalled();
     expect(pitch.offset.setTargetAtTime).toHaveBeenCalledTimes(1);
     voice.stop(.2);
     expect(pitch.stop.mock.calls.at(-1)?.[0]).toBeCloseTo(.24);

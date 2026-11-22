@@ -15,6 +15,8 @@ export class Px {
   }
   textC(s: string, cx: number, y: number, on = true) { this.text(s, Math.round(cx - textWidth(s) / 2), y, on); }
   line(x0: number, y0: number, x1: number, y1: number, dotted = false) {
+    // A NaN/Infinity endpoint would never be reached and freeze the page, so such lines are skipped.
+    if (!Number.isFinite(x0 + y0 + x1 + y1)) return;
     x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
     const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy, n = 0;
     for (;;) { if (!dotted || n++ % 2 === 0) this.dot(x0, y0); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }

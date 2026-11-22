@@ -37,12 +37,10 @@ describe("instrument XY", () => {
     const s = pad({ engine: "synth", xy: { x: 0, y: 0 } });
     expect(applyXY(s)).toBe(s);
   });
-  it("brightens SYN upward and opens it rightward", () => {
-    const s0 = pad({ engine: "synth" }), s = { ...s0, synth: { ...s0.synth, clean: { ...cleanOf(s0.synth), cutoff: 2400 } } }, c = cleanOf(s.synth);
-    const up = cleanOf(applyXY({ ...s, xy: { x: 1, y: 1 } }).synth);
-    expect(up.cutoff).toBeGreaterThan(c.cutoff); expect(up.env.r).toBeGreaterThan(c.env.r);
-    const down = cleanOf(applyXY({ ...s, xy: { x: -1, y: -1 } }).synth);
-    expect(down.cutoff).toBeLessThan(c.cutoff); expect(down.env.r).toBeLessThan(c.env.r);
+  it("SURF XY moves only the orbit centre across the terrain", () => {
+    const s = pad({ engine: "synth" }), c = cleanOf(s.synth);
+    const q = cleanOf(applyXY({ ...s, xy: { x: .5, y: -1 } }).synth);
+    expect([q.cx, q.cy]).toEqual([.5, -1]); expect(q.cutoff).toBe(c.cutoff); expect(q.env).toEqual(c.env); expect(q.tfreq).toBe(c.tfreq);
   });
   it("SET writes the explored sound and keeps the dot where it is", () => {
     const s = pad({ engine: "808", xy: { x: .5, y: .5 } }), p = commitXY(s);

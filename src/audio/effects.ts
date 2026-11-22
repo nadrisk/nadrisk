@@ -1,4 +1,3 @@
-import { WT_OSC_WORKLET } from "./wtOsc";
 import { TERRAIN_WORKLET } from "./terrainWorklet";
 import * as Tone from "tone";
 import { FAILURE_WORKLET } from "./failureWorklet";
@@ -248,7 +247,7 @@ ${NOIZ_WORKLET}
 ${DIGI_WORKLET}`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS, REC_WORKLET, PEAK_LIMITER_WORKLET, HACK_WORKLET, WT_OSC_WORKLET, TERRAIN_WORKLET], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS, REC_WORKLET, PEAK_LIMITER_WORKLET, HACK_WORKLET, TERRAIN_WORKLET], { type: "application/javascript" }))));
 
 let eco = false;
 /** Reverb MIX law [dry, wet]: dry full until 50%, wet full from 50%, eased (sine) at the corners. */
