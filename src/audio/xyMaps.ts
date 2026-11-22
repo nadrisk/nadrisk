@@ -26,10 +26,10 @@ export const xyHome = (xy?: XY) => ({ x: xy?.ox ?? 0, y: xy?.oy ?? 0 });
 export function applyXY(s: Slot): Slot {
   const h = xyHome(s.xy), x = cl((s.xy?.x ?? 0) - h.x, -1, 1), y = cl((s.xy?.y ?? 0) - h.y, -1, 1);
   if (Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6) return s;
-  // SURF: the pad is the orbiter — it moves the orbit centre across the terrain.
-  if (s.engine === "synth") {
+    if (s.engine === "synth") {
     const c = cleanOf(s.synth);
-    return { ...s, synth: { ...s.synth, clean: { ...c, cx: cl(c.cx + x, -1, 1), cy: cl(c.cy + y, -1, 1) } } };
+    // SURF: X = terrain FREQ, Y = FOLD. The orbit itself stays put.
+    return { ...s, synth: { ...s.synth, clean: { ...c, tfreq: cl(c.tfreq + x, 0, 1), fold: cl(c.fold + y, 0, 1) } } };
   }
   if (s.engine === "pad") {
     // X = dark .. bright (filter, vowel morph); Y = short (-1) .. long (+1) attack/release. Always dry.
@@ -89,7 +89,7 @@ export function commitXY(s: Slot): Partial<Slot> {
 
 /** Short readouts of what the pad is moving, for the XY screen. */
 export function xyLabels(s: Slot): [string, string] {
-  if (s.engine === "synth") return ["ORBIT X", "ORBIT Y"];
+  if (s.engine === "synth") return ["FREQ", "FOLD"];
   if (s.engine === "pad") return padPreset(padParams(s.pad).preset).keys ? ["TONE", "DECAY REL"] : ["BRIGHT VOWL", "ATK REL"];
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
@@ -103,6 +103,7 @@ export function xyLabels(s: Slot): [string, string] {
 export function xyCorners(s: Slot): [string, string, string, string] {
   if (s.engine === "sampler" && s.sampler.grain) return ["TIGHT", "WIDE", "FWD", "BACK"];
   if (s.engine === "sampler" && s.sampler.stretch) return ["SHRT", "LONG", "BRT", "DRK"];
+  if (s.engine === "synth") return ["LOW", "HIGH", "FOLD", "CLEAN"];
   if (s.engine === "pad") return padPreset(padParams(s.pad).preset).keys ? ["FELT", "BRT", "RING", "TIGHT"] : ["DARK", "BRT", "LONG", "SHRT"];
   return ["TIGHT", "OPEN", "BRT", "DRK"];
 }
