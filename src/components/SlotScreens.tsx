@@ -13,8 +13,9 @@ import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
-const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"], ["808", "BAS"], ["sampler", "SMP"], ["pad", "PAD"]];
-const EW = 21;
+/** Active instruments. Disengaged engines (code kept intact; move back into ENG to restore): ["808","BAS"], ["sampler","SMP"], ["pad","PAD"]. */
+const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"]];
+const EW = 42;
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
   const theme = useContext(DisplayThemeContext);
