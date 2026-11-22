@@ -56,7 +56,7 @@
 - [x] Retired trance/euclid editor code removed from ArpEditor and the pattern generator
 
 ## NADRISK rebuild (approved plan)
-- [~] Phase 1 SURF terrain synth — shared terrain math + tests done; worklet, panel, wavetable removal pending
+- [~] Phase 1 SURF terrain synth — math, nad-terrain sound engine + tests done; voice hookup, panel, wavetable removal pending
 - [ ] Phase 2 six fixed channels (KIK SNR HAT CLP PRC SURF)
 - [ ] Phase 3 CADENCE + LATTICE, scale last
 - [ ] Phase 4 TOPOMAP replaces step grid
