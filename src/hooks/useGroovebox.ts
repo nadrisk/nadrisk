@@ -1,3 +1,4 @@
+import { cadenceOf, cadenceStep, type CadenceParams } from "@/audio/cadence";
 import { CHANNELS, CHANNEL_COUNT, pickChannels, droppedCount } from "@/audio/channels";
 import { DRUM_PRESETS, copyDrumPreset } from "@/audio/drumPresets";
 import { foldOneSided } from "@/audio/monoFold";
@@ -60,7 +61,7 @@ export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: nu
 export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
 /** Maximum steps per row; each bank plays 16 or 32 (Bank.steps). */
 export const STEPS = 32;
-export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Group bus 1-4; 0/undefined = direct to master. */ group?: number; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams };
+export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Group bus 1-4; 0/undefined = direct to master. */ group?: number; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams; /** SURF pitch brain (CADENCE + LATTICE). */ cadence?: CadenceParams };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string; dest?: number }[]; groups: { input: DelayNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; chain: FxNode[]; sig: string; tap: GainNode }[]; loop: number; xyLoop?: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
 
@@ -638,6 +639,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
           else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } }
+        // CADENCE: SURF's note comes from the ground/surge brain, snapped into key last.
+        if (slot.engine === "synth" && slot.cadence?.on) semiAt = cadenceStep(cadenceOf(slot.cadence), harmonyRef.current, tick, slot.note).note - slot.note;
         if (eng && !cutMod) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
         // Book the active phrase run only up to the end of this 16th, reading the slot's current sound each time.
         const runPhrase = (bound: number) => {
