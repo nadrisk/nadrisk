@@ -41,7 +41,7 @@ class NadVca extends AudioWorkletProcessor {
    is long (60-250 ms x SIZE scale), slowly wobbled with its own sine LFO (kills metallic ringing), darkened by a
    one-pole DAMP lowpass per pass, and decays with an exact per-line T60 gain so tails fade smoothly to silence. */
 class NadReverb extends AudioWorkletProcessor {
-  static get parameterDescriptors(){return [{name:'size',defaultValue:2.5},{name:'density',defaultValue:.6},{name:'damp',defaultValue:6000}];}
+  static get parameterDescriptors(){return [{name:'size',defaultValue:2.5},{name:'density',defaultValue:.6},{name:'damp',defaultValue:6000},{name:'freeze',defaultValue:0}];}
   constructor(){super();const sr=sampleRate;this.cap=Math.ceil(sr*.42);this.apCap=Math.ceil(sr*.026);
     this.base=[[.0613,.0787,.0937,.1103,.1291,.1531,.1823,.2179],[.0671,.0829,.0991,.1171,.1373,.1621,.1949,.2467]];
     this.apBase=[[.0071,.0113,.0089,.0157,.0097,.0131,.0079,.0149],[.0083,.0121,.0101,.0139,.0073,.0163,.0091,.0127]];
@@ -57,15 +57,15 @@ class NadReverb extends AudioWorkletProcessor {
     const lv=-5.4+16.5*(dens-.1)-4.6*Math.log10(t60/.5);this.outG=.95/Math.sqrt(1+t60/(.14*ls))*Math.pow(10,-lv/20);this.preLen=Math.floor(sr*.003);this.eg=.32*Math.pow(10,-11.75*(dens-.1)/20);}
   process(ins,outs,p){const x=ins[0],y=outs[0];if(!y||!y[0])return true;
     const t60=Math.max(.2,Math.min(20,p.size[0])),dens=Math.max(0,Math.min(1,p.density[0]));this.setup(t60,dens);
-    const apc=.3+.42*dens,ga=.5+.12*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),hk=Math.exp(-2*Math.PI*120/sampleRate),cap=this.cap,ac=this.apCap,md=this.md,og=this.outG;
+    const frozen=(p.freeze?.[0]||0)>.5,apc=.3+.42*dens,ga=.5+.12*dens,lk=1-Math.exp(-2*Math.PI*Math.max(500,Math.min(16000,p.damp[0]))/sampleRate),hk=Math.exp(-2*Math.PI*120/sampleRate),cap=this.cap,ac=this.apCap,md=this.md,og=this.outG;
     for(let n=0;n<y[0].length;n++){const pw=this.preW,pl=this.pre.length,xin=((x?.[0]?.[n]||0)+((x?.[1]||x?.[0])?.[n]||0))*.5;
       this.hp=hk*(this.hp+xin-this.hpx);this.hpx=xin;this.pre[pw]=this.hp;let v=this.pre[(pw-this.preLen+pl)%pl];this.preW=(pw+1)%pl;
-      for(let a=0;a<5;a++){const b=this.ap[a],i=this.apPos[a],r=b[i],o=r-apc*v;b[i]=v+apc*r;this.apPos[a]=(i+1)%this.apLen[a];v=o;}
+      for(let a=0;a<5;a++){const b=this.ap[a],i=this.apPos[a],r=b[i],o=r-apc*v;b[i]=v+apc*r;this.apPos[a]=(i+1)%this.apLen[a];v=o;}if(frozen)v=0;
       for(let s=0;s<2;s++){const D=this.d[s],A=this.lap[s],L=this.lens[s],AL=this.apL[s],G=this.g[s],LP=this.lp[s],PH=this.ph[s],R=this.rate[s],f=[0,0,0,0,0,0,0,0];let sum=0,out=0;
         for(let j=0;j<8;j++){let ri=this.w-L[j];if(ri<0)ri+=cap;const r=D[j][ri];LP[j]+=lk*(r-LP[j]);
           PH[j]+=R[j];if(PH[j]>6.2832)PH[j]-=6.2832;let idx=this.w2-AL[j]-md*(1+Math.sin(PH[j]));if(idx<0)idx+=ac;const k=Math.floor(idx),fr=idx-k,b=A[j];
-          const dl=b[k]+(b[(k+1)%ac]-b[k])*fr,vn=LP[j]+ga*dl;b[this.w2]=vn;const z=(dl-ga*vn)*G[j];f[j]=z;sum+=z;out+=(j&1?-r:r);}
-        sum*=.25;for(let j=0;j<8;j++)D[j][this.w]=f[j]-sum+v*(j&1?-.35:.35);
+          const dl=b[k]+(b[(k+1)%ac]-b[k])*fr,vn=LP[j]+ga*dl;b[this.w2]=vn;const z=(dl-ga*vn)*(frozen?.99995:G[j]);f[j]=z;sum+=z;out+=(j&1?-r:r);}
+        sum*=.25;for(let j=0;j<8;j++)D[j][this.w]=frozen?Math.tanh(f[j]-sum):f[j]-sum+v*(j&1?-.35:.35);
         /* Diffused input feeds the output directly so the wet sound starts with the note instead of swelling in late. */const o=out*og+(s?-v:v)*this.eg;if(y[s])y[s][n]=o;else if(y[0])y[0][n]=(y[0][n]+o)*.5;}
       this.w=(this.w+1)%cap;this.w2=(this.w2+1)%ac;}return true;}
 }

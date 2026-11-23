@@ -1,4 +1,5 @@
 # Hooks
+- useSurfaceBuses attaches four independent wet-only post-pan sends before the existing master chain, preserving channel inserts and limiting; disconnect every send and processor on unmount.
 - Tape recorder state and lifecycle live in useTapeRecorder at the Groovebox shell, so switchable Devices/SEQ/PERF and mobile utilities cannot stop capture or discard takes.
 - MIDI learn binds CC/notes to controls by their aria-label and drives them via synthetic DOM events (src/hooks/useMidi.ts), so every labelled control is mappable without per-control wiring.
 - MIDI KBD mode (useMidi keys flag) routes every note to the selected pad via keyOn/keyOff in useGroovebox (semi = note-60, ±24), so pad mapping and keyboard play never share notes at once.

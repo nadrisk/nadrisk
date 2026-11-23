@@ -57,9 +57,10 @@
 
 ## NADRISK rebuild (approved plan)
 - [x] Phase 1 SURF terrain synth — sound engine, SYN voice, TRN/ORB screens, XY orbiter; old wavetable synth removed
-- [ ] Phase 2 six fixed channels (KIK SNR HAT CLP PRC SURF)
-- [ ] Phase 3 CADENCE + LATTICE, scale last
+- [x] Phase 2 six fixed channels (KIK SNR HAT CLP PRC SURF)
+- [x] Phase 3 CADENCE + LATTICE, scale last
 - [ ] Phase 4 TOPOMAP replaces step grid
 - [ ] Phase 5 PERF buses + QUAD-AXIS joysticks
 - [ ] Phase 6 MIDI learn + new .nadrisk.json version
 - [ ] Residue sweep, help, layout overlap tests, Playwright pass
+- [ ] Rebuild the main faceplate: Cadence/Lattice → Topomap → performance/Quad-Axis → six channels; detailed editors and system utilities in overlays

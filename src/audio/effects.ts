@@ -520,7 +520,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Our own FDN reverb (nad-reverb): pre-delay + allpass diffusion (DENS) into two modulated 8-line delay networks with
     // Householder mixing, per-line DAMP lowpass and SIZE as T60 decay. Wet-only; MIX is equal-power (see update()).
     const n = worklet("nad-reverb"); input.connect(n).connect(wet);
-    apply = p => wp(n, { ...p, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp"]);
+    apply = p => wp(n, { ...p, freeze: p.freeze ?? 0, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp", "freeze"]);
   } else if (type === "chorus") {
     // Juno-60 BBD chorus (nad-juno): MODE I / II / I+II, DEPTH .5 = authentic swing, MAN = centre delay, ENV pushes the delay.
     const n = worklet("nad-juno"); input.connect(n).connect(wet);

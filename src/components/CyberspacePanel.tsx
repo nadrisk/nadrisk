@@ -7,7 +7,7 @@ import { cleanOf, defaultClean, FILTER_MODELS, modelQ, type CleanParams } from "
 import { terrainAt } from "@/audio/terrain";
 import { CADENCES, LATTICE_SHAPES, RATES, SURGE_GATES, cadenceOf, type CadenceParams } from "@/audio/cadence";
 
-const PAGES = ["CAD", "LAT", "TRN", "ORB", "MOD", "FLT", "ENV"] as const;
+const PAGES = ["TRN", "ORB", "MOD", "FLT", "ENV"] as const;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 

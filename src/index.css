@@ -1600,3 +1600,109 @@ body.perf-lock { overflow: hidden; }
 .topo-label { position: absolute; font-family: "Silkscreen", monospace; font-size: 8px; color: hsl(var(--foreground)); pointer-events: none; }
 .topo-label.tl { top: 2px; left: 3px; } .topo-label.br { bottom: 2px; right: 3px; }
 .topo-puck { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: hsl(var(--foreground)); pointer-events: none; }
+
+/* Unified faceplate: one shared width, editing plates leave the playing surface in place. */
+.faceplate { width: 100%; min-width: 0; display: flex; flex-direction: column; font-family: Silkscreen, monospace; letter-spacing: 0; }
+.faceplate > section, .faceplate > nav { padding: 10px; border-bottom: 1px solid hsl(var(--foreground) / .35); min-width: 0; }
+.faceplate header { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-bottom: 6px; font-size: 9px; }
+.faceplate header b { font-weight: normal; margin-right: auto; }
+.faceplate header > span { font: 16px VT323, monospace; }
+.faceplate .face-key, .face-modal .face-key { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-height: 28px; border: 1px solid hsl(var(--foreground) / .55); border-radius: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); padding: 0 5px; font: 8px Silkscreen, monospace; letter-spacing: 0; white-space: nowrap; min-width: 0; transition: none; box-shadow: none; }
+.faceplate .face-key[aria-pressed="true"], .faceplate .face-key:active { background: hsl(var(--foreground)); color: hsl(var(--background)); border-color: hsl(var(--foreground)); }
+.faceplate select { color: hsl(var(--foreground)); background: hsl(var(--background)); border: 1px solid hsl(var(--foreground) / .55); border-radius: 0; font: 12px VT323, monospace; height: 28px; padding: 0 3px; width: 100%; min-width: 0; letter-spacing: 0; }
+.faceplate header select { width: 95px; }
+.faceplate > .face-pitch { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.face-cadence, .face-lattice { min-width: 0; }
+.face-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.face-choice { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.face-choice > span { font-size: 7px; white-space: nowrap; }
+.face-chords { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+.face-chords > span { display: grid; place-items: center; height: 34px; border: 1px solid hsl(var(--foreground) / .5); font: 20px VT323, monospace; }
+.faceplate .current { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.faceplate .cropped { opacity: .2; }
+.face-lattice-content { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; }
+.face-lattice .face-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.face-lattice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; aspect-ratio: 1; align-self: center; }
+.face-lattice-grid i { border: 1px solid hsl(var(--foreground) / .5); }
+.faceplate .topo { padding: 0; gap: 6px; }
+.faceplate .topo-pad { height: 320px; min-height: 320px; background-image: none; color: hsl(var(--foreground)); }
+.faceplate .topo-key { height: 28px; min-height: 28px; font-size: 8px; padding: 0 2px; }
+.topo-rhythm { width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.faceplate .topo-puck { width: 15px; height: 15px; margin: -7px; background: hsl(var(--background)); border: 3px solid hsl(var(--foreground)); outline: 2px solid hsl(var(--background)); }
+.faceplate .topo-label { font-size: 9px; padding: 4px; background: hsl(var(--background)); }
+.topo-axis-readout { display: flex; justify-content: flex-end; gap: 12px; font: 14px VT323, monospace; }
+.faceplate .topo-axis-readout [role="slider"] { width: auto; height: auto; min-height: 0; }
+.faceplate .face-perf-switch { display: none; }
+.face-four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.face-bus, .face-macro, .face-channel { min-width: 0; }
+.face-bus-targets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.faceplate .lk-control { width: 100%; min-width: 0; color: hsl(var(--foreground)); touch-action: none; }
+.faceplate .lk-control-rotary { display: grid; justify-items: center; gap: 3px; margin-bottom: 6px; }
+.faceplate .lk-control-rotary svg { width: 60px; height: 60px; }
+.faceplate .lk-control svg { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 1.5; }
+.faceplate .lk-control-name { font: 9px Silkscreen, monospace; letter-spacing: 0; }
+.faceplate .lk-control-value { font: 18px VT323, monospace; }
+.faceplate .face-bus-targets .face-key { font-size: 7px; }
+.face-macro header { font-size: 8px; }
+.face-stick { width: 100%; aspect-ratio: 1.7; position: relative; overflow: hidden; border: 1px solid hsl(var(--foreground) / .6); touch-action: none; }
+.face-stick-h, .face-stick-v { position: absolute; background: hsl(var(--foreground) / .3); pointer-events: none; }
+.face-stick-h { width: 100%; height: 1px; top: 50%; }
+.face-stick-v { height: 100%; width: 1px; left: 50%; }
+.face-stick i { position: absolute; width: 9px; height: 9px; transform: translate(-50%, -50%); border: 2px solid hsl(var(--foreground)); background: hsl(var(--background)); pointer-events: none; }
+.face-axis-select { display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 3px; margin-top: 4px; font-size: 8px; }
+.face-axis-values { display: flex; justify-content: space-between; font: 14px VT323, monospace; padding-top: 4px; }
+.faceplate .face-axis-values [role="slider"] { width: auto; height: auto; min-height: 0; }
+.face-six { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.face-channel { padding: 4px 8px; border-left: 1px solid hsl(var(--foreground) / .3); }
+.face-channel:first-child { border-left: 0; }
+.faceplate .face-channel-name, .faceplate .face-color { width: 100%; margin-bottom: 4px; }
+.faceplate .face-channel-name { font-size: 11px; }
+.face-channel-sends { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.face-channel-sends .face-key { padding: 0; }
+.face-fader { display: flex; align-items: center; gap: 5px; height: 186px; }
+.faceplate .lk-control-vertical { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; }
+.faceplate .lk-control-vertical svg { width: 100%; height: 140px; flex: 1; }
+.face-meter { height: 132px; width: 5px; background: hsl(var(--foreground) / .15); position: relative; flex: none; }
+.face-meter i { position: absolute; bottom: 0; width: 100%; height: var(--meter, 0%); background: hsl(var(--foreground)); }
+.face-ms { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.face-tools { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.face-modal-backdrop { position: fixed; inset: 0; z-index: 70; background: hsl(var(--background) / .92); display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto; }
+.face-modal { width: min(1100px, 100%); min-width: 0; background: hsl(var(--background)); border: 1px solid hsl(var(--foreground)); }
+.face-modal > header { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid hsl(var(--foreground)); font: 10px Silkscreen, monospace; position: sticky; top: -24px; background: hsl(var(--background)); z-index: 4; }
+.face-modal > header b { margin-right: auto; }
+.face-modal-content { padding: 8px; }
+.face-modal .gb-editor-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.face-modal .gb-ed-slot { display: none; }
+@media (max-width: 699px) {
+  .faceplate > section, .faceplate > nav { padding: 8px 6px; }
+  .faceplate > .face-pitch { grid-template-columns: 1fr; gap: 8px; }
+  .faceplate header { min-height: 22px; margin-bottom: 4px; font-size: 8px; gap: 5px; }
+  .face-chords { margin-bottom: 5px; }
+  .face-chords > span { height: 25px; font-size: 17px; }
+  .face-lattice-content { grid-template-columns: 55px minmax(0, 1fr); }
+  .face-lattice .face-choices { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .face-choice > span { font-size: 6px; }
+  .faceplate .face-key { height: 26px; min-height: 26px; font-size: 7px; }
+  .faceplate .topo-pad { height: 235px; min-height: 235px; }
+  .faceplate .face-perf-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .faceplate .face-buses, .faceplate .face-axes { display: none; }
+  .faceplate .phone-active { display: block; }
+  .face-four { gap: 6px; }
+  .faceplate .lk-control-rotary svg { width: 48px; height: 48px; }
+  .faceplate .lk-control-name { font-size: 7px; }
+  .faceplate .face-bus-targets .face-key { font-size: 6px; height: 22px; min-height: 22px; padding: 0; }
+  .face-stick { aspect-ratio: 1; }
+  .faceplate .face-axis-select select { font-size: 10px; height: 24px; padding: 0; }
+  .face-channel { padding: 3px; }
+  .faceplate .face-channel-name { font-size: 8px; padding: 0; }
+  .faceplate .face-color { font-size: 6px; padding: 0; }
+  .face-channel-sends { grid-template-columns: repeat(2, 1fr); }
+  .face-channel-sends .face-key { height: 20px; min-height: 20px; }
+  .face-fader { gap: 1px; height: 157px; }
+  .face-meter { width: 3px; height: 110px; }
+  .faceplate .face-ms .face-key { padding: 0; }
+  .face-modal-backdrop { padding: 6px; }
+  .face-modal > header { top: -6px; font-size: 8px; }
+  .face-modal .gb-editor-body { grid-template-columns: 1fr; }
+  .face-modal-content { padding: 4px; }
+}
