@@ -639,7 +639,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .instrument-workspace:not([data-lcd="studio"]) [data-orientation="horizontal"].relative { height: 8px !important; }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) { height: 8px !important; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .35) 0 1px, transparent 1px 4px) !important; border: 1px solid hsl(var(--foreground)); }
 .instrument-workspace:not([data-lcd="studio"]) span[data-orientation="horizontal"]:not([role]) > span { background: repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 3px, transparent 3px 4px) !important; }
-.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial):not(.px-zone):not(.lk-control) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
+.instrument-workspace:not([data-lcd="studio"]) [role="slider"]:not(.hw-knob):not(.gb-partial):not(.px-zone):not(.lk-control):not(.topo-pad) { width: 4px !important; height: 12px !important; background: hsl(var(--foreground)) !important; border: 1px solid hsl(var(--background)) !important; }
 /* knobs: hairline 1-bit */
 .instrument-workspace:not([data-lcd="studio"]) .hw-track { stroke: hsl(var(--foreground) / .35); stroke-width: 1; }
 .instrument-workspace:not([data-lcd="studio"]) .hw-fill { stroke: hsl(var(--foreground)); stroke-width: 2; }
@@ -1587,3 +1587,16 @@ body.perf-lock { overflow: hidden; }
 /* Six fixed channels: pads form a 3x2 block, the mixer shows all six strips at once. */
 .gb-pads.gb-pads-ch { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 .instrument-workspace .gb-mixer.gb-mixer-ch, .instrument-workspace .gb-device-mixer .gb-mixer.gb-mixer-ch { grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: hidden; }
+
+/* TOPOMAP: 1-bit puck surface above the step grid */
+.topo { flex: none; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 4px; }
+.topo-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.topo-key { font-family: "Silkscreen", monospace; font-size: 9px; padding: 4px 0; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); border-radius: 0; white-space: nowrap; overflow: hidden; }
+.topo-key.is-on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.topo-pad { width: 100%; box-sizing: border-box; position: relative; height: 140px; min-height: 140px; flex: none; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); touch-action: none; cursor: crosshair; overflow: hidden;
+  background-image: radial-gradient(hsl(var(--foreground) / .35) 1px, transparent 1px); background-size: 8px 8px; }
+.topo-cross-h, .topo-cross-v { position: absolute; background: hsl(var(--foreground) / .5); pointer-events: none; }
+.topo-cross-h { left: 0; right: 0; top: 50%; height: 1px; } .topo-cross-v { top: 0; bottom: 0; left: 50%; width: 1px; }
+.topo-label { position: absolute; font-family: "Silkscreen", monospace; font-size: 8px; color: hsl(var(--foreground)); pointer-events: none; }
+.topo-label.tl { top: 2px; left: 3px; } .topo-label.br { bottom: 2px; right: 3px; }
+.topo-puck { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: hsl(var(--foreground)); pointer-events: none; }

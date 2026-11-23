@@ -30,6 +30,7 @@ import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
 import { defaultPad, padParams, padRingCap, playPad, type PadParams } from "@/audio/pad";
 import { motionOn, xyAt } from "@/audio/xyMotion";
+import { TOPO_DEFAULT, atRest, anchored, mangleRow, pathAt, type Puck, type Topo } from "@/audio/topomap";
 /** Transport position in 1/16 steps at an audio time (or now), null when stopped. */
 const stepAtTime = (time?: number) => { const t = Tone.getTransport(); if (t.state !== "started") return null; return t.getTicksAtTime(time ?? Tone.immediate()) / (t.PPQ / 4); };
 /** Slot with its XY motion (recorded path / LFO) resolved to the position at `time`. */
@@ -234,6 +235,11 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const [volume, setVolume] = useState(60);
   const [performance, setPerformance] = useState<PerformanceParams>(defaultPerformance);
   const performanceRef = useRef(performance); performanceRef.current = performance;
+  // TOPOMAP: the clean beat mangled by the puck; touch wins over the orbit path, letting go snaps back.
+  const [topo, setTopo] = useState<Topo>(TOPO_DEFAULT); const topoRef = useRef(topo); topoRef.current = topo;
+  const touchRef = useRef<Puck | null>(null); const puckNow = useRef<Puck>({ x: 0, y: 0 });
+  const [puck, setPuckView] = useState<Puck>({ x: 0, y: 0 });
+  const setTouch = useCallback((p: Puck | null) => { touchRef.current = p; if (p) { puckNow.current = p; setPuckView(p); } else if (topoRef.current.path === "FREE") { puckNow.current = { x: 0, y: 0 }; setPuckView({ x: 0, y: 0 }); } }, []);
   const padRefs = useRef<(HTMLButtonElement | null)[]>(Array(16).fill(null));
   const [peaks, setPeaks] = useState<(number[] | null)[]>(() => Array(16).fill(null));
   const [error, setError] = useState("");
@@ -620,7 +626,11 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       const pf = performanceRef.current;
       lastTick.current = { tick, time };
       // XY motion: push the moving position into held/ringing voices that accept live updates (synth, REESE).
-      cb.pattern.forEach((row, i) => {
+      const tp = topoRef.current, pk = touchRef.current ?? (tp.path === "FREE" ? { x: 0, y: 0 } : pathAt(tp.path, tick / (16 * Math.max(1, tp.bars))));
+      puckNow.current = pk; if (!touchRef.current && tp.path !== "FREE") Tone.getDraw().schedule(() => setPuckView(pk), time);
+      const mangled = atRest(pk) ? null : cb.pattern.map((row, i) => (anchored(tp, slotsRef.current[i]?.drum?.kind === "kick" && slotsRef.current[i]?.engine === "drum") ? null : mangleRow(row, cb.lengths[i], tp.law, pk)));
+      cb.pattern.forEach((row0, i) => {
+        const row = mangled?.[i] ?? row0;
         // Offset rotates each row; with a loop crop it slides the cropped window across the row.
         const full = cb.lengths[i], len = pf.loop ? Math.min(full, pf.loop) : full, st = stepAt(tick, full, pf.loop, pf.offset ?? 0);
         const eng = engine.current, slot = slotsRef.current[i], lane = slot.mods?.[bankRef.current], v = row[st];
@@ -1192,7 +1202,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  const commitTopo = useCallback(() => { const pk = puckNow.current; if (atRest(pk)) return; const tp = topoRef.current;
+    setPattern(p => p.map((row, i) => { const sl = slotsRef.current[i]; if (anchored(tp, sl?.drum?.kind === "kick" && sl?.engine === "drum")) return row; const len = banksRef.current[bankRef.current].lengths[i]; const m = mangleRow(row, len, tp.law, pk); return row.map((v, c) => (c < m.length ? m[c] : v)) as typeof row; })); }, [setPattern]);
+  return { topo, setTopo, puck, setTouch, commitTopo, groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 

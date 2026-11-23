@@ -55,3 +55,4 @@
 - adsr releases a note shorter than its attack at its gate from the reached level, and voice stop/release freeze the current curve value with holdAt (cancelAndHoldAtTime) before fading, so stolen or cut voices never snap and click.
 - SURF terrain math is pure in src/audio/terrain.ts and shared by worklet and screen, so the drawn surface is the one you hear.
 - SURF sound comes from the nad-terrain worklet (src/audio/terrainWorklet.ts) in the shared bundle; its inline terrain math must equal terrain.ts, enforced by terrainWorklet.test.ts, so screen and sound never drift.
+- TOPOMAP (topomap.ts) mangles the clean pattern at schedule time via pure puck laws; only COMMIT writes the grid.
