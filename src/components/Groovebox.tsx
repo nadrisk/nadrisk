@@ -107,11 +107,17 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
   </button>)}</div>;
 });
 
-function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void; onNew: () => void }) {
+const PAD_TOOLS_RETIRED = true;
+
+function NewKitButton({ onNew, className }: { onNew: () => void; className: string }) {
   const [sure, setSure] = useState(false);
   useEffect(() => { if (!sure) return; const id = window.setTimeout(() => setSure(false), 3000); return () => window.clearTimeout(id); }, [sure]);
+  return <Button variant="ghost" className={`${className} ${sure ? "selected" : ""}`} aria-label="New blank kit" aria-pressed={sure} onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</Button>;
+}
+
+function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void; onNew: () => void }) {
   return <div className="gb-seq-tools gb-repeat">
-    <button className={`gb-mute ${sure ? "selected" : ""}`} aria-label="New blank kit" onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</button>
+    <NewKitButton className="gb-mute" onNew={onNew} />
     <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
     <div className="gb-banks"><button className={`gb-bank ${repeat.on && !repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && !repeat.latch} aria-label="Repeat momentary" onClick={() => onRepeat({ ...repeat, on: true, latch: false })}>MOMENT</button><button className={`gb-bank ${repeat.on && repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, on: true, latch: true })}>LATCH</button><button className={`gb-bank ${repeat.roll ? "active" : ""}`} aria-pressed={!!repeat.roll} aria-label="Repeat roll" onClick={() => onRepeat({ ...repeat, roll: !repeat.roll })}>ROLL</button></div>
     <button className="gb-cycle" aria-label="Repeat rate" onClick={() => onRepeat({ ...repeat, rate: cyc(Object.keys(RATES), repeat.rate) as RateName })}>{repeat.rate}</button>
@@ -394,16 +400,16 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         <div className="gb-top-segment gb-top-tune" role="group" aria-label="Global tuning"><Button variant="ghost" className="gb-cycle" aria-label="Global tune down" onClick={() => g.setTune(Math.max(-12, g.tune - 1))}>−</Button><Button variant="ghost" className="gb-cycle" aria-label="Global tune reset" title="Double-tap to reset" onDoubleClick={() => g.setTune(0)}>TUNE {g.tune > 0 ? "+" : ""}{g.tune}</Button><Button variant="ghost" className="gb-cycle" aria-label="Global tune up" onClick={() => g.setTune(Math.min(12, g.tune + 1))}>+</Button></div>
       </div>
       <div className="gb-top-system" role="group" aria-label="Key and system">
-        
+        <NewKitButton className="gb-cycle gb-top-new" onNew={g.newBlank} />
         <Button variant="ghost" className="gb-cycle" aria-label="Display theme" disabled={nad || glitching} onClick={() => { if (!nad && !glitching) onThemeChange(nextDisplayTheme(theme)); }}>DISP: {nad ? "LOCK" : DISPLAY_THEMES.find(([value]) => value === theme)?.[1]}</Button>
         <div className="gb-top-segment gb-top-links" role="group" aria-label="Information and visuals"><Button variant="ghost" className="gb-cycle" aria-label="About" aria-pressed={about} onClick={() => setAbout(true)}>ABOUT</Button><Button variant="ghost" className="gb-cycle" aria-label="Quick guide" aria-pressed={info === "help"} onClick={() => setInfo("help")}>HELP</Button></div>
       </div>
     </div>
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
-      <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
+      {!PAD_TOOLS_RETIRED && <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />}
       <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} onRole={g.setPadRole} />
-      {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
+      {!PAD_TOOLS_RETIRED && (g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
       <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
         <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine === "idm" ? "PRC" : s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">

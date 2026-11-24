@@ -60,3 +60,4 @@
 - [x] BARS 1/2/4 (64 steps)
 - [x] Phase 3 — rune sequencer screen (RUNE/GRID, KEY/SCL moved, 64 steps; 8 rune tests + phone/desktop tap checks)
 - [x] Phase 4 — GRID, step sub-pages, Monke, chord/phrase editors disengaged (flags, code kept)
+- [x] Retire the pad repeat/record strip and tuck NEW into aligned top-toolbar rows; confirmation expiry/acceptance and 320px, 757px and desktop alignment checked without errors.
