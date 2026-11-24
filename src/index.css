@@ -1697,3 +1697,10 @@ body.perf-lock { overflow: hidden; }
 .px-select-menu button { height: 26px; flex: none; padding: 0 8px; text-align: left; white-space: nowrap; border: 0; border-bottom: 1px solid hsl(var(--foreground) / .3); background: hsl(var(--background)); color: hsl(var(--foreground)); font: 10px Silkscreen, monospace; border-radius: 0; }
 .px-select-menu button.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .rune-progression-popup .px-select { flex: 1; }
+
+/* pad group assign: readable word badges + assign buttons */
+.gb-pad > .gb-pad-role { font-size: 10px; line-height: 16px; min-width: 34px; padding: 0 4px; letter-spacing: .04em; }
+.gb-pad > .gb-pad-role:empty::before { content: "+"; }
+.rune-assign { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; flex: 1; }
+.rune-assign .gb-cycle { min-height: 26px; }
+.rune-assign .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }

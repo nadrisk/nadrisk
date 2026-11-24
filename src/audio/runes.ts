@@ -4,7 +4,7 @@ export type RuneId = "euclid" | "shift" | "anchor" | "gibbs" | "fibo" | "prime" 
 export type LaneId = "drums" | "bass" | "mod";
 export type PadRole = "rhythm" | "bass" | "arp" | "free";
 export const PAD_ROLES: readonly PadRole[] = ["free", "rhythm", "bass", "arp"];
-export const ROLE_BADGE: Record<PadRole, string> = { free: "—", rhythm: "R", bass: "B", arp: "A" };
+export const ROLE_BADGE: Record<PadRole, string> = { free: "", rhythm: "DRUM", bass: "BASS", arp: "LEAD" };
 /** Saved value → role; anything missing or unknown (older sets) is Free. */
 export const padRoleOf = (v: unknown): PadRole => (PAD_ROLES as readonly unknown[]).includes(v) ? v as PadRole : "free";
 /** Badge tap cycles — → R → B → A → —. */
