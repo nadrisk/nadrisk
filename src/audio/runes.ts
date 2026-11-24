@@ -3,6 +3,12 @@
 export type RuneId = "euclid" | "shift" | "anchor" | "gibbs" | "fibo" | "prime" | "stoch" | "null";
 export type LaneId = "drums" | "bass" | "mod";
 export type PadRole = "rhythm" | "bass" | "arp" | "free";
+export const PAD_ROLES: readonly PadRole[] = ["free", "rhythm", "bass", "arp"];
+export const ROLE_BADGE: Record<PadRole, string> = { free: "—", rhythm: "R", bass: "B", arp: "A" };
+/** Saved value → role; anything missing or unknown (older sets) is Free. */
+export const padRoleOf = (v: unknown): PadRole => (PAD_ROLES as readonly unknown[]).includes(v) ? v as PadRole : "free";
+/** Badge tap cycles — → R → B → A → —. */
+export const nextPadRole = (v: unknown): PadRole => PAD_ROLES[(PAD_ROLES.indexOf(padRoleOf(v)) + 1) % PAD_ROLES.length];
 /** len in beats (1 beat = 4 steps); amt/spd 0..1. arp: on BASS lane, what the arp follows. */
 export type RuneCard = { rune: RuneId; len: number; amt: number; spd: number; arp?: "prog" | "root" };
 

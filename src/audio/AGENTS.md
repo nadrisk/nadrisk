@@ -59,3 +59,4 @@
 - adsr releases a note shorter than its attack at its gate from the reached level, and voice stop/release freeze the current curve value with holdAt (cancelAndHoldAtTime) before fading, so stolen or cut voices never snap and click.
 - TRN is the synth engine with clean.osc = "terrain" (two nad-terrain orbiters in playClean, own TerrainPanel, XY = FREQ/FOLD), so wavetable SYN, filter/env code and saved sets stay shared and untouched.
 - Rune sequencer: runes.ts (card data), runeHarmony.ts (PROG in KEY/SCL), runeCompiler.ts (pure) compile lanes into ordinary bank rows/pitch/mod lanes, so the scheduler never knows about runes; pitch counts toward the 3-target mod cap.
+- Rune pad roles live on slot.padRole (missing = free via padRoleOf), so sets carry them and older sets load Free; the pad badge is a hit-zone inside the pad that never triggers sound.

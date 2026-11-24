@@ -31,3 +31,12 @@ describe("rune compiler", () => {
     expect(c.mods[0][1].values.some(v => Math.abs(v - .5) > .01)).toBe(true);
   });
 });
+
+import { nextPadRole, padRoleOf } from "@/audio/runes";
+describe("pad roles", () => {
+  it("older sets without a role load as Free", () => { expect(padRoleOf(undefined)).toBe("free"); expect(padRoleOf("junk")).toBe("free"); });
+  it("badge tap cycles — → R → B → A → —", () => {
+    expect(nextPadRole(undefined)).toBe("rhythm"); expect(nextPadRole("rhythm")).toBe("bass");
+    expect(nextPadRole("bass")).toBe("arp"); expect(nextPadRole("arp")).toBe("free");
+  });
+});

@@ -1,3 +1,4 @@
+import { padRoleOf, ROLE_BADGE } from "@/audio/runes";
 import { draggedValue, inLengthGrip } from "./stepDrag";
 import MonkeSprite, { MonkeHunter } from "./MonkeSprite";
 import MonkeVisitor from "./MonkeVisitor";
@@ -68,8 +69,8 @@ import UtilitySwitcher, { INITIAL_UTILITY, UTILITY_LABELS, type Utility } from "
 // Bottom ~12% of a pad reads as silent, top ~8% as full, so a fingertip can reach both ends.
 const padYVel = (y: number, b: DOMRect) => Math.round(Math.min(1, Math.max(0, ((1 - (y - b.top) / b.height) - .12) / .8)) * 100) / 100;
 
-const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel }: {
-  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
+const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel, onRole }: {
+  onRole: (i: number) => void; slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
 }) {
   // With pad repeat on, finger height inside the pad sets velocity (bottom = soft, top = loud), drawn as a fill.
   const setVel = (i: number, v: number) => { const el = padRefs.current[i]; if (!el) return; el.style.setProperty("--vel", String(v)); const n = el.querySelector(".gb-pad-velnum"); if (n) n.textContent = `VEL ${Math.round(v * 127)}`; onVel(i, v); };
@@ -78,8 +79,8 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
   // drum apps; cancelling the touch also stops iOS gesture recognisers from holding back fast repeated taps.
   // Mouse and pen keep using pointer events below.
   const grid = useRef<HTMLDivElement>(null);
-  const live = useRef({ onHit, onRelease, velMode, vel: setVel });
-  live.current = { onHit, onRelease, velMode, vel: setVel };
+  const live = useRef({ onHit, onRelease, velMode, vel: setVel, onRole });
+  live.current = { onHit, onRelease, velMode, vel: setVel, onRole };
   // Release a pad only when its last finger lifts, so lifting one finger never cuts a newer tap's sound.
   const fingers = useRef<Set<number>[]>(Array.from({ length: 16 }, () => new Set()));
   const up = (i: number, id: number) => { const f = fingers.current[i]; if (!f.delete(id)) return; if (!f.size) onRelease(i); };
@@ -88,7 +89,7 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
     const el = grid.current; if (!el) return;
     const padOf = (t: Touch) => { const b = (t.target as Element | null)?.closest?.(".gb-pad") as HTMLElement | null; return b ? Number(b.dataset.pad) : -1; };
     const start = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
-      for (const t of Array.from(e.changedTouches)) { const i = padOf(t); if (i < 0) continue; touchPad.current.set(t.identifier, i); fingers.current[i].add(-1 - t.identifier);
+      for (const t of Array.from(e.changedTouches)) { const i = padOf(t); if (i < 0) continue; if ((t.target as Element | null)?.closest?.(".gb-pad-role")) { live.current.onRole(i); continue; } touchPad.current.set(t.identifier, i); fingers.current[i].add(-1 - t.identifier);
         const L = live.current; if (L.velMode) { const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(), v = padYVel(t.clientY, b); L.vel(i, v); } L.onHit(i); } };
     const move = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); const L = live.current; if (!L.velMode) return;
       for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(); L.vel(i, padYVel(t.clientY, b)); } };
@@ -99,9 +100,9 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, []);
 
-  return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+  return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; if ((ev.target as Element).closest(".gb-pad-role")) { onRole(i); return; } ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
-    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? (slot.synth.clean?.osc === "terrain" ? "trn" : "syn") : slot.engine === "idm" ? "prc" : slot.engine}</span>
+    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className={`gb-pad-role ${padRoleOf(slot.padRole) !== "free" ? "on" : ""}`} role="button" aria-label={`Pad ${i + 1} role ${padRoleOf(slot.padRole)}`} title="Rune role: tap to cycle — / R / B / A">{ROLE_BADGE[padRoleOf(slot.padRole)]}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? (slot.synth.clean?.osc === "terrain" ? "trn" : "syn") : slot.engine === "idm" ? "prc" : slot.engine}</span>
   </button>)}</div>;
 });
 
@@ -394,7 +395,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     <div className="gb-fixed-layout">
       <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
       <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
-      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
+      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} onRole={g.setPadRole} />
       {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
       </PatchNode>
       <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
