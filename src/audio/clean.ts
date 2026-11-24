@@ -1,4 +1,6 @@
+import * as Tone from "tone";
 import { ENGINE_TRIM } from "./loudness";
+import { TERRAIN_DEFAULTS } from "./terrain";
 import { WT_ENV_HOME, wtEnvOffset, wtTimes, type WtEnv } from "./wtEnv";
 import { framePair, frameWave, tableNow } from "./wavetable";
 import { wtOsc } from "./wtOsc";
@@ -6,7 +8,8 @@ import { adsr, at, filterEnvAdsr, finish, link, noiseBuffer, type ADSR, type Syn
 
 /** SYN: a clean subtractive voice. WAVE morphs saw > square > triangle > sine; VOICES 1 = mono glide, 2-8 = poly. */
 export type CleanParams = { wave: number; sub: number; detune: number; voices: number; cutoff: number; res: number; envAmt: number; drive: number; env: ADSR; glide: number; /** Filter model: 0 CLEAN, 1 LADDER, 2 SEM, 3 MS20 (missing = CLEAN). */ flt?: number;
-  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number; /** Tempo for WT SYNC (set per trigger, not saved). */ bpm?: number } & Partial<WtEnv>;
+  /** Wavetable id (missing/"basic" = BASIC saw>sqr>tri>sin); WAVE 0-3 is the table position. */ wt?: string; /** Pre-filter noise 0-1. */ noise?: number; /** Pitch envelope semitones (-24..24) and decay seconds. */ pAmt?: number; pDec?: number; /** Tempo for WT SYNC (set per trigger, not saved). */ bpm?: number;
+  /** TRN machine: "terrain" swaps the wavetable oscillators for nad-terrain orbiters (missing = wavetable SYN). */ osc?: "terrain"; tfreq?: number; hold?: number; snow?: number; fold?: number; cx?: number; cy?: number; rad?: number } & Partial<WtEnv>;
 export const defaultClean = (): CleanParams => ({ wave: 0, sub: 0, detune: 0, voices: 8, cutoff: 16000, res: 0, envAmt: 0, drive: 0, env: { a: .005, d: .35, s: .6, r: .3 }, glide: .06, noise: 0, pAmt: 0, pDec: .05, ...WT_ENV_HOME });
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
 const WAVE_OF: Record<string, number> = { sawtooth: 0, square: 1, triangle: 2, sine: 3, additive: 0 };
@@ -25,7 +28,8 @@ export function cleanOf(s?: Partial<SynthParams>): CleanParams {
   const e0 = { ...d.env, ...legacy.env, ...c?.env };
   const p = { ...d, ...legacy, ...c, env: { a: clamp(e0.a, .001, 1), d: clamp(e0.d, .005, 1), s: clamp(e0.s, 0, 1), r: clamp(e0.r, .005, 1) } };
   return { ...p, wave: clamp(p.wave, 0, 3), sub: clamp(p.sub, 0, 1), detune: clamp(p.detune, 0, 1), voices: Math.round(clamp(p.voices, 1, 8)), cutoff: clamp(p.cutoff, 40, 16000), res: clamp(p.res, 0, 1), envAmt: clamp(p.envAmt, 0, 1), drive: clamp(p.drive, 0, 1), glide: clamp(p.glide, 0, .5), flt: Math.round(clamp(p.flt ?? 0, 0, 3)), noise: clamp(p.noise ?? 0, 0, 1), pAmt: clamp(p.pAmt ?? 0, -24, 24), pDec: clamp(p.pDec ?? .05, .002, 1),
-    wA: clamp(p.wA ?? WT_ENV_HOME.wA, .001, 1), wD: clamp(p.wD ?? WT_ENV_HOME.wD, .002, 1), wS: clamp(p.wS ?? 0, 0, 1), wSm: clamp(p.wSm ?? WT_ENV_HOME.wSm, 0, 1), wDp: clamp(p.wDp ?? 0, -1, 1), wLoop: !!p.wLoop, wBi: !!p.wBi };
+    wA: clamp(p.wA ?? WT_ENV_HOME.wA, .001, 1), wD: clamp(p.wD ?? WT_ENV_HOME.wD, .002, 1), wS: clamp(p.wS ?? 0, 0, 1), wSm: clamp(p.wSm ?? WT_ENV_HOME.wSm, 0, 1), wDp: clamp(p.wDp ?? 0, -1, 1), wLoop: !!p.wLoop, wBi: !!p.wBi,
+    tfreq: clamp(p.tfreq ?? TERRAIN_DEFAULTS.freq, 0, 1), hold: clamp(p.hold ?? TERRAIN_DEFAULTS.hold, -1, 1), snow: clamp(p.snow ?? 0, 0, 1), fold: clamp(p.fold ?? 0, 0, 1), cx: clamp(p.cx ?? 0, -1, 1), cy: clamp(p.cy ?? 0, -1, 1), rad: clamp(p.rad ?? .6, .05, 1) };
 }
 
 const driveCache = new Map<number, Float32Array<ArrayBuffer>>();
@@ -60,7 +64,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const tracked = peak ? [...fs, peak] : fs;
   const freqs: AudioParam[] = [], dets: [AudioParam, number][] = [];
   // Each detuned pair is panned apart (and each chord voice gets its own spot), so detune widens in stereo instead of combing in mono.
-  const cents = c.detune * 28, tbl0 = tableNow(c.wt), fac = tbl0?.keys ? tbl0 : null, tbl = fac ? null : tbl0;
+  const cents = c.detune * 28, tbl0 = tableNow(c.wt), terr = c.osc === "terrain", fac = !terr && tbl0?.keys ? tbl0 : null, tbl = fac || terr ? null : tbl0;
   const env = (): WtEnv => ({ ...WT_ENV_HOME, ...cur }), cur: CleanParams = { ...c }, posAt = (el: number) => Math.max(0, Math.min(3, cur.wave + (cur.wDp ? wtEnvOffset(env(), el, cur.bpm ?? 120) : 0))), pos0 = posAt(0);
   const addOsc = (sg: number, gain: number, setWave: (o: OscillatorNode) => void) => { const o = at(ctx.createOscillator(), t), g = ctx.createGain(); setWave(o); o.detune.value = sg * cents; g.gain.value = gain;
     const pn = ctx.createStereoPanner(); pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
@@ -80,7 +84,18 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     [-1, 1].forEach(sg => wt.push([0, 1].map(j => addOsc(sg, fp.weights[j] * .32, o => o.setPeriodicWave(frameWave(ctx, tbl, fp.frames[j])))))); }
   // BASIC: all four waves run per side so a held note morphs live (silent ones sit at gain 0).
   const basicOsc: { g: GainNode; k: number }[] = [];
-  if (!tbl) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * (fac ? .5 : WAVE_GAIN[k]) * .5, o => { if (fac) o.setPeriodicWave(frameWave(ctx, fac, k)); else o.type = WAVES[k]; }).g, k })));
+  // TRN: two nad-terrain orbiters (detune sides, panned apart) read the same 2D surface; native sine only before worklets load.
+  const ters: AudioWorkletNode[] = [], TP = (o: AudioWorkletNode, k: string) => o.parameters.get(k);
+  const terrainSet = (q: CleanParams, n: number, tc: number) => ters.forEach(o => { for (const [k, v] of [["cx", q.cx], ["cy", q.cy], ["radius", q.rad], ["tfreq", q.tfreq], ["hold", q.hold], ["snow", q.snow], ["fold", q.fold]] as const) TP(o, k)?.setTargetAtTime(v ?? 0, n, tc); });
+  if (terr) for (const sg of [-1, 1]) {
+    // Tone wraps the raw context, so the native AudioWorkletNode constructor rejects it; Tone's factory works on both.
+    let o: AudioWorkletNode | null = null; try { o = Tone.getContext().createAudioWorkletNode("nad-terrain", { numberOfInputs: 0, outputChannelCount: [1] }) as unknown as AudioWorkletNode; } catch { o = null; }
+    const g = ctx.createGain(), pn = ctx.createStereoPanner(); g.gain.value = .5; pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
+    if (o && TP(o, "frequency") && TP(o, "detune")) { const dt = TP(o, "detune")!; dt.value = sg * cents; ters.push(o); o.connect(g).connect(pn).connect(mix); nodes.push(o, g, pn); freqs.push(TP(o, "frequency")!); dets.push([dt, sg]);
+      for (const [k, v] of [["cx", c.cx], ["cy", c.cy], ["radius", c.rad], ["tfreq", c.tfreq], ["hold", c.hold], ["snow", c.snow], ["fold", c.fold]] as const) { const q = TP(o, k); if (q) q.value = v ?? 0; } }
+    else { o?.disconnect(); addOsc(sg, .5, n => { n.type = "sine"; }); }
+  }
+  if (!tbl && !terr) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * (fac ? .5 : WAVE_GAIN[k]) * .5, o => { if (fac) o.setPeriodicWave(frameWave(ctx, fac, k)); else o.type = WAVES[k]; }).g, k })));
   // Noise oscillator, pre-filter so the envelope and filter shape it.
   let ng: GainNode | null = null;
   if ((c.noise ?? 0) > 0) { const n = at(ctx.createBufferSource(), t); n.buffer = noiseBuffer(ctx); n.loop = true; n.loopStart = Math.random(); ng = ctx.createGain(); ng.gain.value = (c.noise ?? 0) ** 2 * .35; n.connect(ng).connect(mix); srcs.push(n); nodes.push(n, ng); }
@@ -96,7 +111,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     dets.forEach(([detune]) => pitch.connect(detune)); pitch.connect(sub.detune);
     nodes.push(pitch); srcs.push(pitch);
   }
-  let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => { dead = true; clearInterval(tick); wtn.forEach(o => o.port.postMessage({ stop: 1 })); });
+  let tick = 0; const v = finish(srcs, nodes, adsr(amp.gain, t, c.env, gate, vel * .42 * ENGINE_TRIM.synth), amp, () => { dead = true; clearInterval(tick); wtn.forEach(o => o.port.postMessage({ stop: 1 })); ters.forEach(o => o.port.postMessage({ stop: 1 })); });
   const setPos = (w: number, n: number, tc: number) => {
     if (basicOsc.length) { const m = waveMix(w); basicOsc.forEach(({ g, k }) => g.gain.setTargetAtTime(m[k] * (fac ? .5 : WAVE_GAIN[k]) * .5, n, tc)); }
     if (wtn.length) { wtn.forEach(o => o.parameters.get("pos")?.setTargetAtTime(Math.max(0, Math.min(1, w / 3)), n, tc)); return; }
@@ -126,7 +141,7 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
     if (detune !== undefined && detune !== cur.detune) dets.forEach(([p, s]) => p.setTargetAtTime(s * detune * 28, n, tc));
     if (nc.sub !== undefined) sg.gain.setTargetAtTime(nc.sub * .6, n, tc);
     if (nc.noise !== undefined && ng) ng.gain.setTargetAtTime(nc.noise ** 2 * .35, n, tc);
-    Object.assign(cur, nc); run();
+    Object.assign(cur, nc); if (ters.length) terrainSet(cur, n, tc); run();
     if (nc.wave !== undefined || nc.wDp !== undefined) setPos(posAt(Math.max(0, n - t)), n, tc); };
   return v;
 }

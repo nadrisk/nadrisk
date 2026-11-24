@@ -101,7 +101,7 @@ const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelea
 
   return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
     {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
-    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? "syn" : slot.engine === "idm" ? "prc" : slot.engine}</span>
+    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? (slot.synth.clean?.osc === "terrain" ? "trn" : "syn") : slot.engine === "idm" ? "prc" : slot.engine}</span>
   </button>)}</div>;
 });
 
@@ -118,7 +118,7 @@ function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatPara
 }
 
 /** Targets a row can modulate: filter cutoff, pitch (for glides), and the params of each effect on that pad. */
-const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ["time", "time"], ...(slot.engine === "drum" ? [] : [["pitch", "pitch"]]), ...(slot.engine === "synth" ? [["wave", "wt pos"]] : []),
+const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ["time", "time"], ...(slot.engine === "drum" ? [] : [["pitch", "pitch"]]), ...(slot.engine === "sampler" ? [["start", "smp start"]] : []), ...(slot.engine === "synth" && slot.synth.clean?.osc !== "terrain" ? [["wave", "wt pos"]] : []),
   ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
 
 type View = "note" | "mod" | "vel" | "chance" | "roll" | "cond" | "nudge";

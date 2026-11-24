@@ -51,3 +51,5 @@
 - [x] EQ SCP renamed SPC
 - [x] Crave arp modes
 - [x] Click-free synth envelope on long attacks
+
+- [ ] Sequencer merge: plan how TOPO mangling, CADENCE/LATTICE and polymeter fold into the existing step grid (waiting on planning with you)

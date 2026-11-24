@@ -13,9 +13,12 @@ import { RATES, type RateName } from "@/audio/arp";
 import type { EngineKind, Slot } from "@/hooks/useGroovebox";
 
 const key = (p: Px, s: string, x: number, y: number, w: number, on: boolean) => { if (on) { p.rect(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2, false); } else { p.box(x, y, w, 9); p.text(s, x + Math.round((w - s.length * 4) / 2) + 1, y + 2); } };
-/** Active instruments. Disengaged engines (code kept intact; move back into ENG to restore): ["808","BAS"], ["sampler","SMP"], ["pad","PAD"]. */
-const ENG: [EngineKind, string][] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"]];
-const EW = 42;
+/** Active instruments. TRN is the synth engine with terrain oscillators. Disengaged engines (code kept intact; add back to restore): ["808","BAS"], ["pad","PAD"]. */
+type Eng = [EngineKind, string, boolean?];
+const ENG: Eng[] = [["drum", "DRM"], ["idm", "PRC"], ["synth", "SYN"], ["synth", "TRN", true], ["sampler", "SMP"]];
+const EW = 25;
+const isTerr = (s: Slot) => s.engine === "synth" && s.synth.clean?.osc === "terrain";
+const engOn = (s: Slot, [e, , t]: Eng) => s.engine === e && (e !== "synth" || isTerr(s) === !!t);
 
 function RenameDialog({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (v: string) => void }) {
   const theme = useContext(DisplayThemeContext);
@@ -62,7 +65,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
   return <>
     <Panel name="SLOT" label="Slot" pages={["SET"]} deps={[slot.name, slot.engine, slot.mute, slot.choke, slot.level, slot.pan, clip]} knobs={() => knobs}
     body={p => {
-      ENG.forEach(([e, s], i) => key(p, s, 1 + i * EW, 11, EW, slot.engine === e));
+      ENG.forEach((g, i) => key(p, g[1], 1 + i * EW, 11, EW, engOn(slot, g)));
       p.box(1, 22, 62, 9);
       p.text(name.trimEnd() || "—", 4, 24);
       key(p, slot.mute ? "MUTED" : "MUTE", 64, 22, 31, slot.mute);
@@ -70,7 +73,7 @@ export function SlotScreen({ slot, index = -1, onChange, onCopyBuffer }: { slot:
       key(p, "COPY", 1, 32, 62, false); key(p, padClip ? "PASTE" : "PASTE -", 64, 32, 63, false);
     }}
     extra={() => <>
-      {ENG.map(([e], i) => <Tap key={e} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${e}`} pressed={slot.engine === e} onClick={() => onChange({ engine: e, ...(e !== slot.engine ? { note: defaultInstrumentNote(e), ...(e === "sampler" ? { sampler: { ...slot.sampler, rootNote: SAMPLE_ROOT } } : {}) } : {}) })} />)}
+      {ENG.map((g, i) => { const [e, s, t] = g; return <Tap key={s} x={1 + i * EW} y={11} w={EW} h={9} label={`Instrument ${s}`} pressed={engOn(slot, g)} onClick={() => onChange({ engine: e, ...(e === "synth" ? { synth: { ...slot.synth, clean: { ...slot.synth.clean, osc: t ? "terrain" : undefined } as typeof slot.synth.clean } } : {}), ...(e !== slot.engine ? { note: defaultInstrumentNote(e), ...(e === "sampler" ? { sampler: { ...slot.sampler, rootNote: SAMPLE_ROOT } } : {}) } : {}) })} />; })}
       <Tap x={1} y={22} w={62} h={9} label="Rename slot" onClick={() => setRenaming(true)} />
       <Tap x={64} y={22} w={31} h={9} label="Mute" pressed={slot.mute} onClick={() => onChange({ mute: !slot.mute })} />
       <Tap x={96} y={22} w={31} h={9} label="Choke group" onClick={() => onChange({ choke: (slot.choke + 1) % 5 })} />

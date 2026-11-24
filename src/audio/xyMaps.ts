@@ -28,6 +28,8 @@ export function applyXY(s: Slot): Slot {
   if (Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6) return s;
   if (s.engine === "synth") {
     const c = cleanOf(s.synth);
+    // TRN: the pad sweeps the terrain itself, X = FREQ, Y = FOLD (the worklet slews both per sample).
+    if (c.osc === "terrain") return { ...s, synth: { ...s.synth, clean: { ...c, tfreq: cl((c.tfreq ?? .25) + x, 0, 1), fold: cl((c.fold ?? 0) + y, 0, 1) } } };
     return { ...s, synth: { ...s.synth, clean: { ...c, env: envXY(c.env, x), detune: cl(c.detune + x * .35, 0, 1), sub: cl(c.sub - x * .2, 0, 1), glide: oct(c.glide || .02, x, 0, .5),
       cutoff: oct(c.cutoff, y * 3, 40, 16000), res: cl(c.res + y * .3, 0, 1), envAmt: cl(c.envAmt + y * .35, 0, 1), drive: cl(c.drive + Math.max(0, y) * .45, 0, 1), wave: cl(c.wave - y * 1.5, 0, 3) } } };
   }
@@ -89,7 +91,7 @@ export function commitXY(s: Slot): Partial<Slot> {
 
 /** Short readouts of what the pad is moving, for the XY screen. */
 export function xyLabels(s: Slot): [string, string] {
-  if (s.engine === "synth") return ["ENV DET SUB", "WAVE CUT RES"];
+  if (s.engine === "synth") return s.synth.clean?.osc === "terrain" ? ["FREQ", "FOLD"] : ["ENV DET SUB", "WAVE CUT RES"];
   if (s.engine === "pad") return padPreset(padParams(s.pad).preset).keys ? ["TONE", "DECAY REL"] : ["BRIGHT VOWL", "ATK REL"];
   if (s.engine === "808") return s.bass.mode === "acid" ? ["DEC ENV", "CUT RES"] : s.bass.mode === "reese" ? ["DET WID ENV", "CUT RES SUB"] : ["DEC PENV", "HRM DRV"];
   if (s.engine === "drum") return ["DEC TAIL", "CUT DRV FM"];
