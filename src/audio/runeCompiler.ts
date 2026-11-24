@@ -41,6 +41,34 @@ export function rateHit(c: RuneCard, k: number, n: number, v = 0): 0 | 1 | 2 {
   return hit(c.rune, k, n, c.amt, c.spd, v) ? 2 : 0;
 }
 
+/** Arp rhythm per rune: dense runes run at the card rate, sparse ones fall back to an off-grid variant. */
+function arpHit(c: RuneCard, k: number, n: number): 0 | 1 | 2 {
+  const e = rateSteps(c, true); if (c.rune === "gibbs") return e < 1 || k % Math.max(1, e) === 0 ? 2 : 0;
+  if (c.rune === "null") return k % Math.max(4, Math.round(n / (1 + Math.round(c.amt * 3)))) === 2 ? 1 : 0;
+  return rateHit(c, k, n, 1) || (c.rune === "prime" || c.rune === "fibo" ? 0 : rateHit(c, k, n, 2));
+}
+
+const FIB_BLOCKS = [1, 1, 2, 3, 5, 8, 13];
+/** Which pad (index into the shared list) plays hit i of a card, following the rune's logic. */
+export function hocketOwner(r: RuneId, i: number, k: number, t: number, m: number): number {
+  switch (r) {
+    case "anchor": return k % 4 === 0 ? 0 : 1 + (i % Math.max(1, m - 1));
+    case "shift": return Math.floor(i / 2) % m;
+    case "fibo": { let acc = 0, b = 0; while (acc + FIB_BLOCKS[b % FIB_BLOCKS.length] <= i) { acc += FIB_BLOCKS[b % FIB_BLOCKS.length]; b++; } return b % m; }
+    case "prime": return isPrime(k) ? 0 : 1 + (i % Math.max(1, m - 1));
+    case "stoch": { const x = Math.sin((t + 1) * 37.719 + k * 4.13) * 43758.5453; return Math.floor((x - Math.floor(x)) * m) % m; }
+    default: return i % m; // euclid, gibbs, null: note-by-note ping-pong
+  }
+}
+
+function hocket(pads: number[], rows: Record<number, Row>, sp: ReturnType<typeof spans>, steps: number) {
+  if (pads.length < 2) return; let i = 0, prev: unknown = null, own = pads[0];
+  for (let t = 0; t < steps; t++) { const s = sp[t]; if (s?.c !== prev) { prev = s?.c; i = 0; }
+    const on = pads.some(p => rows[p].pattern[t] === 1);
+    if (on) own = pads[hocketOwner(s ? s.c.rune : "euclid", i++, s ? s.k : t, t, pads.length) % pads.length];
+    for (const p of pads) if (p !== own) rows[p].pattern[t] = 0; }
+}
+
 const blank = (s: number): Row => ({ pattern: Array(s).fill(0), vel: Array(s).fill(1), chance: Array(s).fill(1), ratchet: Array(s).fill(1) });
 
 export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compiled {
@@ -56,17 +84,33 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
 
   basses.forEach(p => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0); let lastHit = -9;
     bS.forEach((s, t) => { const root = rootAt(t); row.pitch![t] = root; if (!s) return; const { c, k, n } = s;
-      if (rune(c.rune).arpPassage && arps.length) return; // bass steps aside for the arp
       const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; row.vel[t] = k % 4 ? 1 - .5 * c.amt : 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
       else if (c.rune === "anchor" && t - lastHit <= Math.round(1 + c.amt * 2) && row.pattern[t - 1]) row.pattern[t] = 2; }); });
 
-  arps.forEach((p, v) => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0);
-    bS.forEach((s, t) => { if (!s || !rune(s.c.rune).arpPassage) return; const { c, k } = s; const deg = c.arp === "root" ? 0 : chordAt(prog, t, steps); const tones = L.notes?.length && c.arp !== "root" ? [0, h.scale === "major" ? 4 : 3, 7].map(v => rootAt(t) + v) : chordTones(h, deg);
-      const e = rateSteps(c, true), every = Math.max(1, e); if (k % every) return; row.pattern[t] = 1; row.vel[t] = (k / every) % 2 ? 1 - .45 * c.amt : 1; if (e < 1) row.ratchet[t] = 2; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
+  // Every rune has an arp personality; the arp fills around bass hits so the two interlock.
+  const bassHit = (t: number) => basses.some(p => rows[p].pattern[t] === 1);
+  const arpLine = blank(steps); arpLine.pitch = Array(steps).fill(0); let walk = 0, ai = 0, prevArpC: unknown = null;
+  bS.forEach((s, t) => { if (!s || !arps.length) return; const { c, k, n } = s; if (c !== prevArpC) { prevArpC = c; ai = 0; walk = 0; }
+    const deg = c.arp === "root" ? 0 : chordAt(prog, t, steps); const tones = L.notes?.length && c.arp !== "root" ? [0, h.scale === "major" ? 4 : 3, 7].map(x => rootAt(t) + x) : chordTones(h, deg);
+    const hh = arpHit(c, k, n); if (!hh || (basses.length && bassHit(t))) return; const i = ai++, T = tones.length;
+    const at = (j: number) => tones[((j % T) + T) % T] + Math.floor(j / T) * 12;
+    let pitch: number;
+    switch (c.rune) {
+      case "euclid": pitch = at(i % (T * 2)); break; // climbing chord tones across pulses
+      case "shift": pitch = at((i + Math.floor(i / T)) % T) + (i % 2) * 12; break; // rotating inversions, octave displaced
+      case "anchor": pitch = i % 2 ? at(1 + (Math.floor(i / 2) % (T + 1))) : at(0); break; // pedal back to the root
+      case "gibbs": pitch = at(i % 2 ? 1 : 0) + (Math.floor(i / 4) % 2) * 12; break; // fast trill ripples
+      case "fibo": pitch = at([0, 1, 2, 4, 7][i % 5]); break; // Fibonacci leaps
+      case "prime": pitch = at([1, 2, 4, 6][i % 4]); break; // angular prime-degree leaps
+      case "stoch": { const x = Math.sin((t + 1) * 91.17) * 43758.5; walk = Math.max(-1, Math.min(T * 2, walk + (x - Math.floor(x) < .5 ? -1 : 1))); pitch = at(walk); break; }
+      default: pitch = at(i % 2 ? 2 : 1); // NULL: sparse suspended tones
+    }
+    arpLine.pattern[t] = 1; arpLine.pitch![t] = pitch; arpLine.vel[t] = i % 2 ? 1 - .45 * c.amt : 1; if (hh === 2) arpLine.ratchet[t] = c.rune === "gibbs" ? 2 + Math.round(c.amt) : 2;
+    if (c.rune === "null" && t + 1 < steps && bS[t + 1]?.c === c) arpLine.pattern[t + 1] = 2; });
+  arps.forEach(p => { rows[p] = { pattern: [...arpLine.pattern], vel: [...arpLine.vel], chance: [...arpLine.chance], ratchet: [...arpLine.ratchet], pitch: [...arpLine.pitch!] }; });
 
-  // Shared roles take turns for timbral variety: bass hands over per phrase (card or bar), arp per note group.
-  if (basses.length > 1) { let seg = -1, prevC: unknown = undefined, prevBar = -1; for (let t = 0; t < steps; t++) { const sp = bS[t], c = sp?.c ?? null, bar = Math.floor((sp ? sp.k : t) / 16); if (c !== prevC || bar !== prevBar) { prevC = c; prevBar = bar; seg++; } const own = basses[seg % basses.length]; for (const p of basses) if (p !== own) rows[p].pattern[t] = 0; } }
-  if (arps.length > 1) { let n = 0; for (let t = 0; t < steps; t++) { if (!arps.some(p => rows[p].pattern[t])) continue; const sp = bS[t], g = sp ? (sp.c.amt < 1 / 3 ? 1 : sp.c.amt < 2 / 3 ? 2 : 4) : 1; const own = arps[Math.floor(n / g) % arps.length]; for (const p of arps) if (p !== own) rows[p].pattern[t] = 0; n++; } }
+  // Shared roles hocket: each rune decides which pad speaks each note.
+  hocket(basses, rows, bS, steps); hocket(arps, rows, bS, steps);
 
   // MOD lane: transforms notes above, then sound/FX targets (capped).
   for (const [pk, row] of Object.entries(rows)) { const p = +pk;

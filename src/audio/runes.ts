@@ -18,7 +18,7 @@ export type RuneRate = typeof RUNE_RATES[number][0];
 /** Steps per pulse; old cards without a rate keep their spd meaning (arp: spd < .5 = 1/8). */
 export const rateSteps = (c: RuneCard, arp = false): number => { const r = RUNE_RATES.find(x => x[0] === c.rate); return r ? r[1] : arp && c.spd < .5 ? 2 : 1; };
 
-export type RuneDef = { id: RuneId; glyph: string; name: string; /** 0 = cannot touch FX, 1 = full. */ fxDepth: number; /** On BASS lane this rune is an arp passage (bass steps aside). */ arpPassage: boolean };
+export type RuneDef = { id: RuneId; glyph: string; name: string; /** 0 = cannot touch FX, 1 = full. */ fxDepth: number; /** On BASS lane this rune is an arp passage (bass steps aside). */ arpPassage: boolean /* legacy, unused: every rune now drives the arp */ };
 export const RUNES: readonly RuneDef[] = [
   { id: "euclid", glyph: "ᛋ", name: "EUCLID", fxDepth: .5, arpPassage: false },
   { id: "shift", glyph: "ᚱ", name: "SHIFT", fxDepth: .5, arpPassage: false },

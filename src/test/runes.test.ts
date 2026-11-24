@@ -15,11 +15,11 @@ describe("rune compiler", () => {
     r.pattern.forEach((v, t) => { if (v === 1) { const roots = [0, 8, 3, 10]; const root = roots[Math.floor(t / 4)]; expect([root, root + 12]).toContain(r.pitch![t]); } });
     expect(r.pitch!.some((p, t) => r.pattern[t] === 1 && p >= 12)).toBe(true);
   });
-  it("bass steps aside while an arp passage plays", () => {
+  it("bass and arp interlock: both play, never on the same step", () => {
     const c = compileRunes(L({ bass: [card("anchor", 2), card("gibbs", 2, .5, 1)] }), roles({ 1: "bass", 2: "arp" }), h);
-    expect(c.rows[1].pattern.slice(8).every(v => v === 0)).toBe(true);
-    expect(c.rows[2].pattern.slice(8).some(v => v === 1)).toBe(true);
-    expect(c.rows[2].pattern.slice(0, 8).every(v => v === 0)).toBe(true);
+    expect(c.rows[1].pattern.some(v => v === 1)).toBe(true);
+    expect(c.rows[2].pattern.slice(0, 8).some(v => v === 1)).toBe(true);
+    c.rows[2].pattern.forEach((v, t) => { if (v === 1) expect(c.rows[1].pattern[t]).not.toBe(1); });
   });
   it("never more than 3 modulation targets per pad, pitch included", () => {
     const c = compileRunes(L({ bass: [card("euclid")], mod: [card("gibbs")], targets: ["cutoff", "time", "fx:rev", "fx:dly"] }), roles({ 0: "rhythm", 1: "bass" }), h);
@@ -103,5 +103,30 @@ describe("AMT is audible", () => {
   for (const r of RUNES) it(`${r.id} changes its hits between 0% and 100%`, () => {
     const at = (a: number) => Array.from({ length: 16 }, (_, k) => hit(r.id, k, 16, a, .5)).join();
     expect(at(0)).not.toBe(at(1));
+  });
+});
+
+import { compileRunes as cr, hocketOwner } from "@/audio/runeCompiler";
+import { RUNES } from "@/audio/runes";
+describe("arp and hocket per rune", () => {
+  const H = { on: true, key: 0, scale: "minor" } as never;
+  it("every rune gives the arp notes alongside the bass", () => {
+    for (const r of RUNES) {
+      const L = { bars: 1, prog: "drone i", drums: [], mod: [], targets: [], bass: [{ rune: r.id, len: 4, amt: .6, spd: .5 }] } as never;
+      const c = cr(L, ["bass", "arp"] as never, H);
+      expect(c.rows[1].pattern.filter(x => x === 1).length, r.id).toBeGreaterThan(0);
+      c.rows[1].pattern.forEach((x, t) => { if (x === 1) expect(c.rows[0].pattern[t], r.id).not.toBe(1); });
+    }
+  });
+  it("shared arp pads hocket and never play together", () => {
+    for (const r of RUNES) {
+      const L = { bars: 1, prog: "drone i", drums: [], mod: [], targets: [], bass: [{ rune: r.id, len: 4, amt: .9, spd: .5 }] } as never;
+      const c = cr(L, ["arp", "arp"] as never, H);
+      c.rows[0].pattern.forEach((x, t) => expect(x === 1 && c.rows[1].pattern[t] === 1).toBe(false));
+    }
+  });
+  it("anchor gives downbeats to the first pad, prime gives prime steps to the first pad", () => {
+    expect(hocketOwner("anchor", 3, 4, 4, 2)).toBe(0); expect(hocketOwner("anchor", 3, 5, 5, 2)).toBe(1);
+    expect(hocketOwner("prime", 2, 7, 7, 2)).toBe(0); expect(hocketOwner("prime", 2, 8, 8, 2)).toBe(1);
   });
 });
