@@ -1705,10 +1705,18 @@ body.perf-lock { overflow: hidden; }
 .rune-assign .gb-cycle { min-height: 26px; }
 .rune-assign .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 
-/* Phones: 2/4-bar layouts scroll sideways at a fixed beat width so cards stay touchable. */
+/* Lane labels sit in a fixed column; tracks scroll together inside one framed viewport. */
+.rune-lanes { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px; }
+.rune-labels, .rune-viewport { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rune-labels .rune-lane-label { height: 50px; width: 100%; }
+.rune-viewport .rune-lane { display: block; }
 @media (max-width: 640px) {
-  .rune-lanes { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
-  .rune-lane { min-width: calc(var(--beats) * 44px); }
-  .rune-lane-label { position: sticky; left: 0; width: min(100%, calc(100vw - 40px)); }
-  .rune-track { touch-action: pan-x; }
+  .rune-lanes { grid-template-columns: 54px minmax(0, 1fr); }
+  .rune-labels .rune-lane-label { height: 44px; padding: 0 2px; justify-content: center; text-align: center; white-space: normal; line-height: 1.1; }
+  .rune-track { grid-template-rows: 44px; }
+  .rune-viewport { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border: 1px solid hsl(var(--foreground)); padding: 0; gap: 0; }
+  .rune-viewport .rune-lane { min-width: calc(var(--beats) * 44px); }
+  .rune-viewport .rune-track { touch-action: pan-x; border-width: 0 0 1px 0; }
+  .rune-viewport .rune-lane:last-child .rune-track { border-bottom: 0; }
+  .rune-labels { gap: 1px; padding: 1px 0; }
 }
