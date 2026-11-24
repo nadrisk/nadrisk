@@ -1,7 +1,7 @@
 // Independently positioned rune cards; each grid slot is one beat.
 import { useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, type RuneCard, type RuneId, type LaneId, type PadRole } from "@/audio/runes";
+import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, mangleLayout, mangleShift, type RuneCard, type RuneId, type LaneId, type PadRole } from "@/audio/runes";
 import { PROG_NAMES } from "@/audio/runeHarmony";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
 import { draggedValue } from "./stepDrag";
@@ -11,14 +11,19 @@ import type { Slot } from "@/hooks/useGroovebox";
 
 export const emptyRunes = (): RuneLayout => ({ bars: 1, prog: PROG_NAMES[0], drums: [], bass: [], mod: [], targets: [] });
 const LANES: { id: LaneId; label: string }[] = [{ id: "drums", label: "DRUMS" }, { id: "bass", label: "BASS·LEAD" }, { id: "mod", label: "MOD" }];
-export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign }: { assign?: PadRole | null; setAssign?: (r: PadRole | null) => void; layout: RuneLayout; onChange: (L: RuneLayout) => void; slots: Slot[]; step: number }) {
+export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign }: { assign?: PadRole | null; setAssign?: (r: PadRole | null) => void; layout: RuneLayout; onChange: (L: RuneLayout, saved?: RuneLayout) => void; slots: Slot[]; step: number }) {
   const [active, setActive] = useState<LaneId>("drums");
   const [sel, setSel] = useState<{ lane: LaneId; i: number } | null>(null);
   const [dragging, setDragging] = useState<RuneId | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; lane?: LaneId; beat?: number; ok?: boolean; swap?: boolean; len?: number } | null>(null);
   const dockDrag = useRef<{ id: number; rune: RuneId; x: number; y: number; moved: boolean } | null>(null);
   const beats = layout.bars * 4, beat = step < 0 ? -1 : Math.floor((step % (beats * 4)) / 4);
-  const set = (lane: LaneId, cards: RuneCard[]) => onChange({ ...layout, [lane]: cards });
+  const [xy, setXy] = useState({ x: 0, y: 0 }), [hold, setHold] = useState(false), xyRef = useRef({ x: 0, y: 0 }), xyPad = useRef<number | null>(null);
+  const commit = (L: RuneLayout, p = xyRef.current) => p.x || p.y ? onChange(mangleLayout(L, p.x, p.y), L) : onChange(L);
+  const set = (lane: LaneId, cards: RuneCard[]) => commit({ ...layout, [lane]: cards });
+  // Recompile only when a rate notch changes; the scheduler picks new rows up on its next step, so speed changes land on the grid.
+  const setMangle = (p: { x: number; y: number }) => { const o = xyRef.current, k = (q: typeof p) => `${mangleShift(q.x)}${mangleShift(q.y)}${mangleShift(Math.min(1, Math.hypot(q.x, q.y)))}`; xyRef.current = p; setXy(p); if (k(o) !== k(p)) commit(layout, p); };
+  const xyAt = (e: React.PointerEvent<HTMLElement>) => { const r = e.currentTarget.getBoundingClientRect(), c = (v: number) => Math.max(-1, Math.min(1, v)); return { x: c(((e.clientX - r.left) / r.width) * 2 - 1), y: c(1 - ((e.clientY - r.top) / r.height) * 2) }; };
   const place = (lane: LaneId, id: RuneId, at?: number) => {
     const cards = positioned(layout[lane]), start = at ?? firstFree(cards, beats);
     if (start === undefined || start < 0 || start >= beats) return;
@@ -31,18 +36,18 @@ export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign
   const cur = sel ? layout[sel.lane][sel.i] : undefined;
   const edit = (p: Partial<RuneCard>) => { if (sel && cur) set(sel.lane, positioned(layout[sel.lane]).map((c, i) => i === sel.i ? { ...c, ...p } : c)); };
   const remove = (lane: LaneId, i: number) => { set(lane, positioned(layout[lane]).filter((_, j) => j !== i)); setSel(null); };
-  const drag = useRef<{ id: number; lane: LaneId; i: number; mode: "len" | "amt"; x: number; y: number; w: number; len: number; amt: number; max: number; moved: boolean } | null>(null);
+  const drag = useRef<{ id: number; lane: LaneId; i: number; mode: "len" | "amt" | "move"; x: number; y: number; w: number; len: number; amt: number; max: number; start: number; lo: number; hi: number; moved: boolean } | null>(null);
   const down = (ev: React.PointerEvent<HTMLButtonElement>, lane: LaneId, i: number) => {
     const parent = ev.currentTarget.parentElement; if (!parent) return;
     const cards = positioned(layout[lane]), c = cards[i], r = ev.currentTarget.getBoundingClientRect();
-    const next = Math.min(beats, ...cards.filter((x, j) => j !== i && x.start >= c.start + c.len).map(x => x.start));
+    const next = Math.min(beats, ...cards.filter((x, j) => j !== i && x.start >= c.start + c.len).map(x => x.start)), prev = Math.max(0, ...cards.filter((x, j) => j !== i && x.start + x.len <= c.start).map(x => x.start + x.len));
     ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); setActive(lane);
-    drag.current = { id: ev.pointerId, lane, i, mode: ev.clientX >= r.right - Math.min(10, r.width / 3) ? "len" : "amt", x: ev.clientX, y: ev.clientY, w: parent.getBoundingClientRect().width / beats, len: c.len, amt: c.amt, max: next - c.start, moved: false };
+    drag.current = { id: ev.pointerId, lane, i, mode: ev.clientX >= r.right - Math.min(10, r.width / 3) ? "len" : "amt", x: ev.clientX, y: ev.clientY, w: parent.getBoundingClientRect().width / beats, len: c.len, amt: c.amt, max: next - c.start, start: c.start, lo: prev, hi: next - c.len, moved: false };
   };
   const move = (ev: React.PointerEvent) => {
     const d = drag.current; if (!d || d.id !== ev.pointerId) return;
-    const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (!d.moved && Math.hypot(dx, dy) < 5) return; d.moved = true;
-    const p = d.mode === "len" ? { len: Math.max(1, Math.min(d.max, d.len + Math.round(dx / d.w))) } : { amt: draggedValue(d.amt, -dy) };
+    const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (!d.moved && Math.hypot(dx, dy) < 5) return; if (!d.moved && d.mode === "amt" && Math.abs(dx) > Math.abs(dy)) d.mode = "move"; d.moved = true;
+    const p = d.mode === "move" ? { start: Math.max(d.lo, Math.min(d.hi, d.start + Math.round(dx / d.w))) } : d.mode === "len" ? { len: Math.max(1, Math.min(d.max, d.len + Math.round(dx / d.w))) } : { amt: draggedValue(d.amt, -dy) };
     set(d.lane, positioned(layout[d.lane]).map((c, i) => i === d.i ? { ...c, ...p } : c)); setSel({ lane: d.lane, i: d.i });
   };
   const up = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; drag.current = null; if (!d.moved) { const now = performance.now(), t = lastTap.current; if (t && t.lane === d.lane && t.i === d.i && now - t.at < 350) { lastTap.current = null; remove(d.lane, d.i); return; } lastTap.current = { lane: d.lane, i: d.i, at: now }; setSel({ lane: d.lane, i: d.i }); setActive(d.lane); } else lastTap.current = null; };
@@ -70,6 +75,15 @@ export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign
         setGhost({ x: e.clientX, y: e.clientY, lane, beat: b, ok, swap, len: swap ? positioned(layout[lane!]).find(c => c.start === b)?.len : 1 }); }}
       onPointerUp={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; dockDrag.current = null; setDragging(null); setGhost(null); if (!d.moved) { place(active, r.id); return; } const track = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".rune-track"); const lane = track?.dataset.runeLane as LaneId | undefined; if (track && lane) { const rect = track.getBoundingClientRect(); place(lane, r.id, Math.floor((e.clientX - rect.left) / rect.width * beats)); } }}
       onPointerCancel={() => { dockDrag.current = null; setDragging(null); setGhost(null); }} onClick={e => { if (e.detail === 0) place(active, r.id); }}><b>{r.glyph}</b><span>{r.name}</span></Button>)}</div>
+    <div className="rune-mxy-wrap"><div className="rune-mxy" role="group" aria-label="Sequence mangler" aria-valuetext={`X ${xy.x.toFixed(2)} Y ${xy.y.toFixed(2)}`} tabIndex={0}
+      onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); xyPad.current = e.pointerId; setMangle(xyAt(e)); }}
+      onPointerMove={e => { if (xyPad.current === e.pointerId) setMangle(xyAt(e)); }}
+      onPointerUp={e => { if (xyPad.current !== e.pointerId) return; xyPad.current = null; if (!hold) setMangle({ x: 0, y: 0 }); }}
+      onPointerCancel={() => { xyPad.current = null; if (!hold) setMangle({ x: 0, y: 0 }); }}
+      onDoubleClick={() => setMangle({ x: 0, y: 0 })}>
+      <i className="rune-mxy-h" aria-hidden /><i className="rune-mxy-v" aria-hidden /><span className="rune-mxy-dot" style={{ left: `${(xy.x + 1) * 50}%`, top: `${(1 - xy.y) * 50}%` }} aria-hidden />
+      <small className="rune-mxy-lx">DRUM {mangleShift(xy.x) > 0 ? "+" : ""}{mangleShift(xy.x)}</small><small className="rune-mxy-ly">LEAD {mangleShift(xy.y) > 0 ? "+" : ""}{mangleShift(xy.y)}</small><small className="rune-mxy-lm">MOD +{mangleShift(Math.min(1, Math.hypot(xy.x, xy.y)))}</small>
+    </div><div className="rune-mxy-side"><button type="button" className={`rune-edit-btn ${hold ? "on" : ""}`} aria-pressed={hold} aria-label="Mangler hold" onClick={() => { if (hold) setMangle({ x: 0, y: 0 }); setHold(!hold); }}>{hold ? "HOLD" : "SPRING"}</button><button type="button" className="rune-edit-btn" aria-label="Centre mangler" onClick={() => setMangle({ x: 0, y: 0 })}>CTR</button></div></div>
     {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
       <div className="rune-edit-row">
         <PxSelect className="rune-edit-pick" label="Rune to edit" value={`${sel.lane}:${sel.i}`} options={LANES.flatMap(L => layout[L.id].map((c, i) => [`${L.id}:${i}`, `${L.label} ${i + 1} ${rune(c.rune).name}`] as [string, string]))} onChange={v => { const [lane, i] = v.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }} />

@@ -37,3 +37,10 @@ export function positioned(cards: RuneCard[]) { let end = 0; return cards.map(c 
 export function firstFree(cards: RuneCard[], beats: number) { const placed = positioned(cards); return Array.from({ length: beats }, (_, i) => i).find(i => !placed.some(c => i >= c.start && i < c.start + c.len)); }
 export const newRune = (id: RuneId, start: number): RuneCard => ({ rune: id, start, len: 1, amt: .5, spd: .5, rate: "1/16", targets: RUNE_TARGETS[id].slice(0, 2) });
 export const card = (r: RuneId, len = 4, amt = .5, spd = .5, arp?: "prog" | "root"): RuneCard => ({ rune: r, len, amt, spd, ...(arp ? { arp } : {}) });
+
+/** XY mangler: X shifts DRUMS card rates, Y shifts BASS·LEAD, distance from centre speeds MOD; each axis moves -2..+2 rate notches (right/up = faster). */
+export const mangleShift = (v: number) => Math.max(-2, Math.min(2, Math.round(v * 2)));
+export function mangleLayout<L extends { drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[] }>(L: L, x: number, y: number): L {
+  const sh = (cards: RuneCard[], s: number) => s ? cards.map(c => { const i = RUNE_RATES.findIndex(r => r[0] === (c.rate ?? "1/16")); return { ...c, rate: RUNE_RATES[Math.max(0, Math.min(RUNE_RATES.length - 1, i + s))][0] }; }) : cards;
+  return { ...L, drums: sh(L.drums, mangleShift(x)), bass: sh(L.bass, mangleShift(y)), mod: sh(L.mod, mangleShift(Math.min(1, Math.hypot(x, y)))) };
+}

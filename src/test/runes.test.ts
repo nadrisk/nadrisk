@@ -138,3 +138,12 @@ describe("SNAKE rune", () => {
     expect(new Set(orders.map(o => o.join())).size).toBe(5);
   });
 });
+
+import { mangleLayout as _mangle } from "@/audio/runes";
+describe("XY mangler", () => {
+  const card = (rate?: any) => ({ rune: "euclid" as const, len: 1, amt: .5, spd: .5, start: 0, rate });
+  const L = { drums: [card()], bass: [card("1/8")], mod: [card("1/4")] };
+  it("centre leaves every lane unchanged", () => { const m = _mangle(L, 0, 0); expect(m.drums[0].rate ?? "1/16").toBe("1/16"); expect(m.bass[0].rate).toBe("1/8"); expect(m.mod[0].rate).toBe("1/4"); });
+  it("X speeds drums only, Y slows bass only", () => { const m = _mangle(L, 1, 0); expect(m.drums[0].rate).toBe("1/32"); expect(m.bass[0].rate).toBe("1/8"); const n = _mangle(L, 0, -1); expect(n.bass[0].rate).toBe("1/2"); expect(n.drums[0].rate ?? "1/16").toBe("1/16"); });
+  it("distance speeds MOD", () => { expect(_mangle(L, 0, -1).mod[0].rate).toBe("1/16"); });
+});

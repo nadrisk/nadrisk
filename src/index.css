@@ -1720,3 +1720,12 @@ body.perf-lock { overflow: hidden; }
   .rune-viewport .rune-lane:last-child .rune-track { border-bottom: 0; }
   .rune-labels { gap: 1px; padding: 1px 0; }
 }
+.rune-edit-btn.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.rune-mxy-wrap { display: grid; grid-template-columns: 1fr 72px; gap: 4px; margin-top: 4px; }
+.rune-mxy { position: relative; height: 120px; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); touch-action: none; cursor: crosshair; overflow: hidden; }
+.rune-mxy-h, .rune-mxy-v { position: absolute; background: hsl(var(--foreground) / .35); pointer-events: none; }
+.rune-mxy-h { left: 0; right: 0; top: 50%; height: 1px; } .rune-mxy-v { top: 0; bottom: 0; left: 50%; width: 1px; }
+.rune-mxy-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: hsl(var(--foreground)); pointer-events: none; }
+.rune-mxy small { position: absolute; font: 9px Silkscreen, monospace; color: hsl(var(--foreground)); pointer-events: none; }
+.rune-mxy-lx { right: 3px; bottom: 2px; } .rune-mxy-ly { left: 3px; top: 2px; } .rune-mxy-lm { left: 3px; bottom: 2px; }
+.rune-mxy-side { display: grid; grid-auto-rows: 1fr; gap: 4px; } .rune-mxy-side .rune-edit-btn { height: auto; min-width: 0; }

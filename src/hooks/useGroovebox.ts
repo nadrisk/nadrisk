@@ -1048,9 +1048,9 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (first) setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, k) => k % NBANKS === bi ? { ...m, values: dup(m.values) } : m) })));
   }, [editBank, snap]);
   /** Rune sequencer: compile the lanes and write ordinary step data for role pads in the current bank (Free pads untouched). */
-  const applyRunes = useCallback((L: RuneLayout) => {
+  const applyRunes = useCallback((L: RuneLayout, saved?: RuneLayout) => {
     const bi = bankRef.current, c = compileRunes(L, slotsRef.current.map(x => padRoleOf(x.padRole)), harmonyRef.current), st = c.steps as 16 | 32 | 64;
-    editBank(b => { const nb: Bank = { ...b, runes: L, steps: st, pattern: b.pattern.slice(), vel: b.vel.slice(), chance: b.chance.slice(), ratchet: (b.ratchet ?? ones()).slice(), lengths: b.lengths.slice(), ...(b.cond ? { cond: b.cond.slice() } : {}), ...(b.nudge ? { nudge: b.nudge.slice() } : {}) };
+    editBank(b => { const nb: Bank = { ...b, runes: saved ?? L, steps: st, pattern: b.pattern.slice(), vel: b.vel.slice(), chance: b.chance.slice(), ratchet: (b.ratchet ?? ones()).slice(), lengths: b.lengths.slice(), ...(b.cond ? { cond: b.cond.slice() } : {}), ...(b.nudge ? { nudge: b.nudge.slice() } : {}) };
       for (const [k, row] of Object.entries(c.rows)) { const p = +k, fit = <T,>(a: T[], f: T) => Array.from({ length: STEPS }, (_, t) => t < a.length ? a[t] : f);
         nb.pattern[p] = fit(row.pattern as StepVal[], 0 as StepVal); nb.vel[p] = fit(row.vel, 1); nb.chance[p] = fit(row.chance, 1); nb.ratchet![p] = fit(row.ratchet, 1); nb.lengths[p] = st;
         if (nb.cond) nb.cond[p] = Array(STEPS).fill(0); if (nb.nudge) nb.nudge[p] = Array(STEPS).fill(.5); }
