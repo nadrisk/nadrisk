@@ -1606,10 +1606,10 @@ body.perf-lock { overflow: hidden; }
 .rune-card { grid-row: 1; z-index: 1; margin: 3px 1px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; line-height: 1.1; cursor: pointer; }
 .rune-card b, .rune-pick b { font-size: 14px; font-weight: 400; }
 .rune-card.on, .rune-pick.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-.rune-dock { display: grid; grid-template-columns: repeat(8, 1fr); }
+.rune-dock { display: grid; grid-template-columns: repeat(9, 1fr); }
 .rune-pick { display: flex; flex-direction: column; align-items: center; padding: 3px 0; border: 1px solid hsl(var(--foreground) / .8); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; }
 .rune-view-switch { display: flex; gap: 4px; padding: 6px 6px 0; }
-@media (max-width: 640px) { .rune-dock { grid-template-columns: repeat(4, 1fr); } .rune-lane { grid-template-columns: 1fr; } .rune-lane-label { padding: 2px 4px; } }
+@media (max-width: 640px) { .rune-dock { grid-template-columns: repeat(3, 1fr); } .rune-lane { grid-template-columns: 1fr; } .rune-lane-label { padding: 2px 4px; } }
 
 /* Rune-only sequencer: two header screens and full-width lanes, so no column is left empty. */
 .instrument-workspace .gb-seq-controls .px-strip.gb-seq-trio.duo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1666,7 +1666,7 @@ body.perf-lock { overflow: hidden; }
 @media (max-width: 640px) {
   .rune-lane { grid-template-columns: 54px minmax(0, 1fr); }
   .rune-lane-label { font-size: 8px; }
-  .rune-dock { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rune-dock { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rune-card b { font-size: 14px; }
   .rune-grip { width: 5px; }
 }
