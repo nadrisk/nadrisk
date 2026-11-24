@@ -55,6 +55,7 @@
 - [ ] Sequencer merge: plan how TOPO mangling, CADENCE/LATTICE and polymeter fold into the existing step grid (waiting on planning with you)
 
 ## Rune sequencer (plan: .lovable/plan/rune-sequencer-agreed-build-plan-2026-11-24.md)
+- [x] Independent one-beat rune placement/insertion, drag/click add and tap removal, white amount fill, rune-specific targets, user note progression beside SCL, and retired Phrase/layout cleanup; desktop/phone layouts, interactions and assigned-pad playback checked.
 - [x] Phase 1 — rune engine + tests (no visible change)
 - [x] Phase 2 — pad roles (badge cycles — R B A, saved with sets; 7 tests + live tap check)
 - [x] BARS 1/2/4 (64 steps)

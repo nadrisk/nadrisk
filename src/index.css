@@ -1627,3 +1627,46 @@ body.perf-lock { overflow: hidden; }
 .rune-rates { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; flex: 1 1 260px; }
 .rune-rates .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 @media (max-width: 640px) { .rune-prog { grid-template-columns: auto auto auto; } .rune-degs { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Independent rune cells and compact, aligned controls. */
+.rune-track { min-width: 0; grid-template-rows: 48px; }
+.rune-lane { grid-template-columns: 72px minmax(0, 1fr) 28px; gap: 4px; }
+.rune-lane-label, .rune-settings-key { height: auto; min-width: 0; border: 1px solid hsl(var(--foreground)); border-radius: 0; padding: 0 4px; font: 9px Silkscreen, monospace; }
+.rune-lane-label.active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.rune-card { height: auto; min-width: 0; padding: 0; border-radius: 0; transition: none; gap: 0; }
+.rune-card.editing { outline: 1px solid hsl(var(--foreground)); outline-offset: 1px; }
+.instrument-workspace .rune-settings-key svg { display: block; }
+.instrument-workspace button.rune-card:active { background: hsl(var(--background)) !important; color: hsl(var(--foreground)) !important; }
+.rune-card:hover { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.rune-card > b { mix-blend-mode: difference; color: hsl(var(--rune-ink)); font-size: 18px; }
+.rune-fill { background: hsl(var(--foreground)); }
+.rune-grip { border-left-color: hsl(var(--foreground)); width: 7px; mix-blend-mode: difference; }
+.rune-pick { height: 44px; border-radius: 0; gap: 0; min-width: 0; touch-action: none; transition: none; user-select: none; }
+.rune-pick.dragging { outline: 2px solid hsl(var(--foreground)); }
+.rune-view-switch { align-items: stretch; flex-wrap: wrap; gap: 4px; padding: 6px; border-bottom: 1px solid hsl(var(--foreground)); }
+.rune-view-switch > .gb-cycle, .rune-progression-control > .gb-cycle { height: 30px; min-height: 30px; padding: 0 6px; font-size: 10px; border: 1px solid hsl(var(--foreground)); border-radius: 0; }
+.rune-progression-control { position: relative; min-width: 0; flex: 1; }
+.rune-progression-control > .gb-cycle { width: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; height: auto; }
+.rune-progression-popup { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; width: min(360px, 80vw); padding: 8px; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); font: 10px Silkscreen, monospace; }
+.rune-progression-notes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.rune-progression-popup label, .rune-targets label, .rune-speed { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.rune-progression-popup select, .rune-edit select { min-width: 0; max-width: 100%; height: 28px; border: 1px solid hsl(var(--foreground)); border-radius: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font: 10px Silkscreen, monospace; padding: 0 3px; }
+.rune-progression-popup select { flex: 1; }
+.rune-targets { display: flex; flex: 1 1 220px; gap: 4px; min-width: 0; }
+.rune-targets label { flex: 1; font-size: 9px; }
+.rune-targets select { width: 100%; }
+.rune-edit > select { flex: 1 1 170px; }
+.rune-edit { border-top: 1px solid hsl(var(--foreground)); padding-top: 4px; }
+.instrument-workspace { --rune-ink: 0 0% 100%; }
+@media (min-width: 1024px) and (pointer: fine) {
+  .instrument-workspace .gb-device-surface.phrase-retired { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .phrase-retired > .device-fx, .phrase-retired > .device-master, .phrase-retired > .device-memory { grid-column: span 2; }
+  .phrase-retired > .device-tape, .phrase-retired > .device-midi { grid-column: span 3; }
+}
+@media (max-width: 640px) {
+  .rune-lane { grid-template-columns: 54px minmax(0, 1fr) 24px; }
+  .rune-lane-label { font-size: 8px; }
+  .rune-dock { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rune-card b { font-size: 14px; }
+  .rune-grip { width: 5px; }
+}

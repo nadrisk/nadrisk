@@ -624,15 +624,16 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
         let semiAt = 0, cutMod = false;
         timeMod.current[i] = 1; startMod.current[i] = null; waveMod.current[i] = null;
         for (let li = 0; li < MOD_LANES; li++) { const lane = slot.mods?.[bankRef.current + li * NBANKS];
-        if (lane?.on && lane.target === "cutoff") cutMod = true;
+        const target = lane?.targets?.[st] ?? lane?.target;
+        if (lane?.on && target === "cutoff") cutMod = true;
         if (eng && lane?.on && v !== 0) {
           const value = lane.values[st] ?? .5;
-          if (lane.target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
-          else if (lane.target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
-          else if (lane.target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value, lane.range) - slot.note;
-          else if (lane.target === "start") startMod.current[i] = Math.min(.98, value);
-          else if (lane.target === "wave") waveMod.current[i] = value * 3;
-          else { const [id, param] = lane.target.split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
+          if (target === "cutoff") eng.outs[i].filter.frequency.setTargetAtTime(40 * 500 ** value, time, .005);
+          else if (target === "time") timeMod.current[i] = 2 ** ((value - .5) * 4);
+          else if (target === "pitch") semiAt = modPitchNote(harmonyRef.current, slot.note, value, lane.range) - slot.note;
+          else if (target === "start") startMod.current[i] = Math.min(.98, value);
+          else if (target === "wave") waveMod.current[i] = value * 3;
+          else { const [id, param] = (target ?? "off").split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
             if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
         } }
         if (eng && !cutMod) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
@@ -1054,8 +1055,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       return nb; });
     const key = harmonyRef.current.key;
     setSlots(sl => { const n = sl.map((x, i) => { const row = c.rows[i]; if (!row) return x; const lanes: (Partial<ModLane> | null)[] = [];
-      if (row.pitch) { const base = (((x.note - key) % 12) + 12) % 12; lanes.push({ target: "pitch", range: 24, values: Array.from({ length: STEPS }, (_, t) => t < row.pitch!.length ? (Math.max(-24, Math.min(24, row.pitch![t] - base)) + 24) / 48 : .5) }); }
-      for (const m of c.mods[i] ?? []) lanes.push({ target: m.target, range: undefined, values: Array.from({ length: STEPS }, (_, t) => m.values[t] ?? .5) });
+      if (row.pitch) { const base = (((x.note - key) % 12) + 12) % 12; lanes.push({ target: "pitch", targets: undefined, range: 24, values: Array.from({ length: STEPS }, (_, t) => t < row.pitch!.length ? (Math.max(-24, Math.min(24, row.pitch![t] - base)) + 24) / 48 : .5) }); }
+      for (const m of c.mods[i] ?? []) lanes.push({ target: m.target, targets: m.targets, range: undefined, values: Array.from({ length: STEPS }, (_, t) => m.values[t] ?? .5) });
       return { ...x, mods: x.mods.map((m, k) => { if (k % NBANKS !== bi) return m; const li = Math.floor(k / NBANKS), l = lanes[li]; return l ? { ...m, ...l, on: true } : { ...m, on: false }; }) }; });
       slotsRef.current = n; return n; });
   }, [editBank]);

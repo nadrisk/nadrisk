@@ -11,7 +11,7 @@ export const padRoleOf = (v: unknown): PadRole => (PAD_ROLES as readonly unknown
 export const nextPadRole = (v: unknown): PadRole => PAD_ROLES[(PAD_ROLES.indexOf(padRoleOf(v)) + 1) % PAD_ROLES.length];
 /** len in beats (1 beat = 4 steps); amt/spd 0..1. arp: on BASS lane, what the arp follows. */
 /** rate: note value the card runs at (missing = legacy spd behaviour). */
-export type RuneCard = { rune: RuneId; len: number; amt: number; spd: number; arp?: "prog" | "root"; rate?: RuneRate };
+export type RuneCard = { rune: RuneId; len: number; amt: number; spd: number; start?: number; targets?: string[]; arp?: "prog" | "root"; rate?: RuneRate };
 /** Card speed selector, slowest to fastest; value = steps (16ths) per pulse. */
 export const RUNE_RATES = [["2", 32], ["1", 16], ["1/2", 8], ["1/4", 4], ["1/8", 2], ["1/16", 1], ["1/32", .5]] as const;
 export type RuneRate = typeof RUNE_RATES[number][0];
@@ -29,5 +29,10 @@ export const RUNES: readonly RuneDef[] = [
   { id: "stoch", glyph: "ᚺ", name: "STOCH", fxDepth: .25, arpPassage: false },
   { id: "null", glyph: "ᛝ", name: "NULL", fxDepth: 1, arpPassage: false },
 ];
-export const rune = (id: RuneId) => RUNES.find(r => r.id === id)!;
+export const rune = (id: RuneId) => RUNES.find(r => r.id === id) ?? RUNES[0];
+export const RUNE_TARGETS: Record<RuneId, string[]> = { euclid: ["cutoff", "time"], shift: ["time", "wave"], anchor: ["cutoff"], gibbs: ["cutoff", "time", "wave"], fibo: ["wave", "cutoff"], prime: ["time", "start"], stoch: ["cutoff", "start", "wave"], null: ["time", "cutoff"] };
+/** Explicit starts keep gaps; old cards retain their end-to-end placement. */
+export function positioned(cards: RuneCard[]) { let end = 0; return cards.map(c => { const start = c.start ?? end; end = start + c.len; return { ...c, start }; }); }
+export function firstFree(cards: RuneCard[], beats: number) { const placed = positioned(cards); return Array.from({ length: beats }, (_, i) => i).find(i => !placed.some(c => i >= c.start && i < c.start + c.len)); }
+export const newRune = (id: RuneId, start: number): RuneCard => ({ rune: id, start, len: 1, amt: .5, spd: .5, rate: "1/16", targets: RUNE_TARGETS[id].slice(0, 2) });
 export const card = (r: RuneId, len = 4, amt = .5, spd = .5, arp?: "prog" | "root"): RuneCard => ({ rune: r, len, amt, spd, ...(arp ? { arp } : {}) });

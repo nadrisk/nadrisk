@@ -57,3 +57,14 @@ describe("rune speed and user progression", () => {
   it("1/32 doubles hits", () => { expect(cr(L("1/32"), ["rhythm"], hz).rows[0].ratchet.some(r => r === 2)).toBe(true); });
   it("user progression spreads chosen degrees", () => { expect([0, 4, 8, 12].map(t => ca([3, 4, 0, 5], t, 16))).toEqual([3, 4, 0, 5]); });
 });
+
+import { newRune, positioned, firstFree, RUNE_TARGETS } from "@/audio/runes";
+import { spans } from "@/audio/runeCompiler";
+describe("independent rune slots", () => {
+  it("a new rune occupies one of four slots in a bar", () => { expect(newRune("euclid", 2).len).toBe(1); expect(spans([newRune("euclid", 2)], 16).map((s, i) => s ? i : -1).filter(i => i >= 0)).toEqual([8, 9, 10, 11]); });
+  it("removing a card keeps later cards in place and leaves space for insertion", () => { const a = [newRune("euclid", 0), newRune("shift", 2)]; expect(firstFree(a, 4)).toBe(1); expect(positioned(a.slice(1))[0].start).toBe(2); });
+  it("stretching a rune fills additional slots", () => { expect(spans([{ ...newRune("euclid", 1), len: 2 }], 16).filter(Boolean)).toHaveLength(8); });
+  it("old contiguous cards retain their positions", () => { expect(positioned([card("euclid", 2), card("shift", 2)]).map(c => c.start)).toEqual([0, 2]); });
+  it("different runes have independent target combinations", () => { expect(RUNE_TARGETS.anchor).toEqual(["cutoff"]); expect(RUNE_TARGETS.shift).toEqual(["time", "wave"]); const c = compileRunes(L({ drums: [card("anchor")], mod: [{ ...newRune("euclid", 0), len: 2, targets: ["cutoff"] }, { ...newRune("shift", 2), len: 2, targets: ["time"] }] }), roles({0: "rhythm"}), h); expect(c.mods[0][0].targets?.slice(0, 8)).toEqual(Array(8).fill("cutoff")); expect(c.mods[0][0].targets?.slice(8)).toEqual(Array(8).fill("time")); });
+  it("user note values drive the bass progression exactly", () => { const c = compileRunes(L({ notes: [2, 7, 5], bass: [card("anchor")] }), roles({1: "bass"}), h); expect([0, 6, 12].map(t => c.rows[1].pitch?.[t])).toEqual([2, 7, 5]); });
+});

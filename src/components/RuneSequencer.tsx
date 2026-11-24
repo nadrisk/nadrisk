@@ -1,76 +1,73 @@
-// Rune sequencer: three lanes of magnetic rune cards that compile into the ordinary step banks.
+// Independently positioned rune cards; each grid slot is one beat.
 import { useRef, useState } from "react";
-import { RUNES, RUNE_RATES, rune, card, padRoleOf, type RuneCard, type RuneId, type LaneId } from "@/audio/runes";
-import { PROG_NAMES, PROGS, DEGREE_NAMES, MAX_PROG } from "@/audio/runeHarmony";
-import { draggedValue, inLengthGrip } from "./stepDrag";
+import { Settings2 } from "lucide-react";
+import { Button } from "./ui/button";
+import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, type RuneCard, type RuneId, type LaneId } from "@/audio/runes";
+import { PROG_NAMES } from "@/audio/runeHarmony";
+import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
+import { draggedValue } from "./stepDrag";
 import type { RuneLayout } from "@/audio/runeCompiler";
 import type { Slot } from "@/hooks/useGroovebox";
 
-export const emptyRunes = (): RuneLayout => ({ bars: 1, prog: PROG_NAMES[0], drums: [], bass: [], mod: [], targets: ["cutoff"] });
-const LANES: { id: LaneId; label: string; role: string }[] = [{ id: "drums", label: "DRUMS", role: "R" }, { id: "bass", label: "BASS·ARP", role: "B/A" }, { id: "mod", label: "MOD", role: "" }];
-const TARGETS: string[][] = [[], ["cutoff"], ["cutoff", "time"]];
-
+export const emptyRunes = (): RuneLayout => ({ bars: 1, prog: PROG_NAMES[0], drums: [], bass: [], mod: [], targets: [] });
+const LANES: { id: LaneId; label: string }[] = [{ id: "drums", label: "DRUMS" }, { id: "bass", label: "BASS·ARP" }, { id: "mod", label: "MOD" }];
 export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneLayout; onChange: (L: RuneLayout) => void; slots: Slot[]; step: number }) {
-  const [pick, setPick] = useState<RuneId>("euclid");
+  const [active, setActive] = useState<LaneId>("drums");
   const [sel, setSel] = useState<{ lane: LaneId; i: number } | null>(null);
+  const [dragging, setDragging] = useState<RuneId | null>(null);
+  const dockDrag = useRef<{ id: number; rune: RuneId; x: number; y: number; moved: boolean } | null>(null);
   const beats = layout.bars * 4, beat = step < 0 ? -1 : Math.floor((step % (beats * 4)) / 4);
-  const count = (r: string) => slots.filter(s => padRoleOf(s.padRole) === r).length;
   const set = (lane: LaneId, cards: RuneCard[]) => onChange({ ...layout, [lane]: cards });
-  const place = (lane: LaneId) => { const used = layout[lane].reduce((a, c) => a + c.len, 0); if (used >= beats) return; const len = Math.min(4, beats - used);
-    set(lane, [...layout[lane], card(pick, len, .5, .5, rune(pick).arpPassage && lane === "bass" ? "prog" : undefined)]); setSel({ lane, i: layout[lane].length }); };
-  const cur = sel ? layout[sel.lane][sel.i] : null;
-  const edit = (p: Partial<RuneCard>) => { if (!sel || !cur) return; set(sel.lane, layout[sel.lane].map((c, i) => i === sel.i ? { ...c, ...p } : c)); };
-  const move = (d: number) => { if (!sel) return; const a = layout[sel.lane].slice(), j = sel.i + d; if (j < 0 || j >= a.length) return; [a[sel.i], a[j]] = [a[j], a[sel.i]]; set(sel.lane, a); setSel({ ...sel, i: j }); };
-  const del = () => { if (!sel) return; set(sel.lane, layout[sel.lane].filter((_, i) => i !== sel.i)); setSel(null); };
-  // Card gestures: right edge drags length (like notes), body drags AMT up/down, a still tap selects.
-  const drag = useRef<{ id: number; lane: LaneId; i: number; mode: "len" | "amt"; x0: number; y0: number; w: number; len0: number; amt0: number; max: number; moved: boolean } | null>(null);
-  const down = (ev: React.PointerEvent<HTMLButtonElement>, lane: LaneId, i: number) => { const c = layout[lane][i], r = ev.currentTarget.getBoundingClientRect(), track = ev.currentTarget.parentElement!.getBoundingClientRect();
-    const others = layout[lane].reduce((a, x, j) => a + (j === i ? 0 : x.len), 0);
-    ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId);
-    drag.current = { id: ev.pointerId, lane, i, mode: inLengthGrip(r.width, r.right - ev.clientX, ev.pointerType === "mouse") ? "len" : "amt", x0: ev.clientX, y0: ev.clientY, w: track.width / beats, len0: c.len, amt0: c.amt, max: Math.max(1, beats - others), moved: false }; };
-  const dmove = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; const dx = ev.clientX - d.x0, dy = ev.clientY - d.y0; if (!d.moved && Math.hypot(dx, dy) < 4) return; d.moved = true;
-    const p: Partial<RuneCard> = d.mode === "len" ? { len: Math.max(1, Math.min(d.max, d.len0 + Math.round(dx / d.w))) } : { amt: draggedValue(d.amt0, -dy) };
-    const c = layout[d.lane][d.i]; if (Object.entries(p).every(([k, v]) => c[k as keyof RuneCard] === v)) return; set(d.lane, layout[d.lane].map((x, j) => j === d.i ? { ...x, ...p } : x)); setSel({ lane: d.lane, i: d.i }); };
-  const dup = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; drag.current = null; if (!d.moved) setSel(sel?.lane === d.lane && sel.i === d.i ? null : { lane: d.lane, i: d.i }); };
-  const custom = layout.custom, degs = custom ?? [...PROGS[layout.prog]];
-  const nextProg = () => { if (custom) return onChange({ ...layout, custom: undefined, prog: PROG_NAMES[0] }); const j = PROG_NAMES.indexOf(layout.prog) + 1; onChange(j >= PROG_NAMES.length ? { ...layout, custom: [...PROGS[layout.prog]] } : { ...layout, prog: PROG_NAMES[j] }); };
-  const setDegs = (d: number[]) => onChange({ ...layout, custom: d });
-  const tIdx = Math.max(0, TARGETS.findIndex(t => t.join() === layout.targets.join()));
-
+  const place = (lane: LaneId, id: RuneId, at?: number) => {
+    const cards = positioned(layout[lane]), start = at ?? firstFree(cards, beats);
+    if (start === undefined || start < 0 || start >= beats || cards.some(c => start >= c.start && start < c.start + c.len)) return;
+    set(lane, [...cards, { ...newRune(id, start), ...(lane === "bass" && rune(id).arpPassage ? { arp: "prog" as const } : {}) }]);
+    setSel({ lane, i: cards.length }); setActive(lane);
+  };
+  const cur = sel ? layout[sel.lane][sel.i] : undefined;
+  const edit = (p: Partial<RuneCard>) => { if (sel && cur) set(sel.lane, positioned(layout[sel.lane]).map((c, i) => i === sel.i ? { ...c, ...p } : c)); };
+  const remove = (lane: LaneId, i: number) => { set(lane, positioned(layout[lane]).filter((_, j) => j !== i)); setSel(null); };
+  const drag = useRef<{ id: number; lane: LaneId; i: number; mode: "len" | "amt"; x: number; y: number; w: number; len: number; amt: number; max: number; moved: boolean } | null>(null);
+  const down = (ev: React.PointerEvent<HTMLButtonElement>, lane: LaneId, i: number) => {
+    const parent = ev.currentTarget.parentElement; if (!parent) return;
+    const cards = positioned(layout[lane]), c = cards[i], r = ev.currentTarget.getBoundingClientRect();
+    const next = Math.min(beats, ...cards.filter((x, j) => j !== i && x.start >= c.start + c.len).map(x => x.start));
+    ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); setActive(lane);
+    drag.current = { id: ev.pointerId, lane, i, mode: ev.clientX >= r.right - Math.min(10, r.width / 3) ? "len" : "amt", x: ev.clientX, y: ev.clientY, w: parent.getBoundingClientRect().width / beats, len: c.len, amt: c.amt, max: next - c.start, moved: false };
+  };
+  const move = (ev: React.PointerEvent) => {
+    const d = drag.current; if (!d || d.id !== ev.pointerId) return;
+    const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (!d.moved && Math.hypot(dx, dy) < 5) return; d.moved = true;
+    const p = d.mode === "len" ? { len: Math.max(1, Math.min(d.max, d.len + Math.round(dx / d.w))) } : { amt: draggedValue(d.amt, -dy) };
+    set(d.lane, positioned(layout[d.lane]).map((c, i) => i === d.i ? { ...c, ...p } : c)); setSel({ lane: d.lane, i: d.i });
+  };
+  const up = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; drag.current = null; if (!d.moved) remove(d.lane, d.i); };
+  const available = cur ? [...RUNE_TARGETS[cur.rune].map(t => [t, t === "wave" ? "WT POS" : t === "start" ? "SMP START" : t.toUpperCase()]), ...slots.filter(s => padRoleOf(s.padRole) !== "free").flatMap(s => s.fx.filter(f => f.on && rune(cur.rune).fxDepth > 0).flatMap(f => modParamsOf(f.type).map(p => [`${f.id}:${p}`, `${s.name} ${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[p] ?? p}`])))].filter((v, i, a) => a.findIndex(x => x[0] === v[0]) === i) : [];
   return <div className="rune-seq">
-    <div className="rune-head" role="group" aria-label="Rune pattern">
-      <button className="gb-cycle" aria-label="Progression" onClick={nextProg}>PROG {custom ? "USER" : layout.prog.toUpperCase()}</button>
-      <button className="gb-cycle" aria-label="Bars" onClick={() => onChange({ ...layout, bars: layout.bars === 1 ? 2 : layout.bars === 2 ? 4 : 1 })}>BARS {layout.bars}</button>
-      <button className="gb-cycle" aria-label="Modulation targets" onClick={() => onChange({ ...layout, targets: TARGETS[(tIdx + 1) % TARGETS.length] })}>TGT {layout.targets.length ? layout.targets.join("+").toUpperCase() : "NOTES"}</button>
-      <span className="rune-roles" aria-label="Pad roles">R{count("rhythm")} B{count("bass")} A{count("arp")}</span>
-    </div>
-    {custom && <div className="rune-prog" role="group" aria-label="Your progression">
-      <button className="gb-cycle" aria-label="Fewer chords" disabled={degs.length <= 1} onClick={() => setDegs(degs.slice(0, -1))}>−</button>
-      <span className="rune-val">{degs.length} CHORDS</span>
-      <button className="gb-cycle" aria-label="More chords" disabled={degs.length >= MAX_PROG} onClick={() => setDegs([...degs, degs[degs.length - 1] ?? 0])}>+</button>
-      <div className="rune-degs" style={{ ["--n" as string]: MAX_PROG }}>{degs.map((d, i) => <button key={i} className="gb-cycle" aria-label={`Chord ${i + 1} ${DEGREE_NAMES[d]}, tap for next`} onClick={() => setDegs(degs.map((x, j) => j === i ? (x + 1) % 7 : x))} onContextMenu={e => { e.preventDefault(); setDegs(degs.map((x, j) => j === i ? (x + 6) % 7 : x)); }}>{DEGREE_NAMES[d]}</button>)}</div>
-    </div>}
-    <div className="rune-lanes" style={{ ["--beats" as string]: beats }}>
-      {LANES.map(L => { let used = 0; return <div key={L.id} className="rune-lane">
-        <span className="rune-lane-label">{L.label}</span>
-        <div className="rune-track" aria-label={`${L.label} lane, tap to add ${rune(pick).name}`} onClick={e => { if (e.target === e.currentTarget) place(L.id); }}>
-          {Array.from({ length: beats }, (_, b) => <i key={b} className={`rune-beat ${b % 4 === 0 ? "bar" : ""} ${b === beat ? "now" : ""}`} style={{ gridColumn: b + 1 }} aria-hidden />)}
-          {layout[L.id].map((c, i) => { const start = used; used += c.len; const fits = start < beats, span = Math.max(1, Math.min(c.len, beats - start)), d = rune(c.rune);
-            return fits && <button key={i} className={`rune-card ${sel?.lane === L.id && sel.i === i ? "on" : ""}`} style={{ gridColumn: `${start + 1} / span ${span}`, ["--amt" as string]: c.amt }} aria-label={`${L.label} card ${i + 1} ${d.name} amount ${Math.round(c.amt * 100)}`}
-              onPointerDown={ev => down(ev, L.id, i)} onPointerMove={dmove} onPointerUp={dup} onPointerCancel={() => (drag.current = null)}
-              onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setSel({ lane: L.id, i }); } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") { ev.preventDefault(); set(L.id, layout[L.id].map((x, j) => j === i ? { ...x, amt: Math.max(0, Math.min(1, Math.round((x.amt + (ev.key === "ArrowUp" ? .05 : -.05)) * 100) / 100)) } : x)); } }}>
-              <i className="rune-fill" aria-hidden /><b>{d.glyph}</b><span>{d.name}</span><i className="rune-grip" aria-hidden /></button>; })}
-        </div>
-      </div>; })}
-    </div>
-    <div className="rune-dock" role="group" aria-label="Runes">{RUNES.map(r => <button key={r.id} className={`rune-pick ${pick === r.id ? "on" : ""}`} aria-pressed={pick === r.id} aria-label={`Pick ${r.name}`} onClick={() => setPick(r.id)}><b>{r.glyph}</b><span>{r.name}</span></button>)}</div>
-    <div className="rune-edit" role="group" aria-label="Card settings">{cur && sel ? <>
-      <span className="rune-edit-name">{rune(cur.rune).glyph} {rune(cur.rune).name}</span>
+    <div className="rune-head"><Button variant="ghost" className="gb-cycle" aria-label="Bars" onClick={() => onChange({ ...layout, bars: layout.bars === 1 ? 2 : layout.bars === 2 ? 4 : 1 })}>BARS {layout.bars}</Button><span className="rune-roles">R{slots.filter(s => padRoleOf(s.padRole) === "rhythm").length} B{slots.filter(s => padRoleOf(s.padRole) === "bass").length} A{slots.filter(s => padRoleOf(s.padRole) === "arp").length}</span></div>
+    <div className="rune-lanes" style={{ ["--beats" as string]: beats }}>{LANES.map(L => <div key={L.id} className="rune-lane">
+      <Button variant="ghost" className={`rune-lane-label ${active === L.id ? "active" : ""}`} aria-label={`Select ${L.label} lane`} aria-pressed={active === L.id} onClick={() => setActive(L.id)}>{L.label}</Button>
+      <div className="rune-track" data-rune-lane={L.id} aria-label={`${L.label} lane`}>
+        {Array.from({ length: beats }, (_, b) => <span key={b} className={`rune-beat ${b % 4 === 0 ? "bar" : ""} ${b === beat ? "now" : ""}`} style={{ gridColumn: b + 1 }} aria-hidden />)}
+        {positioned(layout[L.id]).map((c, i) => c.start < beats && <Button variant="ghost" key={i} className={`rune-card ${sel?.lane === L.id && sel.i === i ? "editing" : ""}`} style={{ gridColumn: `${c.start + 1} / span ${Math.min(c.len, beats - c.start)}`, ["--amt" as string]: c.amt }} title={`${rune(c.rune).name} · ${Math.round(c.amt * 100)}%`} aria-label={`${L.label} card ${i + 1} ${rune(c.rune).name} amount ${Math.round(c.amt * 100)}`}
+          onPointerDown={ev => down(ev, L.id, i)} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }}
+          onContextMenu={ev => { ev.preventDefault(); setSel({ lane: L.id, i }); }}
+          onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " " || ev.key === "Delete") { ev.preventDefault(); remove(L.id, i); } }}>
+          <i className="rune-fill" aria-hidden /><b>{rune(c.rune).glyph}</b><i className="rune-grip" aria-hidden /></Button>)}
+      </div>
+      <Button variant="ghost" className="rune-settings-key" aria-label={`Settings for ${L.label} rune`} title="Rune settings" disabled={!layout[L.id].length} onClick={() => { setActive(L.id); setSel({ lane: L.id, i: sel?.lane === L.id ? Math.min(sel.i, layout[L.id].length - 1) : layout[L.id].length - 1 }); }}><Settings2 size={14} /></Button>
+    </div>)}</div>
+    <div className="rune-dock" role="group" aria-label="Runes">{RUNES.map(r => <Button variant="ghost" key={r.id} className={`rune-pick ${dragging === r.id ? "dragging" : ""}`} aria-label={`Add ${r.name} to ${active} lane`} title={r.name}
+      onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dockDrag.current = { id: e.pointerId, rune: r.id, x: e.clientX, y: e.clientY, moved: false }; }}
+      onPointerMove={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) { d.moved = true; setDragging(r.id); } }}
+      onPointerUp={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; dockDrag.current = null; setDragging(null); if (!d.moved) { place(active, r.id); return; } const track = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".rune-track"); const lane = track?.dataset.runeLane as LaneId | undefined; if (track && lane) { const rect = track.getBoundingClientRect(); place(lane, r.id, Math.floor((e.clientX - rect.left) / rect.width * beats)); } }}
+      onPointerCancel={() => { dockDrag.current = null; setDragging(null); }} onClick={e => { if (e.detail === 0) place(active, r.id); }}><b>{r.glyph}</b><span>{r.name}</span></Button>)}</div>
+    {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
+      <select aria-label="Rune to edit" value={`${sel.lane}:${sel.i}`} onChange={e => { const [lane, i] = e.target.value.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }}>{LANES.flatMap(L => layout[L.id].map((c, i) => <option key={`${L.id}:${i}`} value={`${L.id}:${i}`}>{L.label} {i + 1} {rune(c.rune).name}</option>))}</select>
       <span className="rune-val">LEN {cur.len} · AMT {Math.round(cur.amt * 100)}</span>
-      <div className="rune-rates" role="group" aria-label="Card speed">{RUNE_RATES.map(([r]) => <button key={r} className={`gb-cycle ${(cur.rate ?? "1/16") === r ? "on" : ""}`} aria-pressed={(cur.rate ?? "1/16") === r} aria-label={`Card speed ${r}`} onClick={() => edit({ rate: r })}>{r}</button>)}</div>
-      {sel.lane === "bass" && rune(cur.rune).arpPassage && <button className="gb-cycle" aria-label="Arp follows" onClick={() => edit({ arp: cur.arp === "root" ? "prog" : "root" })}>ARP {cur.arp === "root" ? "ROOT" : "PROG"}</button>}
-      <button className="gb-cycle" aria-label="Move card left" onClick={() => move(-1)}>◀</button><button className="gb-cycle" aria-label="Move card right" onClick={() => move(1)}>▶</button>
-      <button className="gb-cycle" aria-label="Remove card" onClick={del}>DEL</button>
-    </> : <span className="rune-hint">PICK A RUNE · TAP A LANE TO ADD · DRAG EDGE = LENGTH · DRAG UP/DOWN = AMOUNT</span>}</div>
+      <label className="rune-speed">SPD <select aria-label="Card speed" value={cur.rate ?? "1/16"} onChange={e => edit({ rate: e.target.value as RuneCard["rate"] })}>{RUNE_RATES.map(([r]) => <option key={r} value={r}>{r}</option>)}</select></label>
+      {sel.lane === "bass" && rune(cur.rune).arpPassage && <Button variant="ghost" className="gb-cycle" onClick={() => edit({ arp: cur.arp === "root" ? "prog" : "root" })}>ARP {cur.arp === "root" ? "ROOT" : "PROG"}</Button>}
+      <div className="rune-targets" role="group" aria-label="This rune modulation targets">{[0, 1, ...(sel.lane === "drums" ? [2] : [])].map(i => <label key={i}>T{i + 1}<select aria-label={`Rune target ${i + 1}`} value={(cur.targets ?? layout.targets)[i] ?? "off"} onChange={e => { const targets = [...(cur.targets ?? layout.targets)]; targets[i] = e.target.value; edit({ targets }); }}><option value="off">OFF</option>{available.map(([v, name]) => <option key={v} value={v}>{name}</option>)}</select></label>)}</div>
+    </div>}
   </div>;
 }
