@@ -53,3 +53,9 @@
 - [x] Click-free synth envelope on long attacks
 
 - [ ] Sequencer merge: plan how TOPO mangling, CADENCE/LATTICE and polymeter fold into the existing step grid (waiting on planning with you)
+
+## Rune sequencer (plan: .lovable/plan/rune-sequencer-agreed-build-plan-2026-11-24.md)
+- [x] Phase 1 — rune engine + tests (no visible change)
+- [ ] Phase 2 — pad roles (waits on your go after Phase 1 checkpoint)
+- [ ] Phase 3 — rune sequencer screen
+- [ ] Phase 4 — retirements, each item confirmed by you

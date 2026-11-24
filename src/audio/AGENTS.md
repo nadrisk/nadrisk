@@ -58,3 +58,4 @@
 - Chord arp modes are Crave-style (musical.ts CHORD_ARPS/arpNote: UP1/2, DN1/2, U/D1 repeats ends, U/D2 legacy "updown", ORDR, RND) and legacy ids keep their meaning, so old sets play unchanged.
 - adsr releases a note shorter than its attack at its gate from the reached level, and voice stop/release freeze the current curve value with holdAt (cancelAndHoldAtTime) before fading, so stolen or cut voices never snap and click.
 - TRN is the synth engine with clean.osc = "terrain" (two nad-terrain orbiters in playClean, own TerrainPanel, XY = FREQ/FOLD), so wavetable SYN, filter/env code and saved sets stay shared and untouched.
+- Rune sequencer: runes.ts (card data), runeHarmony.ts (PROG in KEY/SCL), runeCompiler.ts (pure) compile lanes into ordinary bank rows/pitch/mod lanes, so the scheduler never knows about runes; pitch counts toward the 3-target mod cap.
