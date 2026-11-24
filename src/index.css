@@ -1677,3 +1677,23 @@ body.perf-lock { overflow: hidden; }
 .rune-drop.blocked { border-style: dotted; opacity: .4; }
 .rune-drag-chip { position: fixed; z-index: 1000; transform: translate(-50%, -110%); pointer-events: none; display: flex; flex-direction: column; align-items: center; min-width: 44px; padding: 3px 4px; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; }
 .rune-drag-chip b { font-size: 16px; font-weight: 400; }
+.rune-drop.swap { border: 2px solid hsl(var(--foreground)); background: hsl(var(--foreground) / .25); margin: 1px; }
+/* rune inspector: uniform 28px hardware tiles */
+.rune-edit { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.rune-edit-row { display: flex; gap: 4px; align-items: stretch; min-width: 0; }
+.rune-edit-row > .rune-edit-pick { flex: 1 1 auto; }
+.rune-edit-row .rune-val { display: flex; align-items: center; white-space: nowrap; padding: 0 2px; }
+.rune-edit-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.rune-field { display: flex; align-items: center; gap: 3px; min-width: 0; font-size: 9px; }
+.rune-field > .px-select { flex: 1; }
+.rune-edit-btn { height: 28px; min-width: 44px; padding: 0 6px; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font: 10px Silkscreen, monospace; border-radius: 0; white-space: nowrap; }
+.rune-edit-btn:active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.px-select { position: relative; min-width: 0; }
+.px-select-btn { width: 100%; height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 5px; border: 1px solid hsl(var(--foreground)); border-radius: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font: 10px Silkscreen, monospace; text-align: left; }
+.px-select-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-select-btn i { font-style: normal; font-size: 8px; }
+.px-select-btn[aria-expanded="true"] { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.px-select-menu { position: absolute; z-index: 40; left: 0; top: calc(100% - 1px); min-width: 100%; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); }
+.px-select-menu button { height: 26px; flex: none; padding: 0 8px; text-align: left; white-space: nowrap; border: 0; border-bottom: 1px solid hsl(var(--foreground) / .3); background: hsl(var(--background)); color: hsl(var(--foreground)); font: 10px Silkscreen, monospace; border-radius: 0; }
+.px-select-menu button.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.rune-progression-popup .px-select { flex: 1; }
