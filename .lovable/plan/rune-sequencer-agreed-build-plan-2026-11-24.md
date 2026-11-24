@@ -25,6 +25,7 @@ This plan is the contract. Each phase ends with a checkpoint: you try it, and th
 - Checkpoint: you assign roles; nothing else changes.
 
 ## Phase 3 — Rune sequencer screen
+- Sequencer stretched to 64 steps so BARS offers 1, 2 or 4 (older 16/32-step sets load unchanged).
 - New sequencer view: header (KEY, SCL, PROG, BARS, A–D), three lanes, rune dock, tap-to-place, tap a card to edit LEN/AMT/SPD.
 - KEY/SCL removed from the top bar and shown only in this header.
 - The old step grid stays reachable as a GRID view for inspecting what the runes wrote, until you decide otherwise.

@@ -57,6 +57,6 @@
 ## Rune sequencer (plan: .lovable/plan/rune-sequencer-agreed-build-plan-2026-11-24.md)
 - [x] Phase 1 — rune engine + tests (no visible change)
 - [x] Phase 2 — pad roles (badge cycles — R B A, saved with sets; 7 tests + live tap check)
-- [ ] BARS: 4 bars (64 steps) or keep 1–2 — waits on your answer
+- [ ] BARS: decided 1–4 bars; stretch sequencer to 64 steps as part of Phase 3
 - [ ] Phase 3 — rune sequencer screen
 - [ ] Phase 4 — retirements, each item confirmed by you
