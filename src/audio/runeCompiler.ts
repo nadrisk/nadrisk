@@ -5,7 +5,7 @@ import { chordAt, chordTones, rootSemi, type ProgName } from "./runeHarmony";
 import type { Harmony } from "./harmony";
 
 export const MAX_MOD_TARGETS = 3;
-export type RuneLayout = { bars: 1 | 2; prog: ProgName; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** Sound/FX targets (FX targets start with "fx:"). */ targets: string[] };
+export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** Sound/FX targets (FX targets start with "fx:"). */ targets: string[] };
 export type Row = { pattern: number[]; vel: number[]; chance: number[]; ratchet: number[]; pitch?: number[] };
 export type Compiled = { steps: number; rows: Record<number, Row>; mods: Record<number, { target: string; values: number[] }[]> };
 

@@ -1486,7 +1486,7 @@ body.perf-lock { overflow: hidden; }
 .gb-top-brand { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 9px; cursor: pointer; }
 .gb-top-identity .workspace-index { font-size: 7px; color: hsl(var(--muted-foreground)); }
 .gb-top-clock { display: grid; grid-template-columns: 76px minmax(120px, 1fr) minmax(120px, 1fr); gap: 6px; min-width: 0; }
-.gb-top-system { grid-column: 2; display: grid; grid-template-columns: minmax(130px, 1fr) minmax(90px, .7fr) minmax(145px, 1fr); gap: 6px; min-width: 0; }
+.gb-top-system { grid-column: 2; display: grid; grid-template-columns: minmax(130px, 1fr) minmax(145px, 1fr); gap: 6px; min-width: 0; }
 .gb-top-segment { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; min-width: 0; }
 .gb-top-harmony { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
 .gb-top-links { grid-template-columns: 1fr 1fr; }
@@ -1508,7 +1508,7 @@ body.perf-lock { overflow: hidden; }
   .instrument-workspace .workspace-heading.gb-topbar { grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px; }
   .gb-top-identity { justify-content: space-between; }
   .gb-top-clock { grid-template-columns: minmax(60px, .7fr) minmax(0, 1.25fr) minmax(0, 1.25fr); gap: 4px; }
-  .gb-top-system { grid-column: 1; grid-template-columns: minmax(0, 1.2fr) minmax(0, .7fr) minmax(0, 1.25fr); gap: 4px; }
+  .gb-top-system { grid-column: 1; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.25fr); gap: 4px; }
   .gb-top-segment { grid-template-columns: 26px minmax(0, 1fr) 26px; }
   .gb-top-harmony { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
   .gb-top-links { grid-template-columns: 1fr 1fr; }
@@ -1588,3 +1588,24 @@ body.perf-lock { overflow: hidden; }
 .gb-pad > .gb-pad-role { position: absolute; top: 3px; right: 3px; min-width: 16px; padding: 0 3px; font-size: 9px; line-height: 14px; text-align: center; border: 1px solid hsl(var(--foreground) / .5); color: hsl(var(--foreground) / .6); background: hsl(var(--background)); cursor: pointer; }
 .gb-pad > .gb-pad-role.on { background: hsl(var(--foreground)); color: hsl(var(--background)); border-color: hsl(var(--foreground)); }
 .gb-pad.hit .gb-pad-role { border-color: hsl(var(--background)); }
+
+/* rune sequencer: 1-bit, square, no animation */
+.rune-seq { display: flex; flex-direction: column; gap: 6px; padding: 6px; font-family: 'Silkscreen', monospace; }
+.rune-head, .rune-dock, .rune-edit { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rune-head .gb-cycle, .rune-edit .gb-cycle { min-height: 26px; padding: 0 6px; font-size: 10px; }
+.rune-roles, .rune-val, .rune-edit-name, .rune-hint { font-size: 10px; color: hsl(var(--foreground)); padding: 0 4px; }
+.rune-hint { color: hsl(var(--foreground) / .6); }
+.rune-lanes { display: flex; flex-direction: column; gap: 4px; }
+.rune-lane { display: grid; grid-template-columns: 64px 1fr; gap: 4px; align-items: stretch; }
+.rune-lane-label { font-size: 9px; display: flex; align-items: center; border: 1px solid hsl(var(--foreground) / .8); padding: 0 4px; }
+.rune-track { position: relative; display: grid; grid-template-columns: repeat(var(--beats), 1fr); grid-template-rows: 44px; border: 1px solid hsl(var(--foreground) / .8); cursor: copy; }
+.rune-beat { grid-row: 1; border-left: 1px dotted hsl(var(--foreground) / .25); pointer-events: none; }
+.rune-beat.bar { border-left: 1px solid hsl(var(--foreground) / .6); }
+.rune-beat.now { background: hsl(var(--foreground) / .18); }
+.rune-card { grid-row: 1; z-index: 1; margin: 3px 1px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border: 1px solid hsl(var(--foreground)); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; line-height: 1.1; cursor: pointer; }
+.rune-card b, .rune-pick b { font-size: 14px; font-weight: 400; }
+.rune-card.on, .rune-pick.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.rune-dock { display: grid; grid-template-columns: repeat(8, 1fr); }
+.rune-pick { display: flex; flex-direction: column; align-items: center; padding: 3px 0; border: 1px solid hsl(var(--foreground) / .8); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; }
+.rune-view-switch { display: flex; gap: 4px; padding: 6px 6px 0; }
+@media (max-width: 640px) { .rune-dock { grid-template-columns: repeat(4, 1fr); } .rune-lane { grid-template-columns: 1fr; } .rune-lane-label { padding: 2px 4px; } }

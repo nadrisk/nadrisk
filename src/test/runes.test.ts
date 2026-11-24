@@ -40,3 +40,10 @@ describe("pad roles", () => {
     expect(nextPadRole("bass")).toBe("arp"); expect(nextPadRole("arp")).toBe("free");
   });
 });
+
+describe("4-bar runes", () => {
+  it("BARS 4 compiles 64 steps", () => {
+    const c = compileRunes({ bars: 4, prog: "drone i", drums: [card("euclid", 16)], bass: [], mod: [], targets: [] }, ["rhythm"], h);
+    expect(c.steps).toBe(64); expect(c.rows[0].pattern.length).toBe(64);
+  });
+});

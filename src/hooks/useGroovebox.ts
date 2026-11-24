@@ -1,4 +1,5 @@
-import { nextPadRole, type PadRole } from "@/audio/runes";
+import { compileRunes, type RuneLayout } from "@/audio/runeCompiler";
+import { nextPadRole, padRoleOf, type PadRole } from "@/audio/runes";
 import { foldOneSided } from "@/audio/monoFold";
 import { defaultInstrumentNote, instrumentKeyNote, SAMPLE_ROOT, sampleTranspose, sliceIndex } from "@/audio/instrumentPitch";
 import { padFx, defaultGroups, groupOf, hydrateGroups, type GroupBus } from "@/audio/groups";
@@ -58,8 +59,8 @@ export type EngineKind = "drum" | "idm" | "synth" | "sampler" | "poly" | "808" |
 /** Channel-rack EQ in dB (frequencies in Hz). */
 export type ChannelEQ = { low: number; lowFreq: number; mid: number; midFreq: number; q: number; high: number; highFreq: number };
 export const defaultEQ = (): ChannelEQ => ({ low: 0, lowFreq: 100, mid: 0, midFreq: 1000, q: .7, high: 0, highFreq: 9000 });
-/** Maximum steps per row; each bank plays 16 or 32 (Bank.steps). */
-export const STEPS = 32;
+/** Maximum steps per row; each bank plays 16, 32 or 64 (Bank.steps). */
+export const STEPS = 64;
 export type Slot = { name: string; engine: EngineKind; note: number; level: number; pan: number; mute: boolean; solo: boolean; drum: DrumParams; synth: SynthParams; sampler: SamplerParams; fx: FxUnit[]; arp: ArpParams; choke: number; chord: ChordParams; poly: PolyParams; mods: ModLane[]; /** RAND role: 1 = excluded from randomise, 2 = solo (only soloed rows randomise). */ rnd?: 0 | 1 | 2; /** GEN break role override. */ role?: Role; bass: Bass808Params; eq: ChannelEQ; siren?: SirenParams; idm?: IdmParams; /** Group bus 1-4; 0/undefined = direct to master. */ group?: number; /** Instrument XY offset; centre = saved sound. */ xy?: XY; /** PAD instrument sound (preset + macros). */ pad?: PadParams; /** Rune sequencer pad role; missing = free. */ padRole?: PadRole };
 export type MasterMeter = { m: number; s: number; i: number; sub: number; subPeak: number };
 type Engine = { ctx: BaseAudioContext; master: GainNode; analyser: Tone.Analyser; performance: ReturnType<typeof createPerformance>; outs: { input: DelayNode; gain: GainNode; eq: BiquadFilterNode[]; filter: BiquadFilterNode; tap: GainNode; pan: StereoPannerNode; meter: AnalyserNode; chain: FxNode[]; sig: string; dest?: number }[]; groups: { input: DelayNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; chain: FxNode[]; sig: string; tap: GainNode }[]; loop: number; lfos: OscillatorNode[]; mono: (Voice | null)[]; ring: { stop: (t: number) => void; release: (t: number, r: number) => void; update?: Voice["update"]; until: number }[][] };
@@ -84,9 +85,9 @@ export const stepAt = (tick: number, full: number, loop: number, offset: number)
   if (loop && loop < full) { const start = ((offset % full) + full) % full; return (start + (tick % loop)) % full; }
   return (((tick - offset) % full) + full) % full;
 };
-export type Bank = { pattern: StepVal[][]; lengths: number[]; vel: number[][]; chance: number[][]; ratchet?: number[][]; /** Trig condition index per step (stepCond.CONDS), 0 = always. */ cond?: number[][]; /** Micro-timing 0..1, .5 = on grid. */ nudge?: number[][]; steps?: 16 | 32; grown?: boolean };
+export type Bank = { pattern: StepVal[][]; lengths: number[]; vel: number[][]; chance: number[][]; ratchet?: number[][]; /** Trig condition index per step (stepCond.CONDS), 0 = always. */ cond?: number[][]; /** Micro-timing 0..1, .5 = on grid. */ nudge?: number[][]; steps?: 16 | 32 | 64; grown?: boolean; grown64?: boolean; /** Rune lanes that wrote this bank (rune sequencer). */ runes?: RuneLayout };
 /** Pads a 16-wide row to STEPS by repeating it, so older sets play identically in 32 mode. */
-export const widen = <T,>(r: T[], fill: T): T[] => r.length >= STEPS ? r : Array.from({ length: STEPS }, (_, c) => c < r.length ? r[c] : r.length === 16 ? r[c % 16] : fill);
+export const widen = <T,>(r: T[], fill: T): T[] => r.length >= STEPS ? r : Array.from({ length: STEPS }, (_, c) => c < r.length ? r[c] : (r.length === 16 || r.length === 32) ? r[c % r.length] : fill);
 /** Ratchet counts a step can be split into (rolls within one 1/16). */
 export const ROLLS = [1, 2, 3, 4, 6, 8];
 const ones = () => Array.from({ length: 16 }, () => Array<number>(STEPS).fill(1));
@@ -99,7 +100,7 @@ const NBANKS = 4;
 /** Mod lanes: index bank + lane * NBANKS (3 lanes per bank); older sets only had lane 0. */
 export const MOD_LANES = 3;
 const padMods = (m: ModLane[] | undefined): ModLane[] => Array.from({ length: NBANKS * MOD_LANES }, (_, i) => { const l = m?.[i] ?? defaultMod(); return { ...l, values: widen(l.values, .5) }; });
-const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => widen(r.map(v => (v === 3 ? 2 : v) as StepVal), 0 as StepVal)), lengths: b.lengths ?? Array(16).fill(16), vel: (b.vel ?? ones()).map(r => widen(r, 1)), chance: (b.chance ?? ones()).map(r => widen(r, 1)), ratchet: (b.ratchet ?? ones()).map(r => widen(r, 1)), ...(b.cond ? { cond: b.cond.map(r => widen(r, 0)) } : {}), ...(b.nudge ? { nudge: b.nudge.map(r => widen(r, .5)) } : {}), steps: b.steps ?? 16, grown: b.grown ?? false });
+const fixBank = (b: Partial<Bank> & { pattern: StepVal[][] }): Bank => ({ pattern: b.pattern.map(r => widen(r.map(v => (v === 3 ? 2 : v) as StepVal), 0 as StepVal)), lengths: b.lengths ?? Array(16).fill(16), vel: (b.vel ?? ones()).map(r => widen(r, 1)), chance: (b.chance ?? ones()).map(r => widen(r, 1)), ratchet: (b.ratchet ?? ones()).map(r => widen(r, 1)), ...(b.cond ? { cond: b.cond.map(r => widen(r, 0)) } : {}), ...(b.nudge ? { nudge: b.nudge.map(r => widen(r, .5)) } : {}), steps: b.steps ?? 16, grown: b.grown ?? false, grown64: b.grown64 ?? false, ...(b.runes ? { runes: b.runes } : {}) });
 /** Engines whose pad taps sustain until the finger lifts. */
 export const MAX_SAMPLE_SEC = 30;
 const isWavMp3 = (f: File) => /\.(wav|wave|mp3)$/i.test(f.name) || /^audio\/(wav|wave|x-wav|vnd\.wave|mpeg|mp3)$/i.test(f.type);
@@ -1037,11 +1038,28 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   // Row fader: one value for every lit step in a row (current bank).
   const setRowValue = useCallback((kind: LaneKind, row: number, v: number) => { const pat = banksRef.current[bankRef.current].pattern[row]; editBank(b => ({ ...b, [kind]: laneOf(b, kind).map((r, j) => (j === row ? r.map((x, k) => (pat[k] ? v : x)) : r)) })); }, [editBank]);
   const steps = banks[bank].steps ?? 16;
-  const toggleSteps = useCallback(() => { snap(); const bi = bankRef.current, cur = banksRef.current[bi], grow = (cur.steps ?? 16) === 16, first = grow && !cur.grown;
-    const dup = <T,>(r: T[]) => r.map((v, c) => c >= 16 ? r[c - 16] : v);
-    editBank(b => ({ ...b, steps: grow ? 32 : 16, grown: b.grown || grow, lengths: b.lengths.map(l => grow ? (l === 16 ? 32 : l) : Math.min(l, 16)), ...(first ? { pattern: b.pattern.map(dup), vel: b.vel.map(dup), chance: b.chance.map(dup), ratchet: (b.ratchet ?? ones()).map(dup), ...(b.cond ? { cond: b.cond.map(dup) } : {}), ...(b.nudge ? { nudge: b.nudge.map(dup) } : {}) } : {}) }));
+  // X1 → X2 → X4 → X1: growing copies the current length into the new half the first time only.
+  const toggleSteps = useCallback(() => { snap(); const bi = bankRef.current, cur = banksRef.current[bi], from = cur.steps ?? 16, to = (from === 16 ? 32 : from === 32 ? 64 : 16) as 16 | 32 | 64, grow = to > from, first = grow && !(to === 32 ? cur.grown : cur.grown64);
+    const dup = <T,>(r: T[]) => r.map((v, c) => c >= from && c < to ? r[c - from] : v);
+    editBank(b => ({ ...b, steps: to, grown: b.grown || to === 32, grown64: b.grown64 || to === 64, lengths: b.lengths.map(l => grow ? (l === from ? to : l) : Math.min(l, to)), ...(first ? { pattern: b.pattern.map(dup), vel: b.vel.map(dup), chance: b.chance.map(dup), ratchet: (b.ratchet ?? ones()).map(dup), ...(b.cond ? { cond: b.cond.map(dup) } : {}), ...(b.nudge ? { nudge: b.nudge.map(dup) } : {}) } : {}) }));
     if (first) setSlots(sl => sl.map(x => ({ ...x, mods: x.mods.map((m, k) => k % NBANKS === bi ? { ...m, values: dup(m.values) } : m) })));
   }, [editBank, snap]);
+  /** Rune sequencer: compile the lanes and write ordinary step data for role pads in the current bank (Free pads untouched). */
+  const applyRunes = useCallback((L: RuneLayout) => {
+    const bi = bankRef.current, c = compileRunes(L, slotsRef.current.map(x => padRoleOf(x.padRole)), harmonyRef.current), st = c.steps as 16 | 32 | 64;
+    editBank(b => { const nb: Bank = { ...b, runes: L, steps: st, pattern: b.pattern.slice(), vel: b.vel.slice(), chance: b.chance.slice(), ratchet: (b.ratchet ?? ones()).slice(), lengths: b.lengths.slice(), ...(b.cond ? { cond: b.cond.slice() } : {}), ...(b.nudge ? { nudge: b.nudge.slice() } : {}) };
+      for (const [k, row] of Object.entries(c.rows)) { const p = +k, fit = <T,>(a: T[], f: T) => Array.from({ length: STEPS }, (_, t) => t < a.length ? a[t] : f);
+        nb.pattern[p] = fit(row.pattern as StepVal[], 0 as StepVal); nb.vel[p] = fit(row.vel, 1); nb.chance[p] = fit(row.chance, 1); nb.ratchet![p] = fit(row.ratchet, 1); nb.lengths[p] = st;
+        if (nb.cond) nb.cond[p] = Array(STEPS).fill(0); if (nb.nudge) nb.nudge[p] = Array(STEPS).fill(.5); }
+      return nb; });
+    const key = harmonyRef.current.key;
+    setSlots(sl => { const n = sl.map((x, i) => { const row = c.rows[i]; if (!row) return x; const lanes: (Partial<ModLane> | null)[] = [];
+      if (row.pitch) { const base = (((x.note - key) % 12) + 12) % 12; lanes.push({ target: "pitch", range: 24, values: Array.from({ length: STEPS }, (_, t) => t < row.pitch!.length ? (Math.max(-24, Math.min(24, row.pitch![t] - base)) + 24) / 48 : .5) }); }
+      for (const m of c.mods[i] ?? []) lanes.push({ target: m.target, range: undefined, values: Array.from({ length: STEPS }, (_, t) => m.values[t] ?? .5) });
+      return { ...x, mods: x.mods.map((m, k) => { if (k % NBANKS !== bi) return m; const li = Math.floor(k / NBANKS), l = lanes[li]; return l ? { ...m, ...l, on: true } : { ...m, on: false }; }) }; });
+      slotsRef.current = n; return n; });
+  }, [editBank]);
+
   const setTrackLength = useCallback((row: number, len: number) => setLengths(l => l.map((v, i) => (i === row || performanceRef.current.lenLock ? len : v))), []);
   /** Clears one row of the current pattern: notes plus its velocity, chance and roll values (mod lane kept). */
   const shiftTrack = useCallback((row: number, d: number) => editBank(b => shiftRow(b, row, d)), [editBank]);
@@ -1183,7 +1201,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setPadRole: (r: number) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: nextPadRole(x.padRole) } : x); slotsRef.current = n; return n; }), setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  return { groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, applyRunes, runes: banks[bank].runes, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setPadRole: (r: number) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: nextPadRole(x.padRole) } : x); slotsRef.current = n; return n; }), setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { groups?: GroupBus[]; v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };

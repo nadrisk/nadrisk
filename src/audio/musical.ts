@@ -56,7 +56,7 @@ export function arpNote(mode: ChordArp, k: number, notes: readonly number[], sha
   return notes[arpIndex(mode, k, notes.length)];
 }
 export type ModLane = { on: boolean; target: string; steps: number; values: number[]; /** Pitch lanes: 24 = two octaves, exact notes (keyboard step recording). */ range?: number };
-export const defaultMod = (): ModLane => ({ on: false, target: "cutoff", steps: 16, values: Array(32).fill(.5) });
+export const defaultMod = (): ModLane => ({ on: false, target: "cutoff", steps: 16, values: Array(64).fill(.5) });
 /** Each lane stores A–D consecutively; copy all destination lanes without sharing step arrays. */
 export function copyBankMods(mods: ModLane[], source: number, destination: number, banks = 4): ModLane[] {
   return mods.map((lane, index) => {
