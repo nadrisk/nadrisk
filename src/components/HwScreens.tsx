@@ -148,8 +148,8 @@ export function MidiScreen({ devices, learn, target, mapCount, status, connect, 
 }
 
 const BANK_NAMES = ["A", "B", "C", "D"];
-export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo, gen }: {
-  gen?: GenProps; bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: (view: string) => void; reset: () => void;
+export function SeqScreen({ bank, queued, selectBank, view, setView, copy, random, clear, reset, playing, onPlay, paused, onPause, undo, redo, canUndo, canRedo, gen, runeOnly }: {
+  runeOnly?: boolean; gen?: GenProps; bank: number; queued: number | null; selectBank: (b: number) => void; view: string; setView: (v: string) => void; copy: () => void; random: (view: string) => void; clear: (view: string) => void; reset: () => void;
   playing: boolean; onPlay: () => void; paused: boolean; onPause: () => void; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean;
 }) {
   const [genOpen, setGenOpen] = useState(false);
@@ -158,8 +158,8 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   const pat: K[] = [
     ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 12, w: 30, h: 12, on: bank === b, fn: () => selectBank(b) })),
     { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 28, w: 41, h: 12, on: false, fn: copy },
-    { s: "RAND", label: "Random pattern", x: 44, y: 28, w: 41, h: 12, on: false, fn: () => random(view) },
-    { s: "CLR", label: "Clear pattern", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => clear(view) },
+    ...(runeOnly ? [] : [{ s: "RAND", label: "Random pattern", x: 44, y: 28, w: 41, h: 12, on: false, fn: () => random(view) },
+    { s: "CLR", label: "Clear pattern", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => clear(view) }]),
   ];
   const vw: K[] = views.map((v, i) => ({ s: VN[v], label: `View ${v}`, x: i < 4 ? 1 + i * 32 : 1 + (i - 4) * 43, y: i < 4 ? 12 : 28, w: i < 4 ? 30 : 41, h: 12, on: view === v, fn: () => setView(v) }));
   const tr: K[] = [
@@ -167,7 +167,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
     { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 65, y: 12, w: 62, h: 12, on: paused, fn: onPause },
     { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 28, w: 41, h: 12, on: false, disabled: !canUndo, fn: undo },
     { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 44, y: 28, w: 41, h: 12, on: false, disabled: !canRedo, fn: redo },
-    ...(gen ? [{ s: "GEN", label: "Open pattern generator", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => setGenOpen(true) }] : []),
+    ...(gen && !runeOnly ? [{ s: "GEN", label: "Open pattern generator", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => setGenOpen(true) }] : []),
   ];
   const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : view === "cond" ? "DRAG CONDITION" : view === "nudge" ? "DRAG EARLY/LATE" : "HIT>TIE>OFF";
   if (gen && genOpen) return <div className="px-strip"><GenScreen g={gen} close={() => setGenOpen(false)} /></div>;
@@ -175,8 +175,8 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   return <div className="px-strip gb-seq-trio">
     <Panel name="PATTERN" label="Sequencer patterns" pages={[BANK_NAMES[bank]]} deps={deps} knobs={() => []}
       body={p => { drawKeys(p, pat); p.textC(queued != null ? `NEXT ${BANK_NAMES[queued]}` : `BANK ${BANK_NAMES[bank]}`, 64, 50); }} extra={() => keyZones(pat)} />
-    <Panel name="STEPSEQ" label="Step sequencer" pages={[VN[view] ?? "NOTE"]} deps={deps} knobs={() => []}
-      body={p => { drawKeys(p, vw); p.textC(hint, 64, 50); }} extra={() => keyZones(vw)} />
+    {!runeOnly && <Panel name="STEPSEQ" label="Step sequencer" pages={[VN[view] ?? "NOTE"]} deps={deps} knobs={() => []}
+      body={p => { drawKeys(p, vw); p.textC(hint, 64, 50); }} extra={() => keyZones(vw)} />}
     <Panel name="TRANSP" label="Sequencer transport" pages={[playing ? (paused ? "PAUS" : "RUN") : "STOP"]} deps={deps} knobs={() => []}
       body={p => { drawKeys(p, tr); p.textC(playing ? (paused ? "PAUSED" : "PLAYING") : "STOPPED", 64, 50); }} extra={() => keyZones(tr)} />
   </div>;

@@ -2,16 +2,17 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 
 export const UTILITY_BANKS = {
-  sound: ["fx", "phrase", "seq", "mixer", "master"],
+  sound: ["fx", "seq", "mixer", "master"],
   sys: ["tape", "sets", "patch", "midi"],
 } as const;
-export const UTILITIES = [...UTILITY_BANKS.sound, ...UTILITY_BANKS.sys];
+// PHRASE (per-pad chord/phrase editor) is retired from the switcher but kept as a valid utility so its code stays callable.
+export const UTILITIES = [...UTILITY_BANKS.sound, "phrase", ...UTILITY_BANKS.sys] as const;
 export type Utility = typeof UTILITIES[number];
 export const INITIAL_UTILITY: Utility = "fx";
 type Bank = keyof typeof UTILITY_BANKS;
 export const UTILITY_LABELS: Record<Utility, string> = { fx: "FX", phrase: "PHRASE", seq: "SEQ", mixer: "MIX", master: "MASTER", tape: "TAPE", sets: "MEM", midi: "MIDI", patch: "PATCH" };
 export function utilityBank(value: Utility): Bank {
-  return UTILITY_BANKS.sound.some(item => item === value) ? "sound" : "sys";
+  return (value === "phrase" || UTILITY_BANKS.sound.some(item => item === value)) ? "sound" : "sys";
 }
 
 export default function UtilitySwitcher({ value, onChange, perfOpen, onPerformance }: {

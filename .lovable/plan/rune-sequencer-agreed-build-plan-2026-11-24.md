@@ -32,7 +32,7 @@ This plan is the contract. Each phase ends with a checkpoint: you try it, and th
 - Phone layout stacks lanes; 1-bit look, square corners, no animation.
 - Checkpoint: you play with it in the browser.
 
-## Phase 4 — Retirements (only after you confirm Phase 3)
+## Phase 4 — Retirements (done: all four disengaged on user request)
 Each item needs your yes before removal; code is disengaged, not deleted, matching how we handled BAS/SMP/PAD:
 - Monke
 - Per-pad chord editor

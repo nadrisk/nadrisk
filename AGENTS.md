@@ -44,3 +44,4 @@
 
 - PERF mixers use one set of labelled MIDI controls: below 700px the master/pad rack spans two compact channels and CRATE opens an in-shell accessible track sheet; wider screens keep the three-column controller and inline crate, so layouts never duplicate audio engines or MIDI targets.
 
+- Phase 4 retirements are flags, not deletions: SEQ_RETIRED (Groovebox: GRID view, step sub-pages, GEN/RAND/CLR, Monke) and CHORD_RETIRED (SlotEditor chord panel); PHRASE stays a valid utility but leaves the switcher, so everything can be re-engaged and old sets still play.
