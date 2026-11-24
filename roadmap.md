@@ -59,4 +59,4 @@
 - [x] Phase 2 — pad roles (badge cycles — R B A, saved with sets; 7 tests + live tap check)
 - [x] BARS 1/2/4 (64 steps)
 - [x] Phase 3 — rune sequencer screen (RUNE/GRID, KEY/SCL moved, 64 steps; 8 rune tests + phone/desktop tap checks)
-- [ ] Phase 4 — retirements, each item confirmed by you
+- [x] Phase 4 — GRID, step sub-pages, Monke, chord/phrase editors disengaged (flags, code kept)
