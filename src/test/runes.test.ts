@@ -97,3 +97,11 @@ describe("shared roles take turns", () => {
     expect(a.some(Boolean) && b.some(Boolean)).toBe(true);
   });
 });
+
+import { hit } from "@/audio/runeCompiler";
+describe("AMT is audible", () => {
+  for (const r of RUNES) it(`${r.id} changes its hits between 0% and 100%`, () => {
+    const at = (a: number) => Array.from({ length: 16 }, (_, k) => hit(r.id, k, 16, a, .5)).join();
+    expect(at(0)).not.toBe(at(1));
+  });
+});

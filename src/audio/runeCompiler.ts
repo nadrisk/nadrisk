@@ -22,16 +22,16 @@ export function spans(cards: RuneCard[], steps: number) {
 
 /** Rhythm rule a rune applies on the DRUM and BASS lanes. v = variation (pad index). */
 export function hit(r: RuneId, k: number, n: number, amt: number, spd: number, v = 0): boolean {
-  const pulses = Math.max(1, Math.round(1 + amt * (n / 2 - 1)));
+  const a = Math.min(1, Math.max(0, amt)), pulses = Math.max(1, Math.round(1 + a * (n / 2 - 1)));
   switch (r) {
-    case "euclid": return bjorklund(k, pulses, n, v * 2);
-    case "shift": return bjorklund(k, pulses, n, Math.round(spd * 3) + 2 + v);
-    case "anchor": return v === 0 ? k % 4 === 0 : k % 8 === 4;
-    case "gibbs": return k % 4 === (v % 4);
-    case "fibo": return FIB.has((k + v) % n);
-    case "prime": return isPrime(k + v);
-    case "stoch": return bjorklund(k, pulses, n, v);
-    case "null": return amt > 0 && k === 0 && v === 0;
+    case "euclid": return bjorklund(k, pulses, n, v * 2); // AMT = density
+    case "shift": return bjorklund(k, Math.max(2, Math.round(n / 4)), n, Math.round(a * 3) + Math.round(spd * 3) + v) || (a > .5 && k % 8 === 3); // AMT = rotation + push
+    case "anchor": { const g = a < 1 / 3 ? n : a < 2 / 3 ? 8 : 4; return v === 0 ? k % g === 0 : k % 8 === 4; } // AMT = anchor density
+    case "gibbs": { const g = 4 - Math.round(a * 3); return k % g === (v % g); } // AMT = ripple rate
+    case "fibo": return FIB.has((k + v) % n) && (k + v) % n <= 2 + a * 19; // AMT = grouping depth
+    case "prime": return isPrime(k + v) && k <= 2 + a * (n - 2); // AMT = how far primes reach
+    case "stoch": { const x = Math.sin((k + 1) * 12.9898 + v * 78.233) * 43758.5453; return x - Math.floor(x) < .15 + a * .7; } // AMT = probability
+    case "null": return a > 0 && v === 0 && (k === 0 || (a > .5 && k === n / 2)); // AMT = how much breaks the rest
   }
 }
 
@@ -57,12 +57,12 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
   basses.forEach(p => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0); let lastHit = -9;
     bS.forEach((s, t) => { const root = rootAt(t); row.pitch![t] = root; if (!s) return; const { c, k, n } = s;
       if (rune(c.rune).arpPassage && arps.length) return; // bass steps aside for the arp
-      const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
+      const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; row.vel[t] = k % 4 ? 1 - .5 * c.amt : 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
       else if (c.rune === "anchor" && t - lastHit <= Math.round(1 + c.amt * 2) && row.pattern[t - 1]) row.pattern[t] = 2; }); });
 
   arps.forEach((p, v) => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0);
     bS.forEach((s, t) => { if (!s || !rune(s.c.rune).arpPassage) return; const { c, k } = s; const deg = c.arp === "root" ? 0 : chordAt(prog, t, steps); const tones = L.notes?.length && c.arp !== "root" ? [0, h.scale === "major" ? 4 : 3, 7].map(v => rootAt(t) + v) : chordTones(h, deg);
-      const e = rateSteps(c, true), every = Math.max(1, e); if (k % every) return; row.pattern[t] = 1; if (e < 1) row.ratchet[t] = 2; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
+      const e = rateSteps(c, true), every = Math.max(1, e); if (k % every) return; row.pattern[t] = 1; row.vel[t] = (k / every) % 2 ? 1 - .45 * c.amt : 1; if (e < 1) row.ratchet[t] = 2; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
 
   // Shared roles take turns for timbral variety: bass hands over per phrase (card or bar), arp per note group.
   if (basses.length > 1) { let seg = -1, prevC: unknown = undefined, prevBar = -1; for (let t = 0; t < steps; t++) { const sp = bS[t], c = sp?.c ?? null, bar = Math.floor((sp ? sp.k : t) / 16); if (c !== prevC || bar !== prevBar) { prevC = c; prevBar = bar; seg++; } const own = basses[seg % basses.length]; for (const p of basses) if (p !== own) rows[p].pattern[t] = 0; } }
