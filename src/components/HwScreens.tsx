@@ -157,7 +157,7 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   const VN: Record<string, string> = { note: "NOTE", vel: "VEL", chance: "CHN", roll: "ROL", cond: "CND", nudge: "NDG", mod: "MOD" };
   const pat: K[] = [
     ...BANK_NAMES.map((n, b) => ({ s: queued === b ? `${n}>` : n, label: `Pattern ${n}`, x: 1 + b * 32, y: 12, w: 30, h: 12, on: bank === b, fn: () => selectBank(b) })),
-    { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 28, w: 41, h: 12, on: false, fn: copy },
+    { s: `CP>${BANK_NAMES[(bank + 1) % 4]}`, label: "Copy pattern", x: 1, y: 28, w: runeOnly ? 126 : 41, h: 12, on: false, fn: copy },
     ...(runeOnly ? [] : [{ s: "RAND", label: "Random pattern", x: 44, y: 28, w: 41, h: 12, on: false, fn: () => random(view) },
     { s: "CLR", label: "Clear pattern", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => clear(view) }]),
   ];
@@ -165,14 +165,14 @@ export function SeqScreen({ bank, queued, selectBank, view, setView, copy, rando
   const tr: K[] = [
     { s: playing ? "STOP" : "PLAY", label: playing ? "Stop" : "Play", x: 1, y: 12, w: 62, h: 12, on: playing, fn: onPlay },
     { s: paused ? "CONT" : "PAUS", label: paused ? "Resume" : "Pause", x: 65, y: 12, w: 62, h: 12, on: paused, fn: onPause },
-    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 28, w: 41, h: 12, on: false, disabled: !canUndo, fn: undo },
-    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: 44, y: 28, w: 41, h: 12, on: false, disabled: !canRedo, fn: redo },
+    { s: canUndo ? "UNDO" : "----", label: "Undo sequencer edit", x: 1, y: 28, w: runeOnly ? 62 : 41, h: 12, on: false, disabled: !canUndo, fn: undo },
+    { s: canRedo ? "REDO" : "----", label: "Redo sequencer edit", x: runeOnly ? 65 : 44, y: 28, w: runeOnly ? 62 : 41, h: 12, on: false, disabled: !canRedo, fn: redo },
     ...(gen && !runeOnly ? [{ s: "GEN", label: "Open pattern generator", x: 87, y: 28, w: 40, h: 12, on: false, fn: () => setGenOpen(true) }] : []),
   ];
   const hint = view === "mod" ? "DRAG AMOUNT" : view === "vel" ? "DRAG VELOCITY" : view === "chance" ? "DRAG CHANCE" : view === "roll" ? "DRAG TO SPLIT" : view === "cond" ? "DRAG CONDITION" : view === "nudge" ? "DRAG EARLY/LATE" : "HIT>TIE>OFF";
   if (gen && genOpen) return <div className="px-strip"><GenScreen g={gen} close={() => setGenOpen(false)} /></div>;
   const deps = [bank, queued, view, playing, paused, canUndo, canRedo];
-  return <div className="px-strip gb-seq-trio">
+  return <div className={`px-strip gb-seq-trio ${runeOnly ? "duo" : ""}`}>
     <Panel name="PATTERN" label="Sequencer patterns" pages={[BANK_NAMES[bank]]} deps={deps} knobs={() => []}
       body={p => { drawKeys(p, pat); p.textC(queued != null ? `NEXT ${BANK_NAMES[queued]}` : `BANK ${BANK_NAMES[bank]}`, 64, 50); }} extra={() => keyZones(pat)} />
     {!runeOnly && <Panel name="STEPSEQ" label="Step sequencer" pages={[VN[view] ?? "NOTE"]} deps={deps} knobs={() => []}

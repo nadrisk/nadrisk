@@ -1,11 +1,11 @@
 // Pure compiler: three rune lanes -> ordinary bank rows (pattern/vel/chance/ratchet), pitch
 // offsets for melodic pads and up to 3 mod targets per pad. The scheduler never sees runes.
-import { rune, type PadRole, type RuneCard, type RuneId } from "./runes";
-import { chordAt, chordTones, rootSemi, type ProgName } from "./runeHarmony";
+import { rune, rateSteps, type PadRole, type RuneCard, type RuneId } from "./runes";
+import { chordAt, chordTones, rootSemi, type ProgName, type ProgDegrees } from "./runeHarmony";
 import type { Harmony } from "./harmony";
 
 export const MAX_MOD_TARGETS = 3;
-export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** Sound/FX targets (FX targets start with "fx:"). */ targets: string[] };
+export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; /** User progression (scale degrees); used instead of prog when present. */ custom?: number[]; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** Sound/FX targets (FX targets start with "fx:"). */ targets: string[] };
 export type Row = { pattern: number[]; vel: number[]; chance: number[]; ratchet: number[]; pitch?: number[] };
 export type Compiled = { steps: number; rows: Record<number, Row>; mods: Record<number, { target: string; values: number[] }[]> };
 
@@ -35,26 +35,33 @@ export function hit(r: RuneId, k: number, n: number, amt: number, spd: number, v
   }
 }
 
+/** Hit at the card's rate: slower rates test a coarser grid; 1/32 marks a double hit. */
+export function rateHit(c: RuneCard, k: number, n: number, v = 0): 0 | 1 | 2 {
+  const e = rateSteps(c); if (e >= 1) { if (k % e) return 0; return hit(c.rune, k / e, Math.max(1, Math.round(n / e)), c.amt, c.spd, v) ? 1 : 0; }
+  return hit(c.rune, k, n, c.amt, c.spd, v) ? 2 : 0;
+}
+
 const blank = (s: number): Row => ({ pattern: Array(s).fill(0), vel: Array(s).fill(1), chance: Array(s).fill(1), ratchet: Array(s).fill(1) });
 
 export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compiled {
+  const prog: ProgName | ProgDegrees = L.custom?.length ? L.custom : L.prog;
   const steps = L.bars * 16, rows: Record<number, Row> = {}, mods: Compiled["mods"] = {};
   const pads = (r: PadRole) => roles.map((x, i) => (x === r ? i : -1)).filter(i => i >= 0);
   const drums = pads("rhythm"), basses = pads("bass"), arps = pads("arp");
   const dS = spans(L.drums, steps), bS = spans(L.bass, steps), mS = spans(L.mod, steps);
 
   drums.forEach((p, v) => { const row = (rows[p] = blank(steps)); dS.forEach((s, t) => { if (!s) return; const { c, k, n } = s;
-    if (hit(c.rune, k, n, c.amt, c.spd, v)) { row.pattern[t] = 1; if (c.rune === "gibbs") row.ratchet[t] = 2 + Math.round(c.amt * 2); if (c.rune === "stoch") row.chance[t] = 1 - c.amt * .6; } }); });
+    const hh = rateHit(c, k, n, v); if (hh) { row.pattern[t] = 1; if (hh === 2) row.ratchet[t] = 2; if (c.rune === "gibbs") row.ratchet[t] = 2 + Math.round(c.amt * 2); if (c.rune === "stoch") row.chance[t] = 1 - c.amt * .6; } }); });
 
   basses.forEach(p => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0); let lastHit = -9;
-    bS.forEach((s, t) => { const deg = chordAt(L.prog, t, steps), root = rootSemi(h, deg); row.pitch![t] = root; if (!s) return; const { c, k, n } = s;
+    bS.forEach((s, t) => { const deg = chordAt(prog, t, steps), root = rootSemi(h, deg); row.pitch![t] = root; if (!s) return; const { c, k, n } = s;
       if (rune(c.rune).arpPassage && arps.length) return; // bass steps aside for the arp
-      if (hit(c.rune, k, n, c.amt, c.spd, 0)) { row.pattern[t] = 1; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
+      const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
       else if (c.rune === "anchor" && t - lastHit <= Math.round(1 + c.amt * 2) && row.pattern[t - 1]) row.pattern[t] = 2; }); });
 
   arps.forEach((p, v) => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0);
-    bS.forEach((s, t) => { if (!s || !rune(s.c.rune).arpPassage) return; const { c, k } = s; const deg = c.arp === "root" ? 0 : chordAt(L.prog, t, steps); const tones = chordTones(h, deg);
-      const every = c.spd >= .5 ? 1 : 2; if (k % every) return; row.pattern[t] = 1; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
+    bS.forEach((s, t) => { if (!s || !rune(s.c.rune).arpPassage) return; const { c, k } = s; const deg = c.arp === "root" ? 0 : chordAt(prog, t, steps); const tones = chordTones(h, deg);
+      const e = rateSteps(c, true), every = Math.max(1, e); if (k % every) return; row.pattern[t] = 1; if (e < 1) row.ratchet[t] = 2; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
 
   // MOD lane: transforms notes above, then sound/FX targets (capped).
   for (const [pk, row] of Object.entries(rows)) { const p = +pk;
@@ -73,7 +80,7 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
     let t0 = 0; while (t0 < steps) { const s = mS[t0]; if (s && s.c.rune === "prime" && s.k === 0) { const end = Math.min(steps, t0 + s.n); for (const key of ["pattern", "vel", "chance", "ratchet", "pitch"] as const) { const a = row[key]; if (a) { const seg = a.slice(t0, end).reverse(); a.splice(t0, seg.length, ...seg); } } t0 = end; } else t0++; }
     const room = MAX_MOD_TARGETS - (row.pitch ? 1 : 0);
     mods[p] = L.targets.slice(0, room).map(target => { const fx = target.startsWith("fx:");
-      return { target, values: Array.from({ length: steps }, (_, t) => { const s = mS[t]; if (!s) return .5; const d = s.c.amt * (fx ? rune(s.c.rune).fxDepth : 1); const shape = Math.sin((s.k / s.n) * Math.PI * 2 * (1 + Math.round(s.c.spd * 3))) * .5; return .5 + shape * d; }) }; });
+      return { target, values: Array.from({ length: steps }, (_, t) => { const s = mS[t]; if (!s) return .5; const d = s.c.amt * (fx ? rune(s.c.rune).fxDepth : 1); const shape = Math.sin((s.k / s.n) * Math.PI * 2 * (s.c.rate ? Math.max(.25, s.n / (rateSteps(s.c) * 4)) : 1 + Math.round(s.c.spd * 3))) * .5; return .5 + shape * d; }) }; });
   }
   return { steps, rows, mods };
 }

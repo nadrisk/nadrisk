@@ -47,3 +47,13 @@ describe("4-bar runes", () => {
     expect(c.steps).toBe(64); expect(c.rows[0].pattern.length).toBe(64);
   });
 });
+
+import { compileRunes as cr } from "@/audio/runeCompiler";
+import { chordAt as ca } from "@/audio/runeHarmony";
+describe("rune speed and user progression", () => {
+  const hz = { key: 0, scale: "minor" } as never;
+  const L = (rate: string) => ({ bars: 1 as const, prog: "drone i" as const, drums: [{ rune: "euclid" as const, len: 4, amt: 1, spd: .5, rate: rate as never }], bass: [], mod: [], targets: [] });
+  it("1/4 hits only on beats", () => { const p = cr(L("1/4"), ["rhythm"], hz).rows[0].pattern; p.forEach((v, t) => { if (v) expect(t % 4).toBe(0); }); });
+  it("1/32 doubles hits", () => { expect(cr(L("1/32"), ["rhythm"], hz).rows[0].ratchet.some(r => r === 2)).toBe(true); });
+  it("user progression spreads chosen degrees", () => { expect([0, 4, 8, 12].map(t => ca([3, 4, 0, 5], t, 16))).toEqual([3, 4, 0, 5]); });
+});

@@ -1609,3 +1609,20 @@ body.perf-lock { overflow: hidden; }
 .rune-pick { display: flex; flex-direction: column; align-items: center; padding: 3px 0; border: 1px solid hsl(var(--foreground) / .8); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 8px; }
 .rune-view-switch { display: flex; gap: 4px; padding: 6px 6px 0; }
 @media (max-width: 640px) { .rune-dock { grid-template-columns: repeat(4, 1fr); } .rune-lane { grid-template-columns: 1fr; } .rune-lane-label { padding: 2px 4px; } }
+
+/* Rune-only sequencer: two header screens and full-width lanes, so no column is left empty. */
+.instrument-workspace .gb-seq-controls .px-strip.gb-seq-trio.duo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 700px) { .instrument-workspace .gb-seq-controls .px-strip.gb-seq-trio.duo { grid-template-columns: 1fr; } }
+.instrument-workspace .gb-seq-perf > .rune-seq, .instrument-workspace .gb-seq-perf > .rune-view-switch { grid-column: 1 / -1; }
+.rune-card { position: relative; touch-action: none; user-select: none; }
+.rune-card > b, .rune-card > span { position: relative; z-index: 1; }
+.rune-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--amt, .5) * 100%); background: hsl(var(--foreground) / .3); pointer-events: none; }
+.rune-card.on .rune-fill { background: hsl(var(--background) / .35); }
+.rune-grip { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; border-left: 1px solid currentColor; cursor: ew-resize; }
+.rune-card { cursor: ns-resize; }
+.rune-prog { display: grid; grid-template-columns: auto auto auto 1fr; gap: 4px; align-items: center; }
+.rune-degs { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px; }
+.rune-prog .gb-cycle, .rune-rates .gb-cycle { min-height: 26px; padding: 0 4px; font-size: 10px; }
+.rune-rates { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; flex: 1 1 260px; }
+.rune-rates .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+@media (max-width: 640px) { .rune-prog { grid-template-columns: auto auto auto; } .rune-degs { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); } }

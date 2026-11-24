@@ -10,7 +10,13 @@ export const padRoleOf = (v: unknown): PadRole => (PAD_ROLES as readonly unknown
 /** Badge tap cycles — → R → B → A → —. */
 export const nextPadRole = (v: unknown): PadRole => PAD_ROLES[(PAD_ROLES.indexOf(padRoleOf(v)) + 1) % PAD_ROLES.length];
 /** len in beats (1 beat = 4 steps); amt/spd 0..1. arp: on BASS lane, what the arp follows. */
-export type RuneCard = { rune: RuneId; len: number; amt: number; spd: number; arp?: "prog" | "root" };
+/** rate: note value the card runs at (missing = legacy spd behaviour). */
+export type RuneCard = { rune: RuneId; len: number; amt: number; spd: number; arp?: "prog" | "root"; rate?: RuneRate };
+/** Card speed selector, slowest to fastest; value = steps (16ths) per pulse. */
+export const RUNE_RATES = [["2", 32], ["1", 16], ["1/2", 8], ["1/4", 4], ["1/8", 2], ["1/16", 1], ["1/32", .5]] as const;
+export type RuneRate = typeof RUNE_RATES[number][0];
+/** Steps per pulse; old cards without a rate keep their spd meaning (arp: spd < .5 = 1/8). */
+export const rateSteps = (c: RuneCard, arp = false): number => { const r = RUNE_RATES.find(x => x[0] === c.rate); return r ? r[1] : arp && c.spd < .5 ? 2 : 1; };
 
 export type RuneDef = { id: RuneId; glyph: string; name: string; /** 0 = cannot touch FX, 1 = full. */ fxDepth: number; /** On BASS lane this rune is an arp passage (bass steps aside). */ arpPassage: boolean };
 export const RUNES: readonly RuneDef[] = [
