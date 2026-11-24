@@ -1704,3 +1704,11 @@ body.perf-lock { overflow: hidden; }
 .rune-assign { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; flex: 1; }
 .rune-assign .gb-cycle { min-height: 26px; }
 .rune-assign .gb-cycle.on { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+
+/* Phones: 2/4-bar layouts scroll sideways at a fixed beat width so cards stay touchable. */
+@media (max-width: 640px) {
+  .rune-lanes { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .rune-lane { min-width: calc(var(--beats) * 44px); }
+  .rune-lane-label { position: sticky; left: 0; width: min(100%, calc(100vw - 40px)); }
+  .rune-track { touch-action: pan-x; }
+}
