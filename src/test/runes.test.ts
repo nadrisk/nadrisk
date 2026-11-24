@@ -147,3 +147,20 @@ describe("XY mangler", () => {
   it("X speeds drums only, Y slows bass only", () => { const m = _mangle(L, 1, 0); expect(m.drums[0].rate).toBe("1/32"); expect(m.bass[0].rate).toBe("1/8"); const n = _mangle(L, 0, -1); expect(n.bass[0].rate).toBe("1/2"); expect(n.drums[0].rate ?? "1/16").toBe("1/16"); });
   it("distance speeds MOD", () => { expect(_mangle(L, 0, -1).mod[0].rate).toBe("1/16"); });
 });
+
+import { dupBar1 } from "@/audio/runes";
+import { mangleOffset } from "@/audio/mangleTimbre";
+describe("bar duplicate and timbre mangler", () => {
+  it("DUP 1 copies bar 1 cards into bar 2 and replaces old bar 2", () => {
+    const out = dupBar1(L({ drums: [{ ...card("euclid", 2), start: 1 }, { ...card("prime", 1), start: 6 }] }));
+    expect(out.bars).toBe(2);
+    expect(out.drums.map(c => [c.rune, c.start, c.len])).toEqual([["euclid", 1, 2], ["euclid", 5, 2]]);
+  });
+  it("SPLIT sends X to drum pads and Y to bass/lead; free pads and CLOCK untouched", () => {
+    const m = { mode: "split" as const, x: .5, y: -.3 };
+    expect(mangleOffset({ padRole: "rhythm" }, m)).toEqual({ x: .5, y: .5 });
+    expect(mangleOffset({ padRole: "arp" }, m)).toEqual({ x: -.3, y: -.3 });
+    expect(mangleOffset({ padRole: "free" }, m)).toEqual({ x: 0, y: 0 });
+    expect(mangleOffset({ padRole: "bass" }, { ...m, mode: "clock" })).toEqual({ x: 0, y: 0 });
+  });
+});

@@ -44,3 +44,9 @@ export function mangleLayout<L extends { drums: RuneCard[]; bass: RuneCard[]; mo
   const sh = (cards: RuneCard[], s: number) => s ? cards.map(c => { const i = RUNE_RATES.findIndex(r => r[0] === (c.rate ?? "1/16")); return { ...c, rate: RUNE_RATES[Math.max(0, Math.min(RUNE_RATES.length - 1, i + s))][0] }; }) : cards;
   return { ...L, drums: sh(L.drums, mangleShift(x)), bass: sh(L.bass, mangleShift(y)), mod: sh(L.mod, mangleShift(Math.min(1, Math.hypot(x, y)))) };
 }
+
+/** DUP 1: copies every card that starts in bar 1 into bar 2 (clipped to the bar), replacing bar 2, and makes the layout 2 bars. */
+export function dupBar1<L extends { bars: number; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[] }>(L: L): L {
+  const d = (cards: RuneCard[]) => { const p = positioned(cards), a = p.filter(c => c.start < 4).map(c => ({ ...c, len: Math.min(c.len, 4 - c.start) })); return [...a, ...a.map(c => ({ ...c, start: c.start + 4 }))]; };
+  return { ...L, bars: 2, drums: d(L.drums), bass: d(L.bass), mod: d(L.mod) };
+}

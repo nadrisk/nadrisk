@@ -1,28 +1,31 @@
 // Independently positioned rune cards; each grid slot is one beat.
 import { useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, mangleLayout, mangleShift, type RuneCard, type RuneId, type LaneId, type PadRole } from "@/audio/runes";
+import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, mangleLayout, mangleShift, dupBar1, type RuneCard, type RuneId, type LaneId, type PadRole } from "@/audio/runes";
 import { PROG_NAMES } from "@/audio/runeHarmony";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
 import { draggedValue } from "./stepDrag";
 import { PxSelect } from "./PxSelect";
 import { SNAKE_SHAPES, snakeShape, type RuneLayout } from "@/audio/runeCompiler";
 import type { Slot } from "@/hooks/useGroovebox";
+import type { MangleMode } from "@/audio/mangleTimbre";
+const MXY_MODES: [MangleMode, string][] = [["clock", "CLOCK"], ["timbre", "TIMBRE"], ["split", "SPLIT"]];
 
 export const emptyRunes = (): RuneLayout => ({ bars: 1, prog: PROG_NAMES[0], drums: [], bass: [], mod: [], targets: [] });
 const LANES: { id: LaneId; label: string }[] = [{ id: "drums", label: "DRUMS" }, { id: "bass", label: "BASS·LEAD" }, { id: "mod", label: "MOD" }];
-export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign }: { assign?: PadRole | null; setAssign?: (r: PadRole | null) => void; layout: RuneLayout; onChange: (L: RuneLayout, saved?: RuneLayout) => void; slots: Slot[]; step: number }) {
+export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign, onTimbre }: { onTimbre?: (m: MangleMode, x: number, y: number) => void; assign?: PadRole | null; setAssign?: (r: PadRole | null) => void; layout: RuneLayout; onChange: (L: RuneLayout, saved?: RuneLayout) => void; slots: Slot[]; step: number }) {
   const [active, setActive] = useState<LaneId>("drums");
   const [sel, setSel] = useState<{ lane: LaneId; i: number } | null>(null);
   const [dragging, setDragging] = useState<RuneId | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; lane?: LaneId; beat?: number; ok?: boolean; swap?: boolean; len?: number } | null>(null);
   const dockDrag = useRef<{ id: number; rune: RuneId; x: number; y: number; moved: boolean } | null>(null);
   const beats = layout.bars * 4, beat = step < 0 ? -1 : Math.floor((step % (beats * 4)) / 4);
-  const [xy, setXy] = useState({ x: 0, y: 0 }), [hold, setHold] = useState(false), xyRef = useRef({ x: 0, y: 0 }), xyPad = useRef<number | null>(null);
+  const [xy, setXy] = useState({ x: 0, y: 0 }), [hold, setHold] = useState(false), xyRef = useRef({ x: 0, y: 0 }), xyPad = useRef<number | null>(null), [mode, setModeS] = useState<MangleMode>("clock"), modeRef = useRef<MangleMode>("clock");
   const commit = (L: RuneLayout, p = xyRef.current) => p.x || p.y ? onChange(mangleLayout(L, p.x, p.y), L) : onChange(L);
   const set = (lane: LaneId, cards: RuneCard[]) => commit({ ...layout, [lane]: cards });
   // Recompile only when a rate notch changes; the scheduler picks new rows up on its next step, so speed changes land on the grid.
-  const setMangle = (p: { x: number; y: number }) => { const o = xyRef.current, k = (q: typeof p) => `${mangleShift(q.x)}${mangleShift(q.y)}${mangleShift(Math.min(1, Math.hypot(q.x, q.y)))}`; xyRef.current = p; setXy(p); if (k(o) !== k(p)) commit(layout, p); };
+  const setMangle = (p: { x: number; y: number }) => { if (modeRef.current !== "clock") { xyRef.current = p; setXy(p); onTimbre?.(modeRef.current, p.x, p.y); return; } const o = xyRef.current, k = (q: typeof p) => `${mangleShift(q.x)}${mangleShift(q.y)}${mangleShift(Math.min(1, Math.hypot(q.x, q.y)))}`; xyRef.current = p; setXy(p); if (k(o) !== k(p)) commit(layout, p); };
+  const setMode = (m: MangleMode) => { setMangle({ x: 0, y: 0 }); modeRef.current = m; setModeS(m); onTimbre?.(m, 0, 0); };
   const xyAt = (e: React.PointerEvent<HTMLElement>) => { const r = e.currentTarget.getBoundingClientRect(), c = (v: number) => Math.max(-1, Math.min(1, v)); return { x: c(((e.clientX - r.left) / r.width) * 2 - 1), y: c(1 - ((e.clientY - r.top) / r.height) * 2) }; };
   const place = (lane: LaneId, id: RuneId, at?: number) => {
     const cards = positioned(layout[lane]), start = at ?? firstFree(cards, beats);
@@ -54,7 +57,7 @@ export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign
   const lastTap = useRef<{ lane: LaneId; i: number; at: number } | null>(null);
   const available = cur ? [...RUNE_TARGETS[cur.rune].map(t => [t, t === "wave" ? "WT POS" : t === "start" ? "SMP START" : t.toUpperCase()]), ...slots.filter(s => padRoleOf(s.padRole) !== "free").flatMap(s => s.fx.filter(f => f.on && rune(cur.rune).fxDepth > 0).flatMap(f => modParamsOf(f.type).map(p => [`${f.id}:${p}`, `${s.name} ${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[p] ?? p}`])))].filter((v, i, a) => a.findIndex(x => x[0] === v[0]) === i) : [];
   return <div className="rune-seq">
-    <div className="rune-head"><Button variant="ghost" className="gb-cycle" aria-label="Bars" onClick={() => onChange({ ...layout, bars: layout.bars === 1 ? 2 : layout.bars === 2 ? 4 : 1 })}>BARS {layout.bars}</Button><div className="rune-assign" role="group" aria-label="Assign pads to groups">{([["rhythm", "DRUM"], ["bass", "BASS"], ["arp", "LEAD"]] as [PadRole, string][]).map(([r, n]) => <Button key={r} variant="ghost" className={`gb-cycle ${assign === r ? "on" : ""}`} aria-pressed={assign === r} aria-label={`Assign pads to ${n}`} onClick={() => setAssign?.(assign === r ? null : r)}>{n} {slots.filter(s => padRoleOf(s.padRole) === r).length}</Button>)}</div>{assign && <span className="rune-hint">TAP PADS TO ADD/REMOVE · TAP {assign === "rhythm" ? "DRUM" : assign === "bass" ? "BASS" : "LEAD"} TO FINISH</span>}</div>
+    <div className="rune-head"><Button variant="ghost" className="gb-cycle" aria-label="Bars" onClick={() => onChange({ ...layout, bars: layout.bars === 1 ? 2 : 1 })}>BARS {layout.bars}</Button><Button variant="ghost" className="gb-cycle" aria-label="Duplicate bar 1 into bar 2" onClick={() => { commit(dupBar1(layout)); setSel(null); }}>DUP 1</Button><div className="rune-assign" role="group" aria-label="Assign pads to groups">{([["rhythm", "DRUM"], ["bass", "BASS"], ["arp", "LEAD"]] as [PadRole, string][]).map(([r, n]) => <Button key={r} variant="ghost" className={`gb-cycle ${assign === r ? "on" : ""}`} aria-pressed={assign === r} aria-label={`Assign pads to ${n}`} onClick={() => setAssign?.(assign === r ? null : r)}>{n} {slots.filter(s => padRoleOf(s.padRole) === r).length}</Button>)}</div>{assign && <span className="rune-hint">TAP PADS TO ADD/REMOVE · TAP {assign === "rhythm" ? "DRUM" : assign === "bass" ? "BASS" : "LEAD"} TO FINISH</span>}</div>
     <div className="rune-lanes" style={{ ["--beats" as string]: beats }}><div className="rune-labels">{LANES.map(L => <Button key={L.id} variant="ghost" className={`rune-lane-label ${active === L.id ? "active" : ""}`} aria-label={`Select ${L.label} lane`} aria-pressed={active === L.id} onClick={() => setActive(L.id)}>{L.label}</Button>)}</div><div className="rune-viewport">{LANES.map(L => <div key={L.id} className="rune-lane">
       <div className="rune-track" data-rune-lane={L.id} aria-label={`${L.label} lane`}>
         {Array.from({ length: beats }, (_, b) => <span key={b} className={`rune-beat ${b % 4 === 0 ? "bar" : ""} ${b === beat ? "now" : ""}`} style={{ gridColumn: b + 1 }} aria-hidden />)}
@@ -82,8 +85,8 @@ export function RuneSequencer({ layout, onChange, slots, step, assign, setAssign
       onPointerCancel={() => { xyPad.current = null; if (!hold) setMangle({ x: 0, y: 0 }); }}
       onDoubleClick={() => setMangle({ x: 0, y: 0 })}>
       <i className="rune-mxy-h" aria-hidden /><i className="rune-mxy-v" aria-hidden /><span className="rune-mxy-dot" style={{ left: `${(xy.x + 1) * 50}%`, top: `${(1 - xy.y) * 50}%` }} aria-hidden />
-      <small className="rune-mxy-lx">DRUM {mangleShift(xy.x) > 0 ? "+" : ""}{mangleShift(xy.x)}</small><small className="rune-mxy-ly">LEAD {mangleShift(xy.y) > 0 ? "+" : ""}{mangleShift(xy.y)}</small><small className="rune-mxy-lm">MOD +{mangleShift(Math.min(1, Math.hypot(xy.x, xy.y)))}</small>
-    </div><div className="rune-mxy-side"><button type="button" className={`rune-edit-btn ${hold ? "on" : ""}`} aria-pressed={hold} aria-label="Mangler hold" onClick={() => { if (hold) setMangle({ x: 0, y: 0 }); setHold(!hold); }}>{hold ? "HOLD" : "SPRING"}</button><button type="button" className="rune-edit-btn" aria-label="Centre mangler" onClick={() => setMangle({ x: 0, y: 0 })}>CTR</button></div></div>
+      {mode === "clock" ? <><small className="rune-mxy-lx">DRUM {mangleShift(xy.x) > 0 ? "+" : ""}{mangleShift(xy.x)}</small><small className="rune-mxy-ly">LEAD {mangleShift(xy.y) > 0 ? "+" : ""}{mangleShift(xy.y)}</small><small className="rune-mxy-lm">MOD +{mangleShift(Math.min(1, Math.hypot(xy.x, xy.y)))}</small></> : <><small className="rune-mxy-lx">{mode === "timbre" ? (xy.x < 0 ? "TIGHT" : "OPEN") : "DRUM"} {((v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)}`)(xy.x)}</small><small className="rune-mxy-ly">{mode === "timbre" ? (xy.y < 0 ? "DARK" : "BITE") : "MELO"} {((v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)}`)(xy.y)}</small><small className="rune-mxy-lm">{mode.toUpperCase()}</small></>}
+    </div><div className="rune-mxy-side">{MXY_MODES.map(([m, n]) => <button key={m} type="button" className={`rune-edit-btn ${mode === m ? "on" : ""}`} aria-pressed={mode === m} aria-label={`Mangler ${n} mode`} onClick={() => setMode(m)}>{n}</button>)}<button type="button" className={`rune-edit-btn ${hold ? "on" : ""}`} aria-pressed={hold} aria-label="Mangler hold" onClick={() => { if (hold) setMangle({ x: 0, y: 0 }); setHold(!hold); }}>{hold ? "HOLD" : "SPRING"}</button><button type="button" className="rune-edit-btn" aria-label="Centre mangler" onClick={() => setMangle({ x: 0, y: 0 })}>CTR</button></div></div>
     {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
       <div className="rune-edit-row">
         <PxSelect className="rune-edit-pick" label="Rune to edit" value={`${sel.lane}:${sel.i}`} options={LANES.flatMap(L => layout[L.id].map((c, i) => [`${L.id}:${i}`, `${L.label} ${i + 1} ${rune(c.rune).name}`] as [string, string]))} onChange={v => { const [lane, i] = v.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }} />
