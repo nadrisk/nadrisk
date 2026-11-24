@@ -65,3 +65,5 @@
 - Every rune drives the arp, which fills around bass hits; shared Bass/Arp pads hocket via hocketOwner() per rune, so variety follows the card's logic.
 - Rune XY mangler shifts card rates per lane (X drums, Y bass·lead, radius MOD) via pure mangleLayout and recompiles only on notch changes with applyRunes(mangled, saved), so the saved layout never changes and the scheduler picks rows up on the next step.
 - Rune XY mangler TIMBRE/SPLIT modes are a session-only offset (src/audio/mangleTimbre.ts) added to slot XY at trigger and pushed to live voices, so sounds morph without saving into patches.
+
+- Assignable FX macros live in fxMacro.ts with per-hook session mappings; a control-rate loop offsets existing pad/group effect nodes with smoothing and restores removed targets, so XY never rebuilds racks or writes saved patches.

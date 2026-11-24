@@ -1,4 +1,5 @@
 # Roadmap
+- [x] XY MACRO: session-only stacked pad/group effect targets, X/Y polarity/depth, AUTO and restoration; 45 tests and real drum/metal playback with independent axes, HOLD/SPRING and phone/tablet layout checked.
 - [x] Copy every MOD lane with pattern banks A–D, preserving independent edits; unit tests and live A→B pitch-copy check passed.
 - [x] D-DLY MIX uses the same dry-hold balance as reverb and tape delay; mix gain and DSP tests passed.
 - [x] Mixer selection highlights only the bottom pad name, keeping faders dark; live selection and desktop capture checked.

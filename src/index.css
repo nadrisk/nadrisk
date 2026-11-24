@@ -1729,3 +1729,17 @@ body.perf-lock { overflow: hidden; }
 .rune-mxy small { position: absolute; font: 9px Silkscreen, monospace; color: hsl(var(--foreground)); pointer-events: none; }
 .rune-mxy-lx { right: 3px; bottom: 2px; } .rune-mxy-ly { left: 3px; top: 2px; } .rune-mxy-lm { left: 3px; bottom: 2px; }
 .rune-mxy-side { display: grid; grid-auto-rows: 1fr; gap: 4px; } .rune-mxy-side .rune-edit-btn { height: auto; min-width: 0; }
+
+/* Assignable XY effect matrix: compact, square and clipped to its device. */
+.rune-mxy-wrap .rune-mxy { height: 188px; }
+.fx-macro-rack { min-width: 0; margin-top: 4px; }
+.fx-macro-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; font: 10px Silkscreen, monospace; }
+.fx-macro-head > span { flex: 1; }
+.fx-macro-rows { display: flex; flex-direction: column; gap: 4px; }
+.fx-macro-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px 58px 32px; gap: 4px; min-width: 0; }
+.fx-macro-row .rune-edit-btn { min-width: 0; padding: 0 3px; }
+.fx-macro-row .px-select-menu { width: 100%; min-width: 0; }
+.fx-macro-row .px-select-menu button { height: auto; min-height: 32px; white-space: normal; overflow-wrap: anywhere; padding: 6px; }
+.fx-macro-empty { border: 1px solid hsl(var(--foreground)); padding: 8px; font: 10px Silkscreen, monospace; }
+
+.instrument-workspace .fx-macro-rack button svg { display: block; width: 12px; height: 12px; }

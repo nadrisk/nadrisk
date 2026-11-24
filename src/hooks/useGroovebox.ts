@@ -31,6 +31,7 @@ import { tableNow } from "@/audio/wavetable";
 import { defaultIdm, idmParams, playIdm, type IdmParams } from "@/audio/idm";
 import { applyXY, type XY } from "@/audio/xyMaps";
 import { setMangleMacro, withMangle, type MangleMode } from "@/audio/mangleTimbre";
+import { macroFxParams, type FxMacroMapping, type FxMacroPosition } from "@/audio/fxMacro";
 import { defaultPad, padParams, padRingCap, playPad, type PadParams } from "@/audio/pad";
 import { motionOn, xyAt } from "@/audio/xyMotion";
 /** Transport position in 1/16 steps at an audio time (or now), null when stopped. */
@@ -174,6 +175,10 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const deckOn = useRef(false), deckArm = useRef<number | null>(null);
   const startRequest = useRef(0);
   const engine = useRef<Engine | null>(null);
+  const [fxMacros, setFxMacrosState] = useState<FxMacroMapping[]>([]);
+  const fxMacrosRef = useRef<FxMacroMapping[]>([]);
+  const macroPosition = useRef<FxMacroPosition>({ mode: "clock", x: 0, y: 0 });
+  const setFxMacros = useCallback((m: FxMacroMapping[]) => { fxMacrosRef.current = m; setFxMacrosState(m); }, []);
   /** Sends a slot's XY-applied sound to every voice of pad i that is still ringing, so held notes and chords follow the dot. */
   const pushXyLive = (i: number, ap: Slot) => { const ee = engine.current; if (!ee) return; const q = livePatch(ap), seen = new Set<unknown>();
     [ee.mono[i]?.update, ...ee.ring[i].map(r => r.update)].forEach(u => { if (u && !seen.has(u)) { seen.add(u); try { u(q); } catch { /* voice ended */ } } });
@@ -243,6 +248,30 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const syncedGroups = useRef<(FxUnit[] | undefined)[]>([]);
   const slotsRef = useRef(slots); slotsRef.current = slots; slotsForSnap.current = slots;
+  // Control-rate updates reuse nodes and preserve saved patches; removed targets restore.
+  useEffect(() => {
+    let touched = new Set<string>(), smooth = { x: 0, y: 0 };
+    const id = window.setInterval(() => {
+      const e = engine.current; if (!e) return;
+      const p = macroPosition.current, active = p.mode === "macro";
+      const goal = active ? p : { x: 0, y: 0 };
+      smooth.x += (goal.x - smooth.x) * .4; smooth.y += (goal.y - smooth.y) * .4;
+      if (Math.abs(smooth.x - goal.x) < .0001) smooth.x = goal.x;
+      if (Math.abs(smooth.y - goal.y) < .0001) smooth.y = goal.y;
+      const moving = !!(smooth.x || smooth.y), maps = active || moving ? fxMacrosRef.current : [];
+      const next = new Set<string>();
+      const apply = (owner: string, units: FxUnit[], chain: FxNode[]) => units.filter(f => f.on).forEach((f, k) => {
+        const key = `${owner}:${f.id}`, mapped = maps.some(m => m.owner === owner && m.fx === f.id);
+        if ((!mapped || !moving) && !touched.has(key)) return;
+        chain[k]?.update(macroFxParams(owner, f, maps, { mode: "macro", ...smooth }), e.ctx.currentTime);
+        if (mapped && moving) next.add(key);
+      });
+      slotsRef.current.forEach((s, i) => apply(`p${i}`, padFx(s), e.outs[i].chain));
+      groupsRef.current.forEach((g, i) => apply(`g${i}`, g.fx, e.groups[i].chain));
+      touched = next;
+    }, 20);
+    return () => window.clearInterval(id);
+  }, []);
   // Imported wavetables load from local storage ahead of the first note.
   useEffect(() => { slots.forEach(x => { if (x.engine === "synth" && x.synth.clean?.wt) tableNow(x.synth.clean.wt); }); }, [slots]);
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
@@ -637,7 +666,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
           else if (target === "start") startMod.current[i] = Math.min(.98, value);
           else if (target === "wave") waveMod.current[i] = value * 3;
           else { const [id, param] = (target ?? "off").split(":"); const enabled = slot.fx.filter(f => f.on); const idx = enabled.findIndex(f => String(f.id) === id);
-            if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update({ ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }, time); } }
+            if (idx >= 0 && modParamsOf(enabled[idx].type).includes(param)) { const u = enabled[idx]; eng.outs[i].chain[idx]?.update(macroFxParams(`p${i}`, u, fxMacrosRef.current, macroPosition.current, { ...defaultFxParams(u.type), ...u.params, ...(param === "time" ? { sync: 0 } : {}), [param]: modValue(u.type, param, value) }), time); } }
         } }
         if (eng && !cutMod) eng.outs[i].filter.frequency.setTargetAtTime(20000, time, .005);
         // Book the active phrase run only up to the end of this 16th, reading the slot's current sound each time.
@@ -1205,8 +1234,8 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
     if (raw) { const t = setTimeout(() => { try { applySet(JSON.parse(raw!)); } catch { /* corrupt: keep default kit */ } }, 0); return () => clearTimeout(t); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const setMangleTimbre = (mode: MangleMode, x: number, y: number) => { setMangleMacro({ mode, x, y }); slotsRef.current.forEach((sl, i) => pushXyLive(i, applyXY(withMotion(sl)))); };
-  return { setMangleTimbre, groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, applyRunes, runes: banks[bank].runes, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setPadRoleTo: (r: number, role: PadRole) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: x.padRole === role ? "free" as PadRole : role } : x); slotsRef.current = n; return n; }), setPadRole: (r: number) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: nextPadRole(x.padRole) } : x); slotsRef.current = n; return n; }), setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
+  const setMangleTimbre = useCallback((mode: MangleMode, x: number, y: number) => { macroPosition.current = { mode, x, y }; setMangleMacro({ mode, x, y }); slotsRef.current.forEach((sl, i) => pushXyLive(i, applyXY(withMotion(sl)))); }, []);
+  return { fxMacros, setFxMacros, setMangleTimbre, groups, setGroup: (k: number, p: Partial<GroupBus>) => setGroups(gs => gs.map((x, j) => j === k ? { ...x, ...p } : x)), assignGroup: (i: number, group: number) => setSlots(sl => sl.map((x, j) => j === i ? { ...x, group } : x)), beginMonke, mutateMonke, endMonke, deckStart, deckStop, deckPhaseError, stopLinked, startAt, nudgeTempo, stepNow, setDeckOut, buffer: bufferMode, setBufferMode, steps, toggleSteps, applyRunes, runes: banks[bank].runes, liveState, liveOpts, setLiveOpts, lastTake, armInput, disarmInput, recInput, keyOn, keyOff, modLane, setModLane, setPadRoleTo: (r: number, role: PadRole) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: x.padRole === role ? "free" as PadRole : role } : x); slotsRef.current = n; return n; }), setPadRole: (r: number) => setSlots(sl => { const n = sl.map((x, j) => j === r ? { ...x, padRole: nextPadRole(x.padRole) } : x); slotsRef.current = n; return n; }), setRowRnd: (r: number) => setSlots(sl => sl.map((x, j) => j === r ? { ...x, rnd: (((x.rnd ?? 0) + 1) % 3) as 0 | 1 | 2 } : x)), setMalfunction, getSlices, undo, redo, canUndo, canRedo, harmony, setHarmony, engine, ensure, repeat, setRepeat, setPadVel, rec, setRec, vel, chance, ratchet: banks[bank].ratchet ?? ones(), cond: banks[bank].cond ?? filled(0), nudge: banks[bank].nudge ?? filled(.5), setStepValue, setRowValue, performance, setPerformance, getSet, applySet, getPatch, applyPatch, bank, queued, selectBank, copyBank, setLevel, toggleMute, unmuteAll, toggleSolo, clearSolo, slots, pattern, lengths, setTrackLength, clearRow, shiftTrack, selected, playing, paused, togglePause, newBlank, step, bpm, swing, setSwing, tune, setTune, volume, padRefs, peaks, error, release, eco, latency, meter, resetMeter, getFxLevels, getMasterDyn, getChannelLevels, getSlotWave, getSlotSpectrum, setEco, setSelected, setBpm, setVolume, togglePlay, hit, updateSlot, updateSelected, loadSample, loadSelected, loadSelectedId, loadFolder, copyBuffer, toggleStep, tieStep, setNoteSpan, setModValue, setModTarget, clearPattern, randomizePattern, resetAll, genRows, genRoles, genModels, applyGenerated, bakeSelectedPhrase };
 }
 
 export type GrooveSet = { groups?: GroupBus[]; v: 1 | 2; harmony?: Harmony; name: string; savedAt: number; bpm: number; swing?: number; tune?: number; volume: number; bank: number; banks: (Partial<Bank> & { pattern: StepVal[][] })[]; slots: Slot[]; performance?: PerformanceParams };
