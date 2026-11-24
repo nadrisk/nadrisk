@@ -68,3 +68,17 @@ describe("independent rune slots", () => {
   it("different runes have independent target combinations", () => { expect(RUNE_TARGETS.anchor).toEqual(["cutoff"]); expect(RUNE_TARGETS.shift).toEqual(["time", "wave"]); const c = compileRunes(L({ drums: [card("anchor")], mod: [{ ...newRune("euclid", 0), len: 2, targets: ["cutoff"] }, { ...newRune("shift", 2), len: 2, targets: ["time"] }] }), roles({0: "rhythm"}), h); expect(c.mods[0][0].targets?.slice(0, 8)).toEqual(Array(8).fill("cutoff")); expect(c.mods[0][0].targets?.slice(8)).toEqual(Array(8).fill("time")); });
   it("user note values drive the bass progression exactly", () => { const c = compileRunes(L({ notes: [2, 7, 5], bass: [card("anchor")] }), roles({1: "bass"}), h); expect([0, 6, 12].map(t => c.rows[1].pitch?.[t])).toEqual([2, 7, 5]); });
 });
+
+import { roleRegister } from "@/audio/runeHarmony";
+import { padOctave } from "@/components/harmonyKnob";
+describe("role registers", () => {
+  it("bass sits in octave 1, arp in octave 4, OCT shifts by 12", () => {
+    expect(roleRegister("bass", 0)).toBe(24);
+    expect(roleRegister("arp", 0)).toBe(60);
+    expect(roleRegister("bass", 2, 1)).toBe(38);
+  });
+  it("old notes map to the nearest octave without losing pitch", () => {
+    expect(padOctave({ note: 60, engine: "synth" } as never)).toBe(1);
+    expect(padOctave({ note: 47, engine: "synth" } as never)).toBe(0);
+  });
+});

@@ -17,3 +17,9 @@ export const chordAt = (prog: ProgName | ProgDegrees, step: number, total: numbe
 export const rootSemi = (h: Harmony, deg: number) => ((degreeToSemi(scaleOf(h), deg) % 12) + 12) % 12;
 /** Triad tones (semitones above key root) of a scale degree. */
 export const chordTones = (h: Harmony, deg: number) => { const s = scaleOf(h); return [0, 2, 4].map(o => degreeToSemi(s, deg + o) - (degreeToSemi(s, deg) - rootSemi(h, deg))).map(x => x % 24); };
+
+/** Absolute MIDI note of a role's root register: bass sits around C1–C2, arp around C4–C5; OCT shifts by octaves. */
+export function roleRegister(role: string, key: number, oct = 0): number {
+  const base = role === "bass" ? 24 : role === "arp" ? 60 : 48;
+  return base + (((key % 12) + 12) % 12) + oct * 12;
+}

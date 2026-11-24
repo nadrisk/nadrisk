@@ -52,7 +52,7 @@ export const modPitchOffset = (value: number, range = 12) => Math.round((Math.mi
 export function modPitchNote(h: Harmony, padNote: number, value: number, range = 12) {
   // Two-octave lanes come from keyboard step recording and keep the exact played note.
   const offset = modPitchOffset(value, range);
-  if (!offset || range === 24 || !harmonyOn(h)) return padNote + offset;
+  if (!offset || range >= 24 || !harmonyOn(h)) return padNote + offset;
   return padNote + phraseSemi(h, padNote, h.scale, offset);
 }
 

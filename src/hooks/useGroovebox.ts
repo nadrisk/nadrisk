@@ -1,3 +1,5 @@
+import { padOctave } from "@/components/harmonyKnob";
+import { roleRegister } from "@/audio/runeHarmony";
 import { compileRunes, type RuneLayout } from "@/audio/runeCompiler";
 import { nextPadRole, padRoleOf, type PadRole } from "@/audio/runes";
 import { foldOneSided } from "@/audio/monoFold";
@@ -1055,7 +1057,7 @@ export function useGroovebox(opts: { deck?: boolean } = {}) {
       return nb; });
     const key = harmonyRef.current.key;
     setSlots(sl => { const n = sl.map((x, i) => { const row = c.rows[i]; if (!row) return x; const lanes: (Partial<ModLane> | null)[] = [];
-      if (row.pitch) { const base = (((x.note - key) % 12) + 12) % 12; lanes.push({ target: "pitch", targets: undefined, range: 24, values: Array.from({ length: STEPS }, (_, t) => t < row.pitch!.length ? (Math.max(-24, Math.min(24, row.pitch![t] - base)) + 24) / 48 : .5) }); }
+      if (row.pitch) { const reg = roleRegister(padRoleOf(x.padRole), key, padOctave(x)); lanes.push({ target: "pitch", targets: undefined, range: 48, values: Array.from({ length: STEPS }, (_, t) => t < row.pitch!.length ? (Math.max(-48, Math.min(48, reg + row.pitch![t] - x.note)) + 48) / 96 : .5) }); }
       for (const m of c.mods[i] ?? []) lanes.push({ target: m.target, targets: m.targets, range: undefined, values: Array.from({ length: STEPS }, (_, t) => m.values[t] ?? .5) });
       return { ...x, mods: x.mods.map((m, k) => { if (k % NBANKS !== bi) return m; const li = Math.floor(k / NBANKS), l = lanes[li]; return l ? { ...m, ...l, on: true } : { ...m, on: false }; }) }; });
       slotsRef.current = n; return n; });
