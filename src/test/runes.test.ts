@@ -129,3 +129,12 @@ describe("arp and hocket per rune", () => {
     expect(hocketOwner("prime", 2, 7, 7, 2)).toBe(0); expect(hocketOwner("prime", 2, 8, 8, 2)).toBe(1);
   });
 });
+
+import { snakeCell, SNAKE_SHAPES } from "@/audio/runeCompiler";
+describe("SNAKE rune", () => {
+  it("each AMT shape visits all 16 cells in a different order", () => {
+    const orders = SNAKE_SHAPES.map((_, s) => Array.from({ length: 16 }, (_, i) => snakeCell((s + .5) / 5, i)));
+    for (const o of orders) expect(new Set(o).size).toBe(16);
+    expect(new Set(orders.map(o => o.join())).size).toBe(5);
+  });
+});

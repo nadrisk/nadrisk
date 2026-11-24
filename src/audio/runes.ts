@@ -1,6 +1,6 @@
 // Rune cards: each rune is one rule set; the lane it lands on picks which rule applies.
 // Cards are pure data; runeCompiler.ts turns a lane layout into ordinary step-bank data.
-export type RuneId = "euclid" | "shift" | "anchor" | "gibbs" | "fibo" | "prime" | "stoch" | "null";
+export type RuneId = "euclid" | "shift" | "anchor" | "gibbs" | "fibo" | "prime" | "stoch" | "null" | "snake";
 export type LaneId = "drums" | "bass" | "mod";
 export type PadRole = "rhythm" | "bass" | "arp" | "free";
 export const PAD_ROLES: readonly PadRole[] = ["free", "rhythm", "bass", "arp"];
@@ -28,9 +28,10 @@ export const RUNES: readonly RuneDef[] = [
   { id: "prime", glyph: "ᛒ", name: "PRIME", fxDepth: 0, arpPassage: false },
   { id: "stoch", glyph: "ᚺ", name: "STOCH", fxDepth: .25, arpPassage: false },
   { id: "null", glyph: "ᛝ", name: "NULL", fxDepth: 1, arpPassage: false },
+  { id: "snake", glyph: "ᛇ", name: "SNAKE", fxDepth: .6, arpPassage: false },
 ];
 export const rune = (id: RuneId) => RUNES.find(r => r.id === id) ?? RUNES[0];
-export const RUNE_TARGETS: Record<RuneId, string[]> = { euclid: ["cutoff", "time"], shift: ["time", "wave"], anchor: ["cutoff"], gibbs: ["cutoff", "time", "wave"], fibo: ["wave", "cutoff"], prime: ["time", "start"], stoch: ["cutoff", "start", "wave"], null: ["time", "cutoff"] };
+export const RUNE_TARGETS: Record<RuneId, string[]> = { euclid: ["cutoff", "time"], shift: ["time", "wave"], anchor: ["cutoff"], gibbs: ["cutoff", "time", "wave"], fibo: ["wave", "cutoff"], prime: ["time", "start"], stoch: ["cutoff", "start", "wave"], null: ["time", "cutoff"], snake: ["cutoff", "wave"] };
 /** Explicit starts keep gaps; old cards retain their end-to-end placement. */
 export function positioned(cards: RuneCard[]) { let end = 0; return cards.map(c => { const start = c.start ?? end; end = start + c.len; return { ...c, start }; }); }
 export function firstFree(cards: RuneCard[], beats: number) { const placed = positioned(cards); return Array.from({ length: beats }, (_, i) => i).find(i => !placed.some(c => i >= c.start && i < c.start + c.len)); }

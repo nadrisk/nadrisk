@@ -5,7 +5,7 @@ import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree
 import { PROG_NAMES } from "@/audio/runeHarmony";
 import { FX_DEFS, MOD_LABEL, modParamsOf } from "@/audio/effects";
 import { draggedValue } from "./stepDrag";
-import type { RuneLayout } from "@/audio/runeCompiler";
+import { SNAKE_SHAPES, snakeShape, type RuneLayout } from "@/audio/runeCompiler";
 import type { Slot } from "@/hooks/useGroovebox";
 
 export const emptyRunes = (): RuneLayout => ({ bars: 1, prog: PROG_NAMES[0], drums: [], bass: [], mod: [], targets: [] });
@@ -63,7 +63,7 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
     {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
       <select aria-label="Rune to edit" value={`${sel.lane}:${sel.i}`} onChange={e => { const [lane, i] = e.target.value.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }}>{LANES.flatMap(L => layout[L.id].map((c, i) => <option key={`${L.id}:${i}`} value={`${L.id}:${i}`}>{L.label} {i + 1} {rune(c.rune).name}</option>))}</select>
       <Button variant="ghost" className="gb-cycle rune-del" aria-label="Delete rune" onClick={() => remove(sel.lane, sel.i)}>DEL</Button>
-      <span className="rune-val">LEN {cur.len} · AMT {Math.round(cur.amt * 100)}</span>
+      <span className="rune-val">LEN {cur.len} · AMT {Math.round(cur.amt * 100)}{cur.rune === "snake" ? ` · ${SNAKE_SHAPES[snakeShape(cur.amt)]}` : ""}</span>
       <label className="rune-speed">SPD <select aria-label="Card speed" value={cur.rate ?? "1/16"} onChange={e => edit({ rate: e.target.value as RuneCard["rate"] })}>{RUNE_RATES.map(([r]) => <option key={r} value={r}>{r}</option>)}</select></label>
       {sel.lane === "bass" && rune(cur.rune).arpPassage && <Button variant="ghost" className="gb-cycle" onClick={() => edit({ arp: cur.arp === "root" ? "prog" : "root" })}>ARP {cur.arp === "root" ? "ROOT" : "PROG"}</Button>}
       <div className="rune-targets" role="group" aria-label="This rune modulation targets">{[0, 1, ...(sel.lane === "drums" ? [2] : [])].map(i => <label key={i}>T{i + 1}<select aria-label={`Rune target ${i + 1}`} value={(cur.targets ?? layout.targets)[i] ?? "off"} onChange={e => { const targets = [...(cur.targets ?? layout.targets)]; targets[i] = e.target.value; edit({ targets }); }}><option value="off">OFF</option>{available.map(([v, name]) => <option key={v} value={v}>{name}</option>)}</select></label>)}</div>

@@ -9,6 +9,18 @@ export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; notes?: number[]; /*
 export type Row = { pattern: number[]; vel: number[]; chance: number[]; ratchet: number[]; pitch?: number[] };
 export type Compiled = { steps: number; rows: Record<number, Row>; mods: Record<number, { target: string; targets?: string[]; values: number[] }[]> };
 
+/** SNAKE: 4x4 matrix (cell = row*4+col, row 0 = low) walked along a shape AMT picks. */
+export const SNAKE_SHAPES = ["RASTER", "SERPENT", "SPIRAL", "DIAG", "STRIDE"] as const;
+const SNAKE_PATHS: number[][] = [
+  Array.from({ length: 16 }, (_, i) => i),
+  [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12],
+  [0, 1, 2, 3, 7, 11, 15, 14, 13, 12, 8, 4, 5, 6, 10, 9],
+  [0, 4, 1, 8, 5, 2, 12, 9, 6, 3, 13, 10, 7, 14, 11, 15],
+  [0, 2, 8, 10, 5, 7, 13, 15, 1, 3, 9, 11, 4, 6, 12, 14],
+];
+export const snakeShape = (amt: number) => Math.min(4, Math.max(0, Math.floor(amt * 5)));
+export const snakeCell = (amt: number, i: number) => SNAKE_PATHS[snakeShape(amt)][((i % 16) + 16) % 16];
+
 const FIB = new Set([0, 1, 2, 3, 5, 8, 13, 21]);
 const isPrime = (n: number) => { if (n < 2) return false; for (let i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; };
 export const bjorklund = (k: number, pulses: number, n: number, rot = 0) => pulses > 0 && Math.floor((((k + rot) % n) * pulses) / n) !== Math.floor(((((k + rot) % n) + n - 1) % n * pulses) / n) || (pulses > 0 && (k + rot) % n === 0);
@@ -31,6 +43,7 @@ export function hit(r: RuneId, k: number, n: number, amt: number, spd: number, v
     case "fibo": return FIB.has((k + v) % n) && (k + v) % n <= 2 + a * 19; // AMT = grouping depth
     case "prime": return isPrime(k + v) && k <= 2 + a * (n - 2); // AMT = how far primes reach
     case "stoch": { const x = Math.sin((k + 1) * 12.9898 + v * 78.233) * 43758.5453; return x - Math.floor(x) < .15 + a * .7; } // AMT = probability
+    case "snake": { const c = snakeCell(a, k + v * 4); return c % 4 === 0 || (c % 4 === 3 && Math.floor(c / 4) % 2 === 0); } // AMT = shape; edge columns speak
     case "null": return a > 0 && v === 0 && (k === 0 || (a > .5 && k === n / 2)); // AMT = how much breaks the rest
   }
 }
@@ -43,7 +56,8 @@ export function rateHit(c: RuneCard, k: number, n: number, v = 0): 0 | 1 | 2 {
 
 /** Arp rhythm per rune: dense runes run at the card rate, sparse ones fall back to an off-grid variant. */
 function arpHit(c: RuneCard, k: number, n: number): 0 | 1 | 2 {
-  const e = rateSteps(c, true); if (c.rune === "gibbs") return e < 1 || k % Math.max(1, e) === 0 ? 2 : 0;
+  const e = rateSteps(c, true); if (c.rune === "snake") return e >= 1 ? (k % e ? 0 : 1) : 2;
+  if (c.rune === "gibbs") return e < 1 || k % Math.max(1, e) === 0 ? 2 : 0;
   if (c.rune === "null") return k % Math.max(4, Math.round(n / (1 + Math.round(c.amt * 3)))) === 2 ? 1 : 0;
   return rateHit(c, k, n, 1) || (c.rune === "prime" || c.rune === "fibo" ? 0 : rateHit(c, k, n, 2));
 }
@@ -56,6 +70,7 @@ export function hocketOwner(r: RuneId, i: number, k: number, t: number, m: numbe
     case "shift": return Math.floor(i / 2) % m;
     case "fibo": { let acc = 0, b = 0; while (acc + FIB_BLOCKS[b % FIB_BLOCKS.length] <= i) { acc += FIB_BLOCKS[b % FIB_BLOCKS.length]; b++; } return b % m; }
     case "prime": return isPrime(k) ? 0 : 1 + (i % Math.max(1, m - 1));
+    case "snake": return Math.floor(snakeCell(0, k) / 4) % m; // matrix row decides the voice
     case "stoch": { const x = Math.sin((t + 1) * 37.719 + k * 4.13) * 43758.5453; return Math.floor((x - Math.floor(x)) * m) % m; }
     default: return i % m; // euclid, gibbs, null: note-by-note ping-pong
   }
@@ -103,6 +118,7 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
       case "fibo": pitch = at([0, 1, 2, 4, 7][i % 5]); break; // Fibonacci leaps
       case "prime": pitch = at([1, 2, 4, 6][i % 4]); break; // angular prime-degree leaps
       case "stoch": { const x = Math.sin((t + 1) * 91.17) * 43758.5; walk = Math.max(-1, Math.min(T * 2, walk + (x - Math.floor(x) < .5 ? -1 : 1))); pitch = at(walk); break; }
+      case "snake": { const cell = snakeCell(c.amt, i); pitch = at(cell % 4) + (Math.floor(cell / 4) % 2) * 12 + (Math.floor(cell / 4) >= 2 ? 7 : 0); break; } // column = chord tone, row = register
       default: pitch = at(i % 2 ? 2 : 1); // NULL: sparse suspended tones
     }
     arpLine.pattern[t] = 1; arpLine.pitch![t] = pitch; arpLine.vel[t] = i % 2 ? 1 - .45 * c.amt : 1; if (hh === 2) arpLine.ratchet[t] = c.rune === "gibbs" ? 2 + Math.round(c.amt) : 2;
@@ -123,6 +139,7 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
         case "shift": if (row.pitch && row.pattern[t] === 1 && k % 2) row.pitch[t] += 12; break;
         case "null": if (row.pattern[t] === 2) row.pattern[t] = 0; break;
         case "anchor": if (t + 1 < steps && !row.pattern[t + 1]) row.pattern[t + 1] = 2; break;
+        case "snake": { const cell = snakeCell(c.amt, k); row.vel[t] = .4 + .2 * Math.floor(cell / 4); break; } // row = dynamics
         case "prime": break; // handled below as a span reversal
       } });
     // PRIME: reverse the order of hits inside its span.
