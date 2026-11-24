@@ -14,6 +14,7 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
   const [active, setActive] = useState<LaneId>("drums");
   const [sel, setSel] = useState<{ lane: LaneId; i: number } | null>(null);
   const [dragging, setDragging] = useState<RuneId | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number; lane?: LaneId; beat?: number; ok?: boolean } | null>(null);
   const dockDrag = useRef<{ id: number; rune: RuneId; x: number; y: number; moved: boolean } | null>(null);
   const beats = layout.bars * 4, beat = step < 0 ? -1 : Math.floor((step % (beats * 4)) / 4);
   const set = (lane: LaneId, cards: RuneCard[]) => onChange({ ...layout, [lane]: cards });
@@ -48,6 +49,7 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
       <Button variant="ghost" className={`rune-lane-label ${active === L.id ? "active" : ""}`} aria-label={`Select ${L.label} lane`} aria-pressed={active === L.id} onClick={() => setActive(L.id)}>{L.label}</Button>
       <div className="rune-track" data-rune-lane={L.id} aria-label={`${L.label} lane`}>
         {Array.from({ length: beats }, (_, b) => <span key={b} className={`rune-beat ${b % 4 === 0 ? "bar" : ""} ${b === beat ? "now" : ""}`} style={{ gridColumn: b + 1 }} aria-hidden />)}
+        {ghost?.lane === L.id && ghost.beat !== undefined && <span className={`rune-drop ${ghost.ok ? "" : "blocked"}`} style={{ gridColumn: ghost.beat + 1 }} aria-hidden />}
         {positioned(layout[L.id]).map((c, i) => c.start < beats && <Button variant="ghost" key={i} className={`rune-card ${sel?.lane === L.id && sel.i === i ? "editing" : ""}`} style={{ gridColumn: `${c.start + 1} / span ${Math.min(c.len, beats - c.start)}`, ["--amt" as string]: c.amt }} title={`${rune(c.rune).name} · ${Math.round(c.amt * 100)}%`} aria-label={`${L.label} card ${i + 1} ${rune(c.rune).name} amount ${Math.round(c.amt * 100)}`}
           onPointerDown={ev => down(ev, L.id, i)} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }}
           onContextMenu={ev => { ev.preventDefault(); setSel({ lane: L.id, i }); }}
@@ -55,11 +57,15 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
           <i className="rune-fill" aria-hidden /><b>{rune(c.rune).glyph}</b><small className="rune-rate">{c.rate ?? "1/16"}</small><i className="rune-grip" aria-hidden /></Button>)}
       </div>
     </div>)}</div>
+    {ghost && dragging && <div className="rune-drag-chip" style={{ left: ghost.x, top: ghost.y }} aria-hidden><b>{rune(dragging).glyph}</b><span>{rune(dragging).name}</span></div>}
     <div className="rune-dock" role="group" aria-label="Runes">{RUNES.map(r => <Button variant="ghost" key={r.id} className={`rune-pick ${dragging === r.id ? "dragging" : ""}`} aria-label={`Add ${r.name} to ${active} lane`} title={r.name}
       onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dockDrag.current = { id: e.pointerId, rune: r.id, x: e.clientX, y: e.clientY, moved: false }; }}
-      onPointerMove={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) { d.moved = true; setDragging(r.id); } }}
-      onPointerUp={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; dockDrag.current = null; setDragging(null); if (!d.moved) { place(active, r.id); return; } const track = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".rune-track"); const lane = track?.dataset.runeLane as LaneId | undefined; if (track && lane) { const rect = track.getBoundingClientRect(); place(lane, r.id, Math.floor((e.clientX - rect.left) / rect.width * beats)); } }}
-      onPointerCancel={() => { dockDrag.current = null; setDragging(null); }} onClick={e => { if (e.detail === 0) place(active, r.id); }}><b>{r.glyph}</b><span>{r.name}</span></Button>)}</div>
+      onPointerMove={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 6) return; d.moved = true; setDragging(r.id);
+        const track = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".rune-track"), lane = track?.dataset.runeLane as LaneId | undefined;
+        let b: number | undefined, ok = false; if (track && lane) { const rect = track.getBoundingClientRect(); b = Math.max(0, Math.min(beats - 1, Math.floor((e.clientX - rect.left) / rect.width * beats))); ok = !positioned(layout[lane]).some(c => b >= c.start && b < c.start + c.len); }
+        setGhost({ x: e.clientX, y: e.clientY, lane, beat: b, ok }); }}
+      onPointerUp={e => { const d = dockDrag.current; if (!d || d.id !== e.pointerId) return; dockDrag.current = null; setDragging(null); setGhost(null); if (!d.moved) { place(active, r.id); return; } const track = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".rune-track"); const lane = track?.dataset.runeLane as LaneId | undefined; if (track && lane) { const rect = track.getBoundingClientRect(); place(lane, r.id, Math.floor((e.clientX - rect.left) / rect.width * beats)); } }}
+      onPointerCancel={() => { dockDrag.current = null; setDragging(null); setGhost(null); }} onClick={e => { if (e.detail === 0) place(active, r.id); }}><b>{r.glyph}</b><span>{r.name}</span></Button>)}</div>
     {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
       <select aria-label="Rune to edit" value={`${sel.lane}:${sel.i}`} onChange={e => { const [lane, i] = e.target.value.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }}>{LANES.flatMap(L => layout[L.id].map((c, i) => <option key={`${L.id}:${i}`} value={`${L.id}:${i}`}>{L.label} {i + 1} {rune(c.rune).name}</option>))}</select>
       <Button variant="ghost" className="gb-cycle rune-del" aria-label="Delete rune" onClick={() => remove(sel.lane, sel.i)}>DEL</Button>
