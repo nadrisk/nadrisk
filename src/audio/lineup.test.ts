@@ -37,10 +37,12 @@ describe("instrument XY", () => {
     const s = pad({ engine: "synth", xy: { x: 0, y: 0 } });
     expect(applyXY(s)).toBe(s);
   });
-  it("SURF XY sweeps only the terrain FREQ and FOLD", () => {
-    const s = pad({ engine: "synth" }), c = cleanOf(s.synth);
-    const q = cleanOf(applyXY({ ...s, xy: { x: .5, y: .5 } }).synth);
-    expect(q.tfreq).toBeGreaterThan(c.tfreq); expect(q.fold).not.toBe(c.fold); expect([q.cx, q.cy]).toEqual([c.cx, c.cy]); expect(q.cutoff).toBe(c.cutoff); expect(q.env).toEqual(c.env);
+  it("brightens SYN upward and opens it rightward", () => {
+    const s0 = pad({ engine: "synth" }), s = { ...s0, synth: { ...s0.synth, clean: { ...cleanOf(s0.synth), cutoff: 2400 } } }, c = cleanOf(s.synth);
+    const up = cleanOf(applyXY({ ...s, xy: { x: 1, y: 1 } }).synth);
+    expect(up.cutoff).toBeGreaterThan(c.cutoff); expect(up.env.r).toBeGreaterThan(c.env.r);
+    const down = cleanOf(applyXY({ ...s, xy: { x: -1, y: -1 } }).synth);
+    expect(down.cutoff).toBeLessThan(c.cutoff); expect(down.env.r).toBeLessThan(c.env.r);
   });
   it("SET writes the explored sound and keeps the dot where it is", () => {
     const s = pad({ engine: "808", xy: { x: .5, y: .5 } }), p = commitXY(s);

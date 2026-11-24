@@ -1,8 +1,9 @@
-import MainFaceplate from "./MainFaceplate";
-import { defaultSurface, hydrateSurface, type SurfaceState } from "@/audio/surfaceState";
-import { useSurfaceBuses } from "@/hooks/useSurfaceBuses";
-import { TOPO_DEFAULT, type Topo } from "@/audio/topomap";
-import type { GrooveSet } from "@/hooks/useGroovebox";
+import { draggedValue, inLengthGrip } from "./stepDrag";
+import MonkeSprite, { MonkeHunter } from "./MonkeSprite";
+import MonkeVisitor from "./MonkeVisitor";
+import { useMonke } from "@/hooks/useMonke";
+import { spanOf, maxSpan, spanLabel } from "@/audio/noteSpan";
+import { CONDS, nudgeLabel } from "@/audio/stepCond";
 import { gatedLoop, pokeAudio, setTransportPlaying } from "@/lib/frameGate";
 import AboutSection from "@/components/AboutSection";
 import StartupFlash from "@/components/StartupFlash";
@@ -23,13 +24,16 @@ import { useMidi } from "@/hooks/useMidi";
 import type { MutableRefObject } from "react";
 import { AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ResetScope } from "@/components/ui/slider";
+import { Slider, ResetScope } from "@/components/ui/slider";
 import TapeDeck from "./TapeDeck";
 import { useTapeRecorder } from "@/hooks/useTapeRecorder";
-import { useGroovebox } from "@/hooks/useGroovebox";
+import { RATES, type RateName } from "@/audio/arp";
+import { useGroovebox, stepAt, ROLLS, type Slot, type RepeatParams } from "@/hooks/useGroovebox";
 import type { FxUnit } from "@/audio/effects";
+import { detectRole } from "@/audio/patternGen";
 import { phraseCharacter } from "@/audio/arp";
-import { MasterScreen, MidiScreen } from "@/components/HwScreens";
+import { MasterScreen, MidiScreen, SeqScreen } from "@/components/HwScreens";
+import PatchNode from "./PatchNode";
 import SlotEditor from "./SlotEditor";
 import DevicePanel from "./DevicePanel";
 import FxChain from "./FxChain";
@@ -43,6 +47,7 @@ import type { ArpParams } from "@/audio/arp";
 import Waveform from "./Waveform";
 import PatchBank from "@/components/PatchBank";
 import SetBank from "./SetBank";
+import MemoryWorkspace from "./MemoryWorkspace";
 import PerfXY from "@/components/PerfXY";
 import PerformanceRack from "./PerformanceRack";
 import PerfLink from "./PerfLink";
@@ -56,27 +61,221 @@ import { DisplayThemeContext } from "@/pixel/PixelScreen";
 import VjOverlay from "@/vj/VjOverlay";
 import { vjListen, vjSend } from "@/vj/bus";
 import { DISPLAY_THEMES, nextDisplayTheme, type DisplayTheme } from "@/lib/displayTheme";
+import UtilitySwitcher, { INITIAL_UTILITY, UTILITY_LABELS, type Utility } from "./UtilitySwitcher";
+
+// Pads and the sequencer grid are memoized so a sequencer tick never re-renders the editor or
+// fx panels, and a pad hit never waits on the sequencer — key for responsive finger drumming.
+// Bottom ~12% of a pad reads as silent, top ~8% as full, so a fingertip can reach both ends.
+const padYVel = (y: number, b: DOMRect) => Math.round(Math.min(1, Math.max(0, ((1 - (y - b.top) / b.height) - .12) / .8)) * 100) / 100;
+
+const PadGrid = memo(function PadGrid({ slots, selected, padRefs, onHit, onRelease, velMode, onVel }: {
+  slots: Slot[]; selected: number; padRefs: MutableRefObject<(HTMLButtonElement | null)[]>; onHit: (i: number) => void; onRelease: (i: number) => void; velMode: boolean; onVel: (i: number, v: number) => void;
+}) {
+  // With pad repeat on, finger height inside the pad sets velocity (bottom = soft, top = loud), drawn as a fill.
+  const setVel = (i: number, v: number) => { const el = padRefs.current[i]; if (!el) return; el.style.setProperty("--vel", String(v)); const n = el.querySelector(".gb-pad-velnum"); if (n) n.textContent = `VEL ${Math.round(v * 127)}`; onVel(i, v); };
+  const vel = (i: number, e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); setVel(i, padYVel(e.clientY, b)); };
+  // Touch screens: pads read the raw touch signal (every finger in changedTouches is its own hit), like native
+  // drum apps; cancelling the touch also stops iOS gesture recognisers from holding back fast repeated taps.
+  // Mouse and pen keep using pointer events below.
+  const grid = useRef<HTMLDivElement>(null);
+  const live = useRef({ onHit, onRelease, velMode, vel: setVel });
+  live.current = { onHit, onRelease, velMode, vel: setVel };
+  // Release a pad only when its last finger lifts, so lifting one finger never cuts a newer tap's sound.
+  const fingers = useRef<Set<number>[]>(Array.from({ length: 16 }, () => new Set()));
+  const up = (i: number, id: number) => { const f = fingers.current[i]; if (!f.delete(id)) return; if (!f.size) onRelease(i); };
+  const touchPad = useRef(new Map<number, number>());
+  useEffect(() => {
+    const el = grid.current; if (!el) return;
+    const padOf = (t: Touch) => { const b = (t.target as Element | null)?.closest?.(".gb-pad") as HTMLElement | null; return b ? Number(b.dataset.pad) : -1; };
+    const start = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) { const i = padOf(t); if (i < 0) continue; touchPad.current.set(t.identifier, i); fingers.current[i].add(-1 - t.identifier);
+        const L = live.current; if (L.velMode) { const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(), v = padYVel(t.clientY, b); L.vel(i, v); } L.onHit(i); } };
+    const move = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); const L = live.current; if (!L.velMode) return;
+      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; const b = (el.querySelector(`[data-pad="${i}"]`) as HTMLElement).getBoundingClientRect(); L.vel(i, padYVel(t.clientY, b)); } };
+    const end = (e: TouchEvent) => { if (e.cancelable) e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) { const i = touchPad.current.get(t.identifier); if (i === undefined) continue; touchPad.current.delete(t.identifier); const f = fingers.current[i]; f.delete(-1 - t.identifier); if (!f.size) live.current.onRelease(i); } };
+    el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
+
+  return <div ref={grid} className={`gb-pads ${velMode ? "vel-mode" : ""}`}>{slots.map((slot, i) => <button key={i} ref={el => (padRefs.current[i] = el)} data-pad={i} onPointerDown={ev => { ev.preventDefault(); if (ev.pointerType === "touch") return; ev.currentTarget.setPointerCapture?.(ev.pointerId); fingers.current[i].add(ev.pointerId); if (velMode) vel(i, ev); onHit(i); }} onPointerMove={ev => { if (velMode && ev.pointerType !== "touch" && ev.buttons) vel(i, ev); }} onPointerUp={ev => up(i, ev.pointerId)} onPointerCancel={ev => up(i, ev.pointerId)} onLostPointerCapture={ev => up(i, ev.pointerId)} onKeyDown={ev => { if ((ev.key === "Enter" || ev.key === " ") && !ev.repeat) { ev.preventDefault(); onHit(i); } }} onKeyUp={ev => { if (ev.key === "Enter" || ev.key === " ") onRelease(i); }} onBlur={() => { if (!fingers.current[i].size) onRelease(i); }} className={`gb-pad ${slot.arp.on ? "has-arp" : ""} ${selected === i ? "selected" : ""} ${slot.mute ? "muted" : ""}`} aria-label={`Play ${slot.name}`}>
+    {velMode && <><i className="gb-pad-vel" aria-hidden="true" /><b className="gb-pad-velnum" aria-hidden="true">VEL {Math.round(parseFloat(padRefs.current[i]?.style.getPropertyValue("--vel") || "1") * 127)}</b></>}
+    <span className="gb-pad-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-pad-name">{slot.name}</span><span className="gb-pad-kind">{slot.engine === "drum" ? slot.drum.kind : slot.engine === "sampler" ? "smp" : slot.engine === "synth" ? "syn" : slot.engine === "idm" ? "prc" : slot.engine}</span>
+  </button>)}</div>;
+});
+
+function RepeatBar({ repeat, onRepeat, rec, onRec, onNew }: { repeat: RepeatParams; onRepeat: (r: RepeatParams) => void; rec: boolean; onRec: (v: boolean) => void; onNew: () => void }) {
+  const [sure, setSure] = useState(false);
+  useEffect(() => { if (!sure) return; const id = window.setTimeout(() => setSure(false), 3000); return () => window.clearTimeout(id); }, [sure]);
+  return <div className="gb-seq-tools gb-repeat">
+    <button className={`gb-mute ${sure ? "selected" : ""}`} aria-label="New blank kit" onClick={() => { if (sure) { setSure(false); onNew(); } else setSure(true); }}>{sure ? "SURE?" : "NEW"}</button>
+    <button className={`gb-mute ${repeat.on ? "selected" : ""}`} aria-pressed={repeat.on} aria-label="Pad repeat" onClick={() => onRepeat({ ...repeat, on: !repeat.on })}>REPEAT {repeat.on ? "ON" : "OFF"}</button>
+    <div className="gb-banks"><button className={`gb-bank ${repeat.on && !repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && !repeat.latch} aria-label="Repeat momentary" onClick={() => onRepeat({ ...repeat, on: true, latch: false })}>MOMENT</button><button className={`gb-bank ${repeat.on && repeat.latch ? "active" : ""}`} aria-pressed={repeat.on && repeat.latch} aria-label="Repeat latch" onClick={() => onRepeat({ ...repeat, on: true, latch: true })}>LATCH</button><button className={`gb-bank ${repeat.roll ? "active" : ""}`} aria-pressed={!!repeat.roll} aria-label="Repeat roll" onClick={() => onRepeat({ ...repeat, roll: !repeat.roll })}>ROLL</button></div>
+    <button className="gb-cycle" aria-label="Repeat rate" onClick={() => onRepeat({ ...repeat, rate: cyc(Object.keys(RATES), repeat.rate) as RateName })}>{repeat.rate}</button>
+    <button className={`gb-mute gb-rec ${rec ? "selected" : ""}`} aria-pressed={rec} aria-label="Record into sequencer" onClick={() => onRec(!rec)}>● REC</button>
+  </div>;
+}
+
+/** Targets a row can modulate: filter cutoff, pitch (for glides), and the params of each effect on that pad. */
+const targetsOf = (slot: Slot) => [["off", "no mod"], ["cutoff", "cutoff"], ["time", "time"], ...(slot.engine === "drum" ? [] : [["pitch", "pitch"]]), ...(slot.engine === "synth" ? [["wave", "wt pos"]] : []),
+  ...slot.fx.flatMap(f => modParamsOf(f.type).map(k => [`${f.id}:${k}`, `${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[k] ?? k}`]))];
+
+type View = "note" | "mod" | "vel" | "chance" | "roll" | "cond" | "nudge";
+const LANE_VIEWS: View[] = ["vel", "chance", "roll", "cond", "nudge"];
+const homeOf = (v: View) => v === "mod" || v === "nudge" ? .5 : v === "roll" || v === "cond" ? 0 : 1;
+const condName = (x: number) => CONDS[Math.round(x * (CONDS.length - 1))];
+const StepGrid = memo(function StepGrid({ pattern, lengths, slots, selected, step, bank, view, vel, chance, ratchet, cond, nudge, offset, loop, onToggle, onSelect, onLength, onValue, onRow, onModTarget, onClearRow, lenLock, onLenLock, onAudition, modLane, onModLane, onRnd, steps = 16, onSteps, onSpan, monkeBtn, onShift, monkeAt }: { monkeAt?: { row: number; col: number; laughing: boolean } | null; onShift?: (r: number, d: number) => void; monkeBtn?: React.ReactNode; steps?: number; onSteps?: () => void; onSpan?: (r: number, c: number, n: number, begin?: boolean, absorb?: boolean) => void;
+  pattern: StepVal[][]; lengths: number[]; slots: Slot[]; selected: number; step: number; bank: number; view: View; vel: number[][]; chance: number[][]; ratchet: number[][]; cond: number[][]; nudge: number[][]; offset: number; loop: number; onClearRow: (r: number) => void; onAudition: (r: number) => void; modLane: number; onModLane: () => void; onRnd: (r: number) => void; lenLock: boolean; onLenLock: () => void; onToggle: (r: number, c: number) => void; onSelect: (i: number) => void; onLength: (r: number, len: number) => void; onValue: (view: View, r: number, c: number, v: number) => void; onRow: (view: View, r: number, v: number) => void; onModTarget: (r: number, t: string) => void;
+}) {
+  // Relative drag preserves the existing value; 4px deadzone and 450px full travel.
+  const dragRef = useRef<{ r: number; c: number; y: number; v0: number } | null>(null);
+  // Unlit/NOTE taps toggle on pointer-up within 8px, so iOS scroll-cancelled clicks can't swallow them; one touch toggles once.
+  const tapRef = useRef<{ id: number; x: number; y: number; k: string } | null>(null);
+  const lastToggle = useRef({ k: "", t: 0 });
+  // Taps toggle instantly. Lit notes resize from their right edge (6px mouse / right 40% touch) like a piano roll; one undo per drag.
+  const toggle = (r: number, c: number) => { const k = `${r}:${c}`, t = performance.now(); if (lastToggle.current.k === k && t - lastToggle.current.t < 35) return; lastToggle.current = { k, t }; onToggle(r, c); };
+  const rz = useRef<{ id: number; r: number; c: number; x0: number; w: number; n0: number; n: number; moved: boolean; abs: boolean; t: number } | null>(null);
+  const [rzBadge, setRzBadge] = useState<{ text: string; x: number; y: number } | null>(null);
+  const edgeHit = (ev: React.PointerEvent<HTMLButtonElement>) => { const b = ev.currentTarget.getBoundingClientRect(); return inLengthGrip(b.width, b.right - ev.clientX, ev.pointerType === "mouse"); };
+  const lastTap = useRef<{ k: string; t: number }>({ k: "", t: 0 });
+  const labelTap = useRef({ r: -1, t: 0 });
+  // RND keys read raw touches (fire once on lift <8px, preventDefault) so iOS never swallows fast taps
+  // or turns them into double-tap zoom/ghost clicks; mouse and keyboard still use onClick.
+  const gridRef = useRef<HTMLDivElement>(null), rndAct = useRef(onRnd), rndTouchAt = useRef(0); rndAct.current = onRnd;
+  useEffect(() => {
+    const el = gridRef.current; if (!el) return;
+    const touches = new Map<number, { b: HTMLElement; x: number; y: number }>();
+    const keyOf = (t: Touch) => (t.target as Element | null)?.closest?.("[data-rnd]") as HTMLElement | null;
+    const start = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const b = keyOf(t); if (!b) continue; rndTouchAt.current = performance.now(); if (e.cancelable) e.preventDefault(); touches.set(t.identifier, { b, x: t.clientX, y: t.clientY }); } };
+    const move = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const s = touches.get(t.identifier); if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 8) touches.delete(t.identifier); } };
+    const end = (e: TouchEvent) => { for (const t of Array.from(e.changedTouches)) { const s = touches.get(t.identifier); if (!s) continue; touches.delete(t.identifier); rndTouchAt.current = performance.now(); if (e.cancelable) e.preventDefault(); if (e.type === "touchend" && !s.b.closest(".midi-learn")) rndAct.current(Number(s.b.dataset.rnd)); } };
+    el.addEventListener("touchstart", start, { passive: false }); el.addEventListener("touchmove", move, { passive: true });
+    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
+  const valOf = (r: number, c: number) => view === "roll" ? Math.max(0, ROLLS.indexOf(ratchet[r]?.[c] ?? 1)) / (ROLLS.length - 1) : view === "cond" ? (cond[r]?.[c] ?? 0) / (CONDS.length - 1) : view === "nudge" ? nudge[r]?.[c] ?? .5 : view === "vel" ? vel[r]?.[c] ?? 1 : chance[r]?.[c] ?? 1;
+  const short = (v: number) => view === "roll" ? `X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : view === "cond" ? condName(v) : view === "nudge" ? nudgeLabel(v) : `${Math.round(v * 100)}%`;
+  const harmony = useContext(HarmonyContext);
+  const [readout, setReadout] = useState<{ text: string; x: number; y: number } | null>(null);
+  const pitchLane = (r: number) => view === "mod" && slots[r].mods?.[bank + modLane * 4]?.target === "pitch";
+  const pitchRange = (r: number) => slots[r].mods?.[bank + modLane * 4]?.range ?? 12;
+  const signed = (v: number) => v > 0 ? `+${v}` : String(v);
+  const pitchText = (r: number, v: number) => { const n = modPitchNote(harmony, slots[r].note, v, pitchRange(r)); return `PTCH ${noteName(n)} (${signed(modPitchOffset(v, pitchRange(r)))}) ${degreeLabel(harmony, n)}`.trim(); };
+  const fmtV = (r: number, v: number) => pitchLane(r) ? pitchText(r, v) : view === "roll" ? `ROLL X${ROLLS[Math.round(v * (ROLLS.length - 1))]}` : view === "cond" ? `COND ${condName(v)}` : view === "nudge" ? `NUDG ${nudgeLabel(v)}` : `${view === "chance" ? "CHNC" : view.toUpperCase()} ${String(r + 1).padStart(2, "0")} ${Math.round(v * 100)}%`;
+  const apply = (r: number, c: number, v: number, e: { clientX: number; clientY: number }) => { const divisions = pitchLane(r) ? pitchRange(r) * 2 : 100; const q = Math.round(Math.min(1, Math.max(0, v)) * divisions) / divisions; onValue(view, r, c, q); setReadout({ text: fmtV(r, q), x: e.clientX, y: e.clientY }); return q; };
+  const down = (r: number, c: number, e: React.PointerEvent<HTMLButtonElement>) => {
+    const k = `${r}:${c}`, now = performance.now();
+    if (lastTap.current.k === k && now - lastTap.current.t < 300) { lastTap.current = { k: "", t: 0 }; dragRef.current = null; apply(r, c, homeOf(view), e); return; }
+    lastTap.current = { k, t: now };
+    const v0 = view === "mod" ? slots[r].mods?.[bank + modLane * 4]?.values[c] ?? .5 : valOf(r, c);
+    setReadout({ text: fmtV(r, v0), x: e.clientX, y: e.clientY });
+    dragRef.current = { r, c, y: e.clientY, v0 };
+  };
+  const move = (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (!d || !e.buttons) return; if (Math.abs(d.y - e.clientY) < 4) return; apply(d.r, d.c, draggedValue(d.v0, d.y - e.clientY, pitchLane(d.r) ? pitchRange(d.r) * 2 : 100), e); };
+  const up = () => { dragRef.current = null; setTimeout(() => setReadout(null), 600); };
+  const [manualPage, setManualPage] = useState<number | null>(null);
+  const playPage = step >= 0 && steps > 16 ? (stepAt(step, lengths[selected] ?? steps, loop, offset) >= 16 ? 16 : 0) : 0;
+  const page = steps > 16 ? (manualPage ?? playPage) : 0;
+  const [monkePos, setMonkePos] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    const grid = gridRef.current; if (!monkeAt || !grid) { setMonkePos(null); return; }
+    const rowEl = grid.children[2 + monkeAt.row] as HTMLElement | undefined;
+    const steps = rowEl ? Array.from(rowEl.querySelectorAll<HTMLElement>(".gb-step")) : [];
+    const cell = steps[Math.max(0, Math.min(steps.length - 1, monkeAt.col - page))]; if (!cell) { setMonkePos(null); return; }
+    const g = grid.getBoundingClientRect(), c = cell.getBoundingClientRect();
+    setMonkePos({ x: c.left - g.left + grid.scrollLeft + c.width / 2, y: c.top - g.top + grid.scrollTop });
+  }, [monkeAt?.row, monkeAt?.col, page, monkeAt]);
+  return <div className="gb-seq-workspace">
+    {rzBadge && <div className="gb-step-readout" style={{ left: rzBadge.x, top: rzBadge.y - 40 }}>{rzBadge.text}</div>}
+    {readout && <div className="gb-step-readout" style={{ left: readout.x, top: readout.y }}>{readout.text}</div>}
+    <div ref={gridRef} className={`gb-seq-grid ${view !== "note" ? "is-mod" : ""} view-${view}`}>{monkeAt && monkePos && <div className="monke-hunt" aria-hidden="true" style={{ left: monkePos.x, top: monkePos.y }}><MonkeHunter laughing={monkeAt.laughing} /></div>}<div className="gb-row gb-row-head"><span className="gb-row-label gb-row-heading">LEN</span><span className="gb-rnd-heading" aria-hidden>RND</span><button className="gb-cycle" aria-label="Lock loop lengths" aria-pressed={lenLock} onClick={onLenLock}>{lenLock ? "LCK" : "FREE"}</button><span className="gb-seq-head-tools" style={{ gridColumn: "span 2" }}>{monkeBtn}{view === "mod" && <button className="gb-cycle on gb-mod-lane" aria-label={`Modulation lane ${modLane + 1} of 3, tap for next`} onClick={onModLane}>{`M${modLane + 1}`}</button>}</span>
+      <button className="gb-cycle" style={{ gridColumn: "span 3" }} aria-label={steps > 16 ? "Shrink pattern to 16 steps" : "Expand pattern to 32 steps"} onClick={() => { setManualPage(null); onSteps?.(); }}>{steps > 16 ? "X1" : "X2"}</button>
+      {steps > 16 && <><button className={`gb-cycle ${manualPage !== null ? "on" : ""}`} style={{ gridColumn: "span 4" }} aria-label={manualPage === null ? `Following playhead, showing steps ${page + 1} to ${page + 16}, tap to pick half` : `Showing steps ${page + 1} to ${page + 16}, tap for other half`} onClick={() => setManualPage(p => p === null ? (page ? 0 : 16) : p === 0 ? 16 : null)}>{page ? "17-32" : "1-16"}</button>
+        <span className="gb-cycle" style={{ gridColumn: "span 2", display: "flex", gap: 2, padding: 2 }} aria-hidden>{[0, 16].map(h => <i key={h} style={{ flex: 1, border: "1px solid hsl(var(--foreground))", background: step >= 0 && playPage === h ? "hsl(var(--foreground))" : "transparent" }} />)}</span></>}
+      </div><div className="gb-row gb-ruler" aria-hidden><span className="gb-row-label" /><span /><span /><span />{Array.from({ length: 16 }, (_, cc) => { const c = cc + page; return <span key={c} className={`gb-ruler-cell ${c % 4 === 0 ? "beat" : ""} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>{c % 4 === 0 ? `${Math.floor(c / 16) + 1}.${(Math.floor(c / 4) % 4) + 1}` : ""}</span>; })}</div>{pattern.map((row, r) => { const len = lengths[r], cur = step < 0 ? -1 : stepAt(step, len, loop, offset), lane = slots[r].mods?.[bank + modLane * 4], opts = targetsOf(slots[r]), tv = lane?.on && opts.some(o => o[0] === lane.target) ? lane.target : "off";
+    const loopStart = ((offset % len) + len) % len, inWin = (c: number) => !loop || loop >= len || ((c - loopStart + len) % len) < loop;
+    return <div key={r} className={`gb-row ${selected === r ? "selected" : ""}`}>
+    <button className="gb-row-label" aria-label={`${slots[r].name || r + 1} row, tap to play, double-tap to clear`} onClick={() => { const now = performance.now(); if (labelTap.current.r === r && now - labelTap.current.t < 350) { labelTap.current = { r: -1, t: 0 }; onClearRow(r); return; } labelTap.current = { r, t: now }; onSelect(r); onAudition(r); }}>{slots[r].name || String(r + 1).padStart(2, "0")}</button>
+    <Button variant="ghost" size="icon" className={`gb-rnd-key rnd-${slots[r].rnd ?? 0}`} aria-label={`${slots[r].name || r + 1} randomise: ${["included", "excluded", "solo"][slots[r].rnd ?? 0]}, tap to change`} aria-pressed={(slots[r].rnd ?? 0) === 2} title="RAND: included / excluded / solo" data-rnd={r} onClick={() => { if (performance.now() - rndTouchAt.current < 800) return; onRnd(r); }}>{["·", "X", "S"][slots[r].rnd ?? 0]}</Button>
+    <button className="gb-cycle" aria-label={`${slots[r].name} loop length`} onClick={() => onLength(r, (len % steps) + 1)} onContextMenu={e => { e.preventDefault(); onLength(r, len > 1 ? len - 1 : steps); }}>{len}</button>
+{LANE_VIEWS.includes(view) ? (() => { const lit = row.slice(0, steps).map((v, c) => (v ? c : -1)).filter(c => c >= 0), vals = lit.map(c => valOf(r, c)), rv = vals.length ? Math.max(...vals) : homeOf(view);
+      const setX = (e: React.PointerEvent<HTMLButtonElement>) => { const b = e.currentTarget.getBoundingClientRect(); onRow(view, r, Math.min(1, Math.max(0, (e.clientX - b.left) / b.width))); };
+      return <button className="gb-cycle gb-row-fader" aria-label={`${slots[r].name} row ${view === "chance" ? "chance" : view === "vel" ? "velocity" : view === "cond" ? "condition" : view === "nudge" ? "nudge" : "roll"}`} style={{ touchAction: "none", position: "relative", overflow: "hidden" }}
+        onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); setX(e); }} onPointerMove={e => { if (e.buttons) setX(e); }}
+        onDoubleClick={() => onRow(view, r, homeOf(view))}>
+        <i style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${rv * 100}%`, background: "hsl(var(--foreground))", mixBlendMode: "difference" }} />
+        <span style={{ position: "relative", mixBlendMode: "difference", color: "hsl(var(--foreground))" }}>{short(rv)}</span></button>; })() : view === "note" ? <span className="gb-row-shift"><button type="button" aria-label={`${slots[r].name || r + 1} shift row left`} onClick={() => onShift?.(r, -1)}>◀</button><button type="button" aria-label={`${slots[r].name || r + 1} shift row right`} onClick={() => onShift?.(r, 1)}>▶</button></span> :     <button className={`gb-cycle ${tv !== "off" ? "on" : ""}`} aria-label={`${slots[r].name} modulation target`} onClick={() => onModTarget(r, cyc(opts.map(o => o[0]), tv))}>{(opts.find(o => o[0] === tv)?.[1] ?? "off").slice(0, 10)}</button>}
+    {row.slice(page, page + 16).map((v, cc) => { const c = cc + page, off = c >= len, tieNext = !off && c + 1 < len && row[c + 1] >= 2 && v !== 0, label = v >= 2 ? "tie" : v === 1 ? "hit" : "off"; const pitched = slots[r].engine !== "drum" && slots[r].engine !== "idm", shape = v === 0 ? "" : v === 1 ? (tieNext ? "n-head" : "n-solo") : tieNext ? "n-body" : "n-tail";
+      const val = view === "mod" || view === "note" ? lane?.values[c] ?? .5 : valOf(r, c);
+      const bipolar = pitchLane(r);
+      const drag2 = view === "mod" ? v !== 0 && tv !== "off" : view !== "note" && v === 1;
+      return <button key={c} disabled={off} aria-label={`${slots[r].name} step ${c + 1} ${label}${drag2 ? (view === "roll" ? ` roll x${ratchet[r]?.[c] ?? 1}` : view === "cond" ? ` condition ${condName(val)}` : view === "nudge" ? ` nudge ${nudgeLabel(val)}` : bipolar ? ` ${pitchText(r, val)}` : ` ${view} ${Math.round(val * 100)}%`) : ""}`}
+        onPointerDown={ev => { if (drag2) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); down(r, c, ev); return; } if (view === "note" && v !== 0) { let h = c; while (h > 0 && row[h] >= 2) h--; if (row[h] === 1 && (v >= 2 || edgeHit(ev))) { ev.preventDefault(); ev.currentTarget.setPointerCapture(ev.pointerId); const n0 = spanOf(row, h, len); rz.current = { id: ev.pointerId, r, c: h, x0: ev.clientX, w: ev.currentTarget.getBoundingClientRect().width + 2, n0, n: n0, moved: false, abs: false, t: window.setTimeout(() => { const q = rz.current; if (q && q.id === ev.pointerId && !q.moved) { q.abs = true; navigator.vibrate?.(30); setRzBadge(b => ({ text: `${b ? b.text.replace(' [ABSORB]', '') : spanLabel(n0)} [ABSORB]`, x: b?.x ?? q.x0, y: b?.y ?? 0 })); } }, 700) }; tapRef.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, k: `${r}:${c}` }; return; } } tapRef.current = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, k: `${r}:${c}` }; }}
+        onClick={ev => { if (!drag2 && ev.detail === 0) toggle(r, c); }}
+        onPointerMove={ev => { if (drag2) return move(ev); const z = rz.current; if (!z || z.id !== ev.pointerId) return; const dx = ev.clientX - z.x0; if (!z.moved && Math.abs(dx) < 4) return; const n = Math.max(1, z.n0 + Math.round(dx / z.w)); if (!z.moved || n !== z.n) { onSpan?.(z.r, z.c, n, !z.moved, z.abs); if (z.moved) navigator.vibrate?.(4); z.moved = true; z.n = n; } setRzBadge({ text: spanLabel(Math.min(n, maxSpan(pattern[z.r], z.c, lengths[z.r], z.abs))) + (z.abs ? ' [ABSORB]' : ''), x: ev.clientX, y: ev.clientY }); }}
+        onPointerUp={ev => { if (drag2) return up(); const z = rz.current; if (z && z.id === ev.pointerId) { clearTimeout(z.t); rz.current = null; setRzBadge(null); tapRef.current = null; return; } const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && t.k === `${r}:${c}` && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); }}
+        onPointerCancel={ev => { if (rz.current?.id === ev.pointerId) { const z = rz.current; clearTimeout(z.t); rz.current = null; setRzBadge(null); if (z.moved) { tapRef.current = null; return; } } if (!drag2) { const t = tapRef.current; tapRef.current = null; if (t && t.id === ev.pointerId && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) < 8) toggle(r, c); } else up(); }}
+        onKeyDown={ev => { if (drag2 && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) { ev.preventDefault(); onValue(view, r, c, Math.min(1, Math.max(0, val + (ev.key === "ArrowUp" ? 1 : -1) / (bipolar ? pitchRange(r) * 2 : 100)))); } }}
+        className={`gb-step ${v === 1 ? "on" : v >= 2 ? "tie" : ""} ${tieNext ? "tie-next" : ""} ${off ? "disabled" : ""} ${!off && !inWin(c) ? "out-loop" : ""} ${c === cur ? "current" : ""} ${c % 4 === 0 ? "beat" : ""} ${c > 0 && c % 4 === 0 ? "group" : ""} ${drag2 ? "mod" : ""} ${bipolar ? "pitch-mod" : ""} ${shape} ${Math.floor(c / 4) % 2 ? "alt" : ""}`}>
+        {view === "note" && v === 1 && tieNext && pitched && <b className="gb-step-pitch" aria-hidden>{noteName(slots[r].note)}</b>}
+        {view === "note" && v !== 0 && !tieNext && <i className="gb-step-grip" aria-hidden />}
+        {drag2 && <i className="gb-step-fill" style={bipolar ? { height: `${Math.abs(val - .5) * 100}%`, bottom: `${Math.min(val, .5) * 100}%` } : { height: `${val * 100}%` }} />}
+        {drag2 && view !== "roll" && view !== "cond" && <b className="gb-step-val">{bipolar ? signed(modPitchOffset(val, pitchRange(r))) : view === "nudge" ? nudgeLabel(val) : Math.round(val * 100)}</b>}
+        {drag2 && view === "cond" && <b className="gb-step-roll">{condName(val)}</b>}
+        {drag2 && view === "roll" && <b className="gb-step-roll">X{ratchet[r]?.[c] ?? 1}</b>}
+        {view === "note" && v === 1 && (ratchet[r]?.[c] ?? 1) > 1 && <b className="gb-step-roll">{ratchet[r]?.[c]}</b>}
+        {view === "note" && v === 1 && ((vel[r]?.[c] ?? 1) < .99 || (chance[r]?.[c] ?? 1) < .99 || (cond[r]?.[c] ?? 0) > 0 || Math.abs((nudge[r]?.[c] ?? .5) - .5) > .005) && <i className="gb-step-dot" />}
+      </button>; })}
+  </div>; })}</div>
+  </div>;
+});
+
+const SEGS = 10, FLOOR = -48;
+const Mixer = memo(function Mixer({ slots, selected, onLevel, onMute, onSolo, onClearSolo, onSelect, getLevels }: {
+  getLevels: () => number[] | null;
+  slots: Slot[]; selected: number; onLevel: (i: number, v: number) => void; onMute: (i: number) => void; onSolo: (i: number) => void; onClearSolo: () => void; onSelect: (i: number) => void;
+}) {
+  const [page, setPage] = useState(0);
+  const anySolo = slots.some(s => s.solo);
+  const start = page * 8;
+  // Live post-fader dB meters: polled each frame and written straight to the DOM so playback never re-renders the mixer.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const hold = Array(16).fill(-Infinity), held = Array(16).fill(0), disp = Array(16).fill(-Infinity);
+    const poll = () => {
+      const lv = getLevels(), el = root.current;
+      if (lv && el) el.querySelectorAll<HTMLElement>("[data-ch]").forEach(strip => {
+        const i = +strip.dataset.ch!, v = lv[i] ?? -Infinity;
+        disp[i] = v > disp[i] ? v : Math.max(v, disp[i] - 0.8);
+        if (v >= hold[i]) { hold[i] = v; held[i] = 45; } else if (--held[i] < 0) hold[i] = Math.max(-Infinity, hold[i] - 1);
+        const seg = (d: number) => Number.isFinite(d) ? Math.ceil(Math.max(0, Math.min(1, (d - FLOOR) / -FLOOR)) * SEGS) : 0;
+        const on = seg(disp[i]), pk = seg(hold[i]);
+        strip.querySelectorAll("i").forEach((c, n) => { c.className = n < on ? (n >= SEGS - 1 ? "on clip" : "on") : n === pk - 1 ? "on" : ""; });
+        const t = strip.querySelector<HTMLElement>(".gb-strip-val"); if (t) { const s = Number.isFinite(hold[i]) && hold[i] > FLOOR ? (hold[i] >= 0 ? "CLIP" : hold[i].toFixed(0)) : "-INF"; if (t.textContent !== s) t.textContent = s; }
+      });
+    };
+    return gatedLoop(root.current, poll);
+  }, [getLevels]);
+  return <div className={`gb-mixer-workspace mixer-page-${page}`} ref={root}>
+    <div className="gb-mixer-head"><span>MIXER / {page ? "09–16" : "01–08"}</span><div><button aria-pressed={page === 0} onClick={() => setPage(0)}>A 01–08</button><button aria-pressed={page === 1} onClick={() => setPage(1)}>B 09–16</button><button disabled={!anySolo} onClick={onClearSolo}>CLR SOLO</button></div></div>
+    <div className="gb-mixer">{slots.map((s, i) => <div key={i} data-ch={i} className={`gb-strip gb-strip-page-${Math.floor(i / 8)} ${selected === i ? "selected" : ""} ${s.mute || (anySolo && !s.solo) ? "silent" : ""}`}>
+      <span className="gb-strip-index">{String(i + 1).padStart(2, "0")}</span><span className="gb-strip-val" title="Peak dBFS">-INF</span>
+      <div className="gb-meter" aria-hidden="true">{Array.from({ length: SEGS }, (_, n) => <i key={n} />)}</div>
+      <Slider orientation="vertical" aria-label={`${s.name} volume`} min={0} max={100} value={[s.level]} onValueChange={([v]) => onLevel(i, v)} className="gb-vslider" />
+      <div className="gb-strip-btns">
+        <button className={`gb-ms ${s.mute ? "m-on" : ""}`} aria-pressed={s.mute} aria-label={`Mute ${s.name}`} onClick={() => onMute(i)}>M</button>
+        <button className={`gb-ms ${s.solo ? "s-on" : ""}`} aria-pressed={s.solo} aria-label={`Solo ${s.name}`} onClick={() => onSolo(i)}>S</button>
+      </div>
+      <button className="gb-strip-name" aria-pressed={selected === i} onClick={() => onSelect(i)}>{s.name || String(i + 1).padStart(2, "0")}</button>
+    </div>)}</div>
+  </div>;
+});
+const DESKTOP_MQ = "(min-width: 1024px) and (pointer: fine)";
+function cyc<T>(list: readonly T[], cur: T): T { return list[(list.indexOf(cur) + 1) % list.length]; }
 
 export default function Groovebox({ theme, onThemeChange }: { theme: DisplayTheme; onThemeChange: (theme: DisplayTheme) => void }) {
   const g = useGroovebox();
-  const [surface, setSurface] = useState<SurfaceState>(defaultSurface);
-  const [plate, setPlate] = useState<null | "sound" | "fx" | "master" | "sets" | "midi" | "tape">(null);
-  const plateRef = useRef<HTMLDivElement>(null);
-  useSurfaceBuses(g.engine, g.playing, surface, g.bpm);
-  useEffect(() => {
-    if (!plate) return;
-    const prev = document.activeElement as HTMLElement | null;
-    const el = plateRef.current; el?.querySelector<HTMLElement>("button")?.focus();
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPlate(null);
-      if (e.key !== "Tab" || !el) return;
-      const nodes = Array.from(el.querySelectorAll<HTMLElement>('button:not(:disabled), select, input:not([type="hidden"]), [tabindex="0"]')).filter(n => n.getClientRects().length);
-      const first = nodes[0], last = nodes[nodes.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
-    };
-    window.addEventListener("keydown", key); return () => { window.removeEventListener("keydown", key); prev?.focus(); };
-  }, [plate]);
   const rootRef = useRef<HTMLElement>(null);
   const perfRef = useRef<HTMLDivElement>(null);
   const [acid, setAcid] = useState(false);
@@ -123,6 +322,7 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
   const pf = g.performance, setPf = (p: Partial<typeof pf>) => g.setPerformance({ ...pf, ...p });
   const s = g.slots[g.selected];
   const onFx = useCallback((fx: FxUnit[]) => g.updateSelected({ fx }), [g.updateSelected]);
+  const [view, setView] = useState<View>("note");
   const [native] = useState(() => Capacitor.isNativePlatform() || new URLSearchParams(location.search).has("native"));
   const [info, setInfo] = useState<null | "about" | "help" | "welcome">(null);
   const about = info === "about";
@@ -142,30 +342,41 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAcid(false); }; window.addEventListener("keydown", esc); window.addEventListener("keydown", k); return () => { window.removeEventListener("keydown", k); window.removeEventListener("keydown", esc); }; }, []);
   const taps = useRef<number[]>([]);
   const tapName = () => { const now = Date.now(); taps.current = [...taps.current.filter(t => now - t < 2500), now]; if (taps.current.length >= 7) { taps.current = []; fireRef.current(); } };
+  const [desktopView, setDesktopView] = useState<"devices" | "sequence">("devices");
   useEffect(() => { if (!info) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape") closeInfo(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [info, closeInfo]);
   const onArp = useCallback((arp: ArpParams) => g.updateSelected({ arp }), [g.updateSelected]);
+  const onRow = useCallback((v: View, r: number, x: number) => { if (v === "roll") g.setRowValue("ratchet", r, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "cond") g.setRowValue("cond", r, Math.round(x * (CONDS.length - 1))); else if (v === "nudge") g.setRowValue("nudge", r, Math.round(x * 100) / 100); else if (v === "vel" || v === "chance") g.setRowValue(v, r, Math.round(x * 100) / 100); }, [g.setRowValue]);
+  const onValue = useCallback((v: View, r: number, c: number, x: number) => { if (v === "mod") g.setModValue(r, c, x); else if (v === "roll") g.setStepValue("ratchet", r, c, ROLLS[Math.round(x * (ROLLS.length - 1))]); else if (v === "cond") g.setStepValue("cond", r, c, Math.round(x * (CONDS.length - 1))); else if (v === "vel" || v === "chance" || v === "nudge") g.setStepValue(v, r, c, x); }, [g.setModValue, g.setStepValue]);
   const tapSource = useCallback(async () => { const e = await g.ensure(); return { ctx: e.ctx, node: tapeBus(e.ctx) }; }, [g.ensure]);
   const tapeRecorder = useTapeRecorder(tapSource, crate.on ? false : g.playing, g.step, crate.on ? crate.link.mix.bpm : g.bpm, crate.on ? noopPlay : g.togglePlay);
+  const [utility, setUtility] = useState<Utility>(INITIAL_UTILITY);
 
-  type SurfaceProject = GrooveSet & { topo?: Topo; surface?: SurfaceState; midiMaps?: Record<string, string> };
-  const getProject = (name: string): SurfaceProject => ({ ...g.getSet(name), v: 3, topo: g.topo, surface, midiMaps: midi.maps });
-  const applyProject = (raw: GrooveSet) => {
-    const project = raw as SurfaceProject;
-    g.applySet(project); g.setTouch(null); g.setTopo(() => ({ ...TOPO_DEFAULT, ...project.topo }));
-    setSurface(hydrateSurface(project.surface));
-    if (project.midiMaps) { midi.clear(); midi.preset(project.midiMaps); }
-  };
-  const utilityPanels = {
+  const monke = useMonke({ available: !booting && !info && !perfOpen && !vj && !forcedNad && !glitching, playing: g.playing, step: g.step, target: `${g.bank}`, begin: g.beginMonke, mutate: g.mutateMonke, end: g.endMonke, showSequence: () => { setUtility("seq"); setDesktopView("sequence"); setView("note"); window.setTimeout(() => rootRef.current?.querySelector(".monke-stage")?.scrollIntoView({ block: "nearest", behavior: "auto" }), 50); } });
+  const seqPerformancePanel = <div className="gb-seq-perf"><div className="gb-seq-controls"><SeqScreen bank={g.bank} queued={g.queued} selectBank={g.selectBank} view={view} setView={v => setView(v as View)} copy={g.copyBank} random={g.randomizePattern} clear={g.clearPattern} reset={g.resetAll} playing={g.playing} onPlay={g.togglePlay} paused={g.paused} onPause={g.togglePause} undo={g.undo} redo={g.redo} canUndo={g.canUndo} canRedo={g.canRedo} gen={{ steps: g.steps as 16 | 32, rows: g.genRows, roles: g.genRoles, models: g.genModels, apply: g.applyGenerated, bake: g.bakeSelectedPhrase, selected: g.selected, selName: g.slots[g.selected]?.name || `PAD ${g.selected + 1}`, selRole: detectRole(g.slots[g.selected]), setRole: role => g.updateSlot(g.selected, { role }) }} /></div><div className={`monke-stage ${monke.visit?.phase === "work" ? "monke-active" : ""}`}><MonkeVisitor monke={monke} /><div className="gb-seq-grid"><StepGrid offset={pf.offset} loop={pf.loop} bank={g.bank} view={view} vel={g.vel} chance={g.chance} ratchet={g.ratchet} cond={g.cond} nudge={g.nudge} onValue={onValue} onRow={onRow} onModTarget={g.setModTarget} modLane={g.modLane} onModLane={() => g.setModLane((g.modLane + 1) % 3)} onRnd={g.setRowRnd} pattern={g.pattern} lengths={g.lengths} onLength={g.setTrackLength} onClearRow={g.clearRow} onAudition={audition} lenLock={!!pf.lenLock} onLenLock={() => g.setPerformance(p => ({ ...p, lenLock: !p.lenLock }))} steps={g.steps} onSteps={g.toggleSteps} slots={g.slots} selected={g.selected} step={g.step} onToggle={g.toggleStep} onSpan={g.setNoteSpan} onShift={g.shiftTrack} onSelect={g.setSelected} monkeAt={monke.visit?.phase === "work" && monke.visit.row != null ? { row: monke.visit.row, col: monke.visit.col ?? 0, laughing: monke.visit.reaction === "laugh" } : null} monkeBtn={<button className="gb-cycle monke-toggle" aria-label="Ask Monke for ideas" aria-busy={monke.busy} disabled={monke.busy} title="MONKE · musical ideas for this pattern" onClick={monke.trigger}><MonkeSprite icon /></button>} /></div></div></div>;
+  const utilityPanels: Record<Utility, JSX.Element> = {
     fx: <div><GroupBar group={groupOf(s)} bus={groupOf(s) ? g.groups[groupOf(s) - 1] : undefined} onAssign={k => g.assignGroup(g.selected, k)} onBus={p => g.setGroup(groupOf(s) - 1, p)} /><FxChain key={groupOf(s) ? `g${groupOf(s)}` : "pad"} slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={groupOf(s) ? `GROUP ${groupOf(s)}` : s.name} fx={groupOf(s) ? g.groups[groupOf(s) - 1].fx : s.fx} onChange={groupOf(s) ? (fx => g.setGroup(groupOf(s) - 1, { fx })) : onFx} getLevels={g.getFxLevels} load={nad ? 0 : totalFxLoad(g.slots, g.groups)} /></div>,
     phrase: <ArpEditor arp={s.arp} slotName={s.name} onChange={onArp} character={phraseCharacter(s.engine, s.note)} {...(s.engine === "drum" || s.engine === "idm" || s.engine === "siren" ? {} : { note: s.note, onNote: (note: number) => g.updateSelected({ note }), noteOf: (deg: number) => s.note + phraseSemi(g.harmony, s.note, s.arp.scale, deg) })} />,
-    seq: <></>,
-    mixer: <></>,
+    seq: seqPerformancePanel,
+    mixer: <Mixer slots={g.slots} selected={g.selected} onLevel={g.setLevel} onMute={g.toggleMute} onSolo={g.toggleSolo} onClearSolo={g.clearSolo} onSelect={g.setSelected} getLevels={g.getChannelLevels} />,
     master: <div className="node-body"><MasterScreen playing={g.playing} step={g.step} onPlay={g.togglePlay} bpm={g.bpm} setBpm={g.setBpm} swing={g.swing} setSwing={g.setSwing} volume={g.volume} setVolume={g.setVolume} eco={g.eco} setEco={g.setEco} buffer={g.buffer} setBuffer={g.setBufferMode} latency={g.latency} pf={pf} setPf={setPf} meter={g.meter} resetMeter={g.resetMeter} getMasterDyn={g.getMasterDyn} /><div className="scope-node gb-scope"><Waveform analyser={g.engine.current?.analyser ?? null} playing={!!g.engine.current} eco={g.eco} theme={theme} /></div></div>,
     tape: <TapeDeck recorder={tapeRecorder} />,
     midi: <div className="node-body gb-midi" data-midi-ui><MidiScreen devices={midi.devices} learn={midi.learn} target={midi.target} mapCount={Object.keys(midi.maps).length} status={midi.status} connect={midi.connect} setLearn={midi.setLearn} qwerty={qwerty} setQwerty={setQwerty} keys={midi.keys} setKeys={midi.setKeys} canUnmap={!!midi.target && Object.values(midi.maps).includes(midi.target)} unmap={() => midi.target && midi.unmap(midi.target)} clear={midi.clear} /></div>,
-    sets: <SetBank getSet={getProject} applySet={applyProject} locked={nad} />,
+    sets: <SetBank getSet={g.getSet} applySet={g.applySet} locked={nad} />,
     patch: <PatchBank getPatch={g.getPatch} applyPatch={g.applyPatch} locked={nad} />,
   };
+  const compactUtilities: Utility[] = ["phrase", "master", "tape", "sets", "patch", "midi"];
+  const compactAt = compactUtilities.indexOf(utility);
+  const utilityContent = compactAt < 0 ? utilityPanels[utility] : <div className="gb-compact-stack">{[0, 1, 2].map(offset => { const key = compactUtilities[(compactAt + offset) % compactUtilities.length]; return <section className="gb-compact-module" key={key}><header>{UTILITY_LABELS[key]}</header>{utilityPanels[key]}</section>; })}</div>;
+  const desktopDevices = <div className="gb-device-surface">
+    <DevicePanel className="gb-device-module device-fx" label="FX">{utilityPanels.fx}</DevicePanel>
+    <DevicePanel className="gb-device-module device-master" label="Master">{utilityPanels.master}</DevicePanel>
+    <DevicePanel className="gb-device-module device-memory" label="Memory"><MemoryWorkspace sets={utilityPanels.sets} patches={utilityPanels.patch} /></DevicePanel>
+    <DevicePanel className="gb-device-module device-phrase" label="Phrase">{utilityPanels.phrase}</DevicePanel>
+    <DevicePanel className="gb-device-module device-tape" label="Tape">{utilityPanels.tape}</DevicePanel>
+    <DevicePanel className="gb-device-module device-midi" label="MIDI">{utilityPanels.midi}</DevicePanel>
+    <section className="gb-device-mixer">{utilityPanels.mixer}</section>
+  </div>;
+
   return <HarmonyContext.Provider value={g.harmony}><DisplayThemeContext.Provider value={theme}><section id="groovebox" ref={rootRef} data-lcd={theme} className={`instrument-workspace ${midi.learn ? "midi-learn" : ""} ${acid ? "acid-trip" : ""}`} aria-label="Nadrisk groovebox">{booting && !forcedNad && <StartupFlash onDone={endBoot} />}{info && <div className="about-overlay" role="dialog" aria-modal="true" aria-label={info === "about" ? "About Nadrisk" : info === "help" ? "Quick guide" : "Welcome"} onClick={e => { if (e.target === e.currentTarget) closeInfo(); }}><div className="about-dialog">{info === "about" ? <AboutSection native={native} /> : info === "help" ? <HelpContent /> : <WelcomeContent onGuide={() => { markWelcomeSeen(); setInfo("help"); }} onClose={closeInfo} />}<button className="gb-cycle about-close" aria-label="Close" onClick={closeInfo}>CLOSE</button></div></div>}
     {perfOpen && createPortal(<div ref={perfRef} className={`site-shell perf-overlay ${midi.learn ? "midi-learn" : ""}`} data-lcd={theme} role="dialog" aria-label="Performance"><div className="perf-head"><span className="perf-title"><b>NAD</b> PERF<i>LIVE CONSOLE</i></span><span className={`perf-rec ${tapeRecorder.state === "rec" ? "on" : ""}`}>{tapeRecorder.state === "rec" ? "● REC" : "○ TAPE"}</span>{!crate.on && <button className="gb-cycle" aria-label={g.playing ? "Stop transport" : "Play transport"} onClick={g.togglePlay}>{g.playing ? "■ STOP" : "▶ PLAY"}</button>}<span className="perf-bpm">{crate.on ? crate.link.mix.bpm : g.bpm} BPM</span><button className="gb-cycle" aria-label="AV visuals" aria-pressed={vj} onClick={() => setVj(true)}>AV</button><button className="gb-cycle" aria-label="Close performance" onClick={() => setPerfOpen(false)}>CLOSE</button></div><div className="perf-body instrument-workspace" data-lcd={theme}><div className="perf-console"><section className={`perf-mod perf-mod-link ${link.role === "mixer" ? "with-mutes" : ""}`}><header><span>00</span>LINK · {link.role === "mixer" ? "2-DECK MIXER" : link.role === "solo" ? "DEVICES" : `DECK ${link.role}`}</header><div className="perf-link-body"><PerfLink link={link} midi={midi} onCrate={() => { if (g.playing) void g.togglePlay(); netLink.leave(); crate.open(); }} crate={crate.on ? crate : undefined} center={isMixer ? <>{targetBar(["A", "B"], muteDeck, t => setMuteDeck(t as DeckId), "Mutes")}<PerformanceRack part="live" eight {...muteRack} /></> : undefined} /></div></section><section className="perf-mod perf-mod-main"><header><span>01</span>XY · PERFORM{isMixer && targetBar(["A", "BOTH", "B"], fxTarget, setFxTarget, "FX")}</header><PerfXY value={fxRack.value} onChange={fxRack.onChange} step={isMixer ? undefined : g.step} /></section><section className="perf-mod perf-mod-tape"><header><span>02</span>TAPE · RECORD SET</header>{isMixer && !crate.on && <p className="lk-tape-note">Each deck plays in its own tab or device, so record the tape on each deck.</p>}{utilityPanels.tape}</section><section className="perf-mod perf-mod-fx"><header><span>03</span>PERFORM · FX DETAIL{isMixer && <i className="lk-target-note">→ {fxTarget === "BOTH" ? "A+B" : `DECK ${fxTarget}`}</i>}</header><PerformanceRack part="panel" {...fxRack} /></section>{link.role !== "mixer" && <section className="perf-mod perf-mod-deck"><header><span>04</span>PATTERNS · MUTES</header><PerformanceRack part="live" value={g.performance} onChange={g.setPerformance} bank={g.bank} queued={g.queued} selectBank={g.selectBank} pads={g.slots.map(x => ({ name: x.name, mute: x.mute, solo: x.solo }))} toggleMute={g.toggleMute} toggleSolo={g.toggleSolo} unmuteAll={g.unmuteAll} /></section>}</div></div></div>, document.body)}<CrateEngines crate={crate} />{vj && <VjOverlay theme={theme} onClose={() => setVj(false)} />}{acid && createPortal(<AcidOverlay />, document.body)}{glitching && <MalfunctionOverlay root={rootRef.current} onBlack={nadBlack} onDone={() => setGlitching(false)} />}<div className="workspace-heading gb-topbar">
       <div className="gb-top-identity"><span className="gb-top-brand" onClick={tapName}><span className="status-dot" /> NADRISK GROOVEBOX</span></div>
@@ -180,11 +391,28 @@ export default function Groovebox({ theme, onThemeChange }: { theme: DisplayThem
         <div className="gb-top-segment gb-top-links" role="group" aria-label="Information and visuals"><Button variant="ghost" className="gb-cycle" aria-label="About" aria-pressed={about} onClick={() => setAbout(true)}>ABOUT</Button><Button variant="ghost" className="gb-cycle" aria-label="Quick guide" aria-pressed={info === "help"} onClick={() => setInfo("help")}>HELP</Button></div>
       </div>
     </div>
-    <MainFaceplate g={g} surface={surface} setSurface={setSurface} inspect={(i, page) => { g.setSelected(i); setPlate(page); }} open={setPlate} onLink={() => setPerfOpen(true)} onAv={() => setVj(true)} />
-    {plate && <div className="face-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setPlate(null); }}><div ref={plateRef} className="face-modal" role="dialog" aria-modal="true" aria-label={plate === "sound" || plate === "fx" ? `${s.name} inspector` : `${plate} utility`}><header><b>{plate === "sound" || plate === "fx" ? s.name : plate === "sets" ? "MEMORY" : plate.toUpperCase()}</b>{(plate === "sound" || plate === "fx") && <><Button variant="ghost" className="face-key" aria-pressed={plate === "sound"} onClick={() => setPlate("sound")}>INSPECT</Button><Button variant="ghost" className="face-key" aria-pressed={plate === "fx"} onClick={() => setPlate("fx")}>COLOR</Button><Button variant="ghost" className="face-key" aria-label={`Play ${s.name}`} onClick={() => audition(g.selected)}>▶</Button></>}<Button variant="ghost" className="face-key" aria-label="Close inspector" onClick={() => setPlate(null)}>CLOSE</Button></header><div className="face-modal-content"><ResetScope.Provider value={`slot${g.selected}`}>
-    {plate === "sound" ? <SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} getSlices={g.getSlices} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} /> : plate === "fx" ? <FxChain slotIndex={g.selected} slots={g.slots.map(x => x.name)} slotName={s.name} fx={s.fx} onChange={onFx} getLevels={g.getFxLevels} load={totalFxLoad(g.slots, g.groups)} /> : utilityPanels[plate]}
-    </ResetScope.Provider></div></div></div>}
+    <div className="gb-fixed-layout">
+      <PatchNode label="PADS 4X4" tag="INSTRUMENT RACK" className="gb-rack">
+      <RepeatBar repeat={g.repeat} onRepeat={g.setRepeat} rec={g.rec} onRec={g.setRec} onNew={g.newBlank} />
+      <PadGrid slots={g.slots} selected={g.selected} padRefs={g.padRefs} onHit={hit} onRelease={g.release} velMode={g.repeat.on} onVel={g.setPadVel} />
+      {(g.repeat.on || g.rec) && <span className="patch-small gb-seq-hint">{g.rec ? (g.playing ? "recording · hits snap to the nearest 1/16 step" : "press play to record into the sequencer") : "slide your finger up / down a pad to change repeat velocity"}</span>}
+      </PatchNode>
+      <div className={`gb-workspaces utility-active-${utility} ${utility === "seq" ? "seq-wide" : ""}`}>
+        <PatchNode label={`SLOT ${String(g.selected + 1).padStart(2, "0")} ${s.engine === "idm" ? "PRC" : s.engine.toUpperCase()}`} tag="INSTRUMENT" className="gb-editor gb-workspace-panel">
+          <ResetScope.Provider value={`slot${g.selected}`}><SlotEditor slot={s} index={g.selected} getWave={g.getSlotWave} getSpectrum={g.getSlotSpectrum} getSlices={g.getSlices} peaks={g.peaks[g.selected]} onChange={g.updateSelected} onLoad={g.loadSelected} onLoadId={g.loadSelectedId} onLoadFolder={g.loadFolder} onCopyBuffer={from => g.copyBuffer(from, g.selected)} live={{ armed: g.liveState.armed === g.selected, rec: g.liveState.armed === g.selected ? g.liveState.rec : "off", peak: g.liveState.armed === g.selected ? g.liveState.peak : 0, error: g.liveState.error, opts: g.liveOpts, set: g.setLiveOpts, arm: () => void g.armInput(g.selected), record: () => void g.recInput(), take: g.lastTake }} /></ResetScope.Provider>
+        </PatchNode>
+        <div className="gb-desktop-views">
+          <nav className="gb-view-switch" aria-label="Desktop workspace view" data-midi-ui><button aria-pressed={desktopView === "devices"} onClick={() => setDesktopView("devices")}>DEVICES</button><button aria-pressed={desktopView === "sequence"} onClick={() => setDesktopView("sequence")}>SEQUENCER</button><button aria-pressed={perfOpen} aria-label="Performance mode (desktop)" onClick={() => setPerfOpen(true)}>PERF</button></nav>
+          {desktop && desktopView === "devices" && <div className="gb-desktop-view active">{desktopDevices}</div>}
+          {desktop && desktopView === "sequence" && <div className="gb-desktop-view active">{seqPerformancePanel}</div>}
+        </div>
+        <PatchNode label={UTILITY_LABELS[utility]} tag="UTILITY" className="gb-utility gb-workspace-panel gb-mobile-utility">
+          <UtilitySwitcher value={utility} onChange={setUtility} perfOpen={perfOpen} onPerformance={() => setPerfOpen(true)} />
+          {!desktop && <div className={`gb-utility-body utility-${utility}`}>{utilityContent}</div>}
+        </PatchNode>
+      </div>
+    </div>
     {tapeRecorder.url && <audio ref={tapeRecorder.audio} src={tapeRecorder.url} onEnded={tapeRecorder.ended} hidden />}
-    <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "READY")}</span><span>DRM / PRC / SYN <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
+    <div className="workspace-footer"><span><AudioLines size={13} />{forcedNad ? "UNLICENSED COPY - NADRISK.LOVABLE.APP" : g.error || (g.rec && g.playing ? "● RECORDING INTO PATTERN" : g.queued != null ? `PATTERN ${"ABCD"[g.queued]} QUEUED · NEXT BAR` : g.playing ? "SEQUENCER RUNNING" : "TAP A PAD OR PRESS PLAY")}</span><span>DRUM / SYNTH / SAMPLER <span className="footer-separator">/</span> WEB AUDIO</span><span className="workspace-index">NADRISK © 2026</span></div>
   </section></DisplayThemeContext.Provider></HarmonyContext.Provider>;
 }

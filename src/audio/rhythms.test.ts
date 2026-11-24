@@ -47,6 +47,12 @@ describe("IDM stays percussive", () => {
 });
 
 describe("XY TIGHT is plucky", () => {
+  it("full TIGHT shortens decay and drops sustain", () => {
+    const s = pad, synth = { ...s, engine: "synth" as const, xy: { x: -1, y: 0 } };
+    const base = cleanOf(synth.synth), tight = applyXY(synth).synth.clean!;
+    expect(tight.env.d).toBeLessThan(base.env.d / 4);
+    expect(tight.env.s).toBeLessThan(base.env.s * .2 + 1e-9);
+  });
   it("hat opens to a long decay", () => {
     const s = pad, hat = { ...s, engine: "drum" as const, drum: { ...s.drum, kind: "hat" as const, env: { a: .001, d: .06, s: 0, r: .02 } }, xy: { x: 1, y: 0 } };
     expect(applyXY(hat).drum.env.d).toBeGreaterThan(.5);

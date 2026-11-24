@@ -23,23 +23,6 @@ const click = (i: number) => (i === 0 ? 1 : 0);
 const windowDb = (L: number[], R: number[], t: number) => { let e = 0; const a = Math.round(t * SR); for (let i = a; i < a + 4800; i++) e += L[i] ** 2 + R[i] ** 2; return 10 * Math.log10(e / 4800 + 1e-20); };
 
 describe("nad-reverb", () => {
-  it("SUSPEND freezes the captured tail and excludes new input", () => {
-    const a = makeReverb(), b = makeReverb();
-    const p = { size: [6], density: [.6], damp: [8000], freeze: [0] };
-    let energy = 0;
-    for (let block = 0; block < 700; block++) {
-      const x = [new Float32Array(128), new Float32Array(128)];
-      if (block < 100) for (let n = 0; n < 128; n++) x[0][n] = x[1][n] = Math.sin((block * 128 + n) * .031) * .15;
-      p.freeze[0] = block >= 100 ? 1 : 0;
-      const other = x.map(ch => ch.slice());
-      if (block >= 100) other.forEach(ch => ch.fill(.3));
-      const ya = [new Float32Array(128), new Float32Array(128)], yb = ya.map(ch => ch.slice());
-      a.process([x], [ya], p); b.process([other], [yb], p);
-      if (block >= 100) expect(yb).toEqual(ya);
-      if (block > 600) energy += ya[0].reduce((sum, v) => sum + v * v, 0);
-    }
-    expect(energy).toBeGreaterThan(.001);
-  });
   it("decays about 60 dB over the SIZE time, without cutting off early", () => {
     const { L, R } = run(3, 0.6, 3.3, click);
     const ref = Math.max(...[0.05, 0.1, 0.15, 0.2, 0.3].map(t => windowDb(L, R, t)));

@@ -1,4 +1,4 @@
-import { TERRAIN_WORKLET } from "./terrainWorklet";
+import { WT_OSC_WORKLET } from "./wtOsc";
 import * as Tone from "tone";
 import { FAILURE_WORKLET } from "./failureWorklet";
 import { ADVANCED_WORKLETS } from "./advanced";
@@ -247,7 +247,7 @@ ${NOIZ_WORKLET}
 ${DIGI_WORKLET}`;
 
 let loading: Promise<void> | null = null;
-export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS, REC_WORKLET, PEAK_LIMITER_WORKLET, HACK_WORKLET, TERRAIN_WORKLET], { type: "application/javascript" }))));
+export const loadWorklets = () => (loading ??= Tone.getContext().addAudioWorkletModule(URL.createObjectURL(new Blob([WORKLETS, ADVANCED_WORKLETS, TAPE_WORKLET, METER_WORKLET, SPEC_SYNTH_WORKLET, ACID_WORKLET, FAILURE_WORKLET, MOD_WORKLETS, REC_WORKLET, PEAK_LIMITER_WORKLET, HACK_WORKLET, WT_OSC_WORKLET], { type: "application/javascript" }))));
 
 let eco = false;
 /** Reverb MIX law [dry, wet]: dry full until 50%, wet full from 50%, eased (sine) at the corners. */
@@ -520,7 +520,7 @@ export function createFx(ctx: BaseAudioContext, type: FxType, init: Record<strin
     // Our own FDN reverb (nad-reverb): pre-delay + allpass diffusion (DENS) into two modulated 8-line delay networks with
     // Householder mixing, per-line DAMP lowpass and SIZE as T60 decay. Wet-only; MIX is equal-power (see update()).
     const n = worklet("nad-reverb"); input.connect(n).connect(wet);
-    apply = p => wp(n, { ...p, freeze: p.freeze ?? 0, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp", "freeze"]);
+    apply = p => wp(n, { ...p, size: eco ? Math.min(p.size * .5, 1.5) : p.size, density: p.density ?? .6 }, ["size", "density", "damp"]);
   } else if (type === "chorus") {
     // Juno-60 BBD chorus (nad-juno): MODE I / II / I+II, DEPTH .5 = authentic swing, MAN = centre delay, ENV pushes the delay.
     const n = worklet("nad-juno"); input.connect(n).connect(wet);
