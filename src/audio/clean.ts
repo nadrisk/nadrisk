@@ -39,7 +39,9 @@ export const waveMix = (w: number) => { const i = Math.min(2, Math.floor(w)), f 
 // Squares and saws are louder than sines at equal amplitude; this keeps WAVE sweeps level.
 const WAVE_GAIN = [.55, .5, .85, 1];
 
-export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams, midi: number, t: number, gate: number, vel = 1, glideFrom?: number, pan = 0): Voice {
+export function playClean(ctx: BaseAudioContext, dest: AudioNode, c0: CleanParams, midi: number, t: number, gate: number, vel = 1, glideFrom?: number, pan = 0): Voice {
+  // TRN has no MOD page, so pitch env, noise and glide never sound on it even if a SYN patch left them set.
+  const c: CleanParams = c0.osc === "terrain" ? { ...c0, pAmt: 0, noise: 0, glide: 0 } : c0;
   const nodes: AudioNode[] = [], srcs: AudioScheduledSourceNode[] = [], f = 440 * 2 ** ((midi - 69) / 12);
   const from = glideFrom != null && c.glide > .001 ? 440 * 2 ** ((glideFrom - 69) / 12) : f;
   const amp = ctx.createGain(); amp.gain.value = 0; link(amp, dest);
@@ -86,13 +88,13 @@ export function playClean(ctx: BaseAudioContext, dest: AudioNode, c: CleanParams
   const basicOsc: { g: GainNode; k: number }[] = [];
   // TRN: two nad-terrain orbiters (detune sides, panned apart) read the same 2D surface; native sine only before worklets load.
   const ters: AudioWorkletNode[] = [], TP = (o: AudioWorkletNode, k: string) => o.parameters.get(k);
-  const terrainSet = (q: CleanParams, n: number, tc: number) => ters.forEach(o => { for (const [k, v] of [["cx", q.cx], ["cy", q.cy], ["radius", q.rad], ["tfreq", q.tfreq], ["hold", q.hold], ["snow", q.snow], ["fold", q.fold]] as const) TP(o, k)?.setTargetAtTime(v ?? 0, n, tc); });
+  const terrainSet = (q: CleanParams, n: number, tc: number) => ters.forEach(o => { for (const [k, v] of [["cx", q.cx], ["cy", q.cy], ["radius", q.rad ?? .6], ["tfreq", q.tfreq ?? TERRAIN_DEFAULTS.freq], ["hold", q.hold], ["snow", q.snow], ["fold", q.fold]] as const) TP(o, k)?.setTargetAtTime(v ?? 0, n, tc); });
   if (terr) for (const sg of [-1, 1]) {
     // Tone wraps the raw context, so the native AudioWorkletNode constructor rejects it; Tone's factory works on both.
     let o: AudioWorkletNode | null = null; try { o = Tone.getContext().createAudioWorkletNode("nad-terrain", { numberOfInputs: 0, outputChannelCount: [1] }) as unknown as AudioWorkletNode; } catch { o = null; }
     const g = ctx.createGain(), pn = ctx.createStereoPanner(); g.gain.value = .5; pn.pan.value = clamp(pan + sg * (.25 + c.detune * .45), -1, 1);
     if (o && TP(o, "frequency") && TP(o, "detune")) { const dt = TP(o, "detune")!; dt.value = sg * cents; ters.push(o); o.connect(g).connect(pn).connect(mix); nodes.push(o, g, pn); freqs.push(TP(o, "frequency")!); dets.push([dt, sg]);
-      for (const [k, v] of [["cx", c.cx], ["cy", c.cy], ["radius", c.rad], ["tfreq", c.tfreq], ["hold", c.hold], ["snow", c.snow], ["fold", c.fold]] as const) { const q = TP(o, k); if (q) q.value = v ?? 0; } }
+      for (const [k, v] of [["cx", c.cx], ["cy", c.cy], ["radius", c.rad ?? .6], ["tfreq", c.tfreq ?? TERRAIN_DEFAULTS.freq], ["hold", c.hold], ["snow", c.snow], ["fold", c.fold]] as const) { const q = TP(o, k); if (q) q.value = v ?? 0; } }
     else { o?.disconnect(); addOsc(sg, .5, n => { n.type = "sine"; }); }
   }
   if (!tbl && !terr) waveMix(pos0).forEach((w, k) => [-1, 1].forEach(sg => basicOsc.push({ g: addOsc(sg, w * (fac ? .5 : WAVE_GAIN[k]) * .5, o => { if (fac) o.setPeriodicWave(frameWave(ctx, fac, k)); else o.type = WAVES[k]; }).g, k })));

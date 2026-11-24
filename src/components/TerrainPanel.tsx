@@ -6,7 +6,7 @@ import type { Slot } from "@/hooks/useGroovebox";
 import { cleanOf, defaultClean, FILTER_MODELS, modelQ, type CleanParams } from "@/audio/clean";
 import { terrainAt } from "@/audio/terrain";
 
-const PAGES = ["TRN", "ORB", "MOD", "FLT", "ENV"] as const;
+const PAGES = ["TRN", "ORB", "FLT", "ENV"] as const;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 
@@ -21,19 +21,17 @@ export function drawTerrain(p: import("@/pixel/draw").Px, c: CleanParams, x0: nu
   p.rect(Math.round(ox) - 1, Math.round(oy) - 1, 3, 3, false); p.dot(Math.round(ox), Math.round(oy));
 }
 
-// TRN: wave-terrain synth (nad-terrain). TRN tunes the surface, ORB the orbit; MOD, FLT, ENV match SYN.
+// TRN: wave-terrain synth (nad-terrain). TRN tunes the surface, ORB the orbit; FLT, ENV match SYN (no MOD page: pitch env, noise and glide are zeroed for TRN).
 function TerrainPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Slot>) => void }) {
   const c = cleanOf(slot.synth), home = defaultClean();
   const C = (q: Partial<CleanParams>) => onChange({ synth: { ...slot.synth, clean: { ...c, ...q, osc: "terrain" } } });
   const noteK = useNoteKnob(slot, onChange);
-  const K = (label: string, short: string, key: "tfreq" | "hold" | "snow" | "fold" | "rad" | "detune" | "sub" | "pAmt" | "pDec" | "noise" | "glide" | "cutoff" | "res" | "envAmt" | "drive", min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
+  const K = (label: string, short: string, key: "tfreq" | "hold" | "snow" | "fold" | "rad" | "detune" | "sub" | "cutoff" | "res" | "envAmt" | "drive", min: number, max: number, step: number, fmt: (v: number) => string, log = false): Knob =>
     ({ label: `Terrain ${label}`, short, value: c[key] as number, min, max, step, fmt, log, reset: (home[key] as number) ?? ({ tfreq: .25, hold: 0, snow: 0, fold: 0, rad: .6 } as Record<string, number>)[key], set: v => C({ [key]: v }) });
   const knobs = (page: string): Knob[] => {
     if (page === "TRN") return [noteK, K("terrain frequency", "FREQ", "tfreq", 0, 1, .01, pct), K("terrain hold", "HOLD", "hold", -1, 1, .01, signed), K("terrain snow", "SNOW", "snow", 0, 1, .01, pct),
       K("terrain fold", "FOLD", "fold", 0, 1, .01, pct)];
     if (page === "ORB") return [K("orbit size", "SIZE", "rad", .05, 1, .01, pct), K("detune", "DETN", "detune", 0, 1, .01, pct), K("sub", "SUB", "sub", 0, 1, .01, pct)];
-    if (page === "MOD") return [K("pitch envelope amount", "P.AMT", "pAmt", -24, 24, 1, v => `${v > 0 ? "+" : ""}${Math.round(v)}ST`), K("pitch envelope decay", "P.DEC", "pDec", .002, 1, .001, v => v < 1 ? `${Math.round(v * 1000)}MS` : "1S", true),
-      K("noise", "NOIS", "noise", 0, 1, .01, pct), K("glide", "GLID", "glide", 0, .5, .001, v => `${Math.round(v * 1000)}MS`)];
     if (page === "FLT") return [K("cutoff", "CUT", "cutoff", 40, 16000, 1, hz, true), K("resonance", "RES", "res", 0, 1, .01, pct), K("filter envelope", "ENV", "envAmt", 0, 1, .01, pct), K("drive", "DRV", "drive", 0, 1, .01, pct)];
     return envKnobs(c.env, env => C({ env }), home.env, 1).map(k => ({ ...k, label: `Terrain ${k.label}` }));
   };
@@ -41,15 +39,6 @@ function TerrainPanel({ slot, onChange }: { slot: Slot; onChange: (p: Partial<Sl
     if (page === "TRN" || page === "ORB") {
       p.box(2, 11, 124, 34); drawTerrain(p, c, 3, 12, 122, 32);
       p.rect(90, 11, 36, 8, false); p.box(90, 11, 36, 8); p.textC(c.voices === 1 ? "MONO" : `${c.voices} VOX`, 108, 12);
-    } else if (page === "MOD") {
-      p.box(2, 11, 124, 34);
-      // Pitch envelope: exponential fall from P.AMT to the note over P.DEC (time axis 0..1 s, log-ish).
-      const mid = 28, d = c.pDec ?? .05, amt = c.pAmt ?? 0; let py = mid;
-      p.text("PITCH", 4, 13); p.dot(4, mid); for (let x = 4; x < 80; x += 3) p.dot(x, mid);
-      for (let x = 0; x < 76; x++) { const tt = (x / 75) ** 2, y = mid - Math.round(amt / 24 * 13 * Math.exp(-tt * 4 / d)); if (x) p.line(3 + x, py, 4 + x, y); py = y; }
-      // Noise level column.
-      p.text("NOIS", 92, 13); p.box(96, 20, 10, 23); const nh = Math.round((c.noise ?? 0) * 21); if (nh) p.rect(97, 42 - nh, 8, nh);
-      p.text("GL", 110, 13); p.box(112, 20, 10, 23); const gh = Math.round(c.glide / .5 * 21); if (gh) p.rect(113, 42 - gh, 8, gh);
     } else if (page === "FLT") {
       drawFilterCurve(p, "lowpass", c.cutoff, Math.max(...modelQ(c.flt ?? 0, c.res)) * (c.flt === 1 ? 1 + c.res * 8 : 1), 2, 11, 124, 32);
       p.rect(2, 11, 28, 8); p.textC(FILTER_MODELS[c.flt ?? 0], 16, 12, false);

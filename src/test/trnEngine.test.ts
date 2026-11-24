@@ -15,3 +15,10 @@ describe("TRN terrain machine", () => {
     expect(xyLabels({ engine: "synth", synth: { clean: cleanOf() } } as unknown as Slot)[0]).toBe("ENV DET SUB");
   });
 });
+
+describe("TRN panel", () => {
+  it("has no MOD page", async () => {
+    const src = (await import("node:fs")).readFileSync("src/components/TerrainPanel.tsx", "utf8");
+    expect(src).toContain('["TRN", "ORB", "FLT", "ENV"]');
+  });
+});
