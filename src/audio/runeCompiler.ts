@@ -44,7 +44,7 @@ export function hit(r: RuneId, k: number, n: number, amt: number, spd: number, v
     case "prime": return isPrime(k + v) && k <= 2 + a * (n - 2); // AMT = how far primes reach
     case "stoch": { const x = Math.sin((k + 1) * 12.9898 + v * 78.233) * 43758.5453; return x - Math.floor(x) < .15 + a * .7; } // AMT = probability
     case "snake": { const c = snakeCell(a, k + v * 4); return c % 4 === 0 || (c % 4 === 3 && Math.floor(c / 4) % 2 === 0); } // AMT = shape; edge columns speak
-    case "null": return a > 0 && v === 0 && (k === 0 || (a > .5 && k === n / 2)); // AMT = how much breaks the rest
+    case "bloom": { const g = a < .34 ? 8 : a < .67 ? 4 : 2; return (k + v * 2) % g === 0; } // AMT = how far the pattern flowers
   }
 }
 
@@ -58,7 +58,6 @@ export function rateHit(c: RuneCard, k: number, n: number, v = 0): 0 | 1 | 2 {
 function arpHit(c: RuneCard, k: number, n: number): 0 | 1 | 2 {
   const e = rateSteps(c, true); if (c.rune === "snake") return e >= 1 ? (k % e ? 0 : 1) : 2;
   if (c.rune === "gibbs") return e < 1 || k % Math.max(1, e) === 0 ? 2 : 0;
-  if (c.rune === "null") return k % Math.max(4, Math.round(n / (1 + Math.round(c.amt * 3)))) === 2 ? 1 : 0;
   return rateHit(c, k, n, 1) || (c.rune === "prime" || c.rune === "fibo" ? 0 : rateHit(c, k, n, 2));
 }
 
@@ -72,7 +71,7 @@ export function hocketOwner(r: RuneId, i: number, k: number, t: number, m: numbe
     case "prime": return isPrime(k) ? 0 : 1 + (i % Math.max(1, m - 1));
     case "snake": return Math.floor(snakeCell(0, k) / 4) % m; // matrix row decides the voice
     case "stoch": { const x = Math.sin((t + 1) * 37.719 + k * 4.13) * 43758.5453; return Math.floor((x - Math.floor(x)) * m) % m; }
-    default: return i % m; // euclid, gibbs, null: note-by-note ping-pong
+    default: return i % m; // euclid, gibbs, bloom: note-by-note ping-pong
   }
 }
 
@@ -95,12 +94,12 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
   const dS = spans(L.drums, steps), bS = spans(L.bass, steps), mS = spans(L.mod, steps);
 
   drums.forEach((p, v) => { const row = (rows[p] = blank(steps)); dS.forEach((s, t) => { if (!s) return; const { c, k, n } = s;
-    const hh = rateHit(c, k, n, v); if (hh) { row.pattern[t] = 1; if (hh === 2) row.ratchet[t] = 2; if (c.rune === "gibbs") row.ratchet[t] = 2 + Math.round(c.amt * 2); if (c.rune === "stoch") row.chance[t] = 1 - c.amt * .6; } }); });
+    const hh = rateHit(c, k, n, v); if (hh) { row.pattern[t] = 1; if (hh === 2) row.ratchet[t] = 2; if (c.rune === "gibbs") row.ratchet[t] = 2 + Math.round(c.amt * 2); if (c.rune === "stoch") row.chance[t] = 1 - c.amt * .6; if (c.rune === "bloom" && k % 4) row.vel[t] = .25 + .5 * (k / n); } }); });
 
   basses.forEach(p => { const row = (rows[p] = blank(steps)); row.pitch = Array(steps).fill(0); let lastHit = -9;
     bS.forEach((s, t) => { const root = rootAt(t); row.pitch![t] = root; if (!s) return; const { c, k, n } = s;
-      const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; row.vel[t] = k % 4 ? 1 - .5 * c.amt : 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
-      else if (c.rune === "anchor" && t - lastHit <= Math.round(1 + c.amt * 2) && row.pattern[t - 1]) row.pattern[t] = 2; }); });
+      const hh = rateHit(c, k, n, 0); if (hh) { row.pattern[t] = 1; row.vel[t] = k % 4 ? 1 - .5 * c.amt : 1; if (hh === 2) row.ratchet[t] = 2; lastHit = t; if (c.rune === "bloom") row.vel[t] = .55 + .45 * (k / Math.max(1, n - 1)); const oct = (c.rune === "shift" || c.rune === "euclid") && k % 8 >= 4 && c.amt >= .5; row.pitch![t] = root + (oct ? 12 : 0); }
+      else if ((c.rune === "anchor" || c.rune === "bloom") && t - lastHit <= Math.round(1 + c.amt * 2) && row.pattern[t - 1]) row.pattern[t] = 2; }); });
 
   // Every rune has an arp personality; the arp fills around bass hits so the two interlock.
   const bassHit = (t: number) => basses.some(p => rows[p].pattern[t] === 1);
@@ -119,10 +118,10 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
       case "prime": pitch = at([1, 2, 4, 6][i % 4]); break; // angular prime-degree leaps
       case "stoch": { const x = Math.sin((t + 1) * 91.17) * 43758.5; walk = Math.max(-1, Math.min(T * 2, walk + (x - Math.floor(x) < .5 ? -1 : 1))); pitch = at(walk); break; }
       case "snake": { const cell = snakeCell(c.amt, i); pitch = at(cell % 4) + (Math.floor(cell / 4) % 2) * 12 + (Math.floor(cell / 4) >= 2 ? 7 : 0); break; } // column = chord tone, row = register
-      default: pitch = at(i % 2 ? 2 : 1); // NULL: sparse suspended tones
+      default: { const ext = [0, 1, 2, 3, 4, 5, 6, 7, 9]; const w = 3 + Math.round(c.amt * 6); const j = i % (w * 2 - 2 || 1); pitch = at(ext[j < w ? j : w * 2 - 2 - j] ?? 0); } // BLOOM: chord flowers up into extensions and back
     }
     arpLine.pattern[t] = 1; arpLine.pitch![t] = pitch; arpLine.vel[t] = i % 2 ? 1 - .45 * c.amt : 1; if (hh === 2) arpLine.ratchet[t] = c.rune === "gibbs" ? 2 + Math.round(c.amt) : 2;
-    if (c.rune === "null" && t + 1 < steps && bS[t + 1]?.c === c) arpLine.pattern[t + 1] = 2; });
+    if (c.rune === "bloom") arpLine.vel[t] = .45 + .55 * (k / Math.max(1, n - 1)); });
   arps.forEach(p => { rows[p] = { pattern: [...arpLine.pattern], vel: [...arpLine.vel], chance: [...arpLine.chance], ratchet: [...arpLine.ratchet], pitch: [...arpLine.pitch!] }; });
 
   // Shared roles hocket: each rune decides which pad speaks each note.
@@ -137,7 +136,7 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
         case "euclid": row.vel[t] = k % 4 === 0 ? 1 : .5 + .5 * (1 - c.amt); break;
         case "fibo": row.vel[t] = .3 + .7 * (k / Math.max(1, n - 1)); break;
         case "shift": if (row.pitch && row.pattern[t] === 1 && k % 2) row.pitch[t] += 12; break;
-        case "null": if (row.pattern[t] === 2) row.pattern[t] = 0; break;
+        case "bloom": row.vel[t] = Math.min(row.vel[t], .3 + .7 * Math.min(1, (k + 1) / Math.max(1, n * (1 - .5 * c.amt)))); break; // swell open
         case "anchor": if (t + 1 < steps && !row.pattern[t + 1]) row.pattern[t + 1] = 2; break;
         case "snake": { const cell = snakeCell(c.amt, k); row.vel[t] = .4 + .2 * Math.floor(cell / 4); break; } // row = dynamics
         case "prime": break; // handled below as a span reversal
