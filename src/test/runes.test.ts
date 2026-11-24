@@ -82,3 +82,18 @@ describe("role registers", () => {
     expect(padOctave({ note: 47, engine: "synth" } as never)).toBe(0);
   });
 });
+
+describe("shared roles take turns", () => {
+  it("two bass pads never play the same step, and both get a turn", () => {
+    const c = compileRunes(L({ bars: 2, bass: [card("euclid", 4, 1), card("anchor", 4, 1)] }), roles({ 1: "bass", 2: "bass" }), h);
+    const a = c.rows[1].pattern, b = c.rows[2].pattern;
+    expect(a.some((v, t) => v && b[t])).toBe(false);
+    expect(a.some(Boolean) && b.some(Boolean)).toBe(true);
+  });
+  it("two arp pads interlock instead of doubling", () => {
+    const c = compileRunes(L({ bass: [card("gibbs", 4, 0)] }), roles({ 1: "arp", 2: "arp" }), h);
+    const a = c.rows[1].pattern, b = c.rows[2].pattern;
+    expect(a.some((v, t) => v && b[t])).toBe(false);
+    expect(a.some(Boolean) && b.some(Boolean)).toBe(true);
+  });
+});

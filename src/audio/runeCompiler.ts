@@ -64,6 +64,10 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
     bS.forEach((s, t) => { if (!s || !rune(s.c.rune).arpPassage) return; const { c, k } = s; const deg = c.arp === "root" ? 0 : chordAt(prog, t, steps); const tones = L.notes?.length && c.arp !== "root" ? [0, h.scale === "major" ? 4 : 3, 7].map(v => rootAt(t) + v) : chordTones(h, deg);
       const e = rateSteps(c, true), every = Math.max(1, e); if (k % every) return; row.pattern[t] = 1; if (e < 1) row.ratchet[t] = 2; row.pitch![t] = tones[(Math.floor(k / every) + v) % tones.length] + (Math.floor(k / every / tones.length) % 2) * 12; }); });
 
+  // Shared roles take turns for timbral variety: bass hands over per phrase (card or bar), arp per note group.
+  if (basses.length > 1) { let seg = -1, prevC: unknown = undefined, prevBar = -1; for (let t = 0; t < steps; t++) { const sp = bS[t], c = sp?.c ?? null, bar = Math.floor((sp ? sp.k : t) / 16); if (c !== prevC || bar !== prevBar) { prevC = c; prevBar = bar; seg++; } const own = basses[seg % basses.length]; for (const p of basses) if (p !== own) rows[p].pattern[t] = 0; } }
+  if (arps.length > 1) { let n = 0; for (let t = 0; t < steps; t++) { if (!arps.some(p => rows[p].pattern[t])) continue; const sp = bS[t], g = sp ? (sp.c.amt < 1 / 3 ? 1 : sp.c.amt < 2 / 3 ? 2 : 4) : 1; const own = arps[Math.floor(n / g) % arps.length]; for (const p of arps) if (p !== own) rows[p].pattern[t] = 0; n++; } }
+
   // MOD lane: transforms notes above, then sound/FX targets (capped).
   for (const [pk, row] of Object.entries(rows)) { const p = +pk;
     mS.forEach((s, t) => { if (!s || !row.pattern[t]) return; const { c, k, n } = s;

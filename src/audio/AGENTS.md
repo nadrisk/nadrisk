@@ -61,3 +61,4 @@
 - Rune sequencer: runes.ts (card data), runeHarmony.ts (PROG in KEY/SCL), runeCompiler.ts (pure) compile lanes into ordinary bank rows/pitch/mod lanes, so the scheduler never knows about runes; pitch counts toward the 3-target mod cap.
 - Rune pad roles live on slot.padRole (missing = free via padRoleOf), so sets carry them and older sets load Free; the pad badge is a hit-zone inside the pad that never triggers sound.
 - Rune cards carry optional rate (RUNE_RATES 2…1/32), explicit beat start and per-card targets; legacy cards infer contiguous starts. Layouts accept absolute pitch-class progressions or legacy degrees; compiled ModLane.targets resolves per step with at most three concurrent targets, preserving the shared scheduler and saved-set format.
+- Pads sharing Bass alternate per phrase (card or bar) and pads sharing Arp per note group (AMT picks 1/2/4); done in compileRunes so the scheduler stays unchanged and loops are deterministic.
