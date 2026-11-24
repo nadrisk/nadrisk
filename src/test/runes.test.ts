@@ -106,8 +106,7 @@ describe("AMT is audible", () => {
   });
 });
 
-import { compileRunes as cr, hocketOwner } from "@/audio/runeCompiler";
-import { RUNES } from "@/audio/runes";
+import { hocketOwner } from "@/audio/runeCompiler";
 describe("arp and hocket per rune", () => {
   const H = { on: true, key: 0, scale: "minor" } as never;
   it("every rune gives the arp notes alongside the bass", () => {
