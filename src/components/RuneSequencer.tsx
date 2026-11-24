@@ -1,6 +1,5 @@
 // Independently positioned rune cards; each grid slot is one beat.
 import { useRef, useState } from "react";
-import { Settings2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { RUNES, RUNE_RATES, RUNE_TARGETS, rune, padRoleOf, positioned, firstFree, newRune, type RuneCard, type RuneId, type LaneId } from "@/audio/runes";
 import { PROG_NAMES } from "@/audio/runeHarmony";
@@ -41,7 +40,7 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
     const p = d.mode === "len" ? { len: Math.max(1, Math.min(d.max, d.len + Math.round(dx / d.w))) } : { amt: draggedValue(d.amt, -dy) };
     set(d.lane, positioned(layout[d.lane]).map((c, i) => i === d.i ? { ...c, ...p } : c)); setSel({ lane: d.lane, i: d.i });
   };
-  const up = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; drag.current = null; if (!d.moved) remove(d.lane, d.i); };
+  const up = (ev: React.PointerEvent) => { const d = drag.current; if (!d || d.id !== ev.pointerId) return; drag.current = null; if (!d.moved) { setSel({ lane: d.lane, i: d.i }); setActive(d.lane); } };
   const available = cur ? [...RUNE_TARGETS[cur.rune].map(t => [t, t === "wave" ? "WT POS" : t === "start" ? "SMP START" : t.toUpperCase()]), ...slots.filter(s => padRoleOf(s.padRole) !== "free").flatMap(s => s.fx.filter(f => f.on && rune(cur.rune).fxDepth > 0).flatMap(f => modParamsOf(f.type).map(p => [`${f.id}:${p}`, `${s.name} ${FX_DEFS[f.type].label.replace("~", "")} ${MOD_LABEL[p] ?? p}`])))].filter((v, i, a) => a.findIndex(x => x[0] === v[0]) === i) : [];
   return <div className="rune-seq">
     <div className="rune-head"><Button variant="ghost" className="gb-cycle" aria-label="Bars" onClick={() => onChange({ ...layout, bars: layout.bars === 1 ? 2 : layout.bars === 2 ? 4 : 1 })}>BARS {layout.bars}</Button><span className="rune-roles">R{slots.filter(s => padRoleOf(s.padRole) === "rhythm").length} B{slots.filter(s => padRoleOf(s.padRole) === "bass").length} A{slots.filter(s => padRoleOf(s.padRole) === "arp").length}</span></div>
@@ -52,10 +51,9 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
         {positioned(layout[L.id]).map((c, i) => c.start < beats && <Button variant="ghost" key={i} className={`rune-card ${sel?.lane === L.id && sel.i === i ? "editing" : ""}`} style={{ gridColumn: `${c.start + 1} / span ${Math.min(c.len, beats - c.start)}`, ["--amt" as string]: c.amt }} title={`${rune(c.rune).name} · ${Math.round(c.amt * 100)}%`} aria-label={`${L.label} card ${i + 1} ${rune(c.rune).name} amount ${Math.round(c.amt * 100)}`}
           onPointerDown={ev => down(ev, L.id, i)} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }}
           onContextMenu={ev => { ev.preventDefault(); setSel({ lane: L.id, i }); }}
-          onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " " || ev.key === "Delete") { ev.preventDefault(); remove(L.id, i); } }}>
-          <i className="rune-fill" aria-hidden /><b>{rune(c.rune).glyph}</b><i className="rune-grip" aria-hidden /></Button>)}
+          onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setSel({ lane: L.id, i }); } else if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); remove(L.id, i); } }}>
+          <i className="rune-fill" aria-hidden /><b>{rune(c.rune).glyph}</b><small className="rune-rate">{c.rate ?? "1/16"}</small><i className="rune-grip" aria-hidden /></Button>)}
       </div>
-      <Button variant="ghost" className="rune-settings-key" aria-label={`Settings for ${L.label} rune`} title="Rune settings" disabled={!layout[L.id].length} onClick={() => { setActive(L.id); setSel({ lane: L.id, i: sel?.lane === L.id ? Math.min(sel.i, layout[L.id].length - 1) : layout[L.id].length - 1 }); }}><Settings2 size={14} /></Button>
     </div>)}</div>
     <div className="rune-dock" role="group" aria-label="Runes">{RUNES.map(r => <Button variant="ghost" key={r.id} className={`rune-pick ${dragging === r.id ? "dragging" : ""}`} aria-label={`Add ${r.name} to ${active} lane`} title={r.name}
       onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); dockDrag.current = { id: e.pointerId, rune: r.id, x: e.clientX, y: e.clientY, moved: false }; }}
@@ -64,6 +62,7 @@ export function RuneSequencer({ layout, onChange, slots, step }: { layout: RuneL
       onPointerCancel={() => { dockDrag.current = null; setDragging(null); }} onClick={e => { if (e.detail === 0) place(active, r.id); }}><b>{r.glyph}</b><span>{r.name}</span></Button>)}</div>
     {cur && sel && <div className="rune-edit" role="group" aria-label="Card settings">
       <select aria-label="Rune to edit" value={`${sel.lane}:${sel.i}`} onChange={e => { const [lane, i] = e.target.value.split(":"); setSel({ lane: lane as LaneId, i: Number(i) }); }}>{LANES.flatMap(L => layout[L.id].map((c, i) => <option key={`${L.id}:${i}`} value={`${L.id}:${i}`}>{L.label} {i + 1} {rune(c.rune).name}</option>))}</select>
+      <Button variant="ghost" className="gb-cycle rune-del" aria-label="Delete rune" onClick={() => remove(sel.lane, sel.i)}>DEL</Button>
       <span className="rune-val">LEN {cur.len} · AMT {Math.round(cur.amt * 100)}</span>
       <label className="rune-speed">SPD <select aria-label="Card speed" value={cur.rate ?? "1/16"} onChange={e => edit({ rate: e.target.value as RuneCard["rate"] })}>{RUNE_RATES.map(([r]) => <option key={r} value={r}>{r}</option>)}</select></label>
       {sel.lane === "bass" && rune(cur.rune).arpPassage && <Button variant="ghost" className="gb-cycle" onClick={() => edit({ arp: cur.arp === "root" ? "prog" : "root" })}>ARP {cur.arp === "root" ? "ROOT" : "PROG"}</Button>}

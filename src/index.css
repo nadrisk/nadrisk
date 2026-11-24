@@ -1630,7 +1630,7 @@ body.perf-lock { overflow: hidden; }
 
 /* Independent rune cells and compact, aligned controls. */
 .rune-track { min-width: 0; grid-template-rows: 48px; }
-.rune-lane { grid-template-columns: 72px minmax(0, 1fr) 28px; gap: 4px; }
+.rune-lane { grid-template-columns: 72px minmax(0, 1fr); gap: 4px; }
 .rune-lane-label, .rune-settings-key { height: auto; min-width: 0; border: 1px solid hsl(var(--foreground)); border-radius: 0; padding: 0 4px; font: 9px Silkscreen, monospace; }
 .rune-lane-label.active { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 .rune-card { height: auto; min-width: 0; padding: 0; border-radius: 0; transition: none; gap: 0; }
@@ -1664,9 +1664,12 @@ body.perf-lock { overflow: hidden; }
   .phrase-retired > .device-tape, .phrase-retired > .device-midi { grid-column: span 3; }
 }
 @media (max-width: 640px) {
-  .rune-lane { grid-template-columns: 54px minmax(0, 1fr) 24px; }
+  .rune-lane { grid-template-columns: 54px minmax(0, 1fr); }
   .rune-lane-label { font-size: 8px; }
   .rune-dock { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rune-card b { font-size: 14px; }
   .rune-grip { width: 5px; }
 }
+
+.rune-card { cursor: pointer; }
+.rune-card > .rune-rate { position: absolute; left: 2px; top: 1px; z-index: 1; font: 8px Silkscreen, monospace; mix-blend-mode: difference; color: hsl(var(--rune-ink)); pointer-events: none; }
