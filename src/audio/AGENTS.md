@@ -67,3 +67,4 @@
 - Rune XY mangler TIMBRE/SPLIT modes are a session-only offset (src/audio/mangleTimbre.ts) added to slot XY at trigger and pushed to live voices, so sounds morph without saving into patches.
 
 - Assignable FX macros live in fxMacro.ts with per-hook session mappings; a control-rate loop offsets existing pad/group effect nodes with smoothing and restores removed targets, so XY never rebuilds racks or writes saved patches.
+- FLOW lane cards (rune "snake" + shape) only permute compiled step order per span (applyFlow, before MOD), so drum/bass/lead rules and older sets stay unchanged.

@@ -1,11 +1,11 @@
 // Pure compiler: three rune lanes -> ordinary bank rows (pattern/vel/chance/ratchet), pitch
 // offsets for melodic pads and up to 3 mod targets per pad. The scheduler never sees runes.
-import { rune, rateSteps, positioned, type PadRole, type RuneCard, type RuneId } from "./runes";
+import { rune, rateSteps, positioned, flowPath, type PadRole, type RuneCard, type RuneId } from "./runes";
 import { chordAt, chordTones, rootSemi, type ProgName, type ProgDegrees } from "./runeHarmony";
 import type { Harmony } from "./harmony";
 
 export const MAX_MOD_TARGETS = 3;
-export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; notes?: number[]; /** User progression (scale degrees); used instead of prog when present. */ custom?: number[]; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** Legacy global targets. */ targets: string[] };
+export type RuneLayout = { bars: 1 | 2 | 4; prog: ProgName; notes?: number[]; /** User progression (scale degrees); used instead of prog when present. */ custom?: number[]; drums: RuneCard[]; bass: RuneCard[]; mod: RuneCard[]; /** FLOW shape cards (missing in older sets). */ flow?: RuneCard[]; /** Legacy global targets. */ targets: string[] };
 export type Row = { pattern: number[]; vel: number[]; chance: number[]; ratchet: number[]; pitch?: number[] };
 export type Compiled = { steps: number; rows: Record<number, Row>; mods: Record<number, { target: string; targets?: string[]; values: number[] }[]> };
 
@@ -127,6 +127,9 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
   // Shared roles hocket: each rune decides which pad speaks each note.
   hocket(basses, rows, bS, steps); hocket(arps, rows, bS, steps);
 
+  // FLOW lane: reorder which step plays where inside each shape card; MOD still runs on the playing timeline.
+  applyFlow(L.flow ?? [], rows, roles, steps);
+
   // MOD lane: transforms notes above, then sound/FX targets (capped).
   for (const [pk, row] of Object.entries(rows)) { const p = +pk;
     mS.forEach((s, t) => { if (!s || !row.pattern[t]) return; const { c, k, n } = s;
@@ -152,4 +155,16 @@ export function compileRunes(L: RuneLayout, roles: PadRole[], h: Harmony): Compi
     });
   }
   return { steps, rows, mods };
+}
+
+/** Permute each row's steps inside FLOW spans; ties that lose their head become silent. */
+export function applyFlow(flow: RuneCard[], rows: Record<number, Row>, roles: PadRole[], steps: number) {
+  for (const c of positioned(flow)) {
+    const at = Math.max(0, Math.round(c.start) * 4), n = Math.min(steps - at, Math.max(4, Math.round(c.len) * 4)); if (n <= 0) continue;
+    const e = Math.max(1, rateSteps(c)), cells = Math.max(1, Math.floor(n / e)), path = flowPath(c.shape ?? "raster", cells, c.amt);
+    const src = Array.from({ length: n }, (_, k) => { const cell = Math.floor(k / e); return cell < cells ? path[cell] * e + (k % e) : k; });
+    for (const [pk, row] of Object.entries(rows)) { const drum = roles[+pk] === "rhythm"; if (c.scope === "drums" && !drum || c.scope === "melo" && drum) continue;
+      for (const key of ["pattern", "vel", "chance", "ratchet", "pitch"] as const) { const a = row[key]; if (!a) continue; const seg = src.map(k => a[at + k]); a.splice(at, n, ...seg); }
+      for (let k = 0; k < n; k++) { const t = at + k; if (row.pattern[t] === 2 && !(t > 0 && row.pattern[t - 1])) row.pattern[t] = 0; } }
+  }
 }
