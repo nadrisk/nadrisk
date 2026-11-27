@@ -15,6 +15,10 @@ const AboutSection = ({ native = false }: { native?: boolean }) => (
         <p>The Nadrisk Groovebox started as a way to get away from traditional DAWs and spend less time trying to make everything perfect. It&rsquo;s built for playing, experimenting, and having fun with sound.</p>
         <p>Make beats, build grooves, shape samples, mess with synths, and try out ideas as you go. Whether you&rsquo;re just starting out or have been making music for years, the idea is simple: make music feel fun and spontaneous again, wherever you are, wherever you go, even on your phone. And when you&rsquo;re ready, take your ideas to the stage.</p>
 
+        <p>At its heart is a rune sequencer: musical building blocks for drums, bass and lead, with modulation and a dedicated FLOW lane. Short, one- or two-bar patterns become a place to explore rhythm, harmony and timbral interplay. FLOW reshapes the order of your sequence through snake-like paths, finding different grooves inside the same material.</p>
+        <p>The sound palette brings together drum machines, modular percussion, wavetable and spectral synthesis, the TRN wave-terrain synth, and sampling. TRN turns journeys across a two-dimensional surface into sound; samples can become sliced rhythms or drifting granular clouds.</p>
+        <p>The XY mangler makes the sequence itself a performance instrument, reshaping clocks and timbres or moving several assigned effect parameters across different pads at once. Alongside the effects racks, live performance console, tape recording, two-deck mixing and audio-reactive visuals, it keeps the focus on discovering something unexpected&mdash;and making it your own.</p>
+
         <nav className="about-links" aria-label="Nadrisk links">
           <a className="gb-cycle" href={LINKS.instagram} {...ext}>INSTAGRAM</a>
           <a className="gb-cycle" href={LINKS.soundcloud} {...ext}>SOUNDCLOUD</a>
